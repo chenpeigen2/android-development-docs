@@ -16,7 +16,11 @@ _日期：2026-03-08_
 7. [自定义 View 实战](#7-自定义-view-实战)
 8. [性能优化](#8-性能优化)
 9. [LayoutInflater 流程](#9-layoutinflater-流程)
-10. [Invalidate 与 RequestLayout](#10-invalidate-与-requestlayout)
+10. [Merge、Include 与 ViewStub](#10-mergeinclude-与-viewstub)
+    - [\<merge\> 标签](#101-merge-标签)
+    - [\<include\> 标签](#102-include-标签)
+    - [\<ViewStub\> 标签](#103-viewstub-标签)
+11. [Invalidate 与 RequestLayout](#11-invalidate-与-requestlayout)
 11. [Draw 流程详解](#11-draw-流程详解)
 12. [Canvas 高级用法](#12-canvas-高级用法)
     - [Canvas Save/Restore 详解](#121-canvas-saverestore-详解)
@@ -1067,7 +1071,287 @@ val view = inflater.inflate(R.layout.xxx, parent, true)
 
 ---
 
-## 10. Invalidate 与 RequestLayout
+## 10. Merge、Include 与 ViewStub
+
+### 10.1 \<merge\> 标签
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         \<merge\> 标签                                      │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+merge 标签用于减少布局层级，将子 View 直接添加到目标父容器中。
+
+使用场景：
+- 根布局是 FrameLayout/RelativeLayout 且会被 include 替换时
+- 避免多余的父容器层级
+```
+
+```xml
+<!-- layout_header.xml -->
+<!-- 注意：merge 必须是根元素 -->
+<merge xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <ImageView
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:src="@drawable/ic_logo" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Title" />
+
+</merge>
+```
+
+```kotlin
+// 解析后，子 View 会直接添加到父容器中
+// 不再创建 merge 节点作为父容器
+```
+
+**注意事项：**
+
+```kotlin
+/**
+ * merge 使用限制：
+ * 
+ * 1. 必须是布局文件的根元素
+ * 2. 父容器类型必须匹配
+ *    - <merge> 父容器必须是 FrameLayout 或其子类
+ *    - 或继承自 include 布局的根容器
+ * 3. 不能设置 android:xxx 属性（会无效）
+ *    - 如 android:layout_width、android:layout_height
+ * 4. 可以设置 tools 属性用于预览
+ */
+
+class CustomFrameLayout : FrameLayout {
+    init {
+        // 包含 merge 的布局 inflate 后
+        // 子 View 会直接添加到此 FrameLayout 中
+    }
+}
+```
+
+**merge 原理：**
+
+```kotlin
+// LayoutInflater 对 merge 的处理
+View rInflate(XmlPullParser parser, ViewGroup parent, Context context, AttributeSet attrs, boolean finishInflate) {
+    
+    if (parser.getName().equals("merge")) {
+        // 直接解析子 View，添加到 parent 中
+        // 不创建 merge View
+        rInflateChildren(parser, parent, attrs, true);
+    } else {
+        // 正常创建 View
+    }
+}
+```
+
+---
+
+### 10.2 \<include\> 标签
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         \<include\> 标签                                    │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+include 标签用于复用布局，提高代码复用性。
+```
+
+**基本用法：**
+
+```xml
+<!-- main_layout.xml -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical">
+
+    <!-- 包含头部布局 -->
+    <include
+        android:id="@+id/header"
+        layout="@layout/layout_header" />
+
+    <!-- 包含内容布局 -->
+    <include
+        android:id="@+id/content"
+        layout="@layout/layout_content" />
+
+</LinearLayout>
+```
+
+**覆盖布局属性：**
+
+```xml
+<!-- include 可以覆盖被包含布局的某些属性 -->
+<include
+    android:id="@+id/header"
+    layout="@layout/layout_header"
+    android:layout_width="match_parent"
+    android:layout_height="48dp"
+    <!-- 注意：layout 属性需要与原始布局根元素类型兼容 -->
+/>
+```
+
+**注意事项：**
+
+```kotlin
+/**
+ * include 注意事项：
+ * 
+ * 1. id 覆盖
+ *    - 如果 include 和原布局都有 id，以 include 的 id 为准
+ *    - 可以通过 include.findViewById() 访问
+ * 
+ * 2. layout 属性覆盖
+ *    - 只能覆盖根元素的 android:layout_* 属性
+ *    - 其他属性（如 android:padding）无效
+ * 
+ * 3. 合并多个 include
+ *    - 需要为每个 include 设置唯一 id
+ */
+
+// 访问 include 的 View
+val headerView = findViewById<View>(R.id.header)
+val headerText = headerView?.findViewById<TextView>(R.id.tv_title)
+```
+
+---
+
+### 10.3 \<ViewStub\> 标签
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         \<ViewStub\> 标签                                   │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+ViewStub 是一个轻量级的占位 View，延迟加载 inflate 时不占用资源。
+```
+
+**基本用法：**
+
+```xml
+<!-- layout.xml -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <!-- ViewStub：按需加载 -->
+    <ViewStub
+        android:id="@+id/stub_view"
+        android:layout="@layout/layout_loading"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content" />
+
+</LinearLayout>
+```
+
+```kotlin
+// 方式1: 通过 findViewById 获取后 inflate
+val stub = findViewById<ViewStub>(R.id.stub_view)
+stub?.inflate()  // 展开 ViewStub，返回加载的 View
+
+// 方式2: 通过 setVisibility 触发 inflate
+val stub = findViewById<ViewStub>(R.id.stub_view)
+stub?.visibility = View.VISIBLE  // 自动 inflate 并显示
+
+// 加载后的 View
+val loadedView = findViewById<View>(R.id.stub_view)  // 或通过 inflate 返回值
+```
+
+**ViewStub 特点：**
+
+```kotlin
+/**
+ * ViewStub 特点：
+ * 
+ * 1. 初始不占用资源
+ *    - ViewStub 本身非常小（约 24 字节）
+ *    - 不绘制，不参与布局
+ * 
+ * 2. 只能 inflate 一次
+ *    - inflate 后，ViewStub 会从视图树中移除
+ *    - 替换为实际的布局
+ * 
+ * 3. 无法动态修改布局
+ *    - android:layout 属性必须在 XML 中定义
+ * 
+ * 4. 适合场景
+ *    - 加载状态、空状态、错误状态
+ *    - 不常用的复杂布局
+ */
+
+// 错误：多次 inflate
+val stub = findViewById<ViewStub>(R.id.stub)
+val view1 = stub.inflate()  // 第一次
+// stub 已经从视图中移除！
+val view2 = stub.inflate()  // 会抛出异常
+```
+
+**实战案例：**
+
+```kotlin
+/**
+ * 实战：多状态视图
+ */
+class StateView @JvmOverloads constructor(
+    context: Context,
+    attrs: AttributeSet? = null
+) : LinearLayout(context, attrs) {
+    
+    private val contentView: View
+    private val loadingView: ViewStub
+    private val emptyView: ViewStub
+    private val errorView: ViewStub
+    
+    enum class State { CONTENT, LOADING, EMPTY, ERROR }
+    
+    init {
+        orientation = VERTICAL
+        // inflate 布局
+        inflate(context, R.layout.state_view, this)
+        
+        contentView = findViewById(R.id.content)
+        loadingView = findViewById(R.id.stub_loading)
+        emptyView = findViewById(R.id.stub_empty)
+        errorView = findViewById(R.id.stub_error)
+        
+        showState(State.CONTENT)
+    }
+    
+    fun showState(state: State) {
+        // 先隐藏所有
+        contentView.visibility = GONE
+        loadingView.visibility = GONE
+        emptyView.visibility = GONE
+        errorView.visibility = GONE
+        
+        when (state) {
+            State.CONTENT -> contentView.visibility = VISIBLE
+            State.LOADING -> loadingView.visibility = VISIBLE
+            State.EMPTY -> emptyView.visibility = VISIBLE
+            State.ERROR -> errorView.visibility = VISIBLE
+        }
+    }
+}
+```
+
+**ViewStub vs View.GONE：**
+
+| 对比 | ViewStub | View.GONE |
+|------|----------|-----------|
+| 内存占用 | 极小（约24字节） | 正常 |
+| 布局耗时 | 首次加载时 | 布局时 |
+| 可复用 | 只能 inflate 一次 | 可反复显示 |
+| 适用场景 | 少用的大型布局 | 频繁切换的布局 |
+
+---
+
+## 11. Invalidate 与 RequestLayout
 
 ### 10.1 Invalidate - 重绘
 
