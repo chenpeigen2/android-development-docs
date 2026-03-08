@@ -33,6 +33,13 @@
      - 2.11.3 [软件绘制流程](#2113-软件绘制流程-drawsoftware)
      - 2.11.4 [Canvas 如何绑定到 Surface](#2114-canvas-如何绑定到-surface)
      - 2.11.5 [硬件加速绘制流程](#2115-硬件加速绘制流程-threadedrenderer)
+       - 2.11.5.1 [ThreadedRenderer 架构](#21151-threadedrenderer-架构)
+       - 2.11.5.2 [ThreadedRenderer.draw 完整流程](#21152-threadedrendererdraw-完整流程)
+       - 2.11.5.3 [View.updateDisplayListIfDirty 详解](#21153-viewupdatedisplaylistifdirty-详解)
+       - 2.11.5.4 [RenderThread 渲染流程](#21154-renderthread-渲染流程)
+       - 2.11.5.5 [OpenGL ES 渲染流程](#21155-opengl-es-渲染流程)
+       - 2.11.5.6 [RenderNode 与 DisplayList 详解](#21156-rendernode-与-displaylist-详解)
+       - 2.11.5.7 [软件绘制 vs 硬件加速对比](#21157-软件绘制-vs-硬件加速对比)
    - 2.12 [Surface 到 SurfaceFlinger 调用详解](#212-surface-到-surfaceflinger-调用详解)
      - 2.12.1 [Surface 创建流程](#2121-surface-创建流程)
      - 2.12.2 [BufferQueue 创建与组件](#2122-bufferqueue-创建与组件)
@@ -1791,80 +1798,54 @@ Android 图形系统采用 生产者-消费者 模型:
 │                         硬件加速绘制流程 (ThreadedRenderer)                 │
 │  源码: frameworks/base/core/java/android/view/ThreadedRenderer.java        │
 └─────────────────────────────────────────────────────────────────────────────┘
-
-  ViewRootImpl.draw()
-              │
-              │  mAttachInfo.mThreadedRenderer.draw()
-              ▼
-  ┌─────────────────────────────────────────────────────────────────────────┐
-  │  ThreadedRenderer.draw()                                                │
-  │  ─────────────────────────────────────────────────────────────────────── │
-  │                                                                         │
-  │  void draw(View view, AttachInfo attachInfo, DrawCallbacks callbacks,  │
-  │          Handler handler, boolean hasCallbacks) {                       │
-  │                                                                         │
-  │      // 1. 更新层级树                                                   │
-  │      updateHierarchyDisplayList(view);                                  │
-  │                                                                         │
-  │      // 2. 同步 DisplayList 到 RenderThread                            │
-  │      int syncResult = syncAndDrawFrame(frameInfo);                      │
-  │                                                                         │
-  │      // 3. RenderThread 执行 GPU 渲染 (异步，不阻塞 UI 线程)           │
-  │  }                                                                      │
-  │                                                                         │
-  └─────────────────────────────────────────────────────────────────────────┘
-              │
-              ▼
-  ┌─────────────────────────────────────────────────────────────────────────┐
-  │  View.updateDisplayListIfDirty()                                        │
-  │  源码: frameworks/base/core/java/android/view/Surface.java              │
-  │  ─────────────────────────────────────────────────────────────────────── │
-  │                                                                         │
-  │  public Canvas lockCanvas(Rect inOutDirty) {                            │
-  │      // 调用 native 方法                                                │
-  │      return lockCanvasNative(inOutDirty);                               │
-  │  }                                                                      │
-  │                                                                         │
-  │  private native Canvas lockCanvasNative(Rect dirty);                    │
-  │                                                                         │
-  └─────────────────────────────────────────────────────────────────────────┘
-              │
-              │ JNI
-              ▼
-  ┌─────────────────────────────────────────────────────────────────────────┐
-  │  Native 层: android_view_Surface.cpp                                    │
-  │  源码: frameworks/base/core/jni/android_view_Surface.cpp                │
-  │  ─────────────────────────────────────────────────────────────────────── │
-  │                                                                         │
-  │  static jlong nativeLockCanvas(JNIEnv* env, jclass clazz,              │
-  │          jobject surfaceObj, jobject dirtyRectObj) {                    │
-  │                                                                         │
-  │      // 1. 获取 Surface 对象                                            │
-  │      sp<Surface> surface(android_view_Surface_getSurface(env, surfaceObj));│
-  │                                                                         │
-  │      // 2. 锁定缓冲区 ★★★                                               │
-  │      ANativeWindowBuffer* buffer;                                       │
-  │      status_t err = surface->lock(&buffer, dirtyRectPtr);               │
-  │      // 内部调用: dequeueBuffer() 获取 GraphicBuffer                   │
-  │                                                                         │
-  │      // 3. 创建 SkBitmap (Skia 引擎)                                    │
-  │      SkBitmap bitmap;                                                   │
-  │      bitmap.setPixels(buffer->bits);  // 指向缓冲区内存                 │
-  │                                                                         │
-  │      // 4. 创建 Canvas 对象                                             │
-  │      Canvas* nativeCanvas = Canvas::create_canvas(bitmap);              │
-  │                                                                         │
-  │      return reinterpret_cast<jlong>(nativeCanvas);                      │
-  │  }                                                                      │
-  │                                                                         │
-  └─────────────────────────────────────────────────────────────────────────┘
 ```
 
-#### 2.11.4 硬件加速绘制流程 (ThreadedRenderer)
+##### 2.11.5.1 ThreadedRenderer 架构
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                         硬件加速绘制流程 (ThreadedRenderer)                 │
+│                         ThreadedRenderer 架构                               │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  ThreadedRenderer 是 Android 硬件加速渲染的核心:
+
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │                                                                         │
+  │  ┌─────────────────────────────────────────────────────────────────┐   │
+  │  │                    ThreadedRenderer                              │   │
+  │  │  源码: frameworks/base/core/java/android/view/ThreadedRenderer.java│  │
+  │  ├─────────────────────────────────────────────────────────────────┤   │
+  │  │                                                                 │   │
+  │  │  核心组件:                                                      │   │
+  │  │                                                                 │   │
+  │  │  1. RenderNode (渲染节点)                                       │   │
+  │  │     - 每个 View 对应一个 RenderNode                             │   │
+  │  │     - 存储 View 的绘制命令 (DisplayList)                        │   │
+  │  │     - 存储属性: 位移、旋转、缩放、透明度等                       │   │
+  │  │                                                                 │   │
+  │  │  2. RecordingCanvas (录制画布)                                  │   │
+  │  │     - 记录 draw* 绘制命令，不立即执行                           │   │
+  │  │     - 命令存储到 DisplayList                                    │   │
+  │  │                                                                 │   │
+  │  │  3. RenderThread (渲染线程)                                     │   │
+  │  │     - 独立线程，执行 GPU 渲染                                   │   │
+  │  │     - 使用 OpenGL ES 或 Vulkan                                  │   │
+  │  │     - 异步执行，不阻塞 UI 线程                                  │   │
+  │  │                                                                 │   │
+  │  │  4. DisplayList (显示列表)                                      │   │
+  │  │     - 存储一系列绘制命令                                        │   │
+  │  │     - 可重用、可合并优化                                        │   │
+  │  │                                                                 │   │
+  │  └─────────────────────────────────────────────────────────────────┘   │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+```
+
+##### 2.11.5.2 ThreadedRenderer.draw() 完整流程
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         ThreadedRenderer.draw() 完整流程                    │
 │  源码: frameworks/base/core/java/android/view/ThreadedRenderer.java        │
 └─────────────────────────────────────────────────────────────────────────────┘
 
@@ -1879,69 +1860,371 @@ Android 图形系统采用 生产者-消费者 模型:
   │  void draw(View view, AttachInfo attachInfo, DrawCallbacks callbacks,  │
   │          Handler handler, boolean hasCallbacks) {                       │
   │                                                                         │
-  │      // 1. 更新层级树                                                   │
+  │      // 1. 准备帧信息                                                  │
+  │      final FrameInfo frameInfo = attachInfo.mFrameInfo;                 │
+  │      frameInfo.setVsync(...);                                           │
+  │                                                                         │
+  │      // 2. 更新 View 树的 DisplayList ★★★                              │
   │      updateHierarchyDisplayList(view);                                  │
   │                                                                         │
-  │      // 2. 同步 DisplayList 到 RenderThread                            │
+  │      // 3. 注册动画回调                                                │
+  │      if (callbacks != null) {                                           │
+  │          callbacks.onFrameDrawn(this);                                  │
+  │      }                                                                  │
+  │                                                                         │
+  │      // 4. 同步 DisplayList 到 RenderThread 并请求渲染 ★★★             │
   │      int syncResult = syncAndDrawFrame(frameInfo);                      │
   │                                                                         │
-  │      // 3. RenderThread 执行 GPU 渲染                                  │
-  │      // (异步执行，不阻塞 UI 线程)                                      │
-  │  }                                                                      │
-  │                                                                         │
-  │  // 更新 DisplayList                                                    │
-  │  private void updateHierarchyDisplayList(View view) {                   │
-  │      // 递归构建 View 树的 DisplayList                                  │
-  │      view.updateDisplayListIfDirty();                                   │
+  │      // 5. RenderThread 异步执行 GPU 渲染                              │
+  │      // (不阻塞 UI 线程，UI 线程可以继续处理下一帧)                     │
   │  }                                                                      │
   │                                                                         │
   └─────────────────────────────────────────────────────────────────────────┘
-              │
-              ▼
+
+
+  updateHierarchyDisplayList() 详解:
+  ─────────────────────────────────────────────────────────────────────────────
+
+  private void updateHierarchyDisplayList(View view) {
+      // 从根 View 开始递归更新
+      view.updateDisplayListIfDirty();
+  }
+```
+
+##### 2.11.5.3 View.updateDisplayListIfDirty() 详解
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         View.updateDisplayListIfDirty() 详解                │
+│  源码: frameworks/base/core/java/android/view/View.java                    │
+└─────────────────────────────────────────────────────────────────────────────┘
+
   ┌─────────────────────────────────────────────────────────────────────────┐
-  │  View.updateDisplayListIfDirty()                                        │
-  │  源码: frameworks/base/core/java/android/view/View.java                 │
-  │  ─────────────────────────────────────────────────────────────────────── │
   │                                                                         │
   │  public RenderNode updateDisplayListIfDirty() {                         │
   │      final RenderNode renderNode = mRenderNode;                         │
   │                                                                         │
-  │      // 1. 开始记录 DisplayList                                         │
-  │      RecordingCanvas canvas = renderNode.beginRecording(width, height);│
+  │      // 检查是否需要重建 DisplayList                                   │
+  │      if ((mPrivateFlags & PFLAG_DRAWING_CACHE_VALID) == 0 ||           │
+  │              renderNode == null ||                                      │
+  │              (mPrivateFlags & PFLAG_DIRTY_MASK) != 0) {                 │
   │                                                                         │
-  │      try {                                                              │
-  │          // 2. 执行绘制 (记录绘制命令，不实际绘制)                       │
-  │          if (layerType == LAYER_TYPE_SOFTWARE) {                        │
-  │              buildDrawingCache(true);                                   │
-  │              Bitmap cache = getDrawingCache(true);                      │
-  │              if (cache != null) {                                       │
-  │                  canvas.drawBitmap(cache, 0, 0, mLayerPaint);           │
+  │          // ★★★ 1. 开始记录 DisplayList ★★★                            │
+  │          final RecordingCanvas canvas = renderNode.beginRecording(     │
+  │                  getWidth(), getHeight());                              │
+  │                                                                         │
+  │          try {                                                          │
+  │              // ★★★ 2. 执行绘制 (记录命令，不实际绘制) ★★★             │
+  │              if (mLayerType == LAYER_TYPE_SOFTWARE) {                   │
+  │                  // 软件层: 使用 Bitmap 缓存                            │
+  │                  buildDrawingCache(true);                               │
+  │                  Bitmap cache = getDrawingCache(true);                  │
+  │                  if (cache != null) {                                   │
+  │                      canvas.drawBitmap(cache, 0, 0, mLayerPaint);       │
+  │                  }                                                      │
+  │              } else {                                                   │
+  │                  // 硬件层: 直接记录绘制命令                            │
+  │                  // dispatchDraw() 会递归调用子 View                    │
+  │                  dispatchDraw(canvas);                                  │
+  │                  onDraw(canvas);                                        │
   │              }                                                          │
-  │          } else {                                                       │
-  │              // ★★★ 记录绘制命令到 DisplayList ★★★                      │
-  │              draw(canvas);                                              │
+  │          } finally {                                                    │
+  │              // ★★★ 3. 结束记录 ★★★                                    │
+  │              renderNode.endRecording();                                 │
   │          }                                                              │
-  │      } finally {                                                        │
-  │          // 3. 结束记录                                                 │
-  │          renderNode.endRecording();                                     │
   │      }                                                                  │
+  │                                                                         │
   │      return renderNode;                                                 │
   │  }                                                                      │
   │                                                                         │
   └─────────────────────────────────────────────────────────────────────────┘
 
 
-  软件绘制 vs 硬件加速对比:
+  关键点:
+  ─────────────────────────────────────────────────────────────────────────────
+
+  1. RecordingCanvas 是 "录制" 画布
+     - canvas.drawRect() 不会立即绘制
+     - 而是将命令记录到 DisplayList 中
+     - 类似于录制视频，先记录，后播放
+
+  2. RenderNode 存储 DisplayList
+     - 每个 View 有一个 RenderNode
+     - RenderNode 包含该 View 的所有绘制命令
+     - 形成一个 RenderNode 树 (与 View 树对应)
+
+  3. 命令录制完成后，交给 RenderThread 执行
+```
+
+##### 2.11.5.4 RenderThread 渲染流程
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         RenderThread 渲染流程                               │
+│  源码: frameworks/base/libs/hwui/renderthread/RenderThread.cpp              │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │                                                                         │
+  │  RenderThread 是独立的渲染线程:                                         │
+  │                                                                         │
+  │  ┌───────────────────────────────────────────────────────────────────┐ │
+  │  │                    RenderThread                                    │ │
+  │  │  源码: frameworks/base/libs/hwui/renderthread/RenderThread.cpp     │ │
+  │  ├───────────────────────────────────────────────────────────────────┤ │
+  │  │                                                                   │ │
+  │  │  核心职责:                                                        │ │
+  │  │  1. 从 UI 线程接收 DisplayList                                   │ │
+  │  │  2. 优化 DisplayList (合并、剔除)                                 │ │
+  │  │  3. 执行 OpenGL ES / Vulkan 渲染命令                              │ │
+  │  │  4. 交换缓冲区 (swapBuffers)                                      │ │
+  │  │  5. 提交给 SurfaceFlinger                                         │ │
+  │  │                                                                   │ │
+  │  └───────────────────────────────────────────────────────────────────┘ │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+
+
+  RenderThread 渲染流程:
+  ─────────────────────────────────────────────────────────────────────────────
+
+  UI 线程                              RenderThread
+  ──────────                           ────────────
+       │                                     │
+       │  syncAndDrawFrame()                 │
+       │  ─────────────────────────────────► │
+       │  (同步 DisplayList)                 │
+       │                                     │
+       │                                     ▼
+       │                          ┌─────────────────────┐
+       │                          │ 1. 处理同步消息     │
+       │                          │ 2. 优化 DisplayList │
+       │                          │    - 合并相同操作   │
+       │                          │    - 剔除不可见项   │
+       │                          │    - 重排序         │
+       │                          └──────────┬──────────┘
+       │                                     │
+       │  (UI 线程可以继续)                  ▼
+       │  处理其他消息             ┌─────────────────────┐
+       │                          │ 3. 执行 GPU 渲染    │
+       │                          │    OpenGL ES /      │
+       │                          │    Vulkan           │
+       │                          │                     │
+       │                          │  glDrawArrays()     │
+       │                          │  glDrawElements()   │
+       │                          └──────────┬──────────┘
+       │                                     │
+       │                                     ▼
+       │                          ┌─────────────────────┐
+       │                          │ 4. 交换缓冲区       │
+       │                          │    eglSwapBuffers() │
+       │                          │                     │
+       │                          │  提交给 Surface     │
+       │                          │  → BufferQueue      │
+       │                          └─────────────────────┘
+       │                                     │
+       │                                     ▼
+       │                          SurfaceFlinger 合成
+       │
+
+
+  CanvasContext::draw() 源码:
+  ─────────────────────────────────────────────────────────────────────────────
+
+  // frameworks/base/libs/hwui/renderthread/CanvasContext.cpp
+  void CanvasContext::draw() {
+      // 1. 获取 Surface 缓冲区
+      status_t err = mRenderPipeline->setSurface(mSurface);
+      
+      // 2. 开始帧
+      mRenderPipeline->onStartFrame();
+      
+      // 3. 执行渲染
+      mRenderPipeline->draw(...);
+      
+      // 4. 交换缓冲区
+      mRenderPipeline->swapBuffers(frameInfo);
+  }
+```
+
+##### 2.11.5.5 OpenGL ES 渲染流程
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         OpenGL ES 渲染流程                                  │
+│  源码: frameworks/base/libs/hwui/                                           │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │                                                                         │
+  │  HWUI 使用 OpenGL ES 执行渲染:                                          │
+  │                                                                         │
+  │  1. DisplayList → OpenGL 命令转换                                       │
+  │  ─────────────────────────────────────────────────────────────────────── │
+  │                                                                         │
+  │     DisplayList 命令              OpenGL ES 命令                        │
+  │     ┌─────────────────┐          ┌─────────────────┐                   │
+  │     │ drawRect()      │    →     │ glDrawArrays()  │                   │
+  │     │ drawCircle()    │    →     │ glDrawArrays()  │                   │
+  │     │ drawPath()      │    →     │ 多边形三角化    │                   │
+  │     │ drawBitmap()    │    →     │ 纹理绑定 + 绘制 │                   │
+  │     │ drawText()      │    →     │ 文字纹理缓存    │                   │
+  │     └─────────────────┘          └─────────────────┘                   │
+  │                                                                         │
+  │  2. GPU 渲染到 FBO (FrameBuffer Object)                                │
+  │  ─────────────────────────────────────────────────────────────────────── │
+  │                                                                         │
+  │     FBO 绑定到 GraphicBuffer:                                          │
+  │                                                                         │
+  │     ┌─────────────────────────────────────────────────────────────┐    │
+  │     │                      GPU                                     │    │
+  │     │  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐    │    │
+  │     │  │ Vertex      │    │ Fragment    │    │ FBO         │    │    │
+  │     │  │ Shader      │ ─► │ Shader      │ ─► │ (帧缓冲)    │    │    │
+  │     │  │ (顶点处理)  │    │ (像素处理)  │    │             │    │    │
+  │     │  └─────────────┘    └─────────────┘    └──────┬──────┘    │    │
+  │     │                                               │           │    │
+  │     └───────────────────────────────────────────────┼───────────┘    │
+  │                                                     │                 │
+  │                                                     ▼                 │
+  │                                         ┌─────────────────┐          │
+  │                                         │ GraphicBuffer   │          │
+  │                                         │ (共享内存)      │          │
+  │                                         └─────────────────┘          │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+
+
+  eglSwapBuffers() 流程:
+  ─────────────────────────────────────────────────────────────────────────────
+
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │                                                                         │
+  │  eglSwapBuffers()                                                       │
+  │       │                                                                 │
+  │       ▼                                                                 │
+  │  1. 等待 GPU 渲染完成 (glFinish 或 fence)                              │
+  │       │                                                                 │
+  │       ▼                                                                 │
+  │  2. queueBuffer() - 将缓冲区提交到 BufferQueue                         │
+  │       │                                                                 │
+  │       ▼                                                                 │
+  │  3. dequeueBuffer() - 获取新的缓冲区用于下一帧                         │
+  │       │                                                                 │
+  │       ▼                                                                 │
+  │  4. 通知 SurfaceFlinger 有新帧可用                                     │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+```
+
+##### 2.11.5.6 RenderNode 与 DisplayList 详解
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         RenderNode 与 DisplayList 详解                      │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │                                                                         │
+  │  View 树与 RenderNode 树的关系:                                         │
+  │                                                                         │
+  │  View 树                        RenderNode 树                           │
+  │  ─────────────────────────────────────────────────────────────────────  │
+  │                                                                         │
+  │  DecorView                     RenderNode (DecorView)                   │
+  │     │                               │                                   │
+  │     ├── LinearLayout               ├── RenderNode (LinearLayout)        │
+  │     │     ├── TextView             │     ├── RenderNode (TextView)      │
+  │     │     │                        │     │   └── DisplayList           │
+  │     │     │                        │     │       [drawText cmd]        │
+  │     │     │                        │     │                             │
+  │     │     └── ImageView            │     └── RenderNode (ImageView)    │
+  │     │                              │         └── DisplayList           │
+  │     │                              │             [drawBitmap cmd]      │
+  │     │                              │                                   │
+  │     └── FrameLayout                └── RenderNode (FrameLayout)        │
+  │           │                              │                             │
+  │           └── Button                     └── RenderNode (Button)       │
+  │                                                └── DisplayList         │
+  │                                                    [drawRect cmd]      │
+  │                                                    [drawText cmd]      │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+
+
+  DisplayList 优化:
+  ─────────────────────────────────────────────────────────────────────────────
+
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │                                                                         │
+  │  1. 合并优化 (Merge)                                                    │
+  │     - 相邻的相同类型绘制操作可以合并                                    │
+  │     - 减少 OpenGL draw call 数量                                        │
+  │                                                                         │
+  │  2. 剔除优化 (Culling)                                                  │
+  │     - 完全被遮挡的 View 不渲染                                          │
+  │     - 屏幕外的 View 不渲染                                              │
+  │                                                                         │
+  │  3. 缓存优化 (Caching)                                                  │
+  │     - 未变化的 View 复用上次的 DisplayList                              │
+  │     - 只更新变化的 View                                                 │
+  │                                                                         │
+  │  4. 批处理 (Batching)                                                   │
+  │     - 相同纹理的绘制操作批处理                                          │
+  │     - 减少 GPU 状态切换                                                 │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+```
+
+##### 2.11.5.7 软件绘制 vs 硬件加速对比
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         软件绘制 vs 硬件加速对比                            │
+└─────────────────────────────────────────────────────────────────────────────┘
+
   ┌─────────────────┬─────────────────────────┬───────────────────────────────┐
   │                 │  软件绘制 (Software)    │  硬件加速 (Hardware)          │
   ├─────────────────┼─────────────────────────┼───────────────────────────────┤
   │  渲染引擎       │  Skia (CPU)             │  OpenGL ES / Vulkan (GPU)     │
+  ├─────────────────┼─────────────────────────┼───────────────────────────────┤
   │  绘制方式       │  直接绘制到缓冲区       │  记录 DisplayList，异步渲染   │
+  ├─────────────────┼─────────────────────────┼───────────────────────────────┤
   │  Canvas 类型    │  SkiaCanvas             │  RecordingCanvas              │
+  ├─────────────────┼─────────────────────────┼───────────────────────────────┤
   │  线程           │  UI 线程 (同步)         │  RenderThread (异步)          │
+  ├─────────────────┼─────────────────────────┼───────────────────────────────┤
   │  性能           │  慢，CPU 计算           │  快，GPU 并行                 │
+  ├─────────────────┼─────────────────────────┼───────────────────────────────┤
+  │  内存占用       │  少                     │  多 (DisplayList 缓存)        │
+  ├─────────────────┼─────────────────────────┼───────────────────────────────┤
   │  适用场景       │  兼容模式、截图         │  正常应用                     │
+  ├─────────────────┼─────────────────────────┼───────────────────────────────┤
+  │  开启方式       │  view.setLayerType(     │  默认开启                     │
+  │                 │    LAYER_TYPE_SOFTWARE) │  AndroidManifest:             │
+  │                 │                         │  android:hardwareAccelerated  │
   └─────────────────┴─────────────────────────┴───────────────────────────────┘
+
+
+  硬件加速的优势:
+  ─────────────────────────────────────────────────────────────────────────────
+
+  1. UI 线程不被阻塞
+     - 绘制命令录制很快 (只是记录，不执行)
+     - GPU 渲染在 RenderThread 进行
+     - UI 线程可以快速响应用户操作
+
+  2. GPU 并行计算
+     - GPU 擅长并行处理大量像素
+     - 复杂动画、渐变、阴影等效果好
+
+  3. DisplayList 复用
+     - 未变化的 View 不需要重新录制
+     - 只更新变化的部分
+
+  4. 优化空间大
+     - 合并、剔除、批处理等优化
+     - 减少不必要的绘制
 ```
 
 ### 2.12 Surface 到 SurfaceFlinger 调用详解
