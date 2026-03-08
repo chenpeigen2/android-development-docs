@@ -14,7 +14,19 @@
    - 2.4 [requestLayout 流程](#24-requestlayout-流程)
    - 2.5 [scheduleTraversals 流程](#25-scheduletraversals-流程)
    - 2.6 [performTraversals 完整流程](#26-performtraversals-完整流程)
-   - 2.7 [Choreographer 与 VSync](#27-choreographer-与-vsync)
+   - 2.7 [完整帧绘制流程](#27-完整帧绘制流程)
+   - 2.8 [Choreographer 详解](#28-choreographer-详解)
+     - 2.8.1 [架构总览](#281-choreographer-架构总览)
+     - 2.8.2 [VSync 信号产生与传递](#282-vsync-信号产生与传递)
+     - 2.8.3 [FrameDisplayEventReceiver 底层实现](#283-framedisplayeventreceiver-底层实现)
+     - 2.8.4 [doFrame 源码详解](#284-choreographerdoframe-源码详解)
+     - 2.8.5 [postCallback 流程](#285-postcallback-流程)
+     - 2.8.6 [CallbackQueue 详解](#286-callbackqueue-详解)
+     - 2.8.7 [同步屏障与异步消息](#287-同步屏障与异步消息)
+     - 2.8.8 [掉帧检测与分析](#288-掉帧检测与分析)
+     - 2.8.9 [Choreographer 与 SurfaceFlinger 关系](#289-choreographer-与-surfaceflinger-关系)
+   - 2.9 [BufferQueue 与双缓冲机制](#29-bufferqueue-与双缓冲机制)
+   - 2.10 [渲染合成流程](#210-渲染合成流程)
 3. [WindowManager 架构](#3-windowmanager-架构)
 4. [Measure 测量流程](#4-measure-测量流程)
 5. [Layout 布局流程](#5-layout-布局流程)
@@ -422,82 +434,839 @@ private void performDraw() {
 │  源码位置: frameworks/base/core/java/android/view/Choreographer.java       │
 └─────────────────────────────────────────────────────────────────────────────┘
 
-Choreographer 是帧调度器，协调 UI 线程的绘制时机:
+Choreographer 是 Android 帧调度的核心，负责:
+1. 接收 VSync 信号
+2. 协调 UI 线程的绘制时机
+3. 确保动画、输入、绘制的时序正确
+```
 
+#### 2.8.1 Choreographer 架构总览
 
+```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                         Choreographer 架构                                  │
+│                         Choreographer 完整架构                              │
 └─────────────────────────────────────────────────────────────────────────────┘
 
   ┌─────────────────────────────────────────────────────────────────────────┐
-  │                         Choreographer                                    │
+  │                           应用层 (Java)                                  │
   ├─────────────────────────────────────────────────────────────────────────┤
   │                                                                         │
-  │  核心组件:                                                              │
+  │  ┌─────────────────────────────────────────────────────────────────┐   │
+  │  │                      Choreographer                               │   │
+  │  │  源码: frameworks/base/core/java/android/view/Choreographer.java │   │
+  │  ├─────────────────────────────────────────────────────────────────┤   │
+  │  │                                                                 │   │
+  │  │  核心组件:                                                      │   │
+  │  │  ┌─────────────────────────────────────────────────────────────┐│   │
+  │  │  │ 1. FrameDisplayEventReceiver                                ││   │
+  │  │  │    - 继承 DisplayEventReceiver                              ││   │
+  │  │  │    - 接收 VSync 信号                                        ││   │
+  │  │  │    - 触发 onVsync() → doFrame()                            ││   │
+  │  │  └─────────────────────────────────────────────────────────────┘│   │
+  │  │  ┌─────────────────────────────────────────────────────────────┐│   │
+  │  │  │ 2. CallbackQueue[] (4个回调队列)                            ││   │
+  │  │  │    - CALLBACK_INPUT      (0) - 输入事件                    ││   │
+  │  │  │    - CALLBACK_ANIMATION  (1) - 动画                        ││   │
+  │  │  │    - CALLBACK_TRAVERSAL  (2) - View 遍历 ★★★              ││   │
+  │  │  │    - CALLBACK_COMMIT     (3) - 提交                        ││   │
+  │  │  └─────────────────────────────────────────────────────────────┘│   │
+  │  │  ┌─────────────────────────────────────────────────────────────┐│   │
+  │  │  │ 3. FrameHandler                                             ││   │
+  │  │  │    - 处理 MSG_DO_FRAME 消息                                 ││   │
+  │  │  │    - 帧延迟检测                                             ││   │
+  │  │  └─────────────────────────────────────────────────────────────┘│   │
+  │  │  ┌─────────────────────────────────────────────────────────────┐│   │
+  │  │  │ 4. FrameInfo                                                ││   │
+  │  │  │    - 记录每帧的时间戳信息                                    ││   │
+  │  │  │    - 用于性能分析                                           ││   │
+  │  │  └─────────────────────────────────────────────────────────────┘│   │
+  │  │                                                                 │   │
+  │  └─────────────────────────────────────────────────────────────────┘   │
+  │                                    │                                    │
+  │                                    ▼                                    │
+  └─────────────────────────────────────────────────────────────────────────┘
+                                       │
+                                       │ JNI
+                                       ▼
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │                         Native 层 (C++)                                  │
+  ├─────────────────────────────────────────────────────────────────────────┤
   │                                                                         │
-  │  1. FrameDisplayEventReceiver                                          │
-  │     - 接收 VSync 信号                                                   │
-  │     - 触发 onVsync() → doFrame()                                       │
+  │  ┌─────────────────────────────────────────────────────────────────┐   │
+  │  │                 android.view.DisplayEventReceiver                │   │
+  │  │  源码: frameworks/base/core/jni/android_view_DisplayEventReceiver.cpp│
+  │  ├─────────────────────────────────────────────────────────────────┤   │
+  │  │                                                                 │   │
+  │  │  NativeDisplayEventReceiver                                    │   │
+  │  │  - 通过 Looper 监听 VSync fd                                   │   │
+  │  │  - 调用 nativeScheduleVsync() 请求 VSync                       │   │
+  │  │                                                                 │   │
+  │  └─────────────────────────────────────────────────────────────────┘   │
+  │                                    │                                    │
+  │                                    ▼                                    │
+  │  ┌─────────────────────────────────────────────────────────────────┐   │
+  │  │                     Looper (Native)                              │   │
+  │  │  源码: system/core/libutils/Looper.cpp                          │   │
+  │  ├─────────────────────────────────────────────────────────────────┤   │
+  │  │                                                                 │   │
+  │  │  - addFd() 监听 VSync fd                                       │   │
+  │  │  - pollOnce() 等待事件                                         │   │
+  │  │  - 使用 epoll 机制监听多个 fd                                  │   │
+  │  │                                                                 │   │
+  │  └─────────────────────────────────────────────────────────────────┘   │
+  │                                    │                                    │
+  │                                    ▼                                    │
+  └─────────────────────────────────────────────────────────────────────────┘
+                                       │
+                                       │ /dev/... (设备文件)
+                                       ▼
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │                         HAL / 内核层                                     │
+  ├─────────────────────────────────────────────────────────────────────────┤
   │                                                                         │
-  │  2. CallbackQueue[] (回调队列数组)                                      │
-  │     - CALLBACK_INPUT      (0) - 输入事件                               │
-  │     - CALLBACK_ANIMATION  (1) - 动画                                   │
-  │     - CALLBACK_TRAVERSAL  (2) - View 遍历                              │
-  │     - CALLBACK_COMMIT     (3) - 提交                                   │
+  │  ┌─────────────────────────────────────────────────────────────────┐   │
+  │  │                   VSync 信号源                                   │   │
+  │  ├─────────────────────────────────────────────────────────────────┤   │
+  │  │                                                                 │   │
+  │  │  硬件 VSync (HWComposer)                                        │   │
+  │  │  - 显示硬件每 16.67ms (60Hz) 产生一个 VSync 信号                │   │
+  │  │  - 通过 /dev/graphics/fb0 或 /dev/dri/card0 传递               │   │
+  │  │                                                                 │   │
+  │  │  软件 VSync (DispSync)                                          │   │
+  │  │  - 模拟 VSync 信号                                              │   │
+  │  │  - 用于没有硬件 VSync 的设备                                    │   │
+  │  │                                                                 │   │
+  │  └─────────────────────────────────────────────────────────────────┘   │
+  │                                    │                                    │
+  │                                    ▼                                    │
+  │  ┌─────────────────────────────────────────────────────────────────┐   │
+  │  │                   SurfaceFlinger                                 │   │
+  │  │  源码: frameworks/native/services/surfaceflinger/               │   │
+  │  ├─────────────────────────────────────────────────────────────────┤   │
+  │  │                                                                 │   │
+  │  │  - 接收硬件 VSync 信号                                         │   │
+  │  │  - 分发 VSync 到所有连接的 Surface                             │   │
+  │  │  - 触发图层合成                                                 │   │
+  │  │                                                                 │   │
+  │  └─────────────────────────────────────────────────────────────────┘   │
   │                                                                         │
-  │  3. FrameHandler                                                        │
-  │     - 处理延迟回调                                                      │
-  │     - 帧延迟检测                                                        │
+  └─────────────────────────────────────────────────────────────────────────┘
+```
+
+#### 2.8.2 VSync 信号产生与传递
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         VSync 信号产生与传递流程                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │  1. 硬件层 - VSync 产生                                                 │
+  │                                                                         │
+  │     显示器硬件 (60Hz = 16.67ms/帧)                                      │
+  │         │                                                               │
+  │         │  垂直同步信号 (VSync)                                         │
+  │         │  - 表示一帧扫描完成，开始下一帧                               │
+  │         │  - 由显示控制器 (Display Controller) 产生                     │
+  │         ▼                                                               │
+  │     内核驱动 (DRM/KMS 或 Framebuffer)                                   │
+  │         │                                                               │
+  │         │  /dev/dri/card0 或 /dev/graphics/fb0                         │
+  │         ▼                                                               │
+  └─────────────────────────────────────────────────────────────────────────┘
+                                      │
+                                      ▼
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │  2. SurfaceFlinger - VSync 分发                                         │
+  │                                                                         │
+  │     SurfaceFlinger                                                      │
+  │         │                                                               │
+  │         │  onVSyncReceived()                                            │
+  │         │                                                               │
+  │         ├──► 分发给所有 EventThread                                     │
+  │         │         │                                                     │
+  │         │         ▼                                                     │
+  │         │    BitTube (Socket 通信)                                      │
+  │         │         │                                                     │
+  │         │         ▼                                                     │
+  │         │    应用进程的 DisplayEventReceiver                            │
+  │         │                                                               │
+  │         └──► 触发 SurfaceFlinger 合成                                   │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+                                      │
+                                      ▼
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │  3. 应用进程 - VSync 接收                                               │
+  │                                                                         │
+  │     NativeDisplayEventReceiver                                          │
+  │         │                                                               │
+  │         │  监听 mReceiverFd (通过 Looper.addFd)                        │
+  │         │                                                               │
+  │         ▼                                                               │
+  │     Looper.pollOnce() 返回                                              │
+  │         │                                                               │
+  │         │  有数据可读 (VSync 信号到达)                                  │
+  │         │                                                               │
+  │         ▼                                                               │
+  │     handleEvent()                                                       │
+  │         │                                                               │
+  │         │  读取 VSync 时间戳                                            │
+  │         │                                                               │
+  │         ▼                                                               │
+  │     Java 层 DisplayEventReceiver.onVsync()                             │
+  │         │                                                               │
+  │         ▼                                                               │
+  │     FrameDisplayEventReceiver.onVsync()                                │
+  │         │                                                               │
+  │         ▼                                                               │
+  │     Choreographer.doFrame()                                            │
   │                                                                         │
   └─────────────────────────────────────────────────────────────────────────┘
 
 
-// Choreographer.doFrame() 源码
-void doFrame(long frameTimeNanos, int frame) {
-    final long startNanos;
-    synchronized (mLock) {
-        if (!mFrameScheduled) {
-            return; // 没有调度帧
-        }
-        startNanos = System.nanoTime();
-        final long jitterNanos = startNanos - frameTimeNanos;
-        
-        // 检测掉帧
-        if (jitterNanos >= mFrameIntervalNanos) {
-            final long skippedFrames = jitterNanos / mFrameIntervalNanos;
-            if (skippedFrames >= SKIPPED_FRAME_WARNING_LIMIT) {
-                Log.i(TAG, "Skipped " + skippedFrames + " frames!  "
-                        + "The application may be doing too much work on its main thread.");
-            }
-        }
-        
-        mFrameScheduled = false;
-    }
-    
-    try {
-        // 1. 处理输入事件
-        Trace.traceBegin(Trace.TRACE_TAG_VIEW, "Choreographer#doFrame");
-        AnimationUtils.lockAnimationClock(frameTimeNanos / TimeUtils.NANOS_PER_MS);
-        
-        mFrameInfo.markInputHandlingStart();
-        doCallbacks(Choreographer.CALLBACK_INPUT, frameTimeNanos);
-        
-        // 2. 处理动画
-        mFrameInfo.markAnimationsStart();
-        doCallbacks(Choreographer.CALLBACK_ANIMATION, frameTimeNanos);
-        
-        // 3. ★★★ 处理 View 遍历 ★★★
-        mFrameInfo.markPerformTraversalsStart();
-        doCallbacks(Choreographer.CALLBACK_TRAVERSAL, frameTimeNanos);
-        
-        // 4. 提交
-        doCallbacks(Choreographer.CALLBACK_COMMIT, frameTimeNanos);
-        
-    } finally {
-        AnimationUtils.unlockAnimationClock();
-        Trace.traceEnd(Trace.TRACE_TAG_VIEW);
-    }
-}
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         VSync 时序图                                        │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  时间轴 (ms) →
+
+  0         16.67     33.33     50        66.67     83.33
+  │          │         │         │         │         │
+  │  VSync   │  VSync  │  VSync  │  VSync  │  VSync  │
+  │    │     │    │    │    │    │    │    │    │    │
+  ▼    ▼     ▼    ▼    ▼    ▼    ▼    ▼    ▼    ▼    ▼
+  ┌───────┐  ┌───────┐  ┌───────┐  ┌───────┐  ┌───────┐
+  │Frame 1│  │Frame 2│  │Frame 3│  │Frame 4│  │Frame 5│
+  │       │  │       │  │       │  │       │  │       │
+  │ INPUT │  │ INPUT │  │ INPUT │  │ INPUT │  │ INPUT │
+  │ ANIM  │  │ ANIM  │  │ ANIM  │  │ ANIM  │  │ ANIM  │
+  │TRAVERS│  │TRAVERS│  │TRAVERS│  │TRAVERS│  │TRAVERS│
+  │COMMIT │  │COMMIT │  │COMMIT │  │COMMIT │  │COMMIT │
+  └───┬───┘  └───┬───┘  └───┬───┘  └───┬───┘  └───┬───┘
+      │          │          │          │          │
+      │ 合成     │ 合成     │ 合成     │ 合成     │ 合成
+      │ 上屏     │ 上屏     │ 上屏     │ 上屏     │ 上屏
+      ▼          ▼          ▼          ▼          ▼
+   ┌─────┐    ┌─────┐    ┌─────┐    ┌─────┐    ┌─────┐
+   │显示1│    │显示2│    │显示3│    │显示4│    │显示5│
+   └─────┘    └─────┘    └─────┘    └─────┘    └─────┘
+
+  理想情况: 每帧在 16.67ms 内完成 INPUT → ANIM → TRAVERSAL → COMMIT
+  掉帧情况: 某帧超过 16.67ms，跳过后续帧
+```
+
+#### 2.8.3 FrameDisplayEventReceiver 底层实现
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         FrameDisplayEventReceiver 完整流程                  │
+│  源码: frameworks/base/core/java/android/view/Choreographer.java           │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │  Java 层: FrameDisplayEventReceiver                                     │
+  │  ─────────────────────────────────────────────────────────────────────── │
+  │                                                                         │
+  │  private final class FrameDisplayEventReceiver                          │
+  │          extends DisplayEventReceiver                                   │
+  │          implements Runnable {                                          │
+  │                                                                         │
+  │      private boolean mHavePendingVsync;                                 │
+  │      private long mTimestampNanos;                                      │
+  │                                                                         │
+  │      // ★★★ VSync 信号到达时调用 ★★★                                    │
+  │      @Override                                                          │
+  │      public void onVsync(long timestampNanos, int frame,                │
+  │              int vsyncSource) {                                         │
+  │          // 1. 保存时间戳                                               │
+  │          mTimestampNanos = timestampNanos;                              │
+  │          mHavePendingVsync = true;                                      │
+  │                                                                         │
+  │          // 2. 将自己作为 Runnable post 到主线程                        │
+  │          Message msg = Message.obtain(mHandler, this);                  │
+  │          msg.setAsynchronous(true);  // 异步消息，不受同步屏障影响      │
+  │          mHandler.sendMessageAtFrontOfQueue(msg);                       │
+  │      }                                                                  │
+  │                                                                         │
+  │      // ★★★ Runnable.run() 在主线程执行 ★★★                            │
+  │      @Override                                                          │
+  │      public void run() {                                                │
+  │          mHavePendingVsync = false;                                     │
+  │          // 执行帧处理                                                  │
+  │          doFrame(mTimestampNanos, mFrame);                              │
+  │      }                                                                  │
+  │  }                                                                      │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+                                      │
+                                      │ JNI 调用
+                                      ▼
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │  Native 层: android_view_DisplayEventReceiver.cpp                       │
+  │  ─────────────────────────────────────────────────────────────────────── │
+  │                                                                         │
+  │  class NativeDisplayEventReceiver : public DisplayEventReceiver {       │
+  │                                                                         │
+  │      // 请求 VSync 信号                                                 │
+  │      status_t NativeDisplayEventReceiver::scheduleVsync() {             │
+  │          // 调用 DisplayEventReceiver::scheduleVsync()                  │
+  │          return DisplayEventReceiver::scheduleVsync();                  │
+  │      }                                                                  │
+  │                                                                         │
+  │      // VSync 信号到达时的回调                                          │
+  │      void NativeDisplayEventReceiver::onVsync(                          │
+  │              nsecs_t timestamp, int32_t id, uint32_t count) {           │
+  │          // 通过 JNI 回调 Java 层的 onVsync 方法                        │
+  │          JNIEnv* env = AndroidRuntime::getJNIEnv();                     │
+  │          env->CallVoidMethod(mReceiverObjGlobal,                        │
+  │                  gDisplayEventReceiverClassInfo.onVsync,                │
+  │                  timestamp, id, count);                                 │
+  │      }                                                                  │
+  │  }                                                                      │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+                                      │
+                                      ▼
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │  Native 层: DisplayEventReceiver (libs/gui)                             │
+  │  源码: frameworks/native/libs/gui/DisplayEventReceiver.cpp              │
+  │  ─────────────────────────────────────────────────────────────────────── │
+  │                                                                         │
+  │  status_t DisplayEventReceiver::scheduleVsync() {                       │
+  │      if (mConnection == NULL) {                                         │
+  │          // 创建与 SurfaceFlinger 的连接                                │
+  │          mConnection = SurfaceFlinger::createConnection();              │
+  │      }                                                                  │
+  │      // 发送请求到 SurfaceFlinger                                       │
+  │      return mConnection->requestNextVsync();                            │
+  │  }                                                                      │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+```
+
+#### 2.8.4 Choreographer.doFrame() 源码详解
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         Choreographer.doFrame() 源码详解                    │
+│  源码: frameworks/base/core/java/android/view/Choreographer.java           │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  void doFrame(long frameTimeNanos, int frame) {
+      final long startNanos;
+      synchronized (mLock) {
+          if (!mFrameScheduled) {
+              return;  // 没有调度的帧，直接返回
+          }
+          
+          startNanos = System.nanoTime();
+          
+          // ★★★ 计算帧延迟 (jitter) ★★★
+          final long jitterNanos = startNanos - frameTimeNanos;
+          
+          // ★★★ 掉帧检测 ★★★
+          if (jitterNanos >= mFrameIntervalNanos) {
+              // 计算跳过了多少帧
+              final long skippedFrames = jitterNanos / mFrameIntervalNanos;
+              if (skippedFrames >= SKIPPED_FRAME_WARNING_LIMIT) {
+                  // 默认 SKIPPED_FRAME_WARNING_LIMIT = 30
+                  // 打印掉帧警告
+                  Log.i(TAG, "Skipped " + skippedFrames + " frames!  "
+                          + "The application may be doing too much work on its main thread.");
+              }
+              
+              // 计算帧偏移，用于校正后续帧的时间
+              final long lastFrameOffset = jitterNanos % mFrameIntervalNanos;
+              frameTimeNanos = startNanos - lastFrameOffset;
+          }
+          
+          mFrameScheduled = false;
+      }
+      
+      try {
+          Trace.traceBegin(Trace.TRACE_TAG_VIEW, "Choreographer#doFrame");
+          AnimationUtils.lockAnimationClock(frameTimeNanos / TimeUtils.NANOS_PER_MS);
+          
+          // ★★★ 阶段 1: 处理输入事件 ★★★
+          mFrameInfo.markInputHandlingStart();
+          doCallbacks(Choreographer.CALLBACK_INPUT, frameTimeNanos);
+          
+          // ★★★ 阶段 2: 处理动画 ★★★
+          mFrameInfo.markAnimationsStart();
+          doCallbacks(Choreographer.CALLBACK_ANIMATION, frameTimeNanos);
+          
+          // ★★★ 阶段 3: 处理 View 遍历 (measure/layout/draw) ★★★
+          mFrameInfo.markPerformTraversalsStart();
+          doCallbacks(Choreographer.CALLBACK_TRAVERSAL, frameTimeNanos);
+          
+          // ★★★ 阶段 4: 提交 ★★★
+          doCallbacks(Choreographer.CALLBACK_COMMIT, frameTimeNanos);
+          
+      } finally {
+          AnimationUtils.unlockAnimationClock();
+          Trace.traceEnd(Trace.TRACE_TAG_VIEW);
+      }
+  }
+
+
+  // doCallbacks() - 执行指定类型的回调
+  void doCallbacks(int callbackType, long frameTimeNanos) {
+      CallbackRecord callbacks;
+      synchronized (mLock) {
+          // 1. 从队列中取出到期的回调
+          final long now = System.nanoTime();
+          callbacks = mCallbackQueues[callbackType].extractDueCallbacksLocked(now);
+          if (callbacks == null) {
+              return;
+          }
+          mCallbacksRunning = true;
+          
+          // 2. 检查是否需要延迟
+          // ...
+      }
+      
+      try {
+          // 3. 执行所有回调
+          CallbackRecord nextCallback;
+          while (callbacks != null) {
+              nextCallback = callbacks.next;
+              callbacks.next = null;
+              
+              // 执行回调
+              callbacks.run(frameTimeNanos);
+              
+              callbacks = nextCallback;
+          }
+      } finally {
+          synchronized (mLock) {
+              mCallbacksRunning = false;
+          }
+      }
+  }
+```
+
+#### 2.8.5 postCallback() 流程
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         Choreographer.postCallback() 流程                   │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  ViewRootImpl.scheduleTraversals()
+              │
+              │  mChoreographer.postCallback(CALLBACK_TRAVERSAL, runnable, null)
+              ▼
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │  Choreographer.postCallback()                                           │
+  │  ─────────────────────────────────────────────────────────────────────── │
+  │                                                                         │
+  │  public void postCallback(int callbackType, Runnable action,           │
+  │          Object token) {                                                │
+  │      postCallbackDelayed(callbackType, action, token, 0);              │
+  │  }                                                                      │
+  │                                                                         │
+  │  public void postCallbackDelayed(int callbackType, Runnable action,    │
+  │          Object token, long delayMillis) {                              │
+  │      // 1. 参数校验                                                    │
+  │      if (action == null) {                                              │
+  │          throw new IllegalArgumentException("action must not be null");│
+  │      }                                                                  │
+  │      if (callbackType < 0 || callbackType > CALLBACK_LAST) {           │
+  │          throw new IllegalArgumentException("callbackType is invalid");│
+  │      }                                                                  │
+  │                                                                         │
+  │      // 2. 加入回调队列                                                │
+  │      synchronized (mLock) {                                             │
+  │          final long now = SystemClock.uptimeMillis();                   │
+  │          final long dueTime = now + delayMillis;                        │
+  │          mCallbackQueues[callbackType].addCallbackLocked(              │
+  │                  dueTime, action, token);                               │
+  │                                                                         │
+  │          // 3. 如果是立即执行，请求 VSync                              │
+  │          if (dueTime <= now) {                                          │
+  │              scheduleFrameLocked(now);                                  │
+  │          }                                                              │
+  │      }                                                                  │
+  │  }                                                                      │
+  │                                                                         │
+  │  // 请求 VSync 信号                                                     │
+  │  private void scheduleFrameLocked(long now) {                           │
+  │      if (!mFrameScheduled) {                                            │
+  │          mFrameScheduled = true;                                        │
+  │          if (USE_VSYNC) {                                               │
+  │              // 使用 VSync                                              │
+  │              if (isRunningOnLooperThreadLocked()) {                     │
+  │                  // 在主线程，直接请求                                  │
+  │                  scheduleVsyncLocked();                                 │
+  │              } else {                                                   │
+  │                  // 不在主线程，发送消息到主线程                        │
+  │                  Message msg = mHandler.obtainMessage(MSG_DO_SCHEDULE_VSYNC);│
+  │                  msg.setAsynchronous(true);                             │
+  │                  mHandler.sendMessageAtFrontOfQueue(msg);               │
+  │              }                                                          │
+  │          } else {                                                       │
+  │              // 不使用 VSync，直接延迟 16ms 执行                        │
+  │              final long nextFrameTime = Math.max(                       │
+  │                      mLastFrameTimeNanos / TimeUtils.NANOS_PER_MS +     │
+  │                              mFrameIntervalMillis, now);                │
+  │              Message msg = mHandler.obtainMessage(MSG_DO_FRAME);        │
+  │              msg.setAsynchronous(true);                                 │
+  │              mHandler.sendMessageAtTime(msg, nextFrameTime);            │
+  │          }                                                              │
+  │      }                                                                  │
+  │  }                                                                      │
+  │                                                                         │
+  │  // 请求 VSync                                                          │
+  │  private void scheduleVsyncLocked() {                                   │
+  │      mDisplayEventReceiver.scheduleVsync();                             │
+  │  }                                                                      │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+              │
+              ▼
+         FrameDisplayEventReceiver.scheduleVsync()
+              │
+              │  JNI
+              ▼
+         NativeDisplayEventReceiver.scheduleVsync()
+              │
+              │  通过 BitTube 请求 SurfaceFlinger
+              ▼
+         SurfaceFlinger 分发 VSync 信号
+```
+
+#### 2.8.6 CallbackQueue 详解
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         CallbackQueue 数据结构                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  // 回调记录
+  private static final class CallbackRecord {
+      public CallbackRecord next;       // 下一个回调
+      public long dueTime;              // 到期时间
+      public Object action;             // Runnable 或 FrameCallback
+      public Object token;              // 用于取消回调
+  }
+
+  // 回调队列
+  private final class CallbackQueue {
+      private CallbackRecord mHead;     // 队列头
+      
+      // 添加回调 (按到期时间排序)
+      public void addCallbackLocked(long dueTime, Object action, Object token) {
+          CallbackRecord callback = obtainCallbackLocked(dueTime, action, token);
+          CallbackRecord entry = mHead;
+          if (entry == null) {
+              mHead = callback;
+              return;
+          }
+          if (dueTime < entry.dueTime) {
+              callback.next = entry;
+              mHead = callback;
+              return;
+          }
+          while (entry.next != null) {
+              if (dueTime < entry.next.dueTime) {
+                  callback.next = entry.next;
+                  entry.next = callback;
+                  return;
+              }
+              entry = entry.next;
+          }
+          entry.next = callback;
+      }
+      
+      // 提取到期的回调
+      public CallbackRecord extractDueCallbacksLocked(long now) {
+          CallbackRecord callbacks = mHead;
+          if (callbacks == null || callbacks.dueTime > now) {
+              return null;
+          }
+          CallbackRecord last = callbacks;
+          CallbackRecord next = last.next;
+          while (next != null) {
+              if (next.dueTime > now) {
+                  last.next = null;
+                  break;
+              }
+              last = next;
+              next = next.next;
+          }
+          mHead = next;
+          return callbacks;
+      }
+  }
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         四种回调队列执行顺序                                │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │                                                                         │
+  │  CallbackQueue[0]: CALLBACK_INPUT                                       │
+  │  ┌─────────────────────────────────────────────────────────────────┐   │
+  │  │  InputEvent → InputEventReceiver → onInputEvent                 │   │
+  │  │  优先级最高，确保用户交互响应                                    │   │
+  │  └─────────────────────────────────────────────────────────────────┘   │
+  │                                    │                                    │
+  │                                    ▼                                    │
+  │  CallbackQueue[1]: CALLBACK_ANIMATION                                   │
+  │  ┌─────────────────────────────────────────────────────────────────┐   │
+  │  │  ValueAnimator → AnimationHandler → Choreographer               │   │
+  │  │  动画更新，计算下一帧的属性值                                    │   │
+  │  └─────────────────────────────────────────────────────────────────┘   │
+  │                                    │                                    │
+  │                                    ▼                                    │
+  │  CallbackQueue[2]: CALLBACK_TRAVERSAL                                   │
+  │  ┌─────────────────────────────────────────────────────────────────┐   │
+  │  │  ViewRootImpl → scheduleTraversals → performTraversals          │   │
+  │  │  View 的 measure、layout、draw                                   │   │
+  │  └─────────────────────────────────────────────────────────────────┘   │
+  │                                    │                                    │
+  │                                    ▼                                    │
+  │  CallbackQueue[3]: CALLBACK_COMMIT                                      │
+  │  ┌─────────────────────────────────────────────────────────────────┐   │
+  │  │  帧提交后的回调                                                  │   │
+  │  │  用于延迟操作 (如 postOnAnimation)                               │   │
+  │  └─────────────────────────────────────────────────────────────────┘   │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+
+  执行顺序保证:
+  1. INPUT 先执行 - 确保触摸事件及时响应
+  2. ANIMATION 其次 - 计算动画属性
+  3. TRAVERSAL 再次 - 根据动画结果布局绘制
+  4. COMMIT 最后 - 帧提交完成后的操作
+```
+
+#### 2.8.7 同步屏障与异步消息
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         同步屏障 (Sync Barrier) 机制                        │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  在 scheduleTraversals() 中会插入同步屏障:
+
+  void scheduleTraversals() {
+      if (!mTraversalScheduled) {
+          mTraversalScheduled = true;
+          
+          // ★★★ 插入同步屏障 ★★★
+          mTraversalBarrier = mHandler.getLooper().getQueue().postSyncBarrier();
+          
+          // 注册 VSync 回调
+          mChoreographer.postCallback(...);
+      }
+  }
+
+  同步屏障的作用:
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │                                                                         │
+  │  MessageQueue (主线程)                                                  │
+  │  ┌─────────────────────────────────────────────────────────────────┐   │
+  │  │  Message 1 (同步)                                                │   │
+  │  │  Message 2 (同步)                                                │   │
+  │  │  ══════════════════════════════════════════════════════════════  │   │
+  │  │  ★ 同步屏障 (SyncBarrier) ★                                      │   │
+  │  │  ══════════════════════════════════════════════════════════════  │   │
+  │  │  Message 3 (同步) ← 被屏障阻挡，不会执行                         │   │
+  │  │  Message 4 (同步) ← 被屏障阻挡，不会执行                         │   │
+  │  │  Message 5 (异步) ← 可以执行，绕过屏障 ★★★                       │   │
+  │  └─────────────────────────────────────────────────────────────────┘   │
+  │                                                                         │
+  │  同步屏障确保:                                                          │
+  │  - VSync 相关的异步消息优先执行                                        │
+  │  - 普通同步消息等待 VSync 处理完成                                    │
+  │  - 防止普通消息阻塞绘制                                                │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+
+
+  VSync 消息是异步消息:
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │                                                                         │
+  │  // FrameDisplayEventReceiver.onVsync()                                │
+  │  Message msg = Message.obtain(mHandler, this);                          │
+  │  msg.setAsynchronous(true);  // ★★★ 设置为异步消息 ★★★               │
+  │  mHandler.sendMessageAtFrontOfQueue(msg);                               │
+  │                                                                         │
+  │  异步消息可以绕过同步屏障，优先执行                                     │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+
+
+  移除同步屏障:
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │                                                                         │
+  │  void doTraversal() {                                                   │
+  │      if (mTraversalScheduled) {                                         │
+  │          mTraversalScheduled = false;                                   │
+  │          // ★★★ 移除同步屏障 ★★★                                      │
+  │          mHandler.getLooper().getQueue().removeSyncBarrier(            │
+  │                  mTraversalBarrier);                                    │
+  │          // 执行遍历                                                    │
+  │          performTraversals();                                           │
+  │      }                                                                  │
+  │  }                                                                      │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+```
+
+#### 2.8.8 掉帧检测与分析
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         掉帧检测与分析                                      │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  掉帧日志:
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │  I/Choreographer: Skipped 60 frames! The application may be doing       │
+  │                   too much work on its main thread.                     │
+  │                                                                         │
+  │  含义:                                                                  │
+  │  - 主线程执行时间超过 60 × 16.67ms ≈ 1秒                               │
+  │  - 跳过了 60 帧的绘制                                                   │
+  │  - 用户体验到约 1 秒的卡顿                                              │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+
+
+  掉帧原因分析:
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │                                                                         │
+  │  1. 主线程执行耗时操作                                                  │
+  │     - 网络 I/O                                                          │
+  │     - 文件 I/O                                                          │
+  │     - 数据库操作                                                        │
+  │     - 复杂计算                                                          │
+  │                                                                         │
+  │  2. 布局过于复杂                                                        │
+  │     - View 层级过深                                                     │
+  │     - measure/layout 耗时过长                                          │
+  │                                                                         │
+  │  3. 绘制过于复杂                                                        │
+  │     - onDraw() 中创建对象                                               │
+  │     - 过度绘制 (Overdraw)                                               │
+  │                                                                         │
+  │  4. 内存频繁 GC                                                         │
+  │     - 内存泄漏导致频繁 GC                                               │
+  │     - GC 会暂停所有线程                                                 │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+
+
+  性能分析工具:
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │                                                                         │
+  │  1. GPU Overdraw (开发者选项)                                           │
+  │     - 显示过度绘制区域                                                  │
+  │     - 蓝色(1x) → 绿色(2x) → 粉色(3x) → 红色(4x+)                       │
+  │                                                                         │
+  │  2. Profile GPU Rendering (开发者选项)                                  │
+  │     - 显示每帧渲染时间                                                  │
+  │     - 绿线 = 16ms 阈值                                                  │
+  │                                                                         │
+  │  3. Systrace / Perfetto                                                 │
+  │     - 系统级性能追踪                                                    │
+  │     - 可以看到 Choreographer、SurfaceFlinger 的时间线                   │
+  │                                                                         │
+  │  4. Choreographer#addFrameCallback                                      │
+  │     - 自定义帧回调，测量帧间隔                                          │
+  │     - 可以检测掉帧                                                      │
+  │                                                                         │
+  │  Choreographer.getInstance().postFrameCallback(new FrameCallback() {   │
+  │      @Override                                                          │
+  │      public void doFrame(long frameTimeNanos) {                        │
+  │          // 计算帧间隔                                                  │
+  │          long frameInterval = frameTimeNanos - lastFrameTime;          │
+  │          if (frameInterval > 16_666_667) {  // 超过 16.67ms            │
+  │              // 掉帧检测                                                │
+  │          }                                                              │
+  │          lastFrameTime = frameTimeNanos;                               │
+  │          // 继续监听下一帧                                              │
+  │          Choreographer.getInstance().postFrameCallback(this);          │
+  │      }                                                                  │
+  │  });                                                                    │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+```
+
+#### 2.8.9 Choreographer 与 SurfaceFlinger 关系
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         Choreographer 与 SurfaceFlinger 关系                │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │                                                                         │
+  │                    VSync 信号源 (硬件/软件模拟)                          │
+  │                              │                                          │
+  │                              │ VSync (16.67ms)                          │
+  │                              ▼                                          │
+  │  ┌───────────────────────────────────────────────────────────────────┐ │
+  │  │                      SurfaceFlinger                                │ │
+  │  │  frameworks/native/services/surfaceflinger/                        │ │
+  │  │                                                                    │ │
+  │  │  职责:                                                             │ │
+  │  │  1. 接收硬件 VSync 信号                                           │ │
+  │  │  2. 分发 VSync 到所有连接的应用进程                               │ │
+  │  │  3. 合成所有 Surface (Layer)                                      │ │
+  │  │  4. 提交到显示屏                                                  │ │
+  │  └───────────────────────────────┬───────────────────────────────────┘ │
+  │                                  │                                      │
+  │                    ┌─────────────┴─────────────┐                       │
+  │                    │                           │                       │
+  │                    ▼                           ▼                       │
+  │  ┌─────────────────────────┐   ┌─────────────────────────┐            │
+  │  │   应用进程 1            │   │   应用进程 2            │            │
+  │  │                         │   │                         │            │
+  │  │  Choreographer          │   │  Choreographer          │            │
+  │  │       │                 │   │       │                 │            │
+  │  │       ▼                 │   │       ▼                 │            │
+  │  │  doFrame()              │   │  doFrame()              │            │
+  │  │       │                 │   │       │                 │            │
+  │  │       ▼                 │   │       ▼                 │            │
+  │  │  View 绘制              │   │  View 绘制              │            │
+  │  │       │                 │   │       │                 │            │
+  │  │       ▼                 │   │       ▼                 │            │
+  │  │  Surface (BufferQueue)  │   │  Surface (BufferQueue)  │            │
+  │  └───────────┬─────────────┘   └───────────┬─────────────┘            │
+  │              │                             │                          │
+  │              └──────────────┬──────────────┘                          │
+  │                             │                                          │
+  │                             ▼                                          │
+  │  ┌───────────────────────────────────────────────────────────────────┐ │
+  │  │                      SurfaceFlinger                                │ │
+  │  │                                                                    │ │
+  │  │  合成 Layer 1 + Layer 2 + ... → FrameBuffer → 显示屏              │ │
+  │  └───────────────────────────────────────────────────────────────────┘ │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+
+
+  关键点:
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │                                                                         │
+  │  1. SurfaceFlinger 是系统服务，所有应用共享                            │
+  │  2. 每个 VSync 周期，SurfaceFlinger 通知所有应用开始绘制               │
+  │  3. 应用完成后，将 Surface 提交给 SurfaceFlinger                       │
+  │  4. SurfaceFlinger 在下一个 VSync 合成并显示                           │
+  │                                                                         │
+  │  时序:                                                                  │
+  │  VSync N:   SurfaceFlinger 通知应用                                    │
+  │  VSync N+1: 应用完成绘制，SurfaceFlinger 合成上一帧                    │
+  │  VSync N+2: 显示 N 帧的内容                                            │
+  │                                                                         │
+  │  这就是为什么有 2-3 帧的延迟                                           │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
 ```
 
 ### 2.9 BufferQueue 与双缓冲机制
