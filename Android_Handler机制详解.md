@@ -1,7 +1,6 @@
 # Android Handler 机制完全指南
 
-> 作者：OpenClaw  
-> 日期：2026-03-08
+> 作者：OpenClaw | 日期：2026-03-08
 
 ---
 
@@ -9,159 +8,165 @@
 
 1. [概述](#1-概述)
 2. [整体架构](#2-整体架构)
-3. [ThreadLocal 详解](#3-threadlocal-详解)
-4. [Looper 详解](#4-looper-详解)
-5. [MessageQueue 详解](#5-messagequeue-详解)
-6. [Message 详解](#6-message-详解)
-7. [Handler 详解](#7-handler-详解)
-8. [Native 层实现](#8-native-层实现)
-9. [同步屏障机制](#9-同步屏障机制)
-10. [IdleHandler 机制](#10-idlehandler-机制)
-11. [HandlerThread 详解](#11-handlerthread-详解)
-12. [主线程消息循环](#12-主线程消息循环)
-13. [面试常见问题](#13-面试常见问题)
-14. [总结](#14-总结)
+3. [核心组件详解](#3-核心组件详解)
+4. [完整工作流程](#4-完整工作流程)
+5. [ThreadLocal 机制](#5-threadlocal-机制)
+6. [消息循环流程](#6-消息循环流程)
+7. [消息发送流程](#7-消息发送流程)
+8. [消息处理流程](#8-消息处理流程)
+9. [Native 层实现](#9-native-层实现)
+10. [同步屏障机制](#10-同步屏障机制)
+11. [IdleHandler 机制](#11-idlehandler-机制)
+12. [HandlerThread](#12-handlerthread)
+13. [主线程消息循环](#13-主线程消息循环)
+14. [常见问题](#14-常见问题)
+15. [总结](#15-总结)
 
 ---
 
 ## 1. 概述
 
-Handler 是 Android 消息机制的核心，它实现了线程间的异步通信。理解 Handler 机制对于掌握 Android 系统运作原理至关重要。
+Handler 是 Android 消息机制的核心，实现了线程间的异步通信。理解 Handler 机制对于掌握 Android 系统运作原理至关重要。
 
-### 1.1 Handler 机制的作用
+### 1.1 Handler 能做什么？
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                         Handler 机制的作用                                  │
+│                         Handler 的作用                                      │
 └─────────────────────────────────────────────────────────────────────────────┘
 
 1. 线程间通信
-   - 子线程 → 主线程 (更新 UI)
-   - 主线程 → 子线程
-   - 任意线程间通信
+   ┌─────────────┐                      ┌─────────────┐
+   │  子线程     │   sendMessage()      │  主线程     │
+   │             │ ──────────────────► │             │
+   │  耗时操作   │                      │  更新 UI    │
+   └─────────────┘                      └─────────────┘
 
 2. 延迟执行
-   - postDelayed(runnable, delayMillis)
-   - sendMessageDelayed(msg, delayMillis)
+   handler.postDelayed(runnable, 1000)  // 1秒后执行
+   handler.sendMessageDelayed(msg, 2000) // 2秒后执行
 
 3. 任务调度
-   - 消息队列管理
-   - 按时间顺序执行
-   - 优先级控制
-
-4. 系统协调
-   - Choreographer 帧调度
-   - InputEvent 分发
-   - 生命周期回调
+   - 按时间顺序执行任务
+   - 支持消息优先级
+   - 支持空闲时执行
 ```
 
-### 1.2 核心组件概览
+### 1.2 核心组件
 
-| 组件 | 作用 | 关系 |
-|------|------|------|
-| ThreadLocal | 线程局部变量存储 | 存储 Looper |
-| Looper | 消息循环器 | 持有 MessageQueue |
-| MessageQueue | 消息队列 | 持有 Message 链表 |
-| Message | 消息对象 | 持有 Handler 引用 |
-| Handler | 消息发送/处理 | 持有 Looper 和 Callback |
-| Thread | 线程 | 持有 Looper (通过 ThreadLocal) |
+| 组件 | 作用 | 关键点 |
+|------|------|--------|
+| **ThreadLocal** | 线程局部变量存储 | 每个线程有独立的 Looper |
+| **Looper** | 消息循环器 | 不断从队列取消息，无限循环 |
+| **MessageQueue** | 消息队列 | 单链表结构，按时间排序 |
+| **Message** | 消息对象 | 包含 what、obj、when、target |
+| **Handler** | 消息发送/处理 | 绑定 Looper，发送和处理消息 |
 
 ---
 
 ## 2. 整体架构
 
-### 2.1 架构图
+### 2.1 组件关系图
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                         Handler 机制架构图                                  │
+│                         Handler 机制整体架构                                 │
 └─────────────────────────────────────────────────────────────────────────────┘
 
                         ┌─────────────────────────────────┐
-                        │         Thread (主线程)          │
+                        │         Thread (线程)           │
                         │                                 │
                         │  ┌───────────────────────────┐  │
                         │  │      ThreadLocal         │  │
-                        │  │   (存储 Looper)           │  │
+                        │  │   (存储该线程的 Looper)   │  │
                         │  └───────────┬───────────────┘  │
                         │              │                  │
                         │              ▼                  │
                         │  ┌───────────────────────────┐  │
                         │  │         Looper            │  │
-                        │  │   loop() {                │  │
-                        │  │     for(;;) {             │  │
-                        │  │       msg = queue.next()  │  │
-                        │  │       msg.target.         │  │
-                        │  │         dispatchMessage() │  │
-                        │  │     }                     │  │
-                        │  │   }                       │  │
+                        │  │                           │  │
+                        │  │  职责:                    │  │
+                        │  │  1. 创建 MessageQueue    │  │
+                        │  │  2. 循环取出消息         │  │
+                        │  │  3. 分发给 Handler 处理  │  │
+                        │  │                           │  │
                         │  └───────────┬───────────────┘  │
                         │              │                  │
                         │              ▼                  │
                         │  ┌───────────────────────────┐  │
                         │  │      MessageQueue         │  │
-                        │  │   Message 链表            │  │
-                        │  │   msg1→msg2→msg3          │  │
-                        │  │   nativePollOnce          │  │
-                        │  │   nativeWake              │  │
+                        │  │                           │  │
+                        │  │  数据结构: 单链表         │  │
+                        │  │  排序规则: 按时间 when    │  │
+                        │  │                           │  │
+                        │  │  ┌───┐   ┌───┐   ┌───┐  │  │
+                        │  │  │M1 │──►│M2 │──►│M3 │  │  │
+                        │  │  └───┘   └───┘   └───┘  │  │
+                        │  │                           │  │
                         │  └───────────┬───────────────┘  │
                         │              │                  │
                         │              ▼                  │
                         │  ┌───────────────────────────┐  │
                         │  │        Handler            │  │
-                        │  │   sendMessage()           │  │
-                        │  │   post()                  │  │
-                        │  │   dispatchMessage()       │  │
-                        │  │   handleMessage()         │  │
+                        │  │                           │  │
+                        │  │  职责:                    │  │
+                        │  │  1. 发送消息到队列       │  │
+                        │  │  2. 处理消息             │  │
+                        │  │                           │  │
                         │  └───────────────────────────┘  │
+                        │                                 │
                         └─────────────────────────────────┘
 ```
 
-### 2.2 完整工作流程
+### 2.2 组件持有关系
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                         Handler 完整工作流程                                │
+│                         组件持有关系                                         │
 └─────────────────────────────────────────────────────────────────────────────┘
 
-1. 准备阶段
-   ActivityThread.main()
-       │
-       ├──► Looper.prepareMainLooper()
-       │         │
-       │         └──► new Looper() → new MessageQueue() → nativeInit()
-       │
-       └──► Looper.loop()
+   Thread
+     │
+     │ 持有 (通过 ThreadLocal)
+     ▼
+   Looper ◄────────────────────────────────────────┐
+     │                                              │
+     │ 持有                                         │ 持有
+     ▼                                              │
+   MessageQueue                                     │
+     │                                              │
+     │ 持有 (链表中的 Message)                       │
+     ▼                                              │
+   Message ─────────────────────────────────────────┘
+     │              持有 (target 字段)
+     │
+     ▼
+   Handler
+     │
+     │ 持有
+     ▼
+   Looper (同一个)
 
-2. 消息循环
-   for (;;) {
-       Message msg = queue.next();           // 阻塞等待
-       msg.target.dispatchMessage(msg);       // 分发消息
-       msg.recycleUnchecked();                // 回收消息
-   }
-
-3. 发送消息
-   Handler.sendMessage(msg)
-       └──► queue.enqueueMessage(msg, when)
-                 └──► nativeWake()  // 唤醒等待
-
-4. 处理消息
-   Handler.dispatchMessage(msg)
-       ├──► msg.callback.run()               // Runnable
-       ├──► mCallback.handleMessage(msg)      // Callback
-       └──► handleMessage(msg)                // 默认处理
+总结:
+- Thread 通过 ThreadLocal 持有 Looper
+- Looper 持有 MessageQueue
+- MessageQueue 持有 Message 链表
+- Message 持有 Handler 引用 (target 字段)
+- Handler 持有 Looper 引用
 ```
 
 ---
 
-## 3. ThreadLocal 详解
+## 3. 核心组件详解
 
-### 3.1 ThreadLocal 原理
+### 3.1 ThreadLocal
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                         ThreadLocal 内部结构                                │
+│                         ThreadLocal 原理                                     │
 └─────────────────────────────────────────────────────────────────────────────┘
+
+ThreadLocal 实现了线程局部变量: 每个线程有独立的变量副本
 
    Thread 1                    Thread 2                    Thread 3
    ┌─────────────────┐        ┌─────────────────┐        ┌─────────────────┐
@@ -172,731 +177,794 @@ Handler 是 Android 消息机制的核心，它实现了线程间的异步通信
             ▼                          ▼                          ▼
    ┌─────────────────┐        ┌─────────────────┐        ┌─────────────────┐
    │ Key: sThreadLocal│       │ Key: sThreadLocal│       │ Key: sThreadLocal│
-   │ Value: Looper1  │        │ Value: Looper2  │        │ Value: Looper3  │
+   │ Value: Looper1  │        │ Value: Looper2  │        │ Value: null     │
    └─────────────────┘        └─────────────────┘        └─────────────────┘
+
+   sThreadLocal 是 Looper 类中的静态变量
+   所有线程共享这个 ThreadLocal 对象作为 Key
+   但每个线程的 Value 是独立的
+
+关键点:
+- ThreadLocal 只是 Key
+- 数据实际存储在 Thread.threadLocals 中
+- 每个线程有自己独立的 Map
 ```
 
-### 3.2 ThreadLocal 源码分析
+### 3.2 Looper
 
-```java
-public class ThreadLocal<T> {
-    
-    // 获取当前线程的值
-    public T get() {
-        Thread t = Thread.currentThread();
-        ThreadLocalMap map = getMap(t);
-        if (map != null) {
-            ThreadLocalMap.Entry e = map.getEntry(this);
-            if (e != null) {
-                return (T) e.value;
-            }
-        }
-        return setInitialValue();
-    }
-    
-    // 设置当前线程的值
-    public void set(T value) {
-        Thread t = Thread.currentThread();
-        ThreadLocalMap map = getMap(t);
-        if (map != null) {
-            map.set(this, value);
-        } else {
-            createMap(t, value);
-        }
-    }
-    
-    // 获取线程的 ThreadLocalMap
-    ThreadLocalMap getMap(Thread t) {
-        return t.threadLocals;  // Thread 类的成员变量
-    }
-}
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         Looper 核心职责                                      │
+└─────────────────────────────────────────────────────────────────────────────┘
 
-// Thread 类
-public class Thread {
-    ThreadLocal.ThreadLocalMap threadLocals = null;
-}
+   Looper
+   ┌─────────────────────────────────────────────────────────────────────┐
+   │                                                                     │
+   │   成员变量:                                                         │
+   │   ├── mQueue: MessageQueue     // 消息队列                         │
+   │   ├── mThread: Thread          // 绑定的线程                       │
+   │   └── mQuitAllowed: boolean    // 是否允许退出                     │
+   │                                                                     │
+   │   核心方法:                                                         │
+   │   ├── prepare()               // 创建 Looper (子线程)              │
+   │   ├── prepareMainLooper()     // 创建主线程 Looper                 │
+   │   ├── loop()                  // 开始消息循环                      │
+   │   ├── myLooper()              // 获取当前线程 Looper               │
+   │   ├── quit()                  // 退出循环                          │
+   │   └── quitSafely()            // 安全退出 (处理完队列消息)         │
+   │                                                                     │
+   └─────────────────────────────────────────────────────────────────────┘
+
+重要规则:
+1. 一个线程只能有一个 Looper
+2. 主线程 Looper 在 ActivityThread.main() 中创建
+3. 子线程需要手动调用 Looper.prepare()
+4. 主线程 Looper 不允许退出
 ```
 
-### 3.3 Looper 中的 ThreadLocal
+### 3.3 MessageQueue
 
-```java
-public class Looper {
-    // 静态 ThreadLocal，所有线程共享作为 Key
-    static final ThreadLocal<Looper> sThreadLocal = new ThreadLocal<>();
-    
-    // 准备 Looper
-    public static void prepare() {
-        if (sThreadLocal.get() != null) {
-            throw new RuntimeException("Only one Looper may be created per thread");
-        }
-        sThreadLocal.set(new Looper(true));
-    }
-    
-    // 获取当前线程的 Looper
-    public static Looper myLooper() {
-        return sThreadLocal.get();
-    }
-}
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         MessageQueue 数据结构                                │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+   MessageQueue 使用单链表存储消息
+   按消息执行时间 (when) 排序
+
+   mMessages (链表头)
+       │
+       ▼
+   ┌───────────────────────────────────────────────────────────────────┐
+   │                                                                   │
+   │   ┌─────────┐    ┌─────────┐    ┌─────────┐    ┌─────────┐     │
+   │   │ Message │    │ Message │    │ Message │    │ Message │     │
+   │   │ when=0  │───►│ when=100│───►│ when=200│───►│ when=500│     │
+   │   │ 立即执行 │    │ 100ms后 │    │ 200ms后 │    │ 500ms后 │     │
+   │   └─────────┘    └─────────┘    └─────────┘    └─────────┘     │
+   │                                                                   │
+   │   时间早的在前面，时间晚的在后面                                   │
+   │                                                                   │
+   └───────────────────────────────────────────────────────────────────┘
+
+核心方法:
+- next(): 取出下一条消息 (可能阻塞)
+- enqueueMessage(): 插入消息到链表
 ```
 
----
+### 3.4 Message
 
-## 4. Looper 详解
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         Message 结构                                         │
+└─────────────────────────────────────────────────────────────────────────────┘
 
-### 4.1 Looper 核心源码
+   Message
+   ┌─────────────────────────────────────────────────────────────────────┐
+   │                                                                     │
+   │   数据字段:                                                         │
+   │   ├── what: int          // 消息标识                               │
+   │   ├── arg1: int          // 整数参数1                              │
+   │   ├── arg2: int          // 整数参数2                              │
+   │   ├── obj: Object        // 对象参数                               │
+   │   └── data: Bundle       // 数据包                                 │
+   │                                                                     │
+   │   执行相关:                                                         │
+   │   ├── when: long         // 执行时间 (开机后的毫秒数)              │
+   │   ├── target: Handler    // 目标 Handler                           │
+   │   └── callback: Runnable // 回调 (post 方式)                       │
+   │                                                                     │
+   │   链表指针:                                                         │
+   │   └── next: Message      // 下一条消息                             │
+   │                                                                     │
+   └─────────────────────────────────────────────────────────────────────┘
 
-```java
-public final class Looper {
-    
-    // ThreadLocal 存储
-    static final ThreadLocal<Looper> sThreadLocal = new ThreadLocal<>();
-    private static Looper sMainLooper;
-    
-    // 消息队列和线程
-    final MessageQueue mQueue;
-    final Thread mThread;
-    
-    private Looper(boolean quitAllowed) {
-        mQueue = new MessageQueue(quitAllowed);
-        mThread = Thread.currentThread();
-    }
-    
-    // 准备主线程 Looper
-    public static void prepareMainLooper() {
-        prepare(false);  // 主线程不允许退出
-        synchronized (Looper.class) {
-            if (sMainLooper != null) {
-                throw new IllegalStateException("The main Looper has already been prepared.");
-            }
-            sMainLooper = myLooper();
-        }
-    }
-    
-    // 消息循环 (核心)
-    public static void loop() {
-        final Looper me = myLooper();
-        if (me == null) {
-            throw new RuntimeException("No Looper; Looper.prepare() wasn't called on this thread.");
-        }
-        
-        final MessageQueue queue = me.mQueue;
-        
-        for (;;) {
-            // 1. 取出消息 (可能阻塞)
-            Message msg = queue.next();
-            if (msg == null) {
-                return;  // 队列退出
-            }
-            
-            // 2. 分发消息
-            msg.target.dispatchMessage(msg);
-            
-            // 3. 回收消息
-            msg.recycleUnchecked();
-        }
-    }
-    
-    // 退出
-    public void quit() {
-        mQueue.quit(false);
-    }
-    
-    public void quitSafely() {
-        mQueue.quit(true);
-    }
-}
+获取方式:
+- Message.obtain()  // 从消息池获取 (推荐)
+- new Message()     // 直接创建
 ```
 
-### 4.2 主线程 Looper 初始化
+### 3.5 Handler
 
-```java
-// ActivityThread.main()
-public static void main(String[] args) {
-    // 1. 初始化主线程 Looper
-    Looper.prepareMainLooper();
-    
-    // 2. 创建 ActivityThread
-    ActivityThread thread = new ActivityThread();
-    thread.attach(false, startSeq);
-    
-    // 3. 启动消息循环
-    Looper.loop();
-    
-    // 4. 如果退出，抛异常
-    throw new RuntimeException("Main thread loop unexpectedly exited");
-}
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         Handler 职责                                         │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+   Handler
+   ┌─────────────────────────────────────────────────────────────────────┐
+   │                                                                     │
+   │   成员变量:                                                         │
+   │   ├── mLooper: Looper        // 绑定的 Looper                      │
+   │   ├── mQueue: MessageQueue   // 绑定的消息队列                     │
+   │   ├── mCallback: Callback    // 回调接口                           │
+   │   └── mAsynchronous: boolean // 是否异步消息                       │
+   │                                                                     │
+   │   发送消息:                                                         │
+   │   ├── sendMessage(msg)                                          │
+   │   ├── sendMessageDelayed(msg, delayMillis)                      │
+   │   ├── sendMessageAtTime(msg, uptimeMillis)                      │
+   │   ├── post(runnable)                                            │
+   │   └── postDelayed(runnable, delayMillis)                        │
+   │                                                                     │
+   │   处理消息:                                                         │
+   │   ├── dispatchMessage(msg)    // 分发消息                         │
+   │   └── handleMessage(msg)      // 处理消息 (子类重写)              │
+   │                                                                     │
+   └─────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 5. MessageQueue 详解
+## 4. 完整工作流程
 
-### 5.1 MessageQueue 核心源码
+### 4.1 准备阶段
 
-```java
-public final class MessageQueue {
-    
-    // 消息链表头
-    Message mMessages;
-    
-    // 是否允许退出
-    private final boolean mQuitAllowed;
-    private boolean mQuitting;
-    
-    // Native 层指针
-    private long mPtr;
-    
-    // 取出下一条消息 (核心)
-    Message next() {
-        int pendingIdleHandlerCount = -1;
-        int nextPollTimeoutMillis = 0;
-        
-        for (;;) {
-            // Native 层阻塞等待
-            nativePollOnce(mPtr, nextPollTimeoutMillis);
-            
-            synchronized (this) {
-                final long now = SystemClock.uptimeMillis();
-                Message prevMsg = null;
-                Message msg = mMessages;
-                
-                // 检查同步屏障
-                if (msg != null && msg.target == null) {
-                    // 遇到屏障，找下一条异步消息
-                    do {
-                        prevMsg = msg;
-                        msg = msg.next;
-                    } while (msg != null && !msg.isAsynchronous());
-                }
-                
-                if (msg != null) {
-                    if (now < msg.when) {
-                        // 消息时间未到
-                        nextPollTimeoutMillis = (int) Math.min(msg.when - now, Integer.MAX_VALUE);
-                    } else {
-                        // 取出消息
-                        mBlocked = false;
-                        if (prevMsg != null) {
-                            prevMsg.next = msg.next;
-                        } else {
-                            mMessages = msg.next;
-                        }
-                        msg.next = null;
-                        msg.markInUse();
-                        return msg;
-                    }
-                } else {
-                    // 没有消息，无限等待
-                    nextPollTimeoutMillis = -1;
-                }
-                
-                // 处理 IdleHandler
-                if (pendingIdleHandlerCount < 0 
-                        && (mMessages == null || now < mMessages.when)) {
-                    pendingIdleHandlerCount = mIdleHandlers.size();
-                }
-                if (pendingIdleHandlerCount <= 0) {
-                    mBlocked = true;
-                    continue;
-                }
-                
-                // 执行 IdleHandler...
-            }
-        }
-    }
-    
-    // 入队消息
-    boolean enqueueMessage(Message msg, long when) {
-        if (msg.target == null) {
-            throw new IllegalArgumentException("Message must have a target.");
-        }
-        
-        synchronized (this) {
-            if (msg.isInUse()) {
-                throw new IllegalStateException(msg + " This message is already in use.");
-            }
-            
-            if (mQuitting) {
-                return false;
-            }
-            
-            msg.markInUse();
-            msg.when = when;
-            
-            Message p = mMessages;
-            boolean needWake;
-            
-            if (p == null || when == 0 || when < p.when) {
-                // 插入头部
-                msg.next = p;
-                mMessages = msg;
-                needWake = mBlocked;
-            } else {
-                // 按时间插入
-                needWake = mBlocked && p.target == null && msg.isAsynchronous();
-                Message prev;
-                for (;;) {
-                    prev = p;
-                    p = p.next;
-                    if (p == null || when < p.when) {
-                        break;
-                    }
-                    if (needWake && p.isAsynchronous()) {
-                        needWake = false;
-                    }
-                }
-                msg.next = p;
-                prev.next = msg;
-            }
-            
-            if (needWake) {
-                nativeWake(mPtr);
-            }
-        }
-        return true;
-    }
-}
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         准备阶段: 创建 Looper 和 MessageQueue               │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+主线程 (ActivityThread.main):
+─────────────────────────────────────────────────────────────────────────────
+
+  ActivityThread.main()
+         │
+         │  1. 创建主线程 Looper
+         ▼
+  Looper.prepareMainLooper()
+         │
+         │  内部调用 prepare(false)
+         │  false 表示不允许退出
+         ▼
+  ┌─────────────────────────────────────────────────────────────────────┐
+  │  Looper.prepare(false)                                              │
+  │       │                                                             │
+  │       │  检查当前线程是否已有 Looper                                │
+  │       │  if (sThreadLocal.get() != null) 抛出异常                   │
+  │       │                                                             │
+  │       │  创建 Looper 并存入 ThreadLocal                            │
+  │       ▼                                                             │
+  │  new Looper(quitAllowed=false)                                      │
+  │       │                                                             │
+  │       │  Looper 构造函数                                            │
+  │       ▼                                                             │
+  │  ┌─────────────────────────────────────────────────────────────┐   │
+  │  │  mQueue = new MessageQueue(quitAllowed);  // 创建队列       │   │
+  │  │  mThread = Thread.currentThread();        // 记录线程       │   │
+  │  └─────────────────────────────────────────────────────────────┘   │
+  │       │                                                             │
+  │       ▼                                                             │
+  │  sThreadLocal.set(new Looper(false))                               │
+  └─────────────────────────────────────────────────────────────────────┘
+         │
+         │  2. 启动消息循环
+         ▼
+  Looper.loop()  ─────────────────────────────────────────────────────►
+                                                               (无限循环)
+
+
+子线程:
+─────────────────────────────────────────────────────────────────────────────
+
+  class MyThread extends Thread {
+      public void run() {
+          // 1. 准备 Looper
+          Looper.prepare();
+          
+          // 2. 创建 Handler (必须在 prepare 之后)
+          Handler handler = new Handler() {
+              @Override
+              public void handleMessage(Message msg) {
+                  // 处理消息
+              }
+          };
+          
+          // 3. 开始循环
+          Looper.loop();
+          
+          // 4. loop() 退出后才会执行到这里
+      }
+  }
+```
+
+### 4.2 完整流程图
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         Handler 完整工作流程                                 │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+   准备阶段
+   ┌─────────────────────────────────────────────────────────────────────┐
+   │                                                                     │
+   │   Thread.main()                                                     │
+   │        │                                                            │
+   │        ▼                                                            │
+   │   Looper.prepare() ───► new Looper() ───► new MessageQueue()       │
+   │        │                                      │                     │
+   │        │                                      ▼                     │
+   │        │                              nativeInit() (Native层)      │
+   │        │                                                            │
+   │        ▼                                                            │
+   │   Looper.loop() ◄────────────────────────────────────────────────┐ │
+   │        │                                                         │ │
+   └────────┼─────────────────────────────────────────────────────────┘ │
+            │                                                           │
+            ▼                                                           │
+   ┌─────────────────────────────────────────────────────────────────────┐
+   │                                                                     │
+   │   消息循环 (for (;;) 无限循环)                                      │
+   │   ┌─────────────────────────────────────────────────────────────┐  │
+   │   │                                                             │  │
+   │   │   ┌─────────────────────────────────────────────────────┐   │  │
+   │   │   │ 1. queue.next() 取出消息                            │   │  │
+   │   │   │    - 有消息: 返回 Message                           │   │  │
+   │   │   │    - 无消息: nativePollOnce 阻塞等待                │   │  │
+   │   │   │    - 退出: 返回 null                                │   │  │
+   │   │   └─────────────────────────────────────────────────────┘   │  │
+   │   │                          │                                  │  │
+   │   │                          ▼                                  │  │
+   │   │   ┌─────────────────────────────────────────────────────┐   │  │
+   │   │   │ 2. msg.target.dispatchMessage(msg)                 │   │  │
+   │   │   │    - msg.target 就是发送消息的 Handler             │   │  │
+   │   │   └─────────────────────────────────────────────────────┘   │  │
+   │   │                          │                                  │  │
+   │   │                          ▼                                  │  │
+   │   │   ┌─────────────────────────────────────────────────────┐   │  │
+   │   │   │ 3. msg.recycleUnchecked()                          │   │  │
+   │   │   │    - 回收消息到消息池                              │   │  │
+   │   │   └─────────────────────────────────────────────────────┘   │  │
+   │   │                          │                                  │  │
+   │   │                          ▼                                  │  │
+   │   │                      循环继续 ◄─────────────────────────────┘  │
+   │   │                                                             │  │
+   │   └─────────────────────────────────────────────────────────────┘  │
+   │                                                                     │
+   └─────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 6. Message 详解
+## 5. ThreadLocal 机制
 
-### 6.1 Message 结构
+### 5.1 为什么用 ThreadLocal？
 
-```java
-public final class Message {
-    
-    // 消息标识
-    public int what;
-    public int arg1;
-    public int arg2;
-    public Object obj;
-    
-    // 回调和目标
-    Runnable callback;
-    Handler target;
-    
-    // 链表指针
-    Message next;
-    
-    // 执行时间
-    long when;
-    
-    // 是否异步
-    boolean isAsynchronous;
-    
-    // 消息池
-    private static Message sPool;
-    private static int sPoolSize = 0;
-    private static final int MAX_POOL_SIZE = 50;
-    
-    // 从池中获取
-    public static Message obtain() {
-        synchronized (sPoolSync) {
-            if (sPool != null) {
-                Message m = sPool;
-                sPool = m.next;
-                m.next = null;
-                m.flags = 0;
-                sPoolSize--;
-                return m;
-            }
-        }
-        return new Message();
-    }
-    
-    // 回收
-    void recycleUnchecked() {
-        flags = FLAG_IN_USE;
-        what = 0;
-        arg1 = 0;
-        arg2 = 0;
-        obj = null;
-        when = 0;
-        target = null;
-        callback = null;
-        
-        synchronized (sPoolSync) {
-            if (sPoolSize < MAX_POOL_SIZE) {
-                next = sPool;
-                sPool = this;
-                sPoolSize++;
-            }
-        }
-    }
-}
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         为什么用 ThreadLocal 存储 Looper?                    │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+需求: 每个线程有且只有一个 Looper
+
+方案对比:
+─────────────────────────────────────────────────────────────────────────────
+
+❌ 方案1: 用 Map<Thread, Looper>
+   问题: 多线程并发访问需要加锁，性能差
+
+❌ 方案2: 在 Thread 类中直接添加 Looper 成员变量
+   问题: 修改 Thread 类，侵入性强
+
+✅ 方案3: ThreadLocal
+   优点: 无锁、每个线程独立、不修改 Thread 类
+```
+
+### 5.2 ThreadLocal 工作流程
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         ThreadLocal 工作流程                                 │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+调用 sThreadLocal.get():
+─────────────────────────────────────────────────────────────────────────────
+
+  sThreadLocal.get()
+         │
+         ▼
+  ┌─────────────────────────────────────────────────────────────────────┐
+  │  1. 获取当前线程: Thread t = Thread.currentThread()                │
+  │  2. 获取线程的 ThreadLocalMap: ThreadLocalMap map = t.threadLocals│
+  │  3. 以 sThreadLocal 为 key 查找 value                              │
+  │  4. 返回对应的 Looper (或 null)                                     │
+  └─────────────────────────────────────────────────────────────────────┘
+
+
+调用 sThreadLocal.set(looper):
+─────────────────────────────────────────────────────────────────────────────
+
+  sThreadLocal.set(looper)
+         │
+         ▼
+  ┌─────────────────────────────────────────────────────────────────────┐
+  │  1. 获取当前线程: Thread t = Thread.currentThread()                │
+  │  2. 获取或创建 ThreadLocalMap                                      │
+  │  3. 以 sThreadLocal 为 key，looper 为 value 存入                   │
+  └─────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 7. Handler 详解
+## 6. 消息循环流程
 
-### 7.1 Handler 核心源码
+### 6.1 Looper.loop() 流程
 
-```java
-public class Handler {
-    
-    final Looper mLooper;
-    final MessageQueue mQueue;
-    final Callback mCallback;
-    
-    public Handler() {
-        this(null, false);
-    }
-    
-    public Handler(Looper looper) {
-        this(looper, null, false);
-    }
-    
-    public Handler(Callback callback, boolean async) {
-        mLooper = Looper.myLooper();
-        if (mLooper == null) {
-            throw new RuntimeException(
-                "Can't create handler inside thread that has not called Looper.prepare()");
-        }
-        mQueue = mLooper.mQueue;
-        mCallback = callback;
-    }
-    
-    // 发送消息
-    public final boolean sendMessage(Message msg) {
-        return sendMessageDelayed(msg, 0);
-    }
-    
-    public final boolean sendMessageDelayed(Message msg, long delayMillis) {
-        if (delayMillis < 0) delayMillis = 0;
-        return sendMessageAtTime(msg, SystemClock.uptimeMillis() + delayMillis);
-    }
-    
-    public boolean sendMessageAtTime(Message msg, long uptimeMillis) {
-        MessageQueue queue = mQueue;
-        if (queue == null) return false;
-        return enqueueMessage(queue, msg, uptimeMillis);
-    }
-    
-    private boolean enqueueMessage(MessageQueue queue, Message msg, long uptimeMillis) {
-        msg.target = this;
-        if (mAsynchronous) {
-            msg.setAsynchronous(true);
-        }
-        return queue.enqueueMessage(msg, uptimeMillis);
-    }
-    
-    // post Runnable
-    public final boolean post(Runnable r) {
-        return sendMessageDelayed(getPostMessage(r), 0);
-    }
-    
-    public final boolean postDelayed(Runnable r, long delayMillis) {
-        return sendMessageDelayed(getPostMessage(r), delayMillis);
-    }
-    
-    private static Message getPostMessage(Runnable r) {
-        Message m = Message.obtain();
-        m.callback = r;
-        return m;
-    }
-    
-    // 分发消息
-    public void dispatchMessage(Message msg) {
-        if (msg.callback != null) {
-            handleCallback(msg);
-        } else {
-            if (mCallback != null) {
-                if (mCallback.handleMessage(msg)) {
-                    return;
-                }
-            }
-            handleMessage(msg);
-        }
-    }
-    
-    private static void handleCallback(Message message) {
-        message.callback.run();
-    }
-    
-    public void handleMessage(Message msg) {
-        // 子类重写
-    }
-}
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         Looper.loop() 流程                                   │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  Looper.loop()
+         │
+         ▼
+  ┌─────────────────────────────────────────────────────────────────────┐
+  │  1. 获取当前线程的 Looper                                           │
+  │     final Looper me = myLooper();                                   │
+  │     if (me == null) 抛出异常                                        │
+  └─────────────────────────────────────────────────────────────────────┘
+         │
+         ▼
+  ┌─────────────────────────────────────────────────────────────────────┐
+  │  2. 获取消息队列                                                    │
+  │     final MessageQueue queue = me.mQueue;                           │
+  └─────────────────────────────────────────────────────────────────────┘
+         │
+         ▼
+  ┌─────────────────────────────────────────────────────────────────────┐
+  │  3. 无限循环 for (;;)                                               │
+  └─────────────────────────────────────────────────────────────────────┘
+         │
+         ▼
+  ┌─────────────────────────────────────────────────────────────────────┐
+  │  4. 从队列取出消息 (可能阻塞)                                       │
+  │     Message msg = queue.next();                                     │
+  │     - 如果 msg == null，说明队列正在退出，返回                      │
+  └─────────────────────────────────────────────────────────────────────┘
+         │
+         ▼
+  ┌─────────────────────────────────────────────────────────────────────┐
+  │  5. 分发消息给 Handler                                              │
+  │     msg.target.dispatchMessage(msg);                                │
+  │     msg.target 就是发送这条消息的 Handler                           │
+  └─────────────────────────────────────────────────────────────────────┘
+         │
+         ▼
+  ┌─────────────────────────────────────────────────────────────────────┐
+  │  6. 回收消息                                                        │
+  │     msg.recycleUnchecked();                                         │
+  │     将消息回收到消息池，供后续复用                                  │
+  └─────────────────────────────────────────────────────────────────────┘
+         │
+         ▼
+      继续下一次循环 ─────────────────────────────────────────────────────►
+```
+
+### 6.2 MessageQueue.next() 流程
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         MessageQueue.next() 流程                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  MessageQueue.next()
+         │
+         ▼
+  ┌─────────────────────────────────────────────────────────────────────┐
+  │  1. 初始化                                                          │
+  │     int nextPollTimeoutMillis = 0;  // 首次不阻塞                   │
+  └─────────────────────────────────────────────────────────────────────┘
+         │
+         ▼
+  ┌─────────────────────────────────────────────────────────────────────┐
+  │  2. Native 层阻塞等待                                               │
+  │     nativePollOnce(ptr, nextPollTimeoutMillis);                     │
+  │     - 0: 立即返回                                                   │
+  │     - -1: 无限等待，直到被唤醒                                      │
+  │     - >0: 等待指定毫秒数                                            │
+  └─────────────────────────────────────────────────────────────────────┘
+         │
+         ▼
+  ┌─────────────────────────────────────────────────────────────────────┐
+  │  3. 检查同步屏障 (msg.target == null)                               │
+  │     如果遇到屏障，跳过同步消息，只找异步消息                        │
+  └─────────────────────────────────────────────────────────────────────┘
+         │
+         ▼
+  ┌─────────────────────────────────────────────────────────────────────┐
+  │  4. 处理消息                                                        │
+  │     if (now < msg.when) {                                           │
+  │         // 消息时间未到，计算等待时间                               │
+  │         nextPollTimeoutMillis = (int)(msg.when - now);              │
+  │     } else {                                                        │
+  │         // 取出消息返回                                             │
+  │         return msg;                                                 │
+  │     }                                                               │
+  └─────────────────────────────────────────────────────────────────────┘
+         │
+         ▼
+  ┌─────────────────────────────────────────────────────────────────────┐
+  │  5. 处理 IdleHandler (空闲时执行)                                   │
+  │     如果没有消息或消息未到时间，执行空闲回调                        │
+  └─────────────────────────────────────────────────────────────────────┘
+         │
+         ▼
+      继续下一次循环 ─────────────────────────────────────────────────────►
 ```
 
 ---
 
-## 8. Native 层实现
+## 7. 消息发送流程
 
-### 8.1 Native 方法
+### 7.1 Handler 发送消息流程
 
-```java
-// MessageQueue 中的 Native 方法
-public final class MessageQueue {
-    
-    // Native 层初始化
-    private native static long nativeInit();
-    private native static void nativeDestroy(long ptr);
-    private native void nativePollOnce(long ptr, int timeoutMillis);
-    private native static void nativeWake(long ptr);
-    private native static boolean nativeIsPolling(long ptr);
-    private native static void nativeSetFileDescriptorEvents(long ptr, int fd, int events);
-}
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         Handler 发送消息流程                                 │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  handler.sendMessage(msg)
+         │
+         ▼
+  sendMessageDelayed(msg, 0)
+         │
+         ▼
+  sendMessageAtTime(msg, SystemClock.uptimeMillis() + delayMillis)
+         │
+         │  计算消息执行时间 (开机后毫秒数)
+         │
+         ▼
+  enqueueMessage(mQueue, msg, uptimeMillis)
+         │
+         │  1. 设置消息的 target 为当前 Handler
+         │     msg.target = this;
+         │
+         ▼
+  mQueue.enqueueMessage(msg, uptimeMillis)
+         │
+         ▼
+  ┌─────────────────────────────────────────────────────────────────────┐
+  │  MessageQueue.enqueueMessage()                                      │
+  │                                                                     │
+  │  1. 检查是否正在退出                                                │
+  │  2. 标记消息为使用中                                                │
+  │  3. 按时间插入链表                                                  │
+  │  4. 如果需要，调用 nativeWake() 唤醒等待的线程                      │
+  └─────────────────────────────────────────────────────────────────────┘
 ```
 
-### 8.2 Native 实现 (C++)
+### 7.2 消息入队流程
 
-```cpp
-// android_os_MessageQueue.cpp
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         消息入队流程                                         │
+└─────────────────────────────────────────────────────────────────────────────┘
 
-static void android_os_MessageQueue_nativePollOnce(JNIEnv* env, jobject obj,
-        jlong ptr, jint timeoutMillis) {
-    NativeMessageQueue* nativeMessageQueue = reinterpret_cast<NativeMessageQueue*>(ptr);
-    nativeMessageQueue->pollOnce(env, obj, timeoutMillis);
-}
+  enqueueMessage(msg, when)
+         │
+         ▼
+  ┌─────────────────────────────────────────────────────────────────────┐
+  │  synchronized (this) {                                              │
+  │                                                                     │
+  │      msg.when = when;                                               │
+  │      Message p = mMessages;  // 链表头                              │
+  │                                                                     │
+  │      if (p == null || when == 0 || when < p.when) {                │
+  │          // 插入头部                                                │
+  │          msg.next = p;                                              │
+  │          mMessages = msg;                                           │
+  │          needWake = mBlocked;                                       │
+  │      } else {                                                       │
+  │          // 按时间找位置插入                                        │
+  │          Message prev;                                              │
+  │          for (;;) {                                                 │
+  │              prev = p;                                              │
+  │              p = p.next;                                            │
+  │              if (p == null || when < p.when) {                      │
+  │                  break;                                             │
+  │              }                                                      │
+  │          }                                                          │
+  │          msg.next = p;                                              │
+  │          prev.next = msg;                                           │
+  │      }                                                              │
+  │                                                                     │
+  │      if (needWake) {                                                │
+  │          nativeWake(mPtr);  // 唤醒等待的线程                       │
+  │      }                                                              │
+  │  }                                                                  │
+  └─────────────────────────────────────────────────────────────────────┘
 
-void NativeMessageQueue::pollOnce(JNIEnv* env, jobject pollObj, int timeoutMillis) {
-    mPollEnv = env;
-    mPollObj = pollObj;
-    mLooper->pollOnce(timeoutMillis);
-    mPollEnv = NULL;
-    mPollObj = NULL;
-}
 
-// Looper.cpp
-int Looper::pollOnce(int timeoutMillis, int* outFd, int* outEvents, void** outData) {
-    int result = 0;
-    for (;;) {
-        // 处理已触发的 Response
-        while (mResponseIndex < mResponses.size()) {
-            const Response& response = mResponses.itemAt(mResponseIndex++);
-            int ident = response.request.ident;
-            if (ident >= 0) {
-                int fd = response.request.fd;
-                int events = response.events;
-                void* data = response.request.data;
-                if (outFd != NULL) *outFd = fd;
-                if (outEvents != NULL) *outEvents = events;
-                if (outData != NULL) *outData = data;
-                return ident;
-            }
-        }
-        
-        if (result != 0) {
-            if (outFd != NULL) *outFd = 0;
-            if (outEvents != NULL) *outEvents = 0;
-            if (outData != NULL) *outData = NULL;
-            return result;
-        }
-        
-        result = pollInner(timeoutMillis);
-    }
-}
+示例: 插入 when=150 的消息
+─────────────────────────────────────────────────────────────────────────────
 
-int Looper::pollInner(int timeoutMillis) {
-    // 使用 epoll_wait 等待事件
-    struct epoll_event eventItems[EPOLL_MAX_EVENTS];
-    int eventCount = epoll_wait(mEpollFd, eventItems, EPOLL_MAX_EVENTS, timeoutMillis);
-    
-    // 处理事件...
-    return result;
-}
+  插入前:
+  ┌─────────┐    ┌─────────┐    ┌─────────┐
+  │ when=0  │───►│ when=100│───►│ when=200│
+  └─────────┘    └─────────┘    └─────────┘
+
+  插入后:
+  ┌─────────┐    ┌─────────┐    ┌─────────┐    ┌─────────┐
+  │ when=0  │───►│ when=100│───►│ when=150│───►│ when=200│
+  └─────────┘    └─────────┘    └─────────┘    └─────────┘
+                               ↑
+                            新插入的消息
 ```
 
-### 8.3 epoll 机制
+---
+
+## 8. 消息处理流程
+
+### 8.1 Handler.dispatchMessage() 流程
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         Handler.dispatchMessage() 流程                       │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  dispatchMessage(msg)
+         │
+         ▼
+  ┌─────────────────────────────────────────────────────────────────────┐
+  │  1. 检查 Message 的 callback                                        │
+  │     if (msg.callback != null) {                                     │
+  │         handleCallback(msg);  // 执行 Runnable                      │
+  │         return;                                                     │
+  │     }                                                               │
+  └─────────────────────────────────────────────────────────────────────┘
+         │
+         │  msg.callback == null
+         ▼
+  ┌─────────────────────────────────────────────────────────────────────┐
+  │  2. 检查 Handler 的 mCallback                                       │
+  │     if (mCallback != null) {                                        │
+  │         if (mCallback.handleMessage(msg)) {                         │
+  │             return;  // 回调处理了消息                              │
+  │         }                                                           │
+  │     }                                                               │
+  └─────────────────────────────────────────────────────────────────────┘
+         │
+         │  mCallback == null 或 返回 false
+         ▼
+  ┌─────────────────────────────────────────────────────────────────────┐
+  │  3. 调用 handleMessage(msg)                                         │
+  │     handleMessage(msg);  // 子类重写此方法                          │
+  └─────────────────────────────────────────────────────────────────────┘
+
+
+三种处理方式:
+─────────────────────────────────────────────────────────────────────────────
+
+方式1: post(Runnable)
+  handler.post(new Runnable() {
+      @Override
+      public void run() {
+          // 这里的代码会在主线程执行
+      }
+  });
+
+方式2: Handler(Callback)
+  Handler handler = new Handler(new Handler.Callback() {
+      @Override
+      public boolean handleMessage(Message msg) {
+          // 处理消息
+          return true;  // 返回 true 表示已处理
+      }
+  });
+
+方式3: 重写 handleMessage (最常用)
+  Handler handler = new Handler() {
+      @Override
+      public void handleMessage(Message msg) {
+          // 处理消息
+      }
+  };
+```
+
+---
+
+## 9. Native 层实现
+
+### 9.1 epoll 机制
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         epoll 机制                                         │
 └─────────────────────────────────────────────────────────────────────────────┘
 
-epoll 是 Linux 高效的 I/O 多路复用机制:
+Android 使用 Linux 的 epoll 机制实现高效的阻塞/唤醒:
 
-1. epoll_create() - 创建 epoll 实例
-2. epoll_ctl() - 添加/修改/删除监听的文件描述符
-3. epoll_wait() - 等待事件
+   nativePollOnce(ptr, timeout)
+            │
+            ▼
+   ┌─────────────────────────────────────────────────────────────────────┐
+   │  NativeMessageQueue.pollOnce()                                      │
+   │            │                                                        │
+   │            ▼                                                        │
+   │  Looper.pollOnce()                                                  │
+   │            │                                                        │
+   │            ▼                                                        │
+   │  epoll_wait(mEpollFd, events, maxEvents, timeout)                   │
+   │            │                                                        │
+   │            ├── 超时: 返回                                           │
+   │            ├── 有事件: 处理事件                                     │
+   │            └── 被唤醒: 返回                                         │
+   └─────────────────────────────────────────────────────────────────────┘
 
-MessageQueue 使用 epoll:
-- 监听 eventfd (用于 nativeWake)
-- 没有消息时，epoll_wait 阻塞
-- nativeWake() 写入 eventfd，唤醒 epoll_wait
 
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  pollOnce(timeout)                                                         │
-│       │                                                                    │
-│       ▼                                                                    │
-│  epoll_wait(timeout)                                                       │
-│       │                                                                    │
-│       ├── 超时: 返回                                                       │
-│       ├── 有事件: 处理事件                                                 │
-│       └── 被唤醒 (nativeWake): 返回                                       │
-└─────────────────────────────────────────────────────────────────────────────┘
+   nativeWake(ptr)
+            │
+            ▼
+   ┌─────────────────────────────────────────────────────────────────────┐
+   │  NativeMessageQueue.wake()                                          │
+   │            │                                                        │
+   │            ▼                                                        │
+   │  Looper.wake()                                                      │
+   │            │                                                        │
+   │            ▼                                                        │
+   │  write(mWakeEventFd, "1")  // 写入 eventfd，唤醒 epoll_wait        │
+   └─────────────────────────────────────────────────────────────────────┘
+
+
+为什么用 epoll?
+─────────────────────────────────────────────────────────────────────────────
+
+1. 高效: 同时监听多个文件描述符
+2. 低功耗: 没有消息时线程真正阻塞，不消耗 CPU
+3. 快速唤醒: 通过 eventfd 可以立即唤醒等待的线程
 ```
 
 ---
 
-## 9. 同步屏障机制
+## 10. 同步屏障机制
 
-### 9.1 同步屏障原理
+### 10.1 什么是同步屏障？
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         同步屏障 (Sync Barrier)                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 
-同步屏障是特殊的 Message (target = null)
-插入后，队列跳过所有同步消息，只处理异步消息
+同步屏障是特殊的 Message，它的 target 为 null
 
+插入屏障后，队列会跳过所有同步消息，只处理异步消息
+
+```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│  消息队列:                                                                  │
-│                                                                             │
-│  普通情况: [msg1] → [msg2] → [msg3]                                        │
-│                                                                             │
-│  插入屏障后: [barrier] → [async_msg] → [msg3] → [msg4]                     │
-│                 ↑            ↑                                              │
-│              target=null   异步消息，会被处理                               │
-│                                                                             │
-│  msg3、msg4 是同步消息，被屏障阻塞                                          │
+│                         同步屏障原理                                         │
 └─────────────────────────────────────────────────────────────────────────────┘
 
+普通情况:
+  ┌─────────┐    ┌─────────┐    ┌─────────┐
+  │ sync    │───►│ sync    │───►│ sync    │
+  │ when=0  │    │ when=100│    │ when=200│
+  └─────────┘    └─────────┘    └─────────┘
+       │
+       ▼
+  依次取出执行
+
+
+插入同步屏障后:
+  ┌─────────┐    ┌─────────┐    ┌─────────┐    ┌─────────┐
+  │ barrier │───►│ async   │───►│ sync    │───►│ sync    │
+  │ target= │    │ when=150│    │ when=100│    │ when=200│
+  │  null   │    │         │    │         │    │         │
+  └─────────┘    └─────────┘    └─────────┘    └─────────┘
+       │               │
+       │               ▼
+       │          跳过同步消息
+       │          直接执行异步消息
+       │
+       ▼
+  遇到屏障，开始寻找异步消息
+
+
 应用场景:
-- Choreographer 使用同步屏障优先处理 VSync 信号
-- 确保渲染相关的异步消息优先执行
+─────────────────────────────────────────────────────────────────────────────
+
+Choreographer 使用同步屏障优先处理 VSync 信号:
+
+1. 收到 VSync 信号
+2. 插入同步屏障
+3. 发送异步消息 (绘制任务)
+4. 异步消息优先执行，保证渲染不卡顿
+5. 移除同步屏障
 ```
 
-### 9.2 同步屏障源码
+### 10.2 同步屏障使用
 
-```java
-// MessageQueue.java
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         同步屏障 API                                        │
+└─────────────────────────────────────────────────────────────────────────────┘
 
-// 添加同步屏障
-public int postSyncBarrier() {
-    return postSyncBarrier(SystemClock.uptimeMillis());
-}
-
-private int postSyncBarrier(long when) {
-    synchronized (this) {
-        final int token = mNextBarrierToken++;
-        final Message msg = Message.obtain();
-        msg.markInUse();
-        msg.when = when;
-        msg.arg1 = token;  // target = null 表示屏障
-        
-        Message prev = null;
-        Message p = mMessages;
-        if (when != 0) {
-            while (p != null && p.when <= when) {
-                prev = p;
-                p = p.next;
-            }
-        }
-        if (prev != null) {
-            msg.next = p;
-            prev.next = msg;
-        } else {
-            msg.next = p;
-            mMessages = msg;
-        }
-        return token;
-    }
-}
+// 添加同步屏障 (返回 token，用于移除)
+int token = handler.getLooper().getQueue().postSyncBarrier();
 
 // 移除同步屏障
-public void removeSyncBarrier(int token) {
-    synchronized (this) {
-        Message prev = null;
-        Message p = mMessages;
-        while (p != null && (p.target != null || p.arg1 != token)) {
-            prev = p;
-            p = p.next;
-        }
-        if (p != null) {
-            if (prev != null) {
-                prev.next = p.next;
-            } else {
-                mMessages = p.next;
-            }
-            p.recycleUnchecked();
-            if (p != null) {
-                nativeWake(mPtr);
-            }
-        }
-    }
-}
+handler.getLooper().getQueue().removeSyncBarrier(token);
 
-// next() 中检查屏障
-Message next() {
-    // ...
-    if (msg != null && msg.target == null) {
-        // 遇到屏障，找下一条异步消息
-        do {
-            prevMsg = msg;
-            msg = msg.next;
-        } while (msg != null && !msg.isAsynchronous());
-    }
-    // ...
-}
-```
-
-### 9.3 Choreographer 使用同步屏障
-
-```java
-// Choreographer.java
-
-void scheduleVsyncLocked() {
-    mDisplayEventReceiver.scheduleVsync();
-}
-
-private final class FrameDisplayEventReceiver extends DisplayEventReceiver {
-    @Override
-    public void onVsync(long timestampNanos, int builtInDisplayId, int frame) {
-        // 发送异步消息
-        Message msg = Message.obtain(mHandler, this);
-        msg.setAsynchronous(true);  // 设置为异步
-        mHandler.sendMessageAtTime(msg, timestampNanos / TimeUtils.NANOS_PER_MS);
-    }
-}
+注意:
+- 屏障必须手动移除，否则同步消息永远无法执行
+- 一般在 Choreographer 内部使用，应用层很少直接使用
 ```
 
 ---
 
-## 10. IdleHandler 机制
+## 11. IdleHandler 机制
 
-### 10.1 IdleHandler 接口
+### 11.1 什么是 IdleHandler？
 
-```java
-public static interface IdleHandler {
-    /**
-     * 返回 true: 继续监听下次空闲
-     * 返回 false: 移除监听
-     */
-    boolean queueIdle();
-}
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         IdleHandler 机制                                    │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+IdleHandler: 当消息队列空闲时执行的回调
+
+使用场景:
+- 延迟初始化非核心组件
+- 预加载资源
+- 清理缓存
+- 执行低优先级任务
 ```
 
-### 10.2 IdleHandler 使用
+### 11.2 IdleHandler 使用
 
-```java
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         IdleHandler 使用示例                                │
+└─────────────────────────────────────────────────────────────────────────────┘
+
 // 添加 IdleHandler
 Looper.myQueue().addIdleHandler(new MessageQueue.IdleHandler() {
     @Override
     public boolean queueIdle() {
         // 空闲时执行
-        return false;  // 只执行一次
+        doSomething();
+        
+        // 返回 true: 继续监听下次空闲
+        // 返回 false: 移除监听，只执行一次
+        return false;
     }
 });
 
-// 实际应用: 延迟初始化
-class MyApp extends Application {
+
+// 实际应用: Application 中的延迟初始化
+public class MyApp extends Application {
     @Override
     public void onCreate() {
         super.onCreate();
         
-        // 核心初始化
+        // 核心初始化 (同步)
         initCore();
         
-        // 空闲时初始化非核心组件
+        // 非核心初始化 (空闲时)
         Looper.myQueue().addIdleHandler(() -> {
-            initNonCore();
-            return false;
+            initAnalytics();
+            initPush();
+            initImageLoader();
+            return false;  // 只执行一次
         });
     }
 }
@@ -904,210 +972,215 @@ class MyApp extends Application {
 
 ---
 
-## 11. HandlerThread 详解
+## 12. HandlerThread
 
-### 11.1 HandlerThread 源码
+### 12.1 HandlerThread 原理
 
-```java
-public class HandlerThread extends Thread {
-    
-    Looper mLooper;
-    private @Nullable Handler mHandler;
-    
-    public HandlerThread(String name) {
-        super(name);
-        mPriority = Process.THREAD_PRIORITY_DEFAULT;
-    }
-    
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         HandlerThread 原理                                  │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+HandlerThread = Thread + Looper
+
+自带 Looper 的线程，方便在子线程使用 Handler
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                                                                             │
+│   HandlerThread                                                             │
+│   ┌─────────────────────────────────────────────────────────────────────┐  │
+│   │                                                                     │  │
+│   │   run() {                                                           │  │
+│   │       Looper.prepare();          // 创建 Looper                    │  │
+│   │       synchronized (this) {                                         │  │
+│   │           mLooper = Looper.myLooper();                              │  │
+│   │           notifyAll();             // 通知 getLooper()              │  │
+│   │       }                                                             │  │
+│   │       onLooperPrepared();         // 子类可重写                     │  │
+│   │       Looper.loop();              // 开始循环                       │  │
+│   │   }                                                                 │  │
+│   │                                                                     │  │
+│   │   getLooper() {                    // 获取 Looper (可能阻塞)        │  │
+│   │       synchronized (this) {                                         │  │
+│   │           while (isAlive() && mLooper == null) {                    │  │
+│   │               wait();              // 等待 Looper 创建完成          │  │
+│   │           }                                                         │  │
+│   │       }                                                             │  │
+│   │       return mLooper;                                               │  │
+│   │   }                                                                 │  │
+│   │                                                                     │  │
+│   └─────────────────────────────────────────────────────────────────────┘  │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 12.2 HandlerThread 使用
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         HandlerThread 使用示例                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+// 1. 创建并启动
+HandlerThread handlerThread = new HandlerThread("BackgroundThread");
+handlerThread.start();
+
+// 2. 获取 Handler
+Handler handler = new Handler(handlerThread.getLooper());
+
+// 3. 发送任务
+handler.post(new Runnable() {
     @Override
     public void run() {
-        mTid = Process.myTid();
-        Looper.prepare();
-        synchronized (this) {
-            mLooper = Looper.myLooper();
-            notifyAll();
-        }
-        Process.setThreadPriority(mPriority);
-        onLooperPrepared();
-        Looper.loop();
-        mTid = -1;
+        // 在子线程执行
+        doHeavyWork();
     }
-    
-    public Looper getLooper() {
-        if (!isAlive()) {
-            return null;
-        }
-        synchronized (this) {
-            while (isAlive() && mLooper == null) {
-                try {
-                    wait();
-                } catch (InterruptedException e) {
-                }
-            }
-        }
-        return mLooper;
-    }
-    
-    public boolean quit() {
-        Looper looper = getLooper();
-        if (looper != null) {
-            looper.quit();
-            return true;
-        }
-        return false;
-    }
-}
-```
+});
 
-### 11.2 HandlerThread 使用
-
-```kotlin
-class BackgroundService : Service() {
-    
-    private lateinit var handlerThread: HandlerThread
-    private lateinit var handler: Handler
-    
-    override fun onCreate() {
-        handlerThread = HandlerThread("Background")
-        handlerThread.start()
-        handler = Handler(handlerThread.looper)
-    }
-    
-    fun execute(task: Runnable) {
-        handler.post(task)
-    }
-    
-    override fun onDestroy() {
-        handlerThread.quit()
-    }
-}
+// 4. 退出 (不再使用时)
+handlerThread.quit();        // 立即退出
+// 或
+handlerThread.quitSafely();  // 处理完队列中的消息后退出
 ```
 
 ---
 
-## 12. 主线程消息循环
+## 13. 主线程消息循环
 
-### 12.1 主线程 Handler
+### 13.1 ActivityThread.H
 
-```java
-// ActivityThread 中的 H 类
-class H extends Handler {
-    public static final int LAUNCH_ACTIVITY         = 100;
-    public static final int PAUSE_ACTIVITY          = 101;
-    public static final int STOP_ACTIVITY_SHOW      = 102;
-    public static final int STOP_ACTIVITY_HIDE      = 103;
-    public static final int SHOW_WINDOW             = 104;
-    public static final int HIDE_WINDOW             = 105;
-    public static final int RESUME_ACTIVITY         = 107;
-    public static final int DESTROY_ACTIVITY        = 109;
-    public static final int BIND_APPLICATION        = 110;
-    public static final int EXIT_APPLICATION        = 111;
-    public static final int NEW_INTENT              = 112;
-    public static final int RECEIVER                = 113;
-    public static final int CREATE_SERVICE          = 114;
-    public static final int SERVICE_ARGS            = 115;
-    public static final int STOP_SERVICE            = 116;
-    
-    public void handleMessage(Message msg) {
-        switch (msg.what) {
-            case LAUNCH_ACTIVITY: {
-                handleLaunchActivity(r, pendingActions, customIntent);
-            } break;
-            case RESUME_ACTIVITY:
-                handleResumeActivity(r.token, false, r.isForward, r.reason);
-                break;
-            case PAUSE_ACTIVITY:
-                handlePauseActivity(r.token, false, false, null, r.reason);
-                break;
-            case STOP_ACTIVITY_SHOW:
-                handleStopActivity(r.token, true, r.info);
-                break;
-            case DESTROY_ACTIVITY:
-                handleDestroyActivity(r.token, false, r.configChanges, false);
-                break;
-            // ...
-        }
-    }
-}
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         主线程 Handler (ActivityThread.H)                   │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+主线程的 Handler 负责处理所有 Activity 生命周期和系统消息:
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                                                                             │
+│   class H extends Handler {                                                 │
+│                                                                             │
+│       public static final int LAUNCH_ACTIVITY         = 100;               │
+│       public static final int PAUSE_ACTIVITY          = 101;               │
+│       public static final int STOP_ACTIVITY_SHOW      = 102;               │
+│       public static final int STOP_ACTIVITY_HIDE      = 103;               │
+│       public static final int RESUME_ACTIVITY         = 107;               │
+│       public static final int DESTROY_ACTIVITY        = 109;               │
+│       public static final int BIND_APPLICATION        = 110;               │
+│       public static final int EXIT_APPLICATION        = 111;               │
+│       public static final int RECEIVER                = 113;               │
+│       public static final int CREATE_SERVICE          = 114;               │
+│       public static final int SERVICE_ARGS            = 115;               │
+│       public static final int STOP_SERVICE            = 116;               │
+│                                                                             │
+│       public void handleMessage(Message msg) {                              │
+│           switch (msg.what) {                                               │
+│               case LAUNCH_ACTIVITY:                                         │
+│                   handleLaunchActivity(...);                                │
+│                   break;                                                    │
+│               case RESUME_ACTIVITY:                                         │
+│                   handleResumeActivity(...);                                │
+│                   break;                                                    │
+│               case PAUSE_ACTIVITY:                                          │
+│                   handlePauseActivity(...);                                 │
+│                   break;                                                    │
+│               // ...                                                        │
+│           }                                                                 │
+│       }                                                                     │
+│   }                                                                         │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 13. 面试常见问题
+## 14. 常见问题
 
-### 13.1 loop() 为什么不会卡死？
-
-```
-问题: loop() 是无限循环，为什么不会卡死主线程？
-
-答案:
-1. 没有消息时，线程在 nativePollOnce() 中阻塞
-2. 阻塞使用 epoll 机制，不消耗 CPU
-3. 有消息时通过 nativeWake() 唤醒
-4. 阻塞状态不会导致 ANR
-
-ANR 的真正原因:
-- 消息处理时间过长 (> 5s)
-- 不是 loop() 循环本身
-```
-
-### 13.2 为什么不能在子线程更新 UI？
+### 14.1 loop() 为什么不会卡死主线程？
 
 ```
-原因:
-1. UI 控件不是线程安全的
-2. 多线程同时修改会导致状态不一致
-3. Android 设计限制只能在主线程更新 UI
-
-ViewRootImpl.checkThread():
-void checkThread() {
-    if (mThread != Thread.currentThread()) {
-        throw new CalledFromWrongThreadException(...);
-    }
-}
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  Q: loop() 是无限循环，为什么不会卡死主线程？                               │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  A: 关键在于 nativePollOnce()                                              │
+│                                                                             │
+│  1. 没有消息时，线程在 epoll_wait() 中阻塞                                 │
+│  2. 阻塞状态不消耗 CPU                                                     │
+│  3. 有新消息时，通过 nativeWake() 唤醒                                     │
+│  4. 阻塞不会导致 ANR                                                       │
+│                                                                             │
+│  ANR 的真正原因:                                                            │
+│  - 消息处理时间过长 (> 5s)                                                 │
+│  - 不是 loop() 循环本身                                                    │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 13.3 内存泄漏问题
+### 14.2 为什么不能在子线程更新 UI？
 
-```java
-// ❌ 错误: 匿名内部类持有外部类引用
-class MainActivity extends Activity {
-    private Handler handler = new Handler() {
-        @Override
-        public void handleMessage(Message msg) {
-            // 持有 Activity 引用
-        }
-    };
-}
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  Q: 为什么不能在子线程更新 UI？                                             │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  A:                                                                         │
+│  1. UI 控件不是线程安全的                                                   │
+│  2. 多线程同时修改会导致状态不一致                                         │
+│  3. Android 设计限制，只能在主线程更新 UI                                  │
+│                                                                             │
+│  ViewRootImpl.checkThread():                                               │
+│  void checkThread() {                                                      │
+│      if (mThread != Thread.currentThread()) {                              │
+│          throw new CalledFromWrongThreadException(...);                    │
+│      }                                                                     │
+│  }                                                                         │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
 
-// ✅ 正确: 静态内部类 + 弱引用
-class MainActivity extends Activity {
-    private static class SafeHandler extends Handler {
-        private WeakReference<MainActivity> ref;
-        
-        SafeHandler(MainActivity activity) {
-            ref = new WeakReference<>(activity);
-        }
-        
-        @Override
-        public void handleMessage(Message msg) {
-            MainActivity activity = ref.get();
-            if (activity != null) {
-                // 处理消息
-            }
-        }
-    }
-    
-    @Override
-    protected void onDestroy() {
-        handler.removeCallbacksAndMessages(null);
-    }
-}
+### 14.3 Handler 内存泄漏
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  Q: Handler 为什么会内存泄漏？如何解决？                                    │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  原因:                                                                      │
+│  - 非静态内部类/匿名内部类隐式持有外部类引用                                │
+│  - Message 持有 Handler 引用                                               │
+│  - Message 在队列中，Activity 已销毁但仍被引用                             │
+│                                                                             │
+│  ❌ 错误:                                                                   │
+│  Handler handler = new Handler() {                                         │
+│      @Override                                                             │
+│      public void handleMessage(Message msg) { }                            │
+│  };                                                                        │
+│                                                                             │
+│  ✅ 正确: 静态内部类 + 弱引用                                               │
+│  private static class SafeHandler extends Handler {                        │
+│      private WeakReference<Activity> ref;                                  │
+│      SafeHandler(Activity activity) {                                      │
+│          ref = new WeakReference<>(activity);                              │
+│      }                                                                     │
+│      @Override                                                             │
+│      public void handleMessage(Message msg) {                              │
+│          Activity activity = ref.get();                                    │
+│          if (activity != null) { /* 处理 */ }                              │
+│      }                                                                     │
+│  }                                                                         │
+│                                                                             │
+│  ✅ onDestroy 中移除消息:                                                   │
+│  @Override protected void onDestroy() {                                    │
+│      handler.removeCallbacksAndMessages(null);                             │
+│  }                                                                         │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 14. 总结
+## 15. 总结
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -1115,11 +1188,21 @@ class MainActivity extends Activity {
 └─────────────────────────────────────────────────────────────────────────────┘
 
 核心组件:
-- ThreadLocal: 线程局部存储 Looper
-- Looper: 消息循环
-- MessageQueue: 消息队列 (单链表 + epoll)
-- Handler: 发送/处理消息
-- Message: 消息对象 (对象池)
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  组件           │  作用                    │  关键点                        │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  ThreadLocal    │  线程局部变量            │  存储 Looper，每个线程独立     │
+│  Looper         │  消息循环                │  for(;;) + epoll 阻塞         │
+│  MessageQueue   │  消息队列                │  单链表，按时间排序            │
+│  Message        │  消息对象                │  消息池复用                    │
+│  Handler        │  发送/处理               │  绑定 Looper                   │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+工作流程:
+1. 准备: Looper.prepare() → 创建 Looper 和 MessageQueue
+2. 循环: Looper.loop() → 无限循环取消息
+3. 发送: Handler.sendMessage() → 入队 + 唤醒
+4. 处理: dispatchMessage() → handleMessage()
 
 高级特性:
 - 同步屏障: 优先处理异步消息
@@ -1127,11 +1210,10 @@ class MainActivity extends Activity {
 - HandlerThread: 带 Looper 的线程
 
 面试要点:
-1. Handler 机制原理
-2. loop() 为什么不会卡死
-3. ThreadLocal 原理
-4. 同步屏障作用
-5. 内存泄漏及解决
+1. loop() 为什么不会卡死？(epoll 阻塞)
+2. ThreadLocal 原理
+3. 同步屏障作用
+4. 内存泄漏原因和解决
 ```
 
 ---
