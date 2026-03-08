@@ -36,10 +36,15 @@
        - 2.11.5.1 [ThreadedRenderer 架构](#21151-threadedrenderer-架构)
        - 2.11.5.2 [ThreadedRenderer.draw 完整流程](#21152-threadedrendererdraw-完整流程)
        - 2.11.5.3 [View.updateDisplayListIfDirty 详解](#21153-viewupdatedisplaylistifdirty-详解)
-       - 2.11.5.4 [RenderThread 渲染流程](#21154-renderthread-渲染流程)
-       - 2.11.5.5 [OpenGL ES 渲染流程](#21155-opengl-es-渲染流程)
-       - 2.11.5.6 [RenderNode 与 DisplayList 详解](#21156-rendernode-与-displaylist-详解)
-       - 2.11.5.7 [软件绘制 vs 硬件加速对比](#21157-软件绘制-vs-硬件加速对比)
+       - 2.11.5.4 [硬件加速 Canvas 获取详解](#21154-硬件加速-canvas-获取详解)
+         - 2.11.5.4.1 [硬件加速模式不调用 Surface.lockCanvas](#211541-硬件加速模式不调用-surfacelockcanvas)
+         - 2.11.5.4.2 [RenderNode.beginRecording 源码分析](#211542-rendernodebeginrecording-源码分析)
+         - 2.11.5.4.3 [RecordingCanvas vs SkiaCanvas 对比](#211543-recordingcanvas-vs-skiacanvas-内部结构对比)
+         - 2.11.5.4.4 [硬件加速绘制完整流程图](#211544-硬件加速绘制完整流程图)
+       - 2.11.5.5 [RenderThread 渲染流程](#21155-renderthread-渲染流程)
+       - 2.11.5.6 [OpenGL ES 渲染流程](#21156-opengl-es-渲染流程)
+       - 2.11.5.7 [RenderNode 与 DisplayList 详解](#21157-rendernode-与-displaylist-详解)
+       - 2.11.5.8 [软件绘制 vs 硬件加速对比](#21158-软件绘制-vs-硬件加速对比)
    - 2.12 [Surface 到 SurfaceFlinger 调用详解](#212-surface-到-surfaceflinger-调用详解)
      - 2.12.1 [Surface 创建流程](#2121-surface-创建流程)
      - 2.12.2 [BufferQueue 创建与组件](#2122-bufferqueue-创建与组件)
@@ -1956,7 +1961,357 @@ Android 图形系统采用 生产者-消费者 模型:
   3. 命令录制完成后，交给 RenderThread 执行
 ```
 
-##### 2.11.5.4 RenderThread 渲染流程
+##### 2.11.5.4 硬件加速 Canvas 获取详解
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         硬件加速 Canvas 获取详解                            │
+│  RecordingCanvas 与 SkiaCanvas 的区别                                      │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+###### 2.11.5.4.1 硬件加速模式不调用 Surface.lockCanvas()
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                 硬件加速模式 vs 软件绘制模式 Canvas 获取对比                 │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  软件绘制模式:
+  ─────────────────────────────────────────────────────────────────────────────
+  ViewRootImpl.drawSoftware()
+       │
+       │  canvas = surface.lockCanvas()  // ★★★ 从 Surface 获取 Canvas
+       │  // 此时 Canvas 绑定到 GraphicBuffer 内存
+       │
+       ▼
+  mView.draw(canvas)  // 直接写入内存
+       │
+       ▼
+  surface.unlockCanvasAndPost(canvas)
+
+
+  硬件加速模式:
+  ─────────────────────────────────────────────────────────────────────────────
+  ThreadedRenderer.draw()
+       │
+       │  // ★★★ 不调用 Surface.lockCanvas() ★★★
+       │  // Canvas 从 RenderNode 获取，不是从 Surface
+       │
+       ▼
+  view.updateDisplayListIfDirty()
+       │
+       │  canvas = renderNode.beginRecording()  // ★★★ 从 RenderNode 获取 Canvas
+       │  // 此时 Canvas 不绑定任何内存，只是命令记录器
+       │
+       ▼
+  view.draw(canvas)  // 只记录命令
+       │
+       ▼
+  renderNode.endRecording()
+
+
+  关键区别:
+  ┌─────────────────┬─────────────────────────┬───────────────────────────────┐
+  │                 │  软件绘制               │  硬件加速                     │
+  ├─────────────────┼─────────────────────────┼───────────────────────────────┤
+  │  Canvas 来源    │  Surface.lockCanvas()   │  RenderNode.beginRecording() │
+  │  Canvas 类型    │  SkiaCanvas             │  RecordingCanvas              │
+  │  是否绑定内存   │  是 (GraphicBuffer)     │  否 (只是命令记录器)          │
+  │  绘制时机       │  立即写入内存           │  记录命令，稍后执行           │
+  │  绘制线程       │  UI 线程                │  RenderThread                 │
+  └─────────────────┴─────────────────────────┴───────────────────────────────┘
+```
+
+###### 2.11.5.4.2 RenderNode.beginRecording() 源码分析
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         RenderNode.beginRecording() 源码分析                │
+│  源码: frameworks/base/core/java/android/view/RenderNode.java              │
+│  Native: frameworks/base/libs/hwui/RenderNode.cpp                          │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  Java 层:
+  ─────────────────────────────────────────────────────────────────────────────
+
+  // RenderNode.java
+  public RecordingCanvas beginRecording(int width, int height) {
+      // 调用 Native 方法获取 RecordingCanvas
+      return RecordingCanvas.obtain(this, width, height);
+  }
+
+
+  // RecordingCanvas.java
+  public final class RecordingCanvas extends BaseRecordingCanvas {
+      
+      // 从对象池获取 RecordingCanvas
+      static RecordingCanvas obtain(@NonNull RenderNode node, int width, int height) {
+          // 1. 从对象池获取或创建
+          RecordingCanvas canvas = sPool.acquire();
+          if (canvas == null) {
+              canvas = new RecordingCanvas();
+          }
+          
+          // 2. 初始化
+          canvas.mNode = node;
+          canvas.setWidth(width);
+          canvas.setHeight(height);
+          
+          // 3. 调用 Native 初始化
+          nInitializeDisplayListCanvas(canvas.mNativeCanvasWrapper, 
+                  node.mNativeRenderNode, width, height);
+          
+          return canvas;
+      }
+  }
+
+
+  Native 层:
+  ─────────────────────────────────────────────────────────────────────────────
+
+  // android_graphics_DisplayListCanvas.cpp
+  static void nInitializeDisplayListCanvas(JNIEnv* env, jobject clazz,
+          jlong canvasPtr, jlong nodePtr, jint width, jint height) {
+      
+      // 1. 获取 RenderNode
+      RenderNode* renderNode = reinterpret_cast<RenderNode*>(nodePtr);
+      
+      // 2. 获取或创建 DisplayList
+      DisplayList* displayList = renderNode->getDisplayList();
+      if (displayList == nullptr) {
+          displayList = new DisplayList();
+      }
+      
+      // 3. 创建 RecordingCanvas (C++ 层)
+      // 这个 Canvas 不绑定内存，只记录命令到 DisplayList
+      RecordingCanvas* canvas = new RecordingCanvas(displayList);
+      
+      // 4. 设置画布大小
+      canvas->setBounds(width, height);
+  }
+
+
+  RecordingCanvas (C++) 的实现:
+  ─────────────────────────────────────────────────────────────────────────────
+
+  // frameworks/base/libs/hwui/RecordingCanvas.cpp
+  
+  class RecordingCanvas : public Canvas {
+  private:
+      DisplayList* mDisplayList;  // 存储绘制命令的列表
+      
+  public:
+      // 绘制矩形 - 记录命令，不实际绘制
+      void drawRect(float left, float top, float right, float bottom, 
+              const SkPaint& paint) override {
+          
+          // 创建绘制命令
+          DrawRectOp* op = new DrawRectOp(left, top, right, bottom, paint);
+          
+          // ★★★ 只记录命令，不执行 ★★★
+          mDisplayList->addDrawOp(op);
+      }
+      
+      // 绘制圆形 - 记录命令
+      void drawCircle(float cx, float cy, float radius, const SkPaint& paint) {
+          DrawCircleOp* op = new DrawCircleOp(cx, cy, radius, paint);
+          mDisplayList->addDrawOp(op);
+      }
+      
+      // 绘制文字 - 记录命令
+      void drawText(const char* text, float x, float y, const SkPaint& paint) {
+          DrawTextOp* op = new DrawTextOp(text, x, y, paint);
+          mDisplayList->addDrawOp(op);
+      }
+  };
+```
+
+###### 2.11.5.4.3 RecordingCanvas 与 SkiaCanvas 内部结构对比
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         RecordingCanvas vs SkiaCanvas 内部结构              │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  SkiaCanvas (软件绘制):
+  ─────────────────────────────────────────────────────────────────────────────
+
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │  SkiaCanvas                                                             │
+  │  ─────────────────────────────────────────────────────────────────────── │
+  │                                                                         │
+  │  成员变量:                                                              │
+  │  - SkBitmap mBitmap;        // 位图，存储像素数据                      │
+  │  - SkCanvas* mCanvas;       // Skia 画布                               │
+  │  - void* mPixels;           // ★★★ 指向 GraphicBuffer 内存 ★★★        │
+  │                                                                         │
+  │  drawRect() 执行:                                                       │
+  │  ┌─────────────────────────────────────────────────────────────────┐   │
+  │  │ void drawRect(left, top, right, bottom, paint) {                │   │
+  │  │     // 直接写入内存                                             │   │
+  │  │     for (y = top; y < bottom; y++) {                            │   │
+  │  │         for (x = left; x < right; x++) {                        │   │
+  │  │             mPixels[x + y * stride] = paint.getColor();         │   │
+  │  │         }                                                       │   │
+  │  │     }                                                           │   │
+  │  │ }                                                               │   │
+  │  └─────────────────────────────────────────────────────────────────┘   │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+
+
+  RecordingCanvas (硬件加速):
+  ─────────────────────────────────────────────────────────────────────────────
+
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │  RecordingCanvas                                                        │
+  │  ─────────────────────────────────────────────────────────────────────── │
+  │                                                                         │
+  │  成员变量:                                                              │
+  │  - DisplayList* mDisplayList;    // 存储绘制命令的列表                 │
+  │  - RenderNode* mNode;           // 所属的 RenderNode                   │
+  │  - int mWidth, mHeight;         // 画布大小                            │
+  │  // ★★★ 没有 mPixels，不绑定内存 ★★★                                  │
+  │                                                                         │
+  │  drawRect() 执行:                                                       │
+  │  ┌─────────────────────────────────────────────────────────────────┐   │
+  │  │ void drawRect(left, top, right, bottom, paint) {                │   │
+  │  │     // 创建命令对象                                             │   │
+  │  │     DrawRectOp* op = new DrawRectOp();                          │   │
+  │  │     op->left = left;                                            │   │
+  │  │     op->top = top;                                              │   │
+  │  │     op->right = right;                                          │   │
+  │  │     op->bottom = bottom;                                        │   │
+  │  │     op->paint = paint;                                          │   │
+  │  │                                                                 │   │
+  │  │     // ★★★ 只添加到列表，不执行 ★★★                             │   │
+  │  │     mDisplayList->addDrawOp(op);                                │   │
+  │  │ }                                                               │   │
+  │  └─────────────────────────────────────────────────────────────────┘   │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+
+
+  DisplayList 结构:
+  ─────────────────────────────────────────────────────────────────────────────
+
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │  DisplayList                                                            │
+  │  ─────────────────────────────────────────────────────────────────────── │
+  │                                                                         │
+  │  class DisplayList {                                                    │
+  │      std::vector<DrawOp*> mDrawOps;    // 绘制命令列表                 │
+  │                                                                         │
+  │      void addDrawOp(DrawOp* op) {                                       │
+  │          mDrawOps.push_back(op);                                        │
+  │      }                                                                  │
+  │  };                                                                     │
+  │                                                                         │
+  │  // 命令类型 (DrawOp 子类):                                             │
+  │  - DrawRectOp        // 矩形                                           │
+  │  - DrawCircleOp      // 圆形                                           │
+  │  - DrawPathOp        // 路径                                           │
+  │  - DrawTextOp        // 文字                                           │
+  │  - DrawBitmapOp      // 位图                                           │
+  │  - SaveOp            // 保存状态                                       │
+  │  - RestoreOp         // 恢复状态                                       │
+  │  - ClipRectOp        // 裁剪矩形                                       │
+  │  - ConcatMatrixOp    // 矩阵变换                                       │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+```
+
+###### 2.11.5.4.4 硬件加速绘制完整流程图
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         硬件加速绘制完整流程图                               │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  UI 线程                                    RenderThread
+  ──────────                                 ────────────
+       │                                           │
+       │  ViewRootImpl.performDraw()               │
+       │         │                                 │
+       │         ▼                                 │
+       │  ThreadedRenderer.draw()                  │
+       │         │                                 │
+       │         ▼                                 │
+       │  ┌─────────────────────────────┐         │
+       │  │ view.updateDisplayListIfDirty()       │
+       │  │         │                    │         │
+       │  │         ▼                    │         │
+       │  │ canvas = renderNode.        │         │
+       │  │     beginRecording()        │         │
+       │  │         │                    │         │
+       │  │         │ ★★★ Canvas 从     │         │
+       │  │         │ RenderNode 获取   │         │
+       │  │         │ 不涉及 Surface    │         │
+       │  │         ▼                    │         │
+       │  │ view.draw(canvas)           │         │
+       │  │         │                    │         │
+       │  │         │ 只记录命令        │         │
+       │  │         │ 不写入内存        │         │
+       │  │         ▼                    │         │
+       │  │ renderNode.endRecording()   │         │
+       │  │         │                    │         │
+       │  │         ▼                    │         │
+       │  │ DisplayList 已构建完成      │         │
+       │  └──────────┬──────────────────┘         │
+       │             │                             │
+       │             │ syncAndDrawFrame()          │
+       │             │ ★★★ 同步到 RenderThread ★★★ │
+       │             └────────────────────────────►│
+       │                                           │
+       │  (UI 线程继续)                            ▼
+       │                                ┌─────────────────────┐
+       │                                │ 获取 Surface 缓冲区 │
+       │                                │ dequeueBuffer()     │
+       │                                │         │           │
+       │                                │         ▼           │
+       │                                │ 遍历 DisplayList    │
+       │                                │ 执行 OpenGL ES 命令 │
+       │                                │         │           │
+       │                                │         ▼           │
+       │                                │ GPU 渲染到 FBO      │
+       │                                │ FBO → GraphicBuffer │
+       │                                │         │           │
+       │                                │         ▼           │
+       │                                │ queueBuffer()       │
+       │                                │ 提交给 SurfaceFlinger│
+       │                                └─────────────────────┘
+       │                                           │
+       │                                           ▼
+       │                                   SurfaceFlinger 合成
+       │                                           │
+       │                                           ▼
+       │                                      显示到屏幕
+
+
+  关键点总结:
+  ─────────────────────────────────────────────────────────────────────────────
+
+  1. 硬件加速模式下，Canvas 从 RenderNode.beginRecording() 获取
+     - 不是从 Surface.lockCanvas() 获取
+     - RecordingCanvas 不绑定任何内存
+
+  2. 所有 draw* 操作只是记录命令
+     - 命令存储在 DisplayList 中
+     - 不立即执行，不写入内存
+
+  3. RenderThread 真正执行绘制
+     - 从 Surface 获取缓冲区 (dequeueBuffer)
+     - 执行 OpenGL ES 命令
+     - GPU 渲染到 GraphicBuffer
+     - 提交给 SurfaceFlinger
+
+  4. Surface 的作用
+     - 软件绘制: 提供绑定了内存的 Canvas
+     - 硬件加速: 只提供 GraphicBuffer，Canvas 从 RenderNode 获取
+```
+
+##### 2.11.5.5 RenderThread 渲染流程
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -2047,7 +2402,7 @@ Android 图形系统采用 生产者-消费者 模型:
   }
 ```
 
-##### 2.11.5.5 OpenGL ES 渲染流程
+##### 2.11.5.6 OpenGL ES 渲染流程
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -2117,7 +2472,7 @@ Android 图形系统采用 生产者-消费者 模型:
   └─────────────────────────────────────────────────────────────────────────┘
 ```
 
-##### 2.11.5.6 RenderNode 与 DisplayList 详解
+##### 2.11.5.7 RenderNode 与 DisplayList 详解
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -2176,7 +2531,7 @@ Android 图形系统采用 生产者-消费者 模型:
   └─────────────────────────────────────────────────────────────────────────┘
 ```
 
-##### 2.11.5.7 软件绘制 vs 硬件加速对比
+##### 2.11.5.8 软件绘制 vs 硬件加速对比
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
