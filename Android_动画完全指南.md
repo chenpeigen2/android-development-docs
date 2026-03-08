@@ -11,6 +11,8 @@ _日期：2026-03-08_
 2. [View 动画 (Animation)](#view-动画-animation)
    - [View 动画底层原理：与 ViewRootImpl 的结合](#view-动画底层原理与-viewrootimpl-的结合)
 3. [属性动画 (Property Animation)](#属性动画-property-animation)
+   - [Interpolator（插值器）](#interpolator插值器)
+   - [TypeEvaluator（类型估值器）](#typeevaluator类型估值器)
    - [属性动画与 ViewRootImpl 的结合](#属性动画与-viewrootimpl-的结合)
 4. [帧动画 (Drawable Animation)](#帧动画-drawable-animation)
 5. [转场动画 (Transition API)](#转场动画-transition-api)
@@ -348,7 +350,309 @@ builderSet.setDuration(1000);
 builderSet.start();
 ```
 
+### Interpolator（插值器）
+
+插值器定义动画值的变化速度曲线，决定动画是匀速、加速、减速还是弹跳等效果。
+
+#### 基础使用
+
+```java
+// 设置内置插值器
+ObjectAnimator animator = ObjectAnimator.ofFloat(view, "translationX", 0, 500);
+animator.setDuration(1000);
+animator.setInterpolator(new AccelerateDecelerateInterpolator()); // 先加速后减速
+animator.start();
+
+// 或者在 XML 中定义
+android:interpolator="@android:anim/accelerate_decelerate_interpolator"
+```
+
+#### 内置插值器
+
+| 插值器 | 效果 | 公式 |
+|-------|------|------|
+| `LinearInterpolator` | 匀速 | `fraction` |
+| `AccelerateInterpolator` | 持续加速 | `fraction^2` |
+| `DecelerateInterpolator` | 持续减速 | `1 - (1 - fraction)^2` |
+| `AccelerateDecelerateInterpolator` | 先加速后减速 | `cos((fraction + 1) * PI) / 2 + 0.5` |
+| `BounceInterpolator` | 弹跳效果 | 物理弹跳公式 |
+| `OvershootInterpolator` | 超过目标值后回弹 | `1 + c * sin(fraction * PI * overshoot)` |
+| `AnticipateInterpolator` | 开始时向后一点再前进 | `fraction^2 * (3 * fraction - 2)` |
+| `CycleInterpolator` | 循环动画 | `sin(fraction * 2 * PI * cycles)` |
+| `AnticipateOvershootInterpolator` | 向后+回弹 | 组合 |
+| `PathInterpolator` | 自定义路径 | 贝塞尔曲线 |
+
+#### 插值器底层原理
+
+插值器的核心是 `getInterpolation(float input)` 方法：
+
+```java
+// Interpolator.java
+public interface Interpolator extends TimeInterpolator {
+    // input: 0-1 之间的动画进度
+    // 返回: 修改后的进度值（可以超出 0-1 范围）
+    float getInterpolation(float input);
+}
+```
+
+**插值器 vs TypeEvaluator 的区别：**
+
+```
+动画时间轴：
+0.0 ---- 0.5 ---- 1.0 (时间)
+   ↑
+   │
+   │ Interpolator 变换
+   │
+   ↓
+0.0 ---- 0.8 ---- 1.0 (进度)  ← 这里的变化是"非线性的"
+   ↑
+   │
+   │ TypeEvaluator 计算
+   │
+   ↓
+0 ---- 100 ---- 200 (属性值)  ← 最终的属性值
+```
+
+**举例：**
+
+```java
+// 使用 AccelerateDecelerateInterpolator 的流程：
+// 时间 0.0 → 插值 → 0.0   → 估值 → 0
+// 时间 0.5 → 插值 → 0.5   → 估值 → 100  (匀速的话是100，但这里稍微不同)
+// 时间 1.0 → 插值 → 1.0   → 估值 → 200
+```
+
+#### 自定义插值器
+
+```java
+// 自定义加速插值器
+public class CustomAccelerateInterpolator implements Interpolator {
+    private final float mFactor;
+    
+    public CustomAccelerateInterpolator(float factor) {
+        mFactor = factor;
+    }
+    
+    @Override
+    public float getInterpolation(float input) {
+        // 指数加速: input^factor
+        if (mFactor == 1.0f) {
+            return input * input;
+        } else {
+            return (float) Math.pow(input, mFactor);
+        }
+    }
+}
+
+// 使用
+animator.setInterpolator(new CustomAccelerateInterpolator(2.0f));
+
+// 或者继承 BaseInterpolator
+public class CustomInterpolator extends BaseInterpolator {
+    @Override
+    public float getInterpolation(float input) {
+        // 自定义曲线
+        return input * input * (3 - 2 * input); // 平滑step
+    }
+}
+```
+
+#### PathInterpolator（API 21+）
+
+使用贝塞尔曲线定义插值器：
+
+```java
+// 方式一：代码创建
+Path path = new Path();
+path.moveTo(0, 0);
+path.quadTo(0.5f, 1f, 1f, 1f); // 贝塞尔曲线
+Interpolator interpolator = PathInterpolatorCompat.create(path, duration);
+
+// 方式二：XML 定义
+<!-- res/animator/fast_out_slow_in.xml -->
+<?xml version="1.0" encoding="utf-8"?>
+<pathInterpolator xmlns:android="http://schemas.android.com/apk/res/android"
+    android:pathData="M0,0 C0.4,0 0.2,1 1,1"/>
+
+// 使用
+animator.setInterpolator(AnimationUtils.loadInterpolator(this, R.animator.fast_out_slow_in));
+```
+
 ### TypeEvaluator（类型估值器）
+
+TypeEvaluator 负责根据插值后的进度，计算出**最终的属性值**。
+
+```java
+// TypeEvaluator 接口
+public interface TypeEvaluator<T> {
+    // fraction: 经过插值器变换后的进度 (0-1)
+    // startValue: 起始值
+    // endValue: 结束值
+    // 返回: 计算后的属性值
+    T evaluate(float fraction, T startValue, T endValue);
+}
+```
+
+#### 内置 TypeEvaluator
+
+| TypeEvaluator | 适用类型 | 说明 |
+|--------------|---------|------|
+| `IntEvaluator` | Integer | 整数值估值 |
+| `FloatEvaluator` | Float | 浮点值估值 |
+| `ArgbEvaluator` | Integer (颜色) | 颜色渐变 |
+| `PointEvaluator` | Point | 点坐标估值 |
+| `PointFEvaluator` | PointF | 浮点坐标估值 |
+| `RectEvaluator` | Rect | 矩形估值 |
+
+#### TypeEvaluator 底层原理
+
+```java
+// IntEvaluator 源码
+public class IntEvaluator implements TypeEvaluator<Integer> {
+    public Integer evaluate(float fraction, Integer startValue, Integer endValue) {
+        int startInt = startValue;
+        // 公式: start + (end - start) * fraction
+        return (int) (startInt + fraction * (endValue - startInt));
+    }
+}
+
+// FloatEvaluator 源码
+public class FloatEvaluator implements TypeEvaluator<Float> {
+    public Float evaluate(float fraction, Float startValue, Float endValue) {
+        // 公式相同
+        return startValue + fraction * (endValue - startValue);
+    }
+}
+
+// ArgbEvaluator 源码 - 颜色渐变更复杂
+public class ArgbEvaluator implements TypeEvaluator<Integer> {
+    // 颜色是 ARGB 格式，需要分别对 R/G/B/A 分量插值
+    public Integer evaluate(float fraction, Integer startValue, Integer endValue) {
+        int startA = (startValue >> 24) & 0xff;
+        int startR = (startValue >> 16) & 0xff;
+        int startG = (startValue >> 8) & 0xff;
+        int startB = startValue & 0xff;
+        
+        int endA = (endValue >> 24) & 0xff;
+        int endR = (endValue >> 16) & 0xff;
+        int endG = (endValue >> 8) & 0xff;
+        int endB = endValue & 0xff;
+        
+        return (int)((startA + (int)(fraction * (endA - startA))) << 24) |
+               (int)((startR + (int)(fraction * (endR - startR))) << 16) |
+               (int)((startG + (int)(fraction * (endG - startG))) << 8) |
+               (int)((startB + (int)(fraction * (endB - startB))));
+    }
+}
+```
+
+#### 插值器 + TypeEvaluator 完整流程
+
+```java
+// ValueAnimator 内部执行流程
+public void start() {
+    // 1. 计算原始进度 (0-1)
+    long now = AnimationUtils.currentAnimationTimeMillis();
+    float fraction = (float) (now - mStartTime) / mDuration;
+    
+    // 2. 应用插值器（改变进度曲线）
+    if (mInterpolator != null) {
+        fraction = mInterpolator.getInterpolation(fraction);
+    }
+    
+    // 3. 应用 TypeEvaluator（计算属性值）
+    if (mEvaluator != null) {
+        animatedValue = mEvaluator.evaluate(fraction, mStartValue, mEndValue);
+    } else {
+        // 默认使用对应类型的估值器
+        animatedValue = mTypeEvaluator.evaluate(fraction, mStartValue, mEndValue);
+    }
+    
+    // 4. 设置属性值
+    setAnimatedValue(animatedValue);
+}
+```
+
+#### 自定义 TypeEvaluator
+
+```java
+// 自定义 PointF 估值器
+public class PointFEvaluator implements TypeEvaluator<PointF> {
+    
+    private PointF mPoint;
+    
+    public PointFEvaluator() {
+        // 复用对象，减少 GC
+    }
+    
+    public PointFEvaluator(PointF reuse) {
+        mPoint = reuse;
+    }
+    
+    @Override
+    public PointF evaluate(float fraction, PointF startValue, PointF endValue) {
+        float x = startValue.x + fraction * (endValue.x - startValue.x);
+        float y = startValue.y + fraction * (endValue.y - startValue.y);
+        
+        // 复用对象
+        if (mPoint != null) {
+            mPoint.set(x, y);
+            return mPoint;
+        } else {
+            return new PointF(x, y);
+        }
+    }
+}
+
+// 使用自定义估值器
+ValueAnimator animator = ValueAnimator.ofObject(new PointFEvaluator(),
+    new PointF(0, 0), new PointF(300, 500));
+animator.setDuration(1000);
+animator.start();
+```
+
+#### 自定义复杂 TypeEvaluator：颜色渐变中间色
+
+```java
+// 自定义只改变色相的估值器
+public class HueEvaluator implements TypeEvaluator<Integer> {
+    @Override
+    public Integer evaluate(float fraction, Integer startValue, Integer endValue) {
+        float[] hsv = new float[3];
+        Color.colorToHSV(startValue, hsv);
+        
+        float[] hsvEnd = new float[3];
+        Color.colorToHSV(endValue, hsvEnd);
+        
+        // 只改变色相
+        hsv[0] = hsv[0] + fraction * (hsvEnd[0] - hsv[0]);
+        
+        return Color.HSVToColor(hsv);
+    }
+}
+
+// 使用
+ValueAnimator animator = ValueAnimator.ofObject(new HueEvaluator(),
+    Color.RED, Color.BLUE);
+```
+
+#### Interpolator vs TypeEvaluator 总结
+
+| 概念 | 作用 | 修改的是 |
+|-----|------|---------|
+| **Interpolator** | 控制动画**进度**的变化速度 | 0-1 之间的 fraction |
+| **TypeEvaluator** | 根据进度**计算属性值** | 实际的属性值 |
+
+```
+时间 → Interpolator → TypeEvaluator → 属性值
+0.0  →    0.0      →     0        →  0px
+0.5  →    0.5      →    100       →  100px (匀速)
+0.5  →    0.8      →    160       →  160px (加速后)
+1.0  →    1.0      →    200       →  200px
+```
+
+### 动画监听器
 
 自定义属性变化的计算方式：
 
