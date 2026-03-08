@@ -6,21 +6,43 @@
 
 | # | 文档名称 | 大小 | 更新日期 |
 |---|----------|------|----------|
-| 1 | [Android_自定义View_绘制完全指南.md](./Android_自定义View_绘制完全指南.md) | 145KB | 2026-03-08 |
-| 2 | [Android_Activity_启动流程.md](./Android_Activity_启动流程.md) | 145KB | 2026-03-08 |
-| 3 | [Android_View_绘制流程.md](./Android_View_绘制流程.md) | 105KB | 2026-03-08 |
-| 4 | [Android_虚拟机详解.md](./Android_虚拟机详解.md) | 62KB | 2026-03-08 |
-| 5 | [Android_Handler机制详解.md](./Android_Handler机制详解.md) | 41KB | 2026-03-08 |
-| 6 | [Android_ClassLoader详解.md](./Android_ClassLoader详解.md) | 41KB | 2026-03-08 |
-| 7 | [Android_性能优化详解.md](./Android_性能优化详解.md) | 39KB | 2026-03-08 |
-| 8 | [Android事件分发机制完全指南.md](./Android事件分发机制完全指南.md) | 54KB | 2026-03-08 |
-| 9 | [Android_动画完全指南.md](./Android_动画完全指南.md) | 46KB | 2026-03-08 |
-| 10 | [Android_网络编程详解.md](./Android_网络编程详解.md) | 11KB | 2026-03-08 |
-| 11 | [Android事件分发机制详解.md](./Android事件分发机制详解.md) | 21KB | 2026-03-08 |
+| 1 | [Android_View_绘制流程.md](./Android_View_绘制流程.md) | 347KB | 2026-03-08 |
+| 2 | [Android_性能优化详解.md](./Android_性能优化详解.md) | 156KB | 2026-03-08 |
+| 3 | [Android_自定义View_绘制完全指南.md](./Android_自定义View_绘制完全指南.md) | 145KB | 2026-03-08 |
+| 4 | [Android_Activity_启动流程.md](./Android_Activity_启动流程.md) | 101KB | 2026-03-08 |
+| 5 | [Android事件分发机制详解.md](./Android事件分发机制详解.md) | 140KB | 2026-03-08 |
+| 6 | [Android_Handler机制详解.md](./Android_Handler机制详解.md) | 89KB | 2026-03-08 |
+| 7 | [Android_虚拟机详解.md](./Android_虚拟机详解.md) | 62KB | 2026-03-08 |
+| 8 | [Android事件分发机制完全指南.md](./Android事件分发机制完全指南.md) | 55KB | 2026-03-08 |
+| 9 | [Android_Gradle与AGP详解.md](./Android_Gradle与AGP详解.md) | 35KB | 2026-03-08 |
+| 10 | [Android_ClassLoader详解.md](./Android_ClassLoader详解.md) | 42KB | 2026-03-08 |
+| 11 | [Android_动画完全指南.md](./Android_动画完全指南.md) | 46KB | 2026-03-08 |
+| 12 | [Android_网络编程详解.md](./Android_网络编程详解.md) | 12KB | 2026-03-08 |
+
+**总计：12 篇文档，约 1.2MB**
 
 ## 文档简介
 
-### 1. Android 自定义 View 绘制完全指南
+### 1. Android View 绘制流程
+- View 绘制 8 层架构（应用层 → 硬件层）
+- Measure、Layout、Draw 三大流程
+- ViewRootImpl 详解
+- Choreographer 编舞者机制
+- BufferQueue 与双缓冲
+- 软件渲染 vs 硬件渲染
+- ThreadedRenderer 详解
+- Canvas → Surface → SurfaceFlinger 完整调用链
+
+### 2. Android 性能优化详解
+- 启动优化策略
+- UI 渲染优化 (16ms法则)
+- 内存优化 (泄漏检测)
+- 电量优化
+- 网络优化
+- APK 体积优化
+- 性能分析工具
+
+### 3. Android 自定义 View 绘制完全指南
 - Drawable 资源 (Shape, Layer, Selector, Vector)
 - View 绘制三大流程 (Measure, Layout, Draw)
 - Canvas 画布 (save/restore, saveLayer, 裁剪, 混合模式)
@@ -33,44 +55,73 @@
 - Merge/Include/ViewStub 详解
 - 实战案例 (圆形进度条, 组合标题栏, 钢琴键盘)
 
-### 2. Android Activity 启动流程
+### 4. Android Activity 启动流程
 - ActivityThread 核心流程
 - PhoneWindow 创建时机
 - DecorView 添加到 WindowManager
 - mContentParent 初始化
 - Activity.attach() 详解
+- 从应用层到系统层的完整调用链
 
-### 3. Android 虚拟机详解
-- JVM vs Dalvik vs ART 对比
-- 基于栈 vs 基于寄存器架构
-- DEX 文件格式
-- ODEX 与 OAT 文件
-- 内存管理与 GC 算法
+### 5. Android 事件分发机制详解
+- 事件类型 (MotionEvent)
+- 分发流程 (dispatchTouchEvent, onInterceptTouchEvent, onTouchEvent)
+- ViewGroup 事件分发详解
+  - 分发入口
+  - 子 View 查找
+  - isTransformedTouchPointInView 边界检查
+  - dispatchTransformedTouchEvent 事件分发
+  - TouchTarget 链表
+- View 事件分发详解
+  - 点击检测 (Click)
+  - 长按检测 (Long Click)
+  - 双击检测 (Double Tap, GestureDetector)
+- TouchDelegate 扩大点击区域
+- 滑动冲突解决
 
-### 4. Android Handler 机制详解
+### 6. Android Handler 机制详解
 - Handler、Looper、MessageQueue 核心原理
 - ThreadLocal 存储机制
 - 同步屏障 (Sync Barrier)
 - IdleHandler 空闲处理
 - HandlerThread 使用
 - loop() 为什么不会卡死
+- 完整源码分析
 
-### 5. Android ClassLoader 详解
+### 7. Android 虚拟机详解
+- JVM vs Dalvik vs ART 对比
+- 基于栈 vs 基于寄存器架构
+- DEX 文件格式
+- ODEX 与 OAT 文件
+- 内存管理与 GC 算法
+
+### 8. Android 事件分发机制完全指南
+- 事件分发基础
+- 典型场景分析
+- 滑动冲突解决
+- 最佳实践
+
+### 9. Android Gradle 与 AGP 详解
+- Gradle 构建流程
+- AGP (Android Gradle Plugin) 详解
+- 构建变体 (Build Variants)
+- 依赖管理
+- 自定义插件开发
+
+### 10. Android ClassLoader 详解
 - BootClassLoader、PathClassLoader
 - DexClassLoader、InMemoryDexClassLoader
 - 双亲委派模型
 - 热修复与插件化原理
 
-### 6. Android 性能优化详解
-- 启动优化策略
-- UI 渲染优化 (16ms法则)
-- 内存优化 (泄漏检测)
-- 电量优化
-- 网络优化
-- APK 体积优化
-- 性能分析工具
+### 11. Android 动画完全指南
+- 帧动画 (Frame Animation)
+- 补间动画 (Tween Animation)
+- 属性动画 (Property Animation)
+- 过渡动画 (Transition)
+- 共享元素动画
 
-### 7. Android 网络编程详解
+### 12. Android 网络编程详解
 - HTTP/HTTPS 协议
 - HTTP/1.1 vs HTTP/2 vs HTTP/3
 - TCP vs UDP
@@ -83,17 +134,29 @@
 ## 更新日志
 
 ### 2026-03-08
+- 重大更新 Android 事件分发机制详解
+  - ViewGroup 事件分发 9.1-9.7 完整重写
+  - View 事件分发详解
+  - 点击/长按/双击检测机制
+  - GestureDetector 源码分析
+  - TouchDelegate 完整示例
+- 新增 Android_Gradle与AGP详解.md
+- 重大更新 Android_View_绘制流程.md
+  - 软件渲染 vs 硬件渲染
+  - Choreographer 详解
+  - ThreadedRenderer 详解
+  - Canvas → Surface → SurfaceFlinger 调用链
+
+### 2026-03-08
 - 新增 Android 虚拟机详解
 - 新增 Android ClassLoader 详解
 - 新增 Android 网络编程详解
 - 新增 Android 性能优化详解
 - 新增 Android Handler 机制详解
 
-### 2026-03-08
+### 2026-03-07
 - 新增 Android 自定义 View 绘制完全指南
 - 添加 Merge/Include/ViewStub 详解
-
-### 2026-03-07
 - 完善 Activity 启动流程文档
 - 添加动画文档
 - 添加 View 绘制流程文档
