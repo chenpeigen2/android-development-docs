@@ -1,7 +1,7 @@
-# Android 性能优化详解
+# Android 性能优化完全指南
 
-_作者：OpenClaw_  
-_日期：2026-03-08_
+> 作者：OpenClaw  
+> 日期：2026-03-08
 
 ---
 
@@ -9,13 +9,46 @@ _日期：2026-03-08_
 
 1. [性能优化概述](#1-性能优化概述)
 2. [启动优化](#2-启动优化)
+   - [启动类型详解](#21-启动类型详解)
+   - [冷启动流程源码分析](#22-冷启动流程源码分析)
+   - [启动时间测量](#23-启动时间测量)
+   - [启动优化策略](#24-启动优化策略)
+   - [启动优化工具](#25-启动优化工具)
 3. [UI 渲染优化](#3-ui-渲染优化)
+   - [渲染原理](#31-渲染原理)
+   - [16ms 法则](#32-16ms-法则)
+   - [VSync 与 Choreographer](#33-vsync-与-choreographer)
+   - [双缓冲与三缓冲](#34-双缓冲与三缓冲)
+   - [渲染性能分析](#35-渲染性能分析)
+   - [渲染优化策略](#36-渲染优化策略)
 4. [内存优化](#4-内存优化)
+   - [Java 内存模型](#41-java-内存模型)
+   - [Android 内存管理](#42-android-内存管理)
+   - [内存泄漏检测](#43-内存泄漏检测)
+   - [内存优化策略](#44-内存优化策略)
+   - [OOM 分析与处理](#45-oom-分析与处理)
 5. [电量优化](#5-电量优化)
+   - [电量消耗分析](#51-电量消耗分析)
+   - [电量优化策略](#52-电量优化策略)
+   - [Doze 模式与 App Standby](#53-doze-模式与-app-standby)
+   - [WorkManager 最佳实践](#54-workmanager-最佳实践)
 6. [网络优化](#6-网络优化)
+   - [网络请求优化](#61-网络请求优化)
+   - [图片加载优化](#62-图片加载优化)
+   - [网络缓存策略](#63-网络缓存策略)
 7. [APK 体积优化](#7-apk-体积优化)
+   - [体积分析](#71-体积分析)
+   - [代码混淆与优化](#72-代码混淆与优化)
+   - [资源优化](#73-资源优化)
+   - [So 动态库优化](#74-so-动态库优化)
 8. [性能分析工具](#8-性能分析工具)
-9. [总结](#9-总结)
+   - [CPU Profiler](#81-cpu-profiler)
+   - [Memory Profiler](#82-memory-profiler)
+   - [Layout Inspector](#83-layout-inspector)
+   - [Systrace/Perfetto](#84-systraceperfetto)
+   - [LeakCanary](#85-leakcanary)
+9. [面试常见问题](#9-面试常见问题)
+10. [总结](#10-总结)
 
 ---
 
@@ -69,798 +102,1856 @@ _日期：2026-03-08_
 
 ## 2. 启动优化
 
-### 2.1 启动类型
+### 2.1 启动类型详解
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                         启动类型                                            │
+│                         启动类型详解                                        │
 └─────────────────────────────────────────────────────────────────────────────┘
 
-┌───────────────────┬───────────────────────────────────────────────────────┐
-│     启动类型       │                      说明                            │
-├───────────────────┼───────────────────────────────────────────────────────┤
-│     冷启动        │ 进程不存在，需创建进程 + 初始化 Application + 启动 Activity │
-│                   │ 最慢，耗时最长                                      │
-├───────────────────┼───────────────────────────────────────────────────────┤
-│     温启动        │ 进程存在但 Activity 被销毁，需重新创建 Activity       │
-│                   │ 中等耗时                                            │
-├───────────────────┼───────────────────────────────────────────────────────┤
-│     热启动        │ 进程和 Activity 都存在，只需将 Activity 切换到前台    │
-│                   │ 最快                                                │
-└───────────────────┴───────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  启动类型       │  进程状态  │  Activity 状态  │  耗时  │  用户体验        │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  冷启动         │  不存在   │  不存在         │  最长  │  显示启动窗口    │
+│  (Cold Start)   │           │                 │  2-5s  │  → 显示内容      │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  温启动         │  存在     │  不存在/被回收  │  中等  │  显示启动窗口    │
+│  (Warm Start)   │           │                 │  1-2s  │  → 显示内容      │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  热启动         │  存在     │  存在(后台)     │  最短  │  直接显示内容    │
+│  (Hot Start)    │           │                 │  <1s   │  无启动窗口      │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+启动时间标准 (Google 官方):
+- 冷启动: < 5 秒
+- 温启动: < 2 秒
+- 热启动: < 1.5 秒
 ```
 
-### 2.2 冷启动流程
+### 2.2 冷启动流程源码分析
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                         冷启动流程                                          │
+│                         冷启动完整流程                                      │
 └─────────────────────────────────────────────────────────────────────────────┘
 
-Launcher 点击图标
-       │
-       ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  1. 启动进程 (Zygote fork)                                                  │
-│     - 创建进程                                                              │
-│     - 创建 ActivityThread                                                   │
-│     - 创建 Application                                                      │
-└─────────────────────────────────────────────────────────────────────────────┘
-       │
-       ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  2. Application.onCreate()                                                 │
-│     - 初始化第三方 SDK                                                      │
-│     - 全局配置                                                              │
-│     ⚠️ 耗时操作会延迟启动                                                   │
-└─────────────────────────────────────────────────────────────────────────────┘
-       │
-       ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  3. Activity 启动                                                           │
-│     - 创建 Activity                                                         │
-│     - onCreate() → onStart() → onResume()                                  │
-│     - setContentView()                                                      │
-└─────────────────────────────────────────────────────────────────────────────┘
-       │
-       ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  4. 首帧渲染                                                                │
-│     - View 测量、布局、绘制                                                 │
-│     - 第一帧显示                                                            │
-└─────────────────────────────────────────────────────────────────────────────┘
+用户点击图标                系统层                    应用层
+      │                       │                         │
+      ▼                       │                         │
+┌───────────┐                │                         │
+│ Launcher  │                │                         │
+│ onClick() │                │                         │
+└─────┬─────┘                │                         │
+      │                      │                         │
+      │ startActivity()      │                         │
+      └─────────────────────►│                         │
+                             │                         │
+                             ▼                         │
+┌────────────────────────────────────────────────────────────────────────────┐
+│                    ActivityTaskManagerService                              │
+│  ┌──────────────────────────────────────────────────────────────────────┐ │
+│  │ 1. startActivity()                                                   │ │
+│  │    - 检查调用者权限                                                  │ │
+│  │    - 解析 Intent                                                    │ │
+│  │    - 检查目标 Activity 是否存在                                      │ │
+│  └──────────────────────────────────────────────────────────────────────┘ │
+│  ┌──────────────────────────────────────────────────────────────────────┐ │
+│  │ 2. ActivityStarter.execute()                                         │ │
+│  │    - 解析启动参数                                                    │ │
+│  │    - 确定 Launch Mode                                               │ │
+│  │    - 确定 Task 归属                                                  │ │
+│  └──────────────────────────────────────────────────────────────────────┘ │
+│  ┌──────────────────────────────────────────────────────────────────────┐ │
+│  │ 3. 检查目标进程是否存在                                              │ │
+│  │    if (app == null) {                                               │ │
+│  │        startProcess()  // 启动新进程                                 │ │
+│  │    }                                                                │ │
+│  └──────────────────────────────────────────────────────────────────────┘ │
+└────────────────────────────────────┬───────────────────────────────────────┘
+                                     │
+                                     │ startProcess()
+                                     ▼
+┌────────────────────────────────────────────────────────────────────────────┐
+│                         Zygote 进程 Fork                                    │
+│  ┌──────────────────────────────────────────────────────────────────────┐ │
+│  │ 4. Process.start()                                                   │ │
+│  │    - 通过 Socket 连接 Zygote                                        │ │
+│  │    - 发送 fork 请求                                                  │ │
+│  │    - Zygote fork 新进程                                              │ │
+│  │    - 新进程执行 ActivityThread.main()                                │ │
+│  └──────────────────────────────────────────────────────────────────────┘ │
+└────────────────────────────────────┬───────────────────────────────────────┘
+                                     │
+                                     ▼
+┌────────────────────────────────────────────────────────────────────────────┐
+│                    新进程 - ActivityThread                                  │
+│  ┌──────────────────────────────────────────────────────────────────────┐ │
+│  │ 5. ActivityThread.main()                                             │ │
+│  │    ├── Looper.prepareMainLooper()    // 准备主线程 Looper            │ │
+│  │    ├── ActivityThread.attach()       // 附加到 AMS                   │ │
+│  │    │       │                                                         │ │
+│  │    │       └── AMS.attachApplication()                               │ │
+│  │    │               │                                                 │ │
+│  │    │               └── bindApplication()                             │ │
+│  │    │                       │                                         │ │
+│  │    │                       └── Application.onCreate()  ← ─ ─ ─ ─ ─ ─ │ │
+│  │    │                               │                                 │ │
+│  │    └── Looper.loop()               │  // 启动消息循环                │ │
+│  │                                    │                                 │ │
+│  └────────────────────────────────────┼──────────────────────────────────┘ │
+│                                       │                                   │
+│  ┌────────────────────────────────────┼──────────────────────────────────┐ │
+│  │ 6. handleBindApplication()         │                                 │ │
+│  │    ├── create Application          │                                 │ │
+│  │    ├── installContentProviders()   │                                 │ │
+│  │    └── Application.onCreate() ◄────┘  ← 关键优化点!                  │ │
+│  └──────────────────────────────────────────────────────────────────────┘ │
+│  ┌──────────────────────────────────────────────────────────────────────┐ │
+│  │ 7. handleLaunchActivity()                                           │ │
+│  │    ├── performLaunchActivity()                                      │ │
+│  │    │       ├── Activity.attach()                                    │ │
+│  │    │       ├── Activity.onCreate()  ← 关键优化点!                   │ │
+│  │    │       └── Activity.onStart()                                   │ │
+│  │    └── handleResumeActivity()                                       │ │
+│  │            └── Activity.onResume()  ← 关键优化点!                   │ │
+│  └──────────────────────────────────────────────────────────────────────┘ │
+│  ┌──────────────────────────────────────────────────────────────────────┐ │
+│  │ 8. 首帧绘制                                                          │ │
+│  │    ├── WindowManager.addView()                                      │ │
+│  │    ├── ViewRootImpl.performTraversals()                             │ │
+│  │    │       ├── performMeasure()                                     │ │
+│  │    │       ├── performLayout()                                      │ │
+│  │    │       └── performDraw()                                        │ │
+│  │    └── SurfaceFlinger 合成                                          │ │
+│  └──────────────────────────────────────────────────────────────────────┘ │
+└────────────────────────────────────────────────────────────────────────────┘
+                                     │
+                                     ▼
+                              首帧显示完成
 ```
 
-### 2.3 启动优化策略
+### 2.3 启动时间测量
 
-```kotlin
-/**
- * 启动优化策略
- */
-
-// 1. 异步初始化
-class MyApplication : Application() {
-    override fun onCreate() {
-        super.onCreate()
-        
-        // 主线程：只初始化必要的组件
-        initEssentialComponents()
-        
-        // 子线程：异步初始化非必要组件
-        Thread {
-            initNonEssentialComponents()
-        }.start()
-    }
-}
-
-// 2. 使用启动器 (TaskDispatcher)
-class MyApplication : Application() {
-    override fun onCreate() {
-        super.onCreate()
-        
-        TaskDispatcher.create(this)
-            .addTask(InitCrashTask())      // 崩溃监控
-            .addTask(InitNetworkTask())    // 网络库
-            .addTask(InitImageTask())     // 图片库
-            .addTask(InitDatabaseTask())   // 数据库
-            .start()
-    }
-}
-
-// 3. 延迟初始化
-class MainActivity : AppCompatActivity() {
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)
-        
-        // 使用 IdleHandler 在空闲时初始化
-        Looper.myQueue().addIdleHandler {
-            initNonUrgentComponents()
-            false
-        }
-        
-        // 或使用 postDelayed
-        Handler(Looper.getMainLooper()).postDelayed({
-            initDelayedComponents()
-        }, 1000)
-    }
-}
-
-// 4. 预加载
-object PreloadManager {
-    fun preload() {
-        // 预加载类
-        Class.forName("com.example.HeavyClass")
-        
-        // 预加载布局
-        LayoutInflater.from(context).inflate(R.layout.heavy_layout, null)
-        
-        // 预热 WebView
-        WebView(context)
-    }
-}
 ```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         启动时间测量方法                                    │
+└─────────────────────────────────────────────────────────────────────────────┘
 
-### 2.4 启动时间测量
+方法 1: adb shell am start
+─────────────────────────────────────────────────────────────────────────────
+adb shell am start -W [包名]/[Activity全路径]
 
-```kotlin
-/**
- * 启动时间测量
- */
+输出示例:
+Starting: Intent { act=android.intent.action.MAIN cat=[android.intent.category.LAUNCHER] cmp=com.example/.MainActivity }
+Status: ok
+Activity: com.example/.MainActivity
+ThisTime: 1234      ← 当前 Activity 启动时间
+TotalTime: 2345     ← 总启动时间 (包含前一个 Activity)
+WaitTime: 2500      ← AMS 启动时间 (包含 TotalTime)
+Complete: true
 
-// 1. adb 命令
-// adb shell am start -W [packageName]/[activityName]
-// ThisTime: 最后一个 Activity 启动时间
-// TotalTime: 所有 Activity 启动时间
-// WaitTime: AMS 启动时间
+方法 2: logcat 过滤
+─────────────────────────────────────────────────────────────────────────────
+adb logcat -s ActivityManager:I | grep "Displayed"
 
-// 2. 代码埋点
-object StartupTimer {
-    private var startTime = 0L
-    
-    fun recordStart() {
-        startTime = System.currentTimeMillis()
-    }
-    
-    fun recordEnd(): Long {
-        return System.currentTimeMillis() - startTime
-    }
-}
+输出:
+ActivityManager: Displayed com.example/.MainActivity: +1s234ms
 
+方法 3: 代码打点 (精确测量)
+─────────────────────────────────────────────────────────────────────────────
 // Application.attach()
-override fun attachBaseContext(base: Context) {
-    super.attachBaseContext(base)
-    StartupTimer.recordStart()
+@Override
+protected void attachBaseContext(Context base) {
+    super.attachBaseContext(base);
+    LaunchTimer.start("Application.attach");
 }
 
-// Activity.onResume()
-override fun onResume() {
-    super.onResume()
-    Log.d("Startup", "Cold start: ${StartupTimer.recordEnd()}ms")
+// Application.onCreate()
+@Override
+public void onCreate() {
+    LaunchTimer.end("Application.attach");
+    LaunchTimer.start("Application.onCreate");
+    super.onCreate();
+    // ...
+    LaunchTimer.end("Application.onCreate");
 }
+
+// Activity.onCreate()
+@Override
+protected void onCreate(Bundle savedInstanceState) {
+    LaunchTimer.start("Activity.onCreate");
+    super.onCreate(savedInstanceState);
+    // ...
+    LaunchTimer.end("Activity.onCreate");
+}
+
+方法 4: Systrace/Perfetto
+─────────────────────────────────────────────────────────────────────────────
+python $ANDROID_SDK/platform-tools/systrace/systrace.py \
+    --app=com.example \
+    gfx view wm am \
+    -o trace.html
+```
+
+### 2.4 启动优化策略
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         启动优化策略详解                                    │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  1. Application.onCreate() 优化                                             │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  问题: Application.onCreate() 是同步执行的，阻塞启动                        │
+│                                                                             │
+│  ❌ 错误做法:                                                               │
+│  public class MyApp extends Application {                                  │
+│      @Override                                                             │
+│      public void onCreate() {                                              │
+│          super.onCreate();                                                 │
+│          // 同步初始化所有 SDK                                             │
+│          initAnalytics();      // 200ms                                    │
+│          initPush();           // 150ms                                    │
+│          initImageLoader();    // 100ms                                    │
+│          initDatabase();       // 300ms                                    │
+│          initNetwork();        // 200ms                                    │
+│          // 总耗时: 950ms，严重拖慢启动                                    │
+│      }                                                                     │
+│  }                                                                         │
+│                                                                             │
+│  ✅ 正确做法 1: 异步初始化                                                  │
+│  public class MyApp extends Application {                                  │
+│      @Override                                                             │
+│      public void onCreate() {                                              │
+│          super.onCreate();                                                 │
+│                                                                             │
+│          // 核心库同步初始化                                               │
+│          initCore();                                                       │
+│                                                                             │
+│          // 非核心库异步初始化                                             │
+│          new Thread(() -> {                                                │
+│              initAnalytics();                                              │
+│              initPush();                                                   │
+│              initImageLoader();                                            │
+│          }).start();                                                       │
+│      }                                                                     │
+│  }                                                                         │
+│                                                                             │
+│  ✅ 正确做法 2: IdleHandler 延迟初始化                                      │
+│  public class MyApp extends Application {                                  │
+│      @Override                                                             │
+│      public void onCreate() {                                              │
+│          super.onCreate();                                                 │
+│          initCore();                                                       │
+│                                                                             │
+│          // 主线程空闲时初始化                                             │
+│          Looper.myQueue().addIdleHandler(() -> {                           │
+│              initNonCore();                                                │
+│              return false;  // 只执行一次                                  │
+│          });                                                               │
+│      }                                                                     │
+│  }                                                                         │
+│                                                                             │
+│  ✅ 正确做法 3: 启动器框架 (美团)                                           │
+│  public class StartupDispatcher {                                          │
+│      private List<Task> mTasks = new ArrayList<>();                       │
+│                                                                             │
+│      public void addTask(Task task) {                                      │
+│          mTasks.add(task);                                                 │
+│      }                                                                     │
+│                                                                             │
+│      public void start() {                                                 │
+│          // 按依赖关系排序                                                 │
+│          // 并行执行无依赖任务                                             │
+│          // 串行执行有依赖任务                                             │
+│      }                                                                     │
+│  }                                                                         │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  2. Activity.onCreate() 优化                                                │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  ❌ 错误做法:                                                               │
+│  @Override                                                                 │
+│  protected void onCreate(Bundle savedInstanceState) {                      │
+│      super.onCreate(savedInstanceState);                                   │
+│      setContentView(R.layout.main);                                        │
+│                                                                             │
+│      // 主线程执行耗时操作                                                 │
+│      loadDataFromDatabase();  // 500ms                                     │
+│      loadNetworkData();       // 网络请求                                  │
+│      initViews();             // 复杂初始化                                │
+│  }                                                                         │
+│                                                                             │
+│  ✅ 正确做法:                                                               │
+│  @Override                                                                 │
+│  protected void onCreate(Bundle savedInstanceState) {                      │
+│      super.onCreate(savedInstanceState);                                   │
+│      setContentView(R.layout.main);                                        │
+│                                                                             │
+│      // 显示占位 UI                                                        │
+│      showPlaceholder();                                                    │
+│                                                                             │
+│      // 异步加载数据                                                       │
+│      viewModel.loadData().observe(this, data -> {                          │
+│          updateUI(data);                                                   │
+│      });                                                                   │
+│  }                                                                         │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  3. 布局优化                                                                │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  ❌ 错误做法: 布局嵌套过深                                                  │
+│  <LinearLayout>                           <!-- 层级 1 -->                  │
+│      <LinearLayout>                       <!-- 层级 2 -->                  │
+│          <LinearLayout>                   <!-- 层级 3 -->                  │
+│              <RelativeLayout>             <!-- 层级 4 -->                  │
+│                  <TextView />                                             │
+│              </RelativeLayout>                                            │
+│          </LinearLayout>                                                  │
+│      </LinearLayout>                                                      │
+│  </LinearLayout>                                                          │
+│                                                                             │
+│  ✅ 正确做法: 使用 ConstraintLayout 减少层级                               │
+│  <androidx.constraintlayout.widget.ConstraintLayout>  <!-- 层级 1 -->     │
+│      <TextView                                                            │
+│          app:layout_constraintTop_toTopOf="parent"                        │
+│          app:layout_constraintStart_toStartOf="parent" />                 │
+│  </androidx.constraintlayout.widget.ConstraintLayout>                     │
+│                                                                             │
+│  ✅ 使用 ViewStub 延迟加载                                                  │
+│  <ViewStub                                                                │
+│      android:id="@+id/stub"                                               │
+│      android:layout="@layout/optional_content"                            │
+│      android:inflatedId="@+id/content" />                                 │
+│                                                                             │
+│  // 需要时才加载                                                           │
+│  ViewStub stub = findViewById(R.id.stub);                                 │
+│  View content = stub.inflate();                                           │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  4. MultiDex 优化                                                           │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  问题: Android 5.0 以下系统，MultiDex 在主线程解压 dex，耗时严重           │
+│                                                                             │
+│  ✅ 解决方案: 使用 MultiDex.install() 在 Application.attach() 中执行       │
+│  public class MyApp extends Application {                                  │
+│      @Override                                                             │
+│      protected void attachBaseContext(Context base) {                      │
+│          super.attachBaseContext(base);                                    │
+│          MultiDex.install(this);  // 尽早执行                              │
+│      }                                                                     │
+│  }                                                                         │
+│                                                                             │
+│  ✅ 进阶方案: 使用 Google Play 的 MultiDex 优化 (预解压)                    │
+│  // build.gradle                                                           │
+│  android {                                                                 │
+│      defaultConfig {                                                       │
+│          multiDexEnabled true                                              │
+│      }                                                                     │
+│  }                                                                         │
+│  dependencies {                                                            │
+│      implementation 'androidx.multidex:multidex:2.0.1'                    │
+│  }                                                                         │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  5. 预加载 Class                                                            │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  问题: 首次使用类时需要加载类，消耗时间                                    │
+│                                                                             │
+│  ✅ 解决方案: 在 Application.onCreate() 中异步预加载常用类                  │
+│  public class MyApp extends Application {                                  │
+│      @Override                                                             │
+│      public void onCreate() {                                              │
+│          super.onCreate();                                                 │
+│                                                                             │
+│          // 异步预加载常用类                                               │
+│          new Thread(() -> {                                                │
+│              try {                                                         │
+│                  Class.forName("com.example.HeavyClass1");                 │
+│                  Class.forName("com.example.HeavyClass2");                 │
+│              } catch (ClassNotFoundException e) {                          │
+│                  e.printStackTrace();                                      │
+│              }                                                             │
+│          }).start();                                                       │
+│      }                                                                     │
+│  }                                                                         │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 2.5 启动优化工具
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         启动优化工具                                        │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+1. CPU Profiler (Android Studio)
+─────────────────────────────────────────────────────────────────────────────
+   - 查看方法执行时间
+   - 分析调用栈
+   - 找出耗时方法
+
+2. Systrace / Perfetto
+─────────────────────────────────────────────────────────────────────────────
+   # 采集启动 trace
+   python $ANDROID_SDK/platform-tools/systrace/systrace.py \
+       --app=com.example \
+       gfx view wm am sched freq \
+       -o startup_trace.html
+
+   # 分析关键时间点:
+   - bindApplication
+   - Activity.onCreate
+   - performTraversals
+   - firstDraw
+
+3. Startup Timing Library
+─────────────────────────────────────────────────────────────────────────────
+   // build.gradle
+   implementation 'androidx.benchmark:benchmark-macro-junit4:1.1.0'
+
+   // 测试代码
+   @RunWith(AndroidJUnit4.class)
+   public class StartupBenchmark {
+       @Rule
+       public MacrobenchmarkRule rule = new MacrobenchmarkRule();
+
+       @Test
+       public void startupCold() {
+           rule.measure(
+               "com.example",
+               Collections.singletonList(
+                   CompilationMode.None()
+               ),
+               10,
+               new MacrobenchmarkScope.Actions() {
+                   @Override
+                   public void actions(MacrobenchmarkScope scope) {
+                       scope.launchActivity();
+                   }
+               }
+           );
+       }
+   }
 ```
 
 ---
 
 ## 3. UI 渲染优化
 
-### 3.1 渲染流程
+### 3.1 渲染原理
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                         Android 渲染流程                                    │
+│                         Android 渲染架构                                    │
 └─────────────────────────────────────────────────────────────────────────────┘
 
-CPU (计算)                          GPU (光栅化)                    Display
-   │                                    │                              │
-   │  measure/layout/draw              │                              │
-   │         │                         │                              │
-   ▼         ▼                         │                              │
-┌─────────────────────┐               │                              │
-│  CPU 计算           │               │                              │
-│  - Measure          │               │                              │
-│  - Layout           │               │                              │
-│  - Draw (生成DisplayList)          │                              │
-└─────────┬───────────┘               │                              │
-          │                           │                              │
-          ▼                           │                              │
-┌─────────────────────┐               │                              │
-│  GPU 光栅化         │               │                              │
-│  - 将 DisplayList   │               │                              │
-│    转换为纹理       │               │                              │
-└─────────┬───────────┘               │                              │
-          │                           │                              │
-          ▼                           ▼                              │
-┌─────────────────────────────────────────────────────────────────┐          │
-│  SurfaceFlinger (合成)                                          │          │
-│  - 合成各层                                                      │          │
-│  - 交给 Display                                                  │          │
-└─────────────────────────────────────────────────────────────────┬──────────┘
-                                                                  │
-                                                                  ▼
-                                                            屏幕显示
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                                                                             │
+│                         应用层 (App)                                        │
+│  ┌───────────────────────────────────────────────────────────────────────┐ │
+│  │                        View Hierarchy                                  │ │
+│  │   ┌─────────┐   ┌─────────┐   ┌─────────┐   ┌─────────┐             │ │
+│  │   │Activity │──►│Window  │──►│DecorView│──►│ViewGroup│             │ │
+│  │   └─────────┘   └─────────┘   └─────────┘   └─────────┘             │ │
+│  │                                                     │                 │ │
+│  │                                                     ▼                 │ │
+│  │                                            ┌───────────────┐          │ │
+│  │                                            │ performTraversals│       │ │
+│  │                                            │  - measure     │          │ │
+│  │                                            │  - layout      │          │ │
+│  │                                            │  - draw        │          │ │
+│  │                                            └───────┬───────┘          │ │
+│  └────────────────────────────────────────────────────┼──────────────────┘ │
+│                                                       │                    │
+└───────────────────────────────────────────────────────┼────────────────────┘
+                                                        │
+                                                        ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         系统框架层 (Framework)                              │
+│  ┌───────────────────────────────────────────────────────────────────────┐ │
+│  │                     Choreographer                                      │ │
+│  │   ┌─────────────────────────────────────────────────────────────┐    │ │
+│  │   │  VSync 信号接收                                              │    │ │
+│  │   │  - 与屏幕刷新率同步 (60Hz = 16.6ms)                          │    │ │
+│  │   │  - 调度 CALLBACK_INPUT, CALLBACK_ANIMATION, CALLBACK_TRAVERSAL│   │ │
+│  │   └─────────────────────────────────────────────────────────────┘    │ │
+│  └───────────────────────────────────────────────────────────────────────┘ │
+│  ┌───────────────────────────────────────────────────────────────────────┐ │
+│  │                     SurfaceFlinger                                     │ │
+│  │   ┌─────────────────────────────────────────────────────────────┐    │ │
+│  │   │  图层合成                                                    │    │ │
+│  │   │  - 收集所有 Surface                                          │    │ │
+│  │   │  - 合成最终图像                                              │    │ │
+│  │   │  - 提交给 Hardware Composer                                  │    │ │
+│  │   └─────────────────────────────────────────────────────────────┘    │ │
+│  └───────────────────────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                                        │
+                                                        ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         硬件层 (Hardware)                                   │
+│  ┌───────────────────────────────────────────────────────────────────────┐ │
+│  │                     Hardware Composer (HWC)                            │ │
+│  │   - GPU 合成                                                           │ │
+│  │   - 显示到屏幕                                                         │ │
+│  └───────────────────────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 3.2 16ms 黄金法则
+### 3.2 16ms 法则
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                         16ms 黄金法则                                       │
+│                         16ms 法则详解                                       │
 └─────────────────────────────────────────────────────────────────────────────┘
 
-60fps = 每秒 60 帧 = 每帧 16.6ms
+60fps = 60 帧每秒 = 每帧 16.6ms (1000ms / 60 = 16.6ms)
 
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│  帧时间线                                                                    │
+│  正常情况 (每帧 < 16ms)                                                     │
+├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
-│  帧1: │────16.6ms────│────16.6ms────│────16.6ms────│                       │
-│        │    CPU+GPU   │    CPU+GPU   │    CPU+GPU   │                       │
+│  时间轴:  0ms      16ms     33ms     50ms     66ms     83ms                │
+│           │        │        │        │        │        │                   │
+│  VSync:   ▼        ▼        ▼        ▼        ▼        ▼                   │
+│           ├────────┤        │        │        │        │                   │
+│           │ Frame1 │        │        │        │        │                   │
+│           ├────────┼────────┤        │        │        │                   │
+│           │        │ Frame2 │        │        │        │                   │
+│           │        ├────────┼────────┤        │        │                   │
+│           │        │        │ Frame3 │        │        │                   │
+│           │        │        ├────────┼────────┤        │                   │
+│           │        │        │        │ Frame4 │        │                   │
+│           │        │        │        ├────────┼────────┤                   │
+│           │        │        │        │        │ Frame5 │                   │
 │                                                                             │
-│  如果某一帧超过 16.6ms:                                                     │
+│  结果: 流畅 60fps                                                           │
 │                                                                             │
-│  帧1: │─────20ms─────│                                                  │
-│        │    CPU+GPU   │  ← 丢帧！屏幕显示上一帧                           │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  卡顿情况 (某帧 > 16ms)                                                     │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  时间轴:  0ms      16ms     33ms     50ms     66ms     83ms                │
+│           │        │        │        │        │        │                   │
+│  VSync:   ▼        ▼        ▼        ▼        ▼        ▼                   │
+│           ├─────────────────────────┤        │        │        │           │
+│           │      Frame1 (30ms)      │        │        │        │           │
+│           │        卡顿!            ├────────┤        │        │           │
+│           │                         │ Frame2 │        │        │           │
+│           │                         ├────────┼────────┤        │           │
+│           │                         │        │ Frame3 │        │           │
+│                                                                             │
+│  结果: Frame1 超时，VSync 信号到达时未完成，跳过一帧                        │
+│        用户体验: 卡顿、掉帧                                                 │
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 3.3 渲染优化策略
+### 3.3 VSync 与 Choreographer
 
-```kotlin
-/**
- * 渲染优化策略
- */
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         VSync 与 Choreographer                              │
+└─────────────────────────────────────────────────────────────────────────────┘
 
-// 1. 减少布局层级
-// ❌ 冗余嵌套
-<LinearLayout>
-    <LinearLayout>
-        <LinearLayout>
-            <TextView />
-        </LinearLayout>
-    </LinearLayout>
-</LinearLayout>
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  Choreographer 工作流程                                                     │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│   Display (屏幕)                                                            │
+│       │                                                                     │
+│       │ VSync 信号 (每 16.6ms)                                              │
+│       ▼                                                                     │
+│   ┌─────────────────┐                                                      │
+│   │ FrameDisplayEvent│                                                      │
+│   │    Receiver      │                                                      │
+│   └────────┬────────┘                                                      │
+│            │                                                                │
+│            ▼                                                                │
+│   ┌─────────────────────────────────────────────────────────────────┐     │
+│   │                      Choreographer                              │     │
+│   │                                                                 │     │
+│   │   CallbackQueue:                                                │     │
+│   │   ┌─────────────────────────────────────────────────────────┐  │     │
+│   │   │ CALLBACK_INPUT (优先级最高)                              │  │     │
+│   │   │   - 输入事件处理                                        │  │     │
+│   │   ├─────────────────────────────────────────────────────────┤  │     │
+│   │   │ CALLBACK_ANIMATION (优先级中)                           │  │     │
+│   │   │   - 动画计算                                            │  │     │
+│   │   ├─────────────────────────────────────────────────────────┤  │     │
+│   │   │ CALLBACK_TRAVERSAL (优先级最低)                         │  │     │
+│   │   │   - measure, layout, draw                               │  │     │
+│   │   └─────────────────────────────────────────────────────────┘  │     │
+│   │                                                                 │     │
+│   └─────────────────────────────────────────────────────────────────┘     │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
 
-// ✅ 扁平化布局
-<ConstraintLayout>
-    <TextView />
-</ConstraintLayout>
-
-// 2. 使用 ConstraintLayout
-// - 减少嵌套层级
-// - 提高测量效率
-
-// 3. 使用 merge 标签
-<merge xmlns:android="...">
-    <ImageView />
-    <TextView />
-</merge>
-
-// 4. 使用 ViewStub 延迟加载
-<ViewStub
-    android:id="@+id/stub_loading"
-    android:layout="@layout/loading_layout"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent" />
-
-// 按需加载
-findViewById<ViewStub>(R.id.stub_loading).inflate()
-
-// 5. 避免过度绘制
-// 开发者选项 → 调试 GPU 过度绘制
-// 4x 过度绘制 = 红色 = 需要优化
-
-// 优化方法:
-// - 移除不必要的背景
-// - 使用 clipRect 限制绘制区域
-// - 减少透明度混合
-
-// 6. 自定义 View 优化
-class CustomView : View {
-    
-    private val paint = Paint()  // 预创建，避免在 onDraw 中创建
-    
-    override fun onDraw(canvas: Canvas) {
-        super.onDraw(canvas)
-        
-        // ❌ 不要在 onDraw 中创建对象
-        // val paint = Paint()
-        
-        // ✅ 使用预创建的对象
-        canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), paint)
-    }
-}
-
-// 7. 使用硬件加速
-// Android 4.0+ 默认开启
-// 在 AndroidManifest 中:
-<application android:hardwareAccelerated="true">
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  Choreographer 源码分析                                                     │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  // Choreographer.java                                                     │
+│  public final class Choreographer {                                        │
+│                                                                             │
+│      // 回调类型                                                           │
+│      public static final int CALLBACK_INPUT = 0;                           │
+│      public static final int CALLBACK_ANIMATION = 1;                       │
+│      public static final int CALLBACK_TRAVERSAL = 2;                       │
+│      public static final int CALLBACK_COMMIT = 3;                          │
+│  }                                                                         │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 3.4 渲染检测
+### 3.4 双缓冲与三缓冲
 
-```kotlin
-/**
- * 渲染检测工具
- */
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         双缓冲与三缓冲                                      │
+└─────────────────────────────────────────────────────────────────────────────┘
 
-// 1. GPU 呈现模式分析
-// 开发者选项 → GPU 呈现模式分析
-// 绿线 = 16ms 阈值
-// 超过绿线 = 卡顿
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  双缓冲 (Double Buffering)                                                  │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  原理: 使用两个缓冲区，一个用于显示，一个用于绘制                           │
+│                                                                             │
+│   ┌─────────────┐     ┌─────────────┐                                     │
+│   │ Front Buffer│     │ Back Buffer │                                     │
+│   │  (显示中)   │◄────│  (绘制中)   │                                     │
+│   └─────────────┘     └─────────────┘                                     │
+│         │                    │                                             │
+│         ▼                    ▼                                             │
+│      显示器              GPU 绘制                                          │
+│                                                                             │
+│  VSync 时交换缓冲区，避免撕裂                                               │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
 
-// 2. Systrace (Perfetto)
-// 记录系统活动
-// 分析帧渲染时间
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  三缓冲 (Triple Buffering)                                                  │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  原理: 使用三个缓冲区，减少丢帧                                             │
+│                                                                             │
+│   ┌─────────────┐     ┌─────────────┐     ┌─────────────┐                 │
+│   │ Buffer A    │     │ Buffer B    │     │ Buffer C    │                 │
+│   │  (显示中)   │     │  (准备好)   │     │  (绘制中)   │                 │
+│   └─────────────┘     └─────────────┘     └─────────────┘                 │
+│                                                                             │
+│  优点: 当 GPU 绘制快于显示器时，可以提前准备下一帧                          │
+│  缺点: 增加延迟 (多一帧延迟)                                                │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
 
-// 3. Choreographer
-Choreographer.getInstance().postFrameCallback(object : Choreographer.FrameCallback {
-    override fun doFrame(frameTimeNanos: Long) {
-        // 计算帧间隔
-        val frameInterval = frameTimeNanos - lastFrameTime
-        if (frameInterval > 16_666_666) {  // 16.6ms
-            Log.d("Frame", "Jank detected: ${frameInterval / 1_000_000}ms")
-        }
-        lastFrameTime = frameTimeNanos
-        
-        Choreographer.getInstance().postFrameCallback(this)
-    }
-})
+### 3.5 渲染性能分析
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         渲染性能分析方法                                    │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+1. GPU 过度绘制分析
+─────────────────────────────────────────────────────────────────────────────
+   开发者选项 → 调试 GPU 过度绘制
+
+   颜色含义:
+   - 无色: 没有过度绘制 (绘制 1 次)
+   - 蓝色: 过度绘制 1x (绘制 2 次)
+   - 绿色: 过度绘制 2x (绘制 3 次)
+   - 粉色: 过度绘制 3x (绘制 4 次)
+   - 红色: 过度绘制 4x+ (绘制 5 次以上)
+
+   目标: 避免红色，减少粉色和绿色
+
+2. GPU 渲染分析
+─────────────────────────────────────────────────────────────────────────────
+   开发者选项 → GPU 呈现模式分析 → 在屏幕上显示为条形图
+
+   颜色含义:
+   - 橙色: 交换缓冲区时间
+   - 红色: 执行命令时间
+   - 蓝色: 更新视图时间
+   - 紫色: 输入处理时间
+   - 深绿: 动画时间
+   - 浅绿: 测量/布局时间
+
+   目标: 每帧保持在 16ms 绿线以下
+
+3. Systrace 分析
+─────────────────────────────────────────────────────────────────────────────
+   python $ANDROID_SDK/platform-tools/systrace/systrace.py \
+       gfx view res am wm sched \
+       -o trace.html
+
+   分析重点:
+   - Frame 时间线 (彩色圆点)
+   - 绿色: 16ms 内完成
+   - 黄色: 接近 16ms
+   - 红色: 超过 16ms (卡顿)
+```
+
+### 3.6 渲染优化策略
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         渲染优化策略详解                                    │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  1. 减少过度绘制                                                            │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  ❌ 问题代码:                                                               │
+│  <RelativeLayout android:background="#FFFFFF">  <!-- 背景 1 -->           │
+│      <LinearLayout android:background="#FFFFFF"> <!-- 背景 2，重复 -->    │
+│          <TextView android:background="#FFFFFF" /> <!-- 背景 3，重复 -->  │
+│      </LinearLayout>                                                       │
+│  </RelativeLayout>                                                         │
+│                                                                             │
+│  ✅ 优化后:                                                                 │
+│  <RelativeLayout>  <!-- 移除背景 -->                                       │
+│      <LinearLayout>  <!-- 移除背景 -->                                     │
+│          <TextView android:background="#FFFFFF" />  <!-- 只保留必要背景 -->│
+│      </LinearLayout>                                                       │
+│  </RelativeLayout>                                                         │
+│                                                                             │
+│  优化技巧:                                                                  │
+│  - 父布局背景能覆盖子布局时，移除子布局背景                                │
+│  - 使用 android:background="@null" 移除不必要背景                         │
+│  - 使用 canvas.clipRect() 限制绘制区域                                    │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  2. 布局层级优化                                                            │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  ❌ 问题: 嵌套过深                                                          │
+│  <LinearLayout>                    <!-- 层级 1 -->                         │
+│      <LinearLayout>                <!-- 层级 2 -->                         │
+│          <RelativeLayout>          <!-- 层级 3 -->                         │
+│              <FrameLayout>         <!-- 层级 4 -->                         │
+│                  <TextView />                                               │
+│              </FrameLayout>                                                 │
+│          </RelativeLayout>                                                  │
+│      </LinearLayout>                                                        │
+│  </LinearLayout>                                                            │
+│                                                                             │
+│  ✅ 优化: 使用 ConstraintLayout                                             │
+│  <androidx.constraintlayout.widget.ConstraintLayout>  <!-- 层级 1 -->      │
+│      <TextView                                                              │
+│          app:layout_constraintTop_toTopOf="parent"                         │
+│          app:layout_constraintStart_toStartOf="parent" />                  │
+│  </androidx.constraintlayout.widget.ConstraintLayout>                      │
+│                                                                             │
+│  优化工具: Layout Inspector 查看布局层级                                   │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  3. ViewStub 延迟加载                                                       │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  场景: 某些 View 不需要立即显示                                            │
+│                                                                             │
+│  <!-- 定义 ViewStub -->                                                     │
+│  <ViewStub                                                                  │
+│      android:id="@+id/stub_progress"                                       │
+│      android:layout="@layout/progress_view"                                │
+│      android:inflatedId="@+id/progress_view" />                            │
+│                                                                             │
+│  // 需要时才加载                                                            │
+│  ViewStub stub = findViewById(R.id.stub_progress);                         │
+│  View progressView = stub.inflate();                                       │
+│  // 或者                                                                    │
+│  stub.setVisibility(View.VISIBLE);  // 自动 inflate                        │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  4. 使用硬件加速                                                            │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  Android 3.0+ 默认开启硬件加速                                             │
+│                                                                             │
+│  检查是否启用:                                                              │
+│  view.isHardwareAccelerated()  // View 级别                                │
+│  canvas.isHardwareAccelerated()  // Canvas 级别                            │
+│                                                                             │
+│  自定义 View 优化:                                                          │
+│  // 使用 RenderNode (API 29+)                                              │
+│  public class CustomView extends View {                                    │
+│      private RenderNode renderNode;                                        │
+│                                                                             │
+│      public CustomView(Context context) {                                  │
+│          super(context);                                                   │
+│          renderNode = new RenderNode("CustomNode");                        │
+│      }                                                                     │
+│                                                                             │
+│      @Override                                                             │
+│      protected void onDraw(Canvas canvas) {                                │
+│          // 使用 DisplayListCanvas                                         │
+│          RecordingCanvas recordingCanvas = renderNode.beginRecording();    │
+│          // 绘制操作...                                                     │
+│          renderNode.endRecording();                                        │
+│          canvas.drawRenderNode(renderNode);                                │
+│      }                                                                     │
+│  }                                                                         │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
 ## 4. 内存优化
 
-### 4.1 内存泄漏常见场景
+### 4.1 Java 内存模型
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                         常见内存泄漏场景                                    │
+│                         Java 内存模型                                       │
 └─────────────────────────────────────────────────────────────────────────────┘
 
-1. Activity 泄漏
-   - 静态变量持有 Activity
-   - 单例持有 Activity
-   - Handler 持有 Activity
-   - 匿名内部类持有 Activity
-   - 注册监听器未取消
-
-2. 集合泄漏
-   - static Map/List 持续增长
-   - 未清理的缓存
-
-3. 资源未关闭
-   - Cursor 未关闭
-   - Stream 未关闭
-   - Bitmap 未回收
-
-4. WebView 泄漏
-   - 单独进程处理
-   - 及时销毁
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                                                                             │
+│   ┌─────────────────────────────────────────────────────────────────────┐ │
+│   │                        JVM 内存区域                                  │ │
+│   ├─────────────────────────────────────────────────────────────────────┤ │
+│   │                                                                     │ │
+│   │   ┌─────────────────────────────────────────────────────────────┐  │ │
+│   │   │ 堆 (Heap) - 所有线程共享                                      │  │ │
+│   │   │   ├── 新生代 (Young Generation)                              │  │ │
+│   │   │   │   ├── Eden 区                                            │  │ │
+│   │   │   │   └── Survivor 区 (S0, S1)                               │  │ │
+│   │   │   └── 老年代 (Old Generation)                                │  │ │
+│   │   └─────────────────────────────────────────────────────────────┘  │ │
+│   │                                                                     │ │
+│   │   ┌─────────────────────────────────────────────────────────────┐  │ │
+│   │   │ 方法区 (Method Area) - 存储类信息、常量、静态变量            │  │ │
+│   │   └─────────────────────────────────────────────────────────────┘  │ │
+│   │                                                                     │ │
+│   │   ┌─────────────────────────────────────────────────────────────┐  │ │
+│   │   │ 虚拟机栈 (VM Stack) - 每个线程一个                            │  │ │
+│   │   │   ├── 局部变量                                               │  │ │
+│   │   │   ├── 操作数栈                                               │  │ │
+│   │   │   └── 方法出口                                               │  │ │
+│   │   └─────────────────────────────────────────────────────────────┘  │ │
+│   │                                                                     │ │
+│   │   ┌─────────────────────────────────────────────────────────────┐  │ │
+│   │   │ 本地方法栈 (Native Method Stack)                             │  │ │
+│   │   └─────────────────────────────────────────────────────────────┘  │ │
+│   │                                                                     │ │
+│   │   ┌─────────────────────────────────────────────────────────────┐  │ │
+│   │   │ 程序计数器 (Program Counter) - 当前执行的字节码行号           │  │ │
+│   │   └─────────────────────────────────────────────────────────────┘  │ │
+│   │                                                                     │ │
+│   └─────────────────────────────────────────────────────────────────────┘ │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 4.2 内存优化策略
-
-```kotlin
-/**
- * 内存优化策略
- */
-
-// 1. 避免静态变量持有 Context
-// ❌ 错误
-companion object {
-    private var context: Context? = null  // 泄漏！
-}
-
-// ✅ 正确
-companion object {
-    private var context: WeakReference<Context>? = null
-}
-
-// 2. Handler 正确使用
-// ❌ 错误：持有外部类引用
-class MainActivity : AppCompatActivity() {
-    private val handler = Handler()
-    
-    private val runnable = Runnable {
-        // 持有 Activity 引用
-    }
-}
-
-// ✅ 正确：静态内部类 + 弱引用
-class MainActivity : AppCompatActivity() {
-    
-    private static class SafeHandler(activity: MainActivity) : Handler(Looper.getMainLooper()) {
-        private val ref: WeakReference<MainActivity> = WeakReference(activity)
-        
-        override fun handleMessage(msg: Message) {
-            ref.get()?.let { activity ->
-                // 处理消息
-            }
-        }
-    }
-    
-    override fun onDestroy() {
-        handler.removeCallbacksAndMessages(null)  // 清理消息
-    }
-}
-
-// 3. 使用 WeakReference
-class MyListener(activity: Activity) {
-    private val activityRef = WeakReference(activity)
-    
-    fun onEvent() {
-        activityRef.get()?.doSomething()
-    }
-}
-
-// 4. 及时注销监听器
-class MainActivity : AppCompatActivity() {
-    private val broadcastReceiver = MyBroadcastReceiver()
-    
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        registerReceiver(broadcastReceiver, IntentFilter("ACTION"))
-    }
-    
-    override fun onDestroy() {
-        unregisterReceiver(broadcastReceiver)  // 必须注销
-        super.onDestroy()
-    }
-}
-
-// 5. Bitmap 优化
-// 加载时压缩
-val options = BitmapFactory.Options().apply {
-    inSampleSize = 2  // 缩放比例
-    inPreferredConfig = Bitmap.Config.RGB_565  // 减少内存
-}
-val bitmap = BitmapFactory.decodeFile(path, options)
-
-// 及时回收
-bitmap?.recycle()
-
-// 6. 使用 AutoCloseable
-Cursor::class.java.let { cursor ->
-    cursor.use {
-        // 使用完毕自动关闭
-    }
-}
-
-// 7. 避免内存抖动
-// ❌ 在循环中创建对象
-for (i in 0..1000) {
-    val str = "item_$i"  // 创建大量临时对象
-}
-
-// ✅ 重用对象
-val sb = StringBuilder()
-for (i in 0..1000) {
-    sb.clear()
-    sb.append("item_").append(i)
-    val str = sb.toString()
-}
-```
-
-### 4.3 内存分析工具
+### 4.2 Android 内存管理
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                         内存分析工具                                        │
+│                         Android 内存管理                                    │
 └─────────────────────────────────────────────────────────────────────────────┘
 
-1. Android Profiler
-   - 实时内存监控
-   - 内存快照 (Heap Dump)
-   - 内存分配跟踪
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  ART 虚拟机内存管理                                                         │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│   ┌─────────────────────────────────────────────────────────────────────┐ │
+│   │                        进程内存空间                                  │ │
+│   ├─────────────────────────────────────────────────────────────────────┤ │
+│   │                                                                     │ │
+│   │   高地址 ┌──────────────────────────────────────────────────────┐  │ │
+│   │          │               Stack (栈)                              │  │ │
+│   │          │         向下增长，存放局部变量                         │  │ │
+│   │          ├──────────────────────────────────────────────────────┤  │ │
+│   │          │                         │                            │  │ │
+│   │          │           ↓             │           ↑                │  │ │
+│   │          │                         │                            │  │ │
+│   │          ├──────────────────────────────────────────────────────┤  │ │
+│   │          │            Heap (堆) - Java 对象                      │  │ │
+│   │          │         Zygote 空间 (预加载类)                        │  │ │
+│   │          │         应用空间 (运行时分配)                         │  │ │
+│   │          ├──────────────────────────────────────────────────────┤  │ │
+│   │          │            Native Heap (Native 内存)                  │  │ │
+│   │          ├──────────────────────────────────────────────────────┤  │ │
+│   │          │            .so 文件、资源文件                          │  │ │
+│   │   低地址 └──────────────────────────────────────────────────────┘  │ │
+│   │                                                                     │ │
+│   └─────────────────────────────────────────────────────────────────────┘ │
+│                                                                             │
+│   内存限制:                                                                 │
+│   - normal: ~192MB (设备相关)                                              │
+│   - large: ~512MB (android:largeHeap="true")                              │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
 
-2. LeakCanary
-   - 自动检测内存泄漏
-   - 显示泄漏路径
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  GC 回收机制                                                                │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│   ART 使用多种 GC 策略:                                                     │
+│                                                                             │
+│   1. Sticky GC (粘性 GC)                                                   │
+│      - 只回收上次 GC 后新分配的对象                                        │
+│      - 频率高，暂停时间短                                                  │
+│                                                                             │
+│   2. Partial GC (部分 GC)                                                  │
+│      - 回收年轻代和部分老年代                                              │
+│      - 暂停时间中等                                                        │
+│                                                                             │
+│   3. Full GC (完全 GC)                                                     │
+│      - 回收整个堆                                                          │
+│      - 暂停时间长                                                          │
+│                                                                             │
+│   GC 日志分析:                                                              │
+│   I/art     : Explicit concurrent mark sweep GC freed 104710(7MB)          │
+│               AllocSpace objects, 0(0B) LOS objects, 33% free, 25MB/38MB,  │
+│               paused 1.230ms total 67.216ms                                │
+│                                                                             │
+│   - freed: 释放的对象数量和大小                                            │
+│   - free: 空闲比例                                                         │
+│   - paused: 暂停时间                                                       │
+│   - total: 总耗时                                                          │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
 
-3. MAT (Memory Analyzer Tool)
-   - 分析 Heap Dump
-   - 查找内存泄漏
+### 4.3 内存泄漏检测
 
-4. adb 命令
-   // 查看内存信息
-   adb shell dumpsys meminfo <package_name>
-   
-   // 触发 GC
-   adb shell am broadcast -a com.android.debug.TRIGGER_GC
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         内存泄漏检测                                        │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  常见内存泄漏场景                                                            │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  1. 静态变量持有 Context                                                    │
+│  ❌ 泄漏代码:                                                               │
+│  public class Utils {                                                       │
+│      private static Context sContext;                                      │
+│      public static void init(Context context) {                            │
+│          sContext = context;  // 泄漏! Activity 无法释放                   │
+│      }                                                                     │
+│  }                                                                         │
+│  ✅ 修复:                                                                   │
+│  public class Utils {                                                       │
+│      private static Context sContext;                                      │
+│      public static void init(Context context) {                            │
+│          sContext = context.getApplicationContext();  // 使用 Application  │
+│      }                                                                     │
+│  }                                                                         │
+│                                                                             │
+│  2. 非静态内部类                                                            │
+│  ❌ 泄漏代码:                                                               │
+│  public class MainActivity extends Activity {                              │
+│      private class MyThread extends Thread {  // 隐式持有 Activity        │
+│          @Override public void run() { /* ... */ }                        │
+│      }                                                                     │
+│  }                                                                         │
+│  ✅ 修复: 使用静态内部类 + 弱引用                                           │
+│  private static class MyThread extends Thread {                            │
+│      private WeakReference<MainActivity> ref;                              │
+│      MyThread(MainActivity activity) {                                     │
+│          ref = new WeakReference<>(activity);                              │
+│      }                                                                     │
+│  }                                                                         │
+│                                                                             │
+│  3. Handler 泄漏                                                            │
+│  ❌ 泄漏代码:                                                               │
+│  public class MainActivity extends Activity {                              │
+│      private Handler handler = new Handler() {  // 隐式持有 Activity      │
+│          @Override public void handleMessage(Message msg) { /* ... */ }   │
+│      };                                                                    │
+│  }                                                                         │
+│  ✅ 修复:                                                                   │
+│  private static class SafeHandler extends Handler {                        │
+│      private WeakReference<MainActivity> ref;                              │
+│      SafeHandler(MainActivity activity) { ref = new WeakReference<>(activity); }│
+│      @Override public void handleMessage(Message msg) {                    │
+│          MainActivity activity = ref.get();                                │
+│          if (activity != null) { /* ... */ }                               │
+│      }                                                                     │
+│  }                                                                         │
+│  // onDestroy 中移除消息                                                   │
+│  @Override protected void onDestroy() {                                    │
+│      handler.removeCallbacksAndMessages(null);                             │
+│  }                                                                         │
+│                                                                             │
+│  4. 注册未取消                                                              │
+│  ❌ 泄漏代码:                                                               │
+│  @Override protected void onCreate(Bundle savedInstanceState) {            │
+│      registerReceiver(receiver, filter);  // 忘记 unregisterReceiver      │
+│  }                                                                         │
+│  ✅ 修复:                                                                   │
+│  @Override protected void onDestroy() {                                    │
+│      unregisterReceiver(receiver);                                         │
+│  }                                                                         │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  LeakCanary 使用                                                            │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  // build.gradle                                                           │
+│  dependencies {                                                            │
+│      debugImplementation 'com.squareup.leakcanary:leakcanary-android:2.12'│
+│  }                                                                         │
+│                                                                             │
+│  // 自动检测 Activity/Fragment 泄漏                                        │
+│  // 只需添加依赖，无需额外代码                                              │
+│                                                                             │
+│  // 手动检测                                                                │
+│  AppWatcher.objectWatcher.watch(myObject, "Watch description");           │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 4.4 内存优化策略
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         内存优化策略                                        │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+1. 使用优化的数据结构
+─────────────────────────────────────────────────────────────────────────────
+   - SparseArray / LongSparseArray 替代 HashMap<Integer, Object>
+   - SparseIntArray / SparseBooleanArray 替代 HashMap<Integer, Integer/Boolean>
+   - ArrayMap 替代 HashMap (少量数据时)
+
+2. Bitmap 优化
+─────────────────────────────────────────────────────────────────────────────
+   // 加载缩略图
+   BitmapFactory.Options options = new BitmapFactory.Options();
+   options.inSampleSize = 4;  // 缩小 4 倍
+   options.inPreferredConfig = Bitmap.Config.RGB_565;  // 2字节/像素，省一半
+   Bitmap bitmap = BitmapFactory.decodeFile(path, options);
+
+   // 及时回收
+   if (bitmap != null && !bitmap.isRecycled()) {
+       bitmap.recycle();
+   }
+
+3. 使用 String 池
+─────────────────────────────────────────────────────────────────────────────
+   String s1 = "hello";  // 使用字符串池
+   String s2 = new String("hello");  // ❌ 创建新对象
+   String s3 = s2.intern();  // ✅ 返回池中引用
+
+4. 避免在 onDraw 中创建对象
+─────────────────────────────────────────────────────────────────────────────
+   ❌ 错误:
+   @Override protected void onDraw(Canvas canvas) {
+       Paint paint = new Paint();  // 每帧创建! 严重性能问题
+       canvas.drawRect(..., paint);
+   }
+
+   ✅ 正确:
+   private Paint paint = new Paint();  // 成员变量，复用
+   @Override protected void onDraw(Canvas canvas) {
+       canvas.drawRect(..., paint);
+   }
+```
+
+### 4.5 OOM 分析与处理
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         OOM 分析与处理                                      │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+1. OOM 类型
+─────────────────────────────────────────────────────────────────────────────
+   - Java Heap OOM: Java 堆内存不足
+   - Native OOM: Native 内存不足 (通常是 Bitmap)
+   - Thread OOM: 线程数过多
+
+2. 分析 OOM
+─────────────────────────────────────────────────────────────────────────────
+   // 捕获 OOM 堆栈
+   try {
+       // 可能 OOM 的操作
+   } catch (OutOfMemoryError e) {
+       // 打印内存信息
+       Debug.MemoryInfo memoryInfo = new Debug.MemoryInfo();
+       Debug.getMemoryInfo(memoryInfo);
+       Log.e("OOM", "Memory: " + memoryInfo.getTotalPrivateDirty() + " KB");
+   }
+
+   // 使用 Memory Profiler 分析内存快照
+   // 1. 捕获 Heap Dump
+   // 2. 查看对象数量和大小
+   // 3. 找出占用大的对象
+
+3. 处理 OOM
+─────────────────────────────────────────────────────────────────────────────
+   - 增大堆内存: android:largeHeap="true"
+   - 减少内存占用: 图片压缩、数据结构优化
+   - 内存复用: 对象池、Bitmap 复用
+   - 延迟加载: 分页加载、按需加载
 ```
 
 ---
 
 ## 5. 电量优化
 
-### 5.1 耗电因素
+### 5.1 电量消耗分析
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                         耗电因素排名                                        │
+│                         电量消耗分析                                        │
 └─────────────────────────────────────────────────────────────────────────────┘
 
-排名  │  因素              │  说明
-─────┼────────────────────┼──────────────────────────────────────
-  1  │  屏幕              │  亮度、常亮时间
-  2  │  CPU               │  计算、后台任务
-  3  │  网络              │  数据传输、唤醒
-  4  │  GPS               │  定位
-  5  │  传感器            │  加速度、陀螺仪
-  6  │  唤醒锁            │  WakeLock
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  主要耗电因素                                                                │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│   ┌───────────────────────────────────────────────────────────────────────┐│
+│   │  耗电因素          │  耗电程度  │  优化策略                          ││
+│   ├───────────────────────────────────────────────────────────────────────┤│
+│   │  屏幕              │  ★★★★★   │  降低亮度、减少唤醒时间            ││
+│   │  CPU               │  ★★★★☆   │  减少计算、使用后台线程            ││
+│   │  网络              │  ★★★★☆   │  批量请求、使用缓存                ││
+│   │  GPS               │  ★★★☆☆   │  按需开启、降低精度                ││
+│   │  传感器            │  ★★☆☆☆   │  及时注销、降低采样率              ││
+│   │  WakeLock          │  ★★★★☆   │  及时释放、使用超时                ││
+│   │  Alarm             │  ★★★☆☆   │  使用 setAndAllowWhileIdle         ││
+│   └───────────────────────────────────────────────────────────────────────┘│
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+电量统计命令:
+adb shell dumpsys batterystats --charged <package_name>
 ```
 
 ### 5.2 电量优化策略
 
-```kotlin
-/**
- * 电量优化策略
- */
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         电量优化策略                                        │
+└─────────────────────────────────────────────────────────────────────────────┘
 
-// 1. 使用 JobScheduler / WorkManager
-// ✅ 系统调度，合并任务
-val workRequest = PeriodicWorkRequestBuilder<MyWorker>(
-    15, TimeUnit.MINUTES  // 最小间隔 15 分钟
-).setConstraints(
-    Constraints.Builder()
-        .setRequiredNetworkType(NetworkType.CONNECTED)
-        .setRequiresBatteryNotLow(true)
-        .build()
-).build()
+1. 网络请求优化
+─────────────────────────────────────────────────────────────────────────────
+   - 批量请求，减少网络唤醒次数
+   - 使用 WiFi 而非移动数据
+   - 监听网络状态，网络差时延迟请求
+
+2. WakeLock 优化
+─────────────────────────────────────────────────────────────────────────────
+   // ❌ 错误: 忘记释放
+   PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
+   WakeLock wakeLock = pm.newWakeLock(PARTIAL_WAKE_LOCK, "MyTag");
+   wakeLock.acquire();
+   // 忘记 release()!
+
+   // ✅ 正确: 使用 try-finally
+   WakeLock wakeLock = pm.newWakeLock(PARTIAL_WAKE_LOCK, "MyTag");
+   wakeLock.acquire(10*60*1000L);  // 设置超时，防止忘记释放
+   try {
+       // 执行任务
+   } finally {
+       if (wakeLock.isHeld()) {
+           wakeLock.release();
+       }
+   }
+
+3. 后台任务优化
+─────────────────────────────────────────────────────────────────────────────
+   - 使用 WorkManager 替代手动后台线程
+   - 设置网络约束和充电约束
+   - 使用 JobScheduler 批量执行
+```
+
+### 5.3 Doze 模式与 App Standby
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         Doze 模式与 App Standby                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  Doze 模式 (Android 6.0+)                                                  │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  触发条件:                                                                  │
+│  - 设备未充电                                                               │
+│  - 屏幕关闭                                                                 │
+│  - 设备静止                                                                 │
+│                                                                             │
+│  限制:                                                                      │
+│  - 网络访问被暂停                                                           │
+│  - Alarm 被推迟 (setAndAllowWhileIdle 除外)                                │
+│  - WiFi/蓝牙扫描被暂停                                                      │
+│  - 同步适配器被暂停                                                         │
+│                                                                             │
+│  维护窗口 (定期执行):                                                       │
+│  - 网络请求可以执行                                                         │
+│  - 同步可以执行                                                             │
+│  - 间隔越来越长                                                             │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  App Standby (Android 6.0+)                                                │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  触发条件:                                                                  │
+│  - 应用在后台长时间未被使用                                                 │
+│  - 没有前台服务                                                             │
+│  - 没有通知栏通知                                                           │
+│                                                                             │
+│  限制:                                                                      │
+│  - 网络访问被限制                                                           │
+│  - Job 被推迟                                                               │
+│  - 同步被推迟                                                               │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 5.4 WorkManager 最佳实践
+
+```kotlin
+// 使用 WorkManager 执行后台任务
+val workRequest = PeriodicWorkRequestBuilder<SyncWorker>(
+    1, TimeUnit.HOURS  // 每小时执行一次
+)
+    .setConstraints(
+        Constraints.Builder()
+            .setRequiredNetworkType(NetworkType.CONNECTED)  // 有网络时执行
+            .setRequiresBatteryNotLow(true)  // 电量充足时执行
+            .setRequiresCharging(true)  // 充电时执行
+            .build()
+    )
+    .build()
 
 WorkManager.getInstance(context).enqueue(workRequest)
 
-// 2. 使用 AlarmManager 精确唤醒
-val alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
-val intent = Intent(this, MyReceiver::class.java)
-val pendingIntent = PendingIntent.getBroadcast(this, 0, intent, PendingIntent.FLAG_IMMUTABLE)
-
-// 使用 setAndAllowWhileIdle 或 setExactAndAllowWhileIdle
-alarmManager.setAndAllowWhileIdle(
-    AlarmManager.ELAPSED_REALTIME_WAKEUP,
-    SystemClock.elapsedRealtime() + interval,
-    pendingIntent
-)
-
-// 3. 网络批量请求
-// ❌ 多次小请求
-for (url in urls) {
-    networkClient.get(url)  // 每次唤醒无线模块
+class SyncWorker(context: Context, params: WorkerParameters) : Worker(context, params) {
+    override fun doWork(): Result {
+        // 执行后台任务
+        return Result.success()
+    }
 }
-
-// ✅ 批量请求
-networkClient.batchGet(urls)  // 一次唤醒
-
-// 4. 使用 Doze 模式
-// Android 6.0+ 自动进入 Doze 模式
-// 应用需要适配 Doze
-
-// 5. 减少 WakeLock 时间
-// ❌ 长时间持有
-val wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "MyTag")
-wakeLock.acquire()
-Thread.sleep(60000)  // 60 秒
-wakeLock.release()
-
-// ✅ 设置超时
-wakeLock.acquire(10 * 60 * 1000L)  // 最多 10 分钟
-
-// 6. 定位优化
-// 使用 fused location provider
-val locationRequest = LocationRequest.create().apply {
-    interval = 60000  // 更新间隔
-    fastestInterval = 30000
-    priority = LocationRequest.PRIORITY_BALANCED_POWER_ACCURACY  // 平衡精度和功耗
-}
-
-// 7. 传感器优化
-// 降低采样率
-sensorManager.registerListener(
-    listener,
-    sensor,
-    SensorManager.SENSOR_DELAY_NORMAL  // 不是 SENSOR_DELAY_FASTEST
-)
 ```
 
 ---
 
 ## 6. 网络优化
 
-### 6.1 网络优化策略
+### 6.1 网络请求优化
 
-```kotlin
-/**
- * 网络优化策略
- */
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         网络请求优化                                        │
+└─────────────────────────────────────────────────────────────────────────────┘
 
-// 1. 使用连接池
-val client = OkHttpClient.Builder()
-    .connectionPool(ConnectionPool(5, 5, TimeUnit.MINUTES))
-    .build()
+1. 连接复用
+─────────────────────────────────────────────────────────────────────────────
+   // OkHttp 连接池
+   OkHttpClient client = new OkHttpClient.Builder()
+       .connectionPool(new ConnectionPool(5, 5, TimeUnit.MINUTES))
+       .build();
 
-// 2. 开启 HTTP/2
-// OkHttp 默认支持
+2. 请求压缩
+─────────────────────────────────────────────────────────────────────────────
+   // Gzip 压缩
+   @Headers("Accept-Encoding: gzip")
+   @GET("api/data")
+   Call<Response> getData();
 
-// 3. 启用 Gzip 压缩
-val client = OkHttpClient.Builder()
-    .addInterceptor(GzipRequestInterceptor())
-    .build()
+3. 批量请求
+─────────────────────────────────────────────────────────────────────────────
+   - 合并多个小请求为一个
+   - 减少网络握手次数
 
-// 4. 使用缓存
-val cache = Cache(cacheDir, 10 * 1024 * 1024)  // 10MB
-val client = OkHttpClient.Builder()
+4. 请求去重
+─────────────────────────────────────────────────────────────────────────────
+   - 相同请求只发送一次
+   - 使用缓存避免重复请求
+```
+
+### 6.2 图片加载优化
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         图片加载优化                                        │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+1. 使用 Glide / Picasso
+─────────────────────────────────────────────────────────────────────────────
+   Glide.with(context)
+       .load(url)
+       .placeholder(R.drawable.placeholder)
+       .error(R.drawable.error)
+       .override(200, 200)  // 指定大小，避免加载原图
+       .into(imageView);
+
+2. 图片压缩
+─────────────────────────────────────────────────────────────────────────────
+   // 服务端返回合适的尺寸
+   // WebP 格式替代 PNG/JPG
+
+3. 图片缓存
+─────────────────────────────────────────────────────────────────────────────
+   - 内存缓存: LRU 策略
+   - 磁盘缓存: 持久化存储
+```
+
+### 6.3 网络缓存策略
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         网络缓存策略                                        │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+// OkHttp 缓存配置
+int cacheSize = 10 * 1024 * 1024;  // 10MB
+Cache cache = new Cache(context.getCacheDir(), cacheSize);
+
+OkHttpClient client = new OkHttpClient.Builder()
     .cache(cache)
-    .build()
+    .build();
 
-// 5. 批量请求
-suspend fun fetchAllData(ids: List<Int>): List<Data> {
-    return coroutineScope {
-        ids.map { id ->
-            async { apiService.getData(id) }
-        }.awaitAll()
-    }
-}
+// 强制使用缓存
+Request request = new Request.Builder()
+    .cacheControl(CacheControl.FORCE_CACHE)
+    .url(url)
+    .build();
 
-// 6. 请求去重
-class RequestDeduplicator {
-    private val pendingRequests = mutableMapOf<String, Deferred<*>>()
-    
-    @Suppress("UNCHECKED_CAST")
-    suspend fun <T> execute(key: String, block: suspend () -> T): T {
-        return (pendingRequests.getOrPut(key) {
-            GlobalScope.async { block() }
-        } as Deferred<T>).await()
-    }
-}
+// 强制使用网络
+Request request = new Request.Builder()
+    .cacheControl(CacheControl.FORCE_NETWORK)
+    .url(url)
+    .build();
 
-// 7. 弱网优化
-val client = OkHttpClient.Builder()
-    .connectTimeout(30, TimeUnit.SECONDS)
-    .readTimeout(30, TimeUnit.SECONDS)
-    .writeTimeout(30, TimeUnit.SECONDS)
-    .retryOnConnectionFailure(true)
-    .build()
+// 先缓存后网络
+Request request = new Request.Builder()
+    .cacheControl(new CacheControl.Builder()
+        .maxStale(7, TimeUnit.DAYS)
+        .build())
+    .url(url)
+    .build();
 ```
 
 ---
 
 ## 7. APK 体积优化
 
-### 7.1 体积优化策略
+### 7.1 体积分析
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                         APK 体积优化                                        │
+│                         APK 体积分析                                        │
 └─────────────────────────────────────────────────────────────────────────────┘
 
-1. 代码优化
-   - ProGuard/R8 混淆压缩
-   - 移除无用代码
-   - 使用 Kotlin 冗余函数
+APK 结构:
+├── classes.dex        # 编译后的代码
+├── resources.arsc     # 资源索引
+├── res/               # 资源文件
+│   ├── drawable-xxxhdpi/
+│   ├── layout/
+│   └── values/
+├── lib/               # Native 库
+│   ├── armeabi-v7a/
+│   └── arm64-v8a/
+├── assets/            # 原始资源
+├── META-INF/          # 签名信息
+└── AndroidManifest.xml
 
-2. 资源优化
-   - 压缩图片 (WebP)
-   - 移除无用资源
-   - 资源混淆
+分析命令:
+# 查看 APK 大小分布
+./gradlew assembleRelease --analyze
 
-3. so 库优化
-   - 只保留必要 ABI
-   - 使用 NDK 优化
-
-4. 使用 App Bundle
-   - 动态交付
-   - 按需下载
-```
-
-### 7.2 优化配置
-
-```groovy
-// build.gradle
-
+# 使用 APK Analyzer
 android {
-    // 开启 R8
     buildTypes {
         release {
-            minifyEnabled true
-            shrinkResources true
-            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-        }
-    }
-    
-    // 只保留必要 ABI
-    ndk {
-        abiFilters 'armeabi-v7a', 'arm64-v8a'
-    }
-    
-    // 资源压缩
-    aaptOptions {
-        cruncherEnabled = true
-    }
-    
-    // 开启 App Bundle
-    bundle {
-        language {
-            enableSplit = true
-        }
-        density {
-            enableSplit = true
-        }
-        abi {
-            enableSplit = true
+            shrinkResources true  // 资源压缩
+            minifyEnabled true    // 代码压缩
         }
     }
 }
+```
+
+### 7.2 代码混淆与优化
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         代码混淆与优化                                      │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+1. ProGuard / R8 配置
+─────────────────────────────────────────────────────────────────────────────
+   android {
+       buildTypes {
+           release {
+               minifyEnabled true      // 启用代码压缩
+               shrinkResources true    // 启用资源压缩
+               proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'),
+                            'proguard-rules.pro'
+           }
+       }
+   }
+
+2. ProGuard 规则
+─────────────────────────────────────────────────────────────────────────────
+   # proguard-rules.pro
+   
+   # 保留应用入口
+   -keep public class * extends android.app.Activity
+   -keep public class * extends android.app.Service
+   -keep public class * extends android.content.BroadcastReceiver
+   
+   # 保留序列化类
+   -keepclassmembers class * implements java.io.Serializable {
+       static final long serialVersionUID;
+       private static final java.io.ObjectStreamField[] serialPersistentFields;
+       private void writeObject(java.io.ObjectOutputStream);
+       private void readObject(java.io.ObjectInputStream);
+   }
+   
+   # 保留 Native 方法
+   -keepclasseswithmembernames class * {
+       native <methods>;
+   }
+   
+   # Retrofit / Gson 保留
+   -keepattributes Signature
+   -keepattributes *Annotation*
+   -keep class com.google.gson.** { *; }
+   -keep class * implements com.google.gson.TypeAdapterFactory
+   -keep class * implements com.google.gson.JsonSerializer
+   -keep class * implements com.google.gson.JsonDeserializer
+```
+
+### 7.3 资源优化
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         资源优化                                            │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+1. 删除无用资源
+─────────────────────────────────────────────────────────────────────────────
+   android {
+       buildTypes {
+           release {
+               shrinkResources true  // 自动删除未使用的资源
+           }
+       }
+   }
+   
+   # 手动检查
+   ./gradlew lint --check UnusedResources
+
+2. 图片优化
+─────────────────────────────────────────────────────────────────────────────
+   - 使用 WebP 格式替代 PNG/JPG
+   - 使用 Vector Drawable 替代位图
+   - 压缩 PNG: pngquant, TinyPNG
+   
+   # 转换为 WebP
+   cwebp -q 80 input.png -o output.webp
+
+3. 资源压缩
+─────────────────────────────────────────────────────────────────────────────
+   # res/raw/ 下的文件压缩
+   android {
+       aaptOptions {
+           noCompress 'txt', 'mp3'  // 不压缩这些格式
+       }
+   }
+
+4. 限定密度资源
+─────────────────────────────────────────────────────────────────────────────
+   # 只保留必要密度
+   android {
+       defaultConfig {
+           resConfigs "zh", "en"  // 只保留中英文
+           resConfigs "xxhdpi"    // 只保留 xxhdpi
+       }
+   }
+```
+
+### 7.4 So 动态库优化
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         So 动态库优化                                       │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+1. 只保留必要 ABI
+─────────────────────────────────────────────────────────────────────────────
+   android {
+       defaultConfig {
+           ndk {
+               abiFilters 'armeabi-v7a', 'arm64-v8a'  // 只保留这两种
+           }
+       }
+   }
+   
+   # 2024年推荐: 只保留 arm64-v8a
+   ndk {
+       abiFilters 'arm64-v8a'  // 大多数设备已支持 64 位
+   }
+
+2. So 文件裁剪
+─────────────────────────────────────────────────────────────────────────────
+   # 使用 strip 裁剪符号表
+   arm-linux-androideabi-strip --strip-unneeded libtest.so
+   
+   # 使用 UPX 压缩 (部分场景)
+   upx --best libtest.so
+
+3. 动态加载
+─────────────────────────────────────────────────────────────────────────────
+   - 非核心功能按需下载
+   - 使用 Split APKs 分架构打包
 ```
 
 ---
 
 ## 8. 性能分析工具
 
-### 8.1 工具列表
+### 8.1 CPU Profiler
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                         性能分析工具                                        │
+│                         CPU Profiler                                        │
 └─────────────────────────────────────────────────────────────────────────────┘
 
-┌───────────────────┬───────────────────────────────────────────────────────┐
-│      工具         │                      用途                            │
-├───────────────────┼───────────────────────────────────────────────────────┤
-│ Android Profiler  │ CPU、内存、网络、电量实时监控                        │
-├───────────────────┼───────────────────────────────────────────────────────┤
-│ Systrace/Perfetto │ 系统级性能分析，查看帧渲染                          │
-├───────────────────┼───────────────────────────────────────────────────────┤
-│ Layout Inspector  │ 查看布局层级                                         │
-├───────────────────┼───────────────────────────────────────────────────────┤
-│ LeakCanary        │ 内存泄漏检测                                         │
-├───────────────────┼───────────────────────────────────────────────────────┤
-│ StrictMode        │ 检测主线程 IO 和网络操作                             │
-├───────────────────┼───────────────────────────────────────────────────────┤
-│ GPU Overdraw      │ 检测过度绘制                                         │
-├───────────────────┼───────────────────────────────────────────────────────┤
-│ Lint              │ 静态代码分析                                         │
-└───────────────────┴───────────────────────────────────────────────────────┘
+位置: Android Studio → View → Tool Windows → Profiler
+
+功能:
+├── 方法追踪 (Method Tracing)
+│   ├── 记录方法执行时间
+│   ├── 分析调用栈
+│   └── 找出耗时方法
+├── 采样 (Sampled)
+│   ├── 低开销
+│   └── 周期性采样
+└── 仪器化 (Instrumented)
+    ├── 精确追踪
+    └── 高开销
+
+使用方法:
+1. 选择要分析的进程
+2. 点击 CPU 区域
+3. 选择 Record Configuration
+4. 点击 Record 开始记录
+5. 操作应用
+6. 点击 Stop 停止记录
+7. 分析结果
+
+分析技巧:
+- 关注 Top Down 视图，找出耗时调用链
+- 关注 Flame Graph，可视化热点方法
+- 关注 Wall Clock Time vs Thread Time
 ```
 
-### 8.2 StrictMode 使用
+### 8.2 Memory Profiler
 
-```kotlin
-/**
- * StrictMode 检测主线程耗时操作
- */
-class MyApplication : Application() {
-    override fun onCreate() {
-        super.onCreate()
-        
-        if (BuildConfig.DEBUG) {
-            StrictMode.setThreadPolicy(
-                StrictMode.ThreadPolicy.Builder()
-                    .detectDiskReads()
-                    .detectDiskWrites()
-                    .detectNetwork()
-                    .penaltyLog()
-                    .penaltyDeath()
-                    .build()
-            )
-            
-            StrictMode.setVmPolicy(
-                StrictMode.VmPolicy.Builder()
-                    .detectLeakedSqlLiteObjects()
-                    .detectLeakedClosableObjects()
-                    .penaltyLog()
-                    .penaltyDeath()
-                    .build()
-            )
-        }
-    }
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         Memory Profiler                                     │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+功能:
+├── 实时内存监控
+│   ├── Java 堆内存
+│   ├── Native 内存
+│   └── GC 事件
+├── Heap Dump
+│   ├── 查看对象数量和大小
+│   ├── 分析内存泄漏
+│   └── 查看对象引用链
+└── Native Memory Profiler (API 26+)
+    ├── 追踪 Native 内存分配
+    └── 分析 Native 泄漏
+
+使用方法:
+1. 选择进程
+2. 点击 Memory 区域
+3. 操作应用触发内存分配
+4. 点击 Capture Heap Dump
+5. 分析结果
+
+分析技巧:
+- 按 Retained Size 排序，找出大对象
+- 查看 Instance 的引用链
+- 对比多个 Heap Dump，找出泄漏对象
+```
+
+### 8.3 Layout Inspector
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         Layout Inspector                                    │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+位置: Android Studio → View → Tool Windows → Layout Inspector
+
+功能:
+├── 查看视图层级
+├── 查看视图属性
+├── 查看布局边界
+└── 导出视图层级
+
+使用方法:
+1. 运行应用到目标页面
+2. 打开 Layout Inspector
+3. 选择进程和 Activity
+4. 点击 View 结构
+
+分析技巧:
+- 检查布局层级是否过深
+- 检查是否有不可见但占空间的 View
+- 检查 View 的属性是否合理
+```
+
+### 8.4 Systrace/Perfetto
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         Systrace / Perfetto                                 │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+1. Systrace (旧版)
+─────────────────────────────────────────────────────────────────────────────
+   python $ANDROID_SDK/platform-tools/systrace/systrace.py \
+       --app=com.example \
+       gfx view wm am sched freq \
+       -o trace.html
+
+2. Perfetto (新版)
+─────────────────────────────────────────────────────────────────────────────
+   adb shell perfetto \
+       -c - --txt \
+       -o /data/misc/perfetto-traces/trace \
+       <<EOF
+   buffers: {
+       size_kb: 63488
+       fill_policy: RING_BUFFER
+   }
+   buffers: {
+       size_kb: 2048
+       fill_policy: RING_BUFFER
+   }
+   data_sources: {
+       config {
+           name: "android.packages_list"
+       }
+   }
+   duration_ms: 10000
+   EOF
+
+3. 分析内容
+─────────────────────────────────────────────────────────────────────────────
+   - CPU 调度信息
+   - 线程状态
+   - 帧渲染时间
+   - 系统服务调用
+   - 锁竞争
+```
+
+### 8.5 LeakCanary
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         LeakCanary                                          │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+配置:
+// build.gradle
+dependencies {
+    debugImplementation 'com.squareup.leakcanary:leakcanary-android:2.12'
 }
+
+自动检测:
+- Activity 泄漏
+- Fragment 泄漏
+- View 泄漏
+- ViewModel 泄漏
+
+手动检测:
+// 监控特定对象
+AppWatcher.objectWatcher.watch(myObject, "MyObject description")
+
+// 检查是否有泄漏
+if (AppWatcher.objectWatcher.hasWatchedObjects) {
+    // 有对象正在被监控
+}
+
+分析报告:
+1. 泄漏对象的引用链
+2. 泄漏原因分析
+3. 泄漏历史记录
 ```
 
 ---
 
-## 9. 总结
+## 9. 面试常见问题
+
+### 9.1 启动优化问题
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  Q: 冷启动流程是什么？                                                      │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  A:                                                                          │
+│  1. Launcher startActivity()                                                │
+│  2. ATMS.startActivity()                                                    │
+│  3. Zygote fork 进程                                                        │
+│  4. ActivityThread.main()                                                   │
+│  5. bindApplication() → Application.onCreate()                             │
+│  6. handleLaunchActivity() → Activity.onCreate/onStart/onResume            │
+│  7. performTraversals() → 首帧绘制                                         │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  Q: 如何优化冷启动？                                                        │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  A:                                                                          │
+│  1. Application.onCreate() 异步初始化非核心 SDK                             │
+│  2. 使用 IdleHandler 延迟初始化                                             │
+│  3. 布局优化: 减少层级、使用 ViewStub                                       │
+│  4. 避免主线程 IO 操作                                                      │
+│  5. 预加载 Class                                                            │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 9.2 渲染优化问题
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  Q: 为什么 16ms 一帧？                                                      │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  A: 60fps = 1000ms / 60 = 16.6ms                                           │
+│     屏幕刷新率 60Hz，每秒刷新 60 次，每帧需要在 16ms 内完成                 │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  Q: 什么是 VSync？                                                          │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  A: 垂直同步信号，由显示器发出                                              │
+│     - 保证 CPU/GPU 生成帧与显示器刷新同步                                   │
+│     - 避免画面撕裂                                                          │
+│     - Choreographer 接收 VSync，调度绘制                                    │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  Q: 如何减少过度绘制？                                                      │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  A:                                                                          │
+│  1. 移除不必要的背景                                                        │
+│  2. 使用 canvas.clipRect() 限制绘制区域                                    │
+│  3. 减少布局层级                                                            │
+│  4. 使用 ViewStub 延迟加载                                                  │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 9.3 内存优化问题
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  Q: 常见内存泄漏场景？                                                      │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  A:                                                                          │
+│  1. 静态变量持有 Context                                                    │
+│  2. 非静态内部类/匿名内部类持有外部类引用                                   │
+│  3. Handler 导致的泄漏                                                      │
+│  4. 注册的广播/事件未取消                                                   │
+│  5. 单例模式持有 Context                                                    │
+│  6. 资源未关闭 (Cursor, Stream)                                            │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  Q: 如何检测内存泄漏？                                                      │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  A:                                                                          │
+│  1. LeakCanary 自动检测                                                     │
+│  2. Memory Profiler 分析 Heap Dump                                          │
+│  3. 多次 GC 后对象数量不减，可能有泄漏                                      │
+│  4. 使用 MAT 分析引用链                                                     │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  Q: Bitmap 内存优化？                                                       │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  A:                                                                          │
+│  1. 使用 inSampleSize 缩放                                                  │
+│  2. 使用 RGB_565 (2字节) 替代 ARGB_8888 (4字节)                            │
+│  3. 及时 recycle()                                                          │
+│  4. 使用 Glide 等图片库自动管理                                             │
+│  5. 复用 Bitmap (inBitmap)                                                  │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 9.4 综合问题
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  Q: ANR 产生原因和解决方案？                                                │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  A:                                                                          │
+│  产生原因:                                                                   │
+│  1. 主线程执行耗时操作 (> 5s)                                               │
+│  2. BroadcastReceiver onReceive 耗时 (> 10s)                               │
+│  3. Service 生命周期方法耗时                                                │
+│  4. ContentProvider onCreate 耗时                                          │
+│                                                                             │
+│  解决方案:                                                                   │
+│  1. 耗时操作放子线程                                                        │
+│  2. 使用 AsyncTask / Thread / ExecutorService                              │
+│  3. 使用 Handler 延迟处理                                                   │
+│  4. 优化锁的使用，避免死锁                                                  │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  Q: 如何做电量优化？                                                        │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  A:                                                                          │
+│  1. 减少网络请求频率，批量处理                                              │
+│  2. 使用 WorkManager 执行后台任务                                           │
+│  3. 及时释放 WakeLock                                                       │
+│  4. GPS 按需开启，降低精度                                                  │
+│  5. 适配 Doze 模式和 App Standby                                            │
+│  6. 减少后台 CPU 使用                                                       │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 10. 总结
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -868,31 +1959,44 @@ class MyApplication : Application() {
 └─────────────────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│  启动优化:                                                                  │
-│  - 异步初始化、延迟加载、预加载、启动器                                     │
+│  优化维度       │  核心要点                                                │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│  UI 渲染优化:                                                               │
-│  - 减少布局层级、避免过度绘制、16ms 法则、硬件加速                          │
+│  启动优化       │  异步初始化、延迟加载、布局优化、MultiDex 优化            │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│  内存优化:                                                                  │
-│  - 避免泄漏、及时回收、Bitmap 优化、弱引用                                  │
+│  渲染优化       │  16ms 法则、减少过度绘制、布局层级优化、VSync 同步        │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│  电量优化:                                                                  │
-│  - JobScheduler/WorkManager、批量请求、WakeLock 管理                       │
+│  内存优化       │  避免泄漏、Bitmap 优化、数据结构优化、及时回收            │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│  网络优化:                                                                  │
-│  - 连接池、HTTP/2、缓存、批量请求、弱网适配                                 │
+│  电量优化       │  减少唤醒、网络批量、WorkManager、Doze 适配               │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│  APK 体积优化:                                                              │
-│  - R8 混淆、资源压缩、App Bundle                                            │
+│  网络优化       │  连接复用、请求压缩、缓存策略、图片优化                   │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  APK 优化       │  代码混淆、资源压缩、So 裁剪、动态加载                    │
 └─────────────────────────────────────────────────────────────────────────────┘
 
-面试要点:
-1. 启动优化策略
-2. 16ms 法则与渲染流程
-3. 内存泄漏常见场景与解决方案
-4. 电量优化策略
-5. 性能分析工具使用
+性能优化口诀:
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                                                                             │
+│  启动要快，异步加载                                                         │
+│  渲染流畅，十六毫秒                                                         │
+│  内存省用，泄漏要防                                                         │
+│  电量优化，后台休眠                                                         │
+│  网络高效，缓存优先                                                         │
+│  包体精简，混淆压缩                                                         │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+常用工具速查:
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  工具              │  用途                                                  │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  CPU Profiler      │  分析方法耗时、调用栈                                  │
+│  Memory Profiler   │  分析内存分配、检测泄漏                                │
+│  Layout Inspector  │  查看布局层级、属性                                    │
+│  Systrace          │  分析系统性能、帧率                                    │
+│  LeakCanary        │  自动检测内存泄漏                                      │
+│  GPU Profiler      │  分析过度绘制、渲染性能                                │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
