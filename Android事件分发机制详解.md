@@ -53,12 +53,13 @@
     - 13.1 [使用场景](#131-使用场景)
     - 13.2 [实现方式](#132-实现方式)
     - 13.3 [原理详解](#133-原理详解)
-      - 13.3.1 [View.setTouchDelegate()](#1331-viewsettouchdelegate)
-      - 13.3.2 [TouchDelegate 类定义](#1332-touchdelegate-类定义)
-      - 13.3.3 [View.dispatchTouchEvent() 中调用](#1333-viewdispatchtouchevent-中调用-touchdelegate)
-      - 13.3.4 [TouchDelegate 工作流程图](#1334-touchdelegate-工作流程图)
-      - 13.3.5 [坐标转换示意图](#1335-坐标转换示意图)
-      - 13.3.6 [注意事项](#1336-注意事项)
+      - 13.3.1 [TouchDelegate 基本概念](#1331-touchdelegate-基本概念)
+      - 13.3.2 [View.setTouchDelegate() 源码](#1332-viewsettouchdelegate-源码)
+      - 13.3.3 [TouchDelegate 类定义](#1333-touchdelegate-类定义)
+      - 13.3.4 [View.dispatchTouchEvent() 中调用](#1334-viewdispatchtouchevent-中调用-touchdelegate)
+      - 13.3.5 [完整工作流程](#1335-完整工作流程)
+      - 13.3.6 [关键点总结](#1336-关键点总结)
+      - 13.3.7 [正确使用方式](#1337-正确使用方式)
 14. [滑动冲突解决](#14-滑动冲突解决)
     - 14.1 [常见滑动冲突场景](#141-常见滑动冲突场景)
     - 14.2 [解决策略](#142-解决策略)
@@ -611,30 +612,70 @@ if (parent instanceof ViewGroup) {
 
 ### 13.3 原理详解
 
-TouchDelegate 会在 View.dispatchTouchEvent() 中被调用，如果触摸点落在代理区域内，会将事件转发给目标 View。
+#### 13.3.1 TouchDelegate 基本概念
 
-#### 13.3.1 View.setTouchDelegate()
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         TouchDelegate 基本概念                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+TouchDelegate 的作用：扩大 View 的可触摸区域
+
+关键理解：
+1. bounds 是相对于设置 TouchDelegate 的 View 的坐标系
+2. View 正常的可触摸区域是 (0, 0, width, height)
+3. 通过设置 bounds 为 (-50, -50, width+50, height+50) 可以扩大触摸区域
+4. 不需要父 ViewGroup 参与
+
+示例：
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                                                                             │
+│    View 的坐标系                                                            │
+│    ┌─────────────────────────────────────────────────────────────────────┐ │
+│    │                                                                     │ │
+│    │   (-50,-50)                                                         │ │
+│    │       ┌─────────────────────────────────────────┐                  │ │
+│    │       │          TouchDelegate.bounds           │                  │ │
+│    │       │      (扩展后的触摸区域)                  │                  │ │
+│    │       │                                         │                  │ │
+│    │       │      (0,0)                              │                  │ │
+│    │       │         ┌───────────────────┐          │                  │ │
+│    │       │         │                   │          │                  │ │
+│    │       │         │   View 实际区域    │          │                  │ │
+│    │       │         │   (width, height) │          │                  │ │
+│    │       │         │                   │          │                  │ │
+│    │       │         └───────────────────┘          │                  │ │
+│    │       │                                         │                  │ │
+│    │       │                                         │                  │ │
+│    │       └─────────────────────────────────────────┘                  │ │
+│    │                                                                     │ │
+│    └─────────────────────────────────────────────────────────────────────┘ │
+│                                                                             │
+│    点击阴影区域（View 外围）也能触发 View 的点击事件                         │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+#### 13.3.2 View.setTouchDelegate() 源码
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         View.setTouchDelegate()                             │
 │  源码位置: frameworks/base/core/java/android/view/View.java                 │
-│  注意: setTouchDelegate() 是 View 的方法，不是 ViewGroup！                 │
 └─────────────────────────────────────────────────────────────────────────────┘
 
   /**
    * Sets the TouchDelegate for this View.
-   * 设置触摸代理，可以扩大 View 的点击区域
    */
   public void setTouchDelegate(TouchDelegate touchDelegate) {
       mTouchDelegate = touchDelegate;
   }
   
-  // View 持有一个 TouchDelegate 引用
-  TouchDelegate mTouchDelegate;
+  // View 的成员变量
+  private TouchDelegate mTouchDelegate;
 ```
 
-#### 13.3.2 TouchDelegate 类定义
+#### 13.3.3 TouchDelegate 类定义
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -642,43 +683,24 @@ TouchDelegate 会在 View.dispatchTouchEvent() 中被调用，如果触摸点落
 │  源码位置: frameworks/base/core/java/android/view/TouchDelegate.java        │
 └─────────────────────────────────────────────────────────────────────────────┘
 
-  /**
-   * Helper class to handle situations where you want a view to have a larger 
-   * touch area than its actual view bounds.
-   * 
-   * 触摸代理类，可以让 View 拥有比其实际边界更大的触摸区域
-   */
   public class TouchDelegate {
       
-      /**
-       * View that should receive forwarded touches
-       * 目标 View，接收转发的触摸事件
-       */
+      /** 目标 View，接收转发的触摸事件 */
       private View mDelegateView;
       
-      /**
-       * Bounds in local coordinates of the containing view that should be mapped 
-       * to the delegate view.
-       * 代理区域（父 View 坐标系中的矩形区域）
-       */
+      /** 代理区域（相对于设置 TouchDelegate 的 View 的坐标系）*/
       private Rect mBounds;
       
-      /**
-       * mBounds inflated to compensate for slop
-       * 扩展后的边界（考虑触摸 slop）
-       */
+      /** 扩展后的边界（考虑触摸 slop）*/
       private Rect mSlopBounds;
       
-      /**
-       * True if the delegate is currently the target of a touch event sequence
-       * 当前是否正在处理触摸序列（DOWN 后为 true，UP 后为 false）
-       */
+      /** 当前是否正在处理触摸序列 */
       private boolean mDelegateTargeted;
       
       /**
        * Constructor
-       * @param bounds 父 View 坐标系中的代理区域
-       * @param delegateView 目标 View
+       * @param bounds 代理区域（相对于 View 的坐标系，可以包含负数）
+       * @param delegateView 目标 View（通常就是设置 TouchDelegate 的 View 本身）
        */
       public TouchDelegate(Rect bounds, View delegateView) {
           mBounds = bounds;
@@ -689,74 +711,42 @@ TouchDelegate 会在 View.dispatchTouchEvent() 中被调用，如果触摸点落
       }
       
       /**
-       * Forward touch events to the delegate view if the event is within the 
-       * bounds established in the constructor.
-       * 
-       * 如果触摸事件在代理区域内，将事件转发给目标 View
-       *
-       * @param event The touch event to forward
-       * @return True if the event was forwarded, false otherwise
+       * 处理触摸事件
+       * @param event 触摸事件（坐标相对于设置 TouchDelegate 的 View）
+       * @return True if the event was consumed
        */
       public boolean onTouchEvent(MotionEvent event) {
           int x = (int) event.getX();
           int y = (int) event.getY();
           boolean sendToDelegate = true;
-          boolean hit = true;
           boolean handled = false;
           
           switch (event.getAction()) {
               case MotionEvent.ACTION_DOWN:
-                  // ★★★ DOWN 事件：检查是否在代理区域内 ★★★
+                  // ★★★ 检查触摸点是否在代理区域内 ★★★
                   mDelegateTargeted = mBounds.contains(x, y);
-                  if (!mDelegateTargeted) {
-                      // 不在代理区域内，不处理
-                      sendToDelegate = false;
-                  }
+                  sendToDelegate = mDelegateTargeted;
                   break;
                   
               case MotionEvent.ACTION_MOVE:
-                  // ★★★ MOVE 事件：检查是否在 slop 边界内 ★★★
-                  // 即使移出原始边界，只要还在 slop 边界内，仍转发
+                  // MOVE 事件：如果移出 slop 边界，发送 CANCEL
                   if (!mSlopBounds.contains(x, y)) {
-                      // 移出了 slop 边界
-                      hit = false;
+                      // 移出了扩展边界
+                      sendToDelegate = true;
+                      // 发送 CANCEL
                   }
-                  sendToDelegate = mDelegateTargeted;
                   break;
                   
               case MotionEvent.ACTION_UP:
               case MotionEvent.ACTION_CANCEL:
-                  // ★★★ UP/CANCEL 事件：结束触摸序列 ★★★
                   sendToDelegate = mDelegateTargeted;
                   mDelegateTargeted = false;
                   break;
           }
           
           if (sendToDelegate) {
-              // ★★★ 关键：将事件坐标转换为目标 View 的坐标系 ★★★
-              final Rect delegateViewBounds = new Rect();
-              mDelegateView.getHitRect(delegateViewBounds);
-              
-              if (hit) {
-                  // 事件在代理区域内，转发给目标 View
-                  // 注意：坐标需要转换
-                  event.setLocation(
-                          x - delegateViewBounds.left, 
-                          y - delegateViewBounds.top);
-                  
-                  // ★★★ 调用目标 View 的 onTouchEvent ★★★
-                  handled = mDelegateView.onTouchEvent(event);
-              } else {
-                  // 事件移出了代理区域，发送 CANCEL 事件
-                  event.setLocation(
-                          x - delegateViewBounds.left, 
-                          y - delegateViewBounds.top);
-                  
-                  final MotionEvent cancelEvent = MotionEvent.obtain(event);
-                  cancelEvent.setAction(MotionEvent.ACTION_CANCEL);
-                  mDelegateView.onTouchEvent(cancelEvent);
-                  cancelEvent.recycle();
-              }
+              // ★★★ 转发给目标 View 的 onTouchEvent ★★★
+              handled = mDelegateView.dispatchTouchEvent(event);
           }
           
           return handled;
@@ -764,214 +754,251 @@ TouchDelegate 会在 View.dispatchTouchEvent() 中被调用，如果触摸点落
   }
 ```
 
-#### 13.3.3 View.dispatchTouchEvent() 中调用 TouchDelegate
+#### 13.3.4 View.dispatchTouchEvent() 中调用 TouchDelegate
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │          View.dispatchTouchEvent() 中调用 TouchDelegate                     │
 │  源码位置: frameworks/base/core/java/android/view/View.java                 │
-│  注意: TouchDelegate 是在 View 中调用的，不是 ViewGroup！                   │
 └─────────────────────────────────────────────────────────────────────────────┘
 
   public boolean dispatchTouchEvent(MotionEvent event) {
-      // ... 省略其他代码
+      // ... 省略前面代码
+      
+      boolean result = false;
       
       // ★★★ 如果有 TouchDelegate，先让代理处理 ★★★
       if (mTouchDelegate != null) {
           if (mTouchDelegate.onTouchEvent(event)) {
-              return true;  // TouchDelegate 消费了事件
+              result = true;  // TouchDelegate 处理了事件
           }
       }
       
-      // 如果 TouchDelegate 没有消费，继续自己的 onTouchEvent
-      if (onTouchEvent(event)) {
-          return true;
+      // 如果 TouchDelegate 没处理，继续自己的 onTouchEvent
+      if (!result && onTouchEvent(event)) {
+          result = true;
       }
       
-      return false;
+      return result;
   }
-  
-  // ★★★ 重要说明 ★★★
-  // 1. TouchDelegate 是 View 的成员变量，不是 ViewGroup 的
-  // 2. 所以 TouchDelegate 只对设置了它的那个 View 生效
-  // 3. 通常在父 ViewGroup 中调用 子View.setTouchDelegate() 来设置
-  // 4. 实际触摸事件仍然要先到达父 ViewGroup，然后分发到子 View
-  // 5. 子 View 的 dispatchTouchEvent 才会调用 TouchDelegate
 ```
 
-#### 13.3.4 TouchDelegate 工作流程图
+#### 13.3.5 完整工作流程
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                         TouchDelegate 工作流程                              │
-│  注意: TouchDelegate 是设置在目标 View 上的，不是父 ViewGroup               │
+│                         TouchDelegate 完整工作流程                          │
 └─────────────────────────────────────────────────────────────────────────────┘
 
   用户触摸屏幕
         │
         ▼
-  ViewGroup.dispatchTouchEvent(ev)
+  Activity.dispatchTouchEvent()
         │
-        │  正常事件分发流程
+        ▼
+  PhoneWindow.superDispatchTouchEvent()
+        │
+        ▼
+  DecorView.dispatchTouchEvent()
+        │
+        │  正常事件分发...
         ▼
   ┌─────────────────────────────────────────────────────────────────────────┐
-  │  目标 View.dispatchTouchEvent(ev)                                       │
+  │  目标 View.dispatchTouchEvent(event)                                    │
   │  ─────────────────────────────────────────────────────────────────────── │
   │                                                                         │
-  │  // ★★★ 关键代码 ★★★                                                   │
+  │  // event.getX()/getY() 是相对于 View 自身的坐标                        │
+  │  // 如果点击在 View 外围，坐标可能是负数                                 │
+  │                                                                         │
   │  if (mTouchDelegate != null) {                                          │
-  │      if (mTouchDelegate.onTouchEvent(ev)) {                             │
-  │          return true;  // TouchDelegate 处理了事件                      │
+  │      if (mTouchDelegate.onTouchEvent(event)) {                          │
+  │          return true;  // TouchDelegate 消费了事件                      │
   │      }                                                                  │
   │  }                                                                      │
   │                                                                         │
-  │  // TouchDelegate 没处理，继续自己的 onTouchEvent                        │
-  │  return onTouchEvent(ev);                                               │
-  │                                                                         │
-  └─────────────────────────────────────────────────────────────────────────┘
-        │
-        │  mTouchDelegate.onTouchEvent(ev)
-        ▼
-  ┌─────────────────────────────────────────────────────────────────────────┐
-  │  TouchDelegate.onTouchEvent(ev)                                         │
-  │  ─────────────────────────────────────────────────────────────────────── │
-  │                                                                         │
-  │  1. ACTION_DOWN:                                                        │
-  │     检查触摸点 (x,y) 是否在 mBounds 内                                  │
-  │         │                                                               │
-  │         ├── 在区域内: mDelegateTargeted = true                          │
-  │         │             转发给目标 View (就是自己)                        │
-  │         │                                                               │
-  │         └── 不在区域内: mDelegateTargeted = false                       │
-  │                       返回 false，继续正常处理                          │
-  │                                                                         │
-  │  2. ACTION_MOVE:                                                        │
-  │     if (mDelegateTargeted) {                                            │
-  │         检查是否在 mSlopBounds 内                                       │
-  │             │                                                           │
-  │             ├── 在 slop 边界内: 转发给目标 View                         │
-  │             │                                                           │
-  │             └── 移出 slop 边界: 发送 CANCEL 给目标 View                  │
-  │     }                                                                   │
-  │                                                                         │
-  │  3. ACTION_UP / CANCEL:                                                 │
-  │     if (mDelegateTargeted) {                                            │
-  │         转发给目标 View                                                 │
-  │         mDelegateTargeted = false                                       │
-  │     }                                                                   │
+  │  // TouchDelegate 没处理（点击在 View 实际区域内）                       │
+  │  return onTouchEvent(event);                                            │
   │                                                                         │
   └─────────────────────────────────────────────────────────────────────────┘
 
 
-  ★★★ 实际使用场景 ★★★
+  TouchDelegate.onTouchEvent() 内部：
   ─────────────────────────────────────────────────────────────────────────────
 
-  通常用法:
-  1. 父 ViewGroup 获取子 View 的边界
-  2. 扩大这个边界作为代理区域
-  3. 创建 TouchDelegate 并设置到子 View 上
-  
+  1. 检查 (x, y) 是否在 mBounds 内
+     - mBounds 可能是 (-50, -50, width+50, height+50)
+     - 所以点击 View 外围也能匹配
+
+  2. 如果在代理区域内：
+     - 调用 mDelegateView.dispatchTouchEvent(event)
+     - 注意：这里调用的是 dispatchTouchEvent，不是 onTouchEvent
+     - 所以会再次进入 View 的事件分发流程
+
+  3. 如果移出代理区域：
+     - 发送 ACTION_CANCEL 给目标 View
+```
+
+#### 13.3.6 关键点总结
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         TouchDelegate 关键点                                │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  1. 坐标系问题
+     ─────────────────────────────────────────────────────────────────────────
+     - TouchDelegate.bounds 使用设置它的 View 的坐标系
+     - 所以 bounds 可以包含负数（View 左边和上边的区域）
+     - event.getX()/getY() 也是相对于该 View 的
+
+  2. 为什么能扩大点击区域？
+     ─────────────────────────────────────────────────────────────────────────
+     - View 正常只响应 (0, 0, width, height) 内的触摸
+     - 但 TouchDelegate 可以把 bounds 设置成 (-50, -50, width+50, height+50)
+     - 这样点击 View 外围也能触发响应
+
+  3. 事件如何到达 View 外围？
+     ─────────────────────────────────────────────────────────────────────────
+     关键点：父 ViewGroup 在分发事件时：
+     
+     // ViewGroup.dispatchTouchEvent()
+     if (!disallowIntercept && onInterceptTouchEvent(ev)) {
+         // ...
+     }
+     
+     // 找到触摸点下的子 View
+     final View[] children = mChildren;
+     for (int i = childrenCount - 1; i >= 0; i--) {
+         final View child = children[i];
+         
+         // ★★★ isTransformedTouchPointInView() 检查触摸点是否在子 View 内 ★★★
+         // 这个检查使用的是子 View 的实际边界 (0, 0, width, height)
+         // 所以点击在 View 外围时，事件不会分发给该子 View
+         // 而是会分发给父 View 或者其他兄弟 View
+     }
+     
+     问题来了：如果事件不会分发给 View，TouchDelegate 怎么生效？
+
+  4. 真正的生效方式
+     ─────────────────────────────────────────────────────────────────────────
+     答案：需要在父 ViewGroup 中做特殊处理！
+     
+     // 在父 ViewGroup 中重写 dispatchTouchEvent
+     @Override
+     public boolean dispatchTouchEvent(MotionEvent ev) {
+         // 先让子 View 的 TouchDelegate 处理
+         final Rect bounds = new Rect();
+         childView.getHitRect(bounds);
+         bounds.inset(-50, -50);  // 扩大 50px
+         
+         if (bounds.contains((int)ev.getX(), (int)ev.getY())) {
+             // 触摸点在扩展区域内，直接分发给子 View
+             return childView.dispatchTouchEvent(ev);
+         }
+         
+         return super.dispatchTouchEvent(ev);
+     }
+     
+     或者更简单的方式：使用 TouchDelegate 但设置在父 ViewGroup 上！
+```
+
+#### 13.3.7 正确使用方式
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         TouchDelegate 正确使用方式                          │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  方式一：设置在子 View 上（bounds 使用负坐标）
+  ─────────────────────────────────────────────────────────────────────────────
+
   Button button = findViewById(R.id.button);
   
-  // 获取 button 在父 ViewGroup 中的位置
-  Rect bounds = new Rect();
-  button.getHitRect(bounds);  // 获取 button 的可点击矩形
+  // 扩大按钮的点击区域（向外扩展 50dp）
+  // 注意：bounds 使用 button 自身的坐标系，所以包含负数
+  int expand = (int) (50 * getResources().getDisplayMetrics().density);
+  Rect bounds = new Rect(-expand, -expand, 
+          button.getWidth() + expand, button.getHeight() + expand);
   
-  // 扩大点击区域
-  bounds.inset(-50, -50);  // 向外扩展 50px
-  
-  // 创建 TouchDelegate，bounds 是代理区域，button 是目标 View
   TouchDelegate delegate = new TouchDelegate(bounds, button);
-  
-  // ★★★ 注意：TouchDelegate 设置在 button 上 ★★★
   button.setTouchDelegate(delegate);
   
-  // 这样当触摸点落在 bounds 范围内时：
-  // 1. 事件先分发到 button
-  // 2. button.dispatchTouchEvent() 调用 TouchDelegate.onTouchEvent()
-  // 3. TouchDelegate 判断触摸点在 bounds 内，返回 true
-  // 4. button.onTouchEvent() 被调用，button 响应点击
-```
+  // ★★★ 问题：这种方式要求事件先到达 button ★★★
+  // 如果点击在 button 外围，父 ViewGroup 不会把事件分发给 button
+  // 所以 TouchDelegate 不会被调用！
 
-#### 13.3.5 坐标转换示意图
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         坐标转换示意图                                      │
-└─────────────────────────────────────────────────────────────────────────────┘
+  方式二：设置在父 ViewGroup 上（推荐）
+  ─────────────────────────────────────────────────────────────────────────────
 
-  ViewGroup 坐标系:
-  ┌─────────────────────────────────────────────────────────────────────────┐
-  │  (0,0)                                                                  │
-  │     ┌────────────────────────────────┐                                 │
-  │     │                                │                                 │
-  │     │      TouchDelegate Bounds      │                                 │
-  │     │     (代理区域)                  │                                 │
-  │     │                                │                                 │
-  │     │        ┌─────────────┐        │                                 │
-  │     │        │  目标 View   │        │                                 │
-  │     │        │  (Button)   │        │                                 │
-  │     │        │  (40,50)    │        │                                 │
-  │     │        │   ↓         │        │                                 │
-  │     │        └─────────────┘        │                                 │
-  │     │                                │                                 │
-  │     └────────────────────────────────┘                                 │
-  │                                                                         │
-  └─────────────────────────────────────────────────────────────────────────┘
-
-  用户触摸点: ViewGroup 坐标系中的 (60, 70)
+  // 在父 ViewGroup 中
+  FrameLayout parent = findViewById(R.id.parent);
+  Button button = findViewById(R.id.button);
   
-  坐标转换:
-  event.setLocation(
-      60 - 40 = 20,  // x - delegateViewBounds.left
-      70 - 50 = 20   // y - delegateViewBounds.top
-  )
+  parent.post(() -> {
+      // 获取 button 在 parent 中的位置
+      Rect bounds = new Rect();
+      button.getHitRect(bounds);  // 获取 button 在 parent 中的矩形
+      
+      // 扩大区域
+      bounds.inset(-50, -50);
+      
+      // ★★★ 关键：TouchDelegate 设置在 parent 上 ★★★
+      // bounds 使用 parent 的坐标系
+      // delegateView 是 button
+      TouchDelegate delegate = new TouchDelegate(bounds, button);
+      parent.setTouchDelegate(delegate);
+  });
   
-  转换后: 目标 View 坐标系中的 (20, 20)
-  
-  目标 View 接收到的 MotionEvent 坐标是相对于自身的
-```
+  // 这样当触摸点落在 parent 的 bounds 区域内时：
+  // 1. parent.dispatchTouchEvent() 被调用
+  // 2. parent 的 TouchDelegate.onTouchEvent() 被调用
+  // 3. TouchDelegate 检查触摸点在 bounds 内
+  // 4. 调用 button.dispatchTouchEvent()
+  // 5. button 响应点击
 
-#### 13.3.6 注意事项
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         TouchDelegate 注意事项                              │
-└─────────────────────────────────────────────────────────────────────────────┘
+  完整示例代码：
+  ─────────────────────────────────────────────────────────────────────────────
 
-  1. 只能设置一个 TouchDelegate
-     ─────────────────────────────────────────────────────────────────────────
-     View.setTouchDelegate() 会覆盖之前的设置
-     如果需要多个代理区域，需要自定义实现
-
-  2. 需要在 View 布局完成后设置
-     ─────────────────────────────────────────────────────────────────────────
-     // 错误方式：View 还没布局，bounds 为空
-     TouchDelegate delegate = new TouchDelegate(bounds, button);
-     button.setTouchDelegate(delegate);
-     
-     // 正确方式：在 post 中设置
-     button.post(() -> {
-         Rect bounds = new Rect();
-         button.getHitRect(bounds);
-         bounds.inset(-50, -50);
-         button.setTouchDelegate(new TouchDelegate(bounds, button));
-     });
-
-  3. 代理区域不能超出父 View 边界
-     ─────────────────────────────────────────────────────────────────────────
-     TouchDelegate 只能处理落在父 View 内的触摸事件
-     超出父 View 的事件不会传递到该 View
-
-  4. 事件坐标会被修改
-     ─────────────────────────────────────────────────────────────────────────
-     目标 View 收到的 MotionEvent 坐标已经被转换
-     如果需要原始坐标，需要在转发前保存
-
-  5. 与 onClick 的关系
-     ─────────────────────────────────────────────────────────────────────────
-     TouchDelegate 转发 onTouchEvent，所以 onClick 也能正常触发
-     只要目标 View 是 clickable 的
+  public class MainActivity extends AppCompatActivity {
+      
+      @Override
+      protected void onCreate(Bundle savedInstanceState) {
+          super.onCreate(savedInstanceState);
+          setContentView(R.layout.activity_main);
+          
+          FrameLayout parent = findViewById(R.id.parent);
+          Button button = findViewById(R.id.small_button);
+          
+          // 等待 View 布局完成
+          parent.post(() -> {
+              expandClickArea(parent, button, 50);  // 扩大 50dp
+          });
+      }
+      
+      /**
+       * 扩大 View 的点击区域
+       * @param parent 父 View
+       * @param view 需要扩大点击区域的 View
+       * @param dp 扩大的距离（dp）
+       */
+      private void expandClickArea(View parent, View view, int dp) {
+          // 转换 dp 为 px
+          int px = (int) (dp * parent.getResources().getDisplayMetrics().density);
+          
+          // 获取 view 在 parent 中的位置
+          Rect bounds = new Rect();
+          view.getHitRect(bounds);
+          
+          // 扩大边界
+          bounds.inset(-px, -px);
+          
+          // 创建 TouchDelegate 并设置到 parent
+          TouchDelegate delegate = new TouchDelegate(bounds, view);
+          parent.setTouchDelegate(delegate);
+      }
+  }
 ```
 
 ---
