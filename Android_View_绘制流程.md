@@ -27,9 +27,19 @@
      - 2.8.9 [Choreographer 与 SurfaceFlinger 关系](#289-choreographer-与-surfaceflinger-关系)
    - 2.9 [BufferQueue 与双缓冲机制](#29-bufferqueue-与双缓冲机制)
    - 2.10 [渲染合成流程](#210-渲染合成流程)
-   - 2.11 [View 绘制多层级架构](#211-view-绘制多层级架构)
-   - 2.12 [层级调用完整流程](#212-层级调用完整流程)
-   - 2.13 [层级总结表](#213-层级总结表)
+   - 2.11 [Canvas 到 Surface 调用详解](#211-canvas-到-surface-调用详解)
+     - 2.11.1 [Canvas 与 Surface 关系](#2111-canvas-与-surface-关系)
+     - 2.11.2 [View 绘制到 Canvas 流程](#2112-view-绘制到-canvas-流程)
+     - 2.11.3 [软件绘制流程](#2113-软件绘制流程-drawsoftware)
+     - 2.11.4 [硬件加速绘制流程](#2114-硬件加速绘制流程-threadedrenderer)
+   - 2.12 [Surface 到 SurfaceFlinger 调用详解](#212-surface-到-surfaceflinger-调用详解)
+     - 2.12.1 [Surface 创建流程](#2121-surface-创建流程)
+     - 2.12.2 [BufferQueue 创建与组件](#2122-bufferqueue-创建与组件)
+     - 2.12.3 [应用绘制到 SurfaceFlinger 完整流程](#2123-应用绘制到-surfaceflinger-完整流程)
+     - 2.12.4 [跨进程通信方式](#2124-跨进程通信方式)
+   - 2.13 [View 绘制多层级架构](#213-view-绘制多层级架构)
+   - 2.14 [层级调用完整流程](#214-层级调用完整流程)
+   - 2.15 [层级总结表](#215-层级总结表)
 3. [WindowManager 架构](#3-windowmanager-架构)
 4. [Measure 测量流程](#4-measure-测量流程)
 5. [Layout 布局流程](#5-layout-布局流程)
@@ -1477,7 +1487,484 @@ Android 图形系统采用 生产者-消费者 模型:
   └─────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 2.11 View 绘制多层级架构
+### 2.11 Canvas 到 Surface 调用详解
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         Canvas 到 Surface 调用详解                          │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+#### 2.11.1 Canvas 与 Surface 关系
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         Canvas 与 Surface 关系                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  Canvas 是绘图的 API 接口，Surface 是图形缓冲区的抽象:
+
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │                                                                         │
+  │  ┌─────────────────┐         ┌─────────────────┐                       │
+  │  │     Canvas      │ ──────► │     Surface     │                       │
+  │  │   (绘图 API)    │         │  (缓冲区抽象)   │                       │
+  │  │                 │         │                 │                       │
+  │  │  drawRect()     │         │  lockCanvas()   │                       │
+  │  │  drawCircle()   │         │  unlockCanvas() │                       │
+  │  │  drawText()     │         │                 │                       │
+  │  │  drawBitmap()   │         └────────┬────────┘                       │
+  │  │  ...            │                  │                                 │
+  │  └─────────────────┘                  ▼                                 │
+  │                              ┌─────────────────┐                       │
+  │                              │  BufferQueue    │                       │
+  │                              │  (缓冲队列)     │                       │
+  │                              └─────────────────┘                       │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+
+  Canvas 类型:
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │                                                                         │
+  │  1. 软件 Canvas (Skia)                                                  │
+  │     - 使用 CPU 绘制                                                     │
+  │     - Bitmap 作为底层存储                                               │
+  │     - new Canvas(bitmap)                                                │
+  │                                                                         │
+  │  2. 硬件 Canvas (HWUI)                                                  │
+  │     - 使用 GPU 绘制 (OpenGL ES / Vulkan)                               │
+  │     - RenderNode 作为底层                                               │
+  │     - View.getHardwareCanvas() / RecordingCanvas                        │
+  │                                                                         │
+  │  Android 4.0+ 默认硬件加速，使用 HWUI                                   │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+```
+
+#### 2.11.2 View 绘制到 Canvas 流程
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         View 绘制到 Canvas 流程                             │
+│  源码: frameworks/base/core/java/android/view/ViewRootImpl.java            │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  ViewRootImpl.performDraw()
+              │
+              ▼
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │  ViewRootImpl.draw()                                                    │
+  │  ─────────────────────────────────────────────────────────────────────── │
+  │                                                                         │
+  │  private void draw(boolean fullRedrawNeeded) {                          │
+  │      Surface surface = mSurface;                                        │
+  │      if (surface == null || !surface.isValid()) {                       │
+  │          return;                                                        │
+  │      }                                                                  │
+  │                                                                         │
+  │      // 1. 检查是否使用硬件加速                                         │
+  │      if (mAttachInfo.mThreadedRenderer != null                          │
+  │              && mAttachInfo.mThreadedRenderer.isEnabled()) {            │
+  │          // ★★★ 硬件加速绘制 ★★★                                        │
+  │          mAttachInfo.mThreadedRenderer.draw(mView, mAttachInfo,        │
+  │                  this, mHandler, (mHardwareDrawCallback != null));      │
+  │      } else {                                                           │
+  │          // ★★★ 软件绘制 ★★★                                            │
+  │          if (!drawSoftware(surface, mAttachInfo, xOffset, yOffset,      │
+  │                  scalingRequired, dirty, path)) {                       │
+  │              return;                                                    │
+  │          }                                                              │
+  │      }                                                                  │
+  │  }                                                                      │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+              │
+              ├──────────────────┬──────────────────┐
+              │                  │                  │
+              ▼                  ▼                  ▼
+       硬件加速绘制         软件绘制            (详情如下)
+```
+
+#### 2.11.3 软件绘制流程 (drawSoftware)
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         软件绘制流程 (drawSoftware)                         │
+│  源码: frameworks/base/core/java/android/view/ViewRootImpl.java            │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  ViewRootImpl.draw()
+              │
+              ▼
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │  ViewRootImpl.drawSoftware()                                            │
+  │  ─────────────────────────────────────────────────────────────────────── │
+  │                                                                         │
+  │  private boolean drawSoftware(Surface surface, AttachInfo attachInfo,  │
+  │          int xoff, int yoff, boolean scalingRequired, Rect dirty,      │
+  │          Path clip) {                                                   │
+  │                                                                         │
+  │      // 1. 锁定 Canvas ★★★                                              │
+  │      Canvas canvas;                                                     │
+  │      try {                                                              │
+  │          final Rect dirtyRect = mDirty;                                 │
+  │          // 调用 Surface.lockCanvas()                                   │
+  │          canvas = mSurface.lockCanvas(dirtyRect);                       │
+  │      } catch (Surface.OutOfResourcesException e) {                      │
+  │          return false;                                                  │
+  │      }                                                                  │
+  │                                                                         │
+  │      try {                                                              │
+  │          // 2. 设置 Canvas 属性                                         │
+  │          canvas.translate(-xoff, -yoff);                                │
+  │          if (mTranslator != null) {                                     │
+  │              mTranslator.translateCanvas(canvas);                       │
+  │          }                                                              │
+  │          canvas.setScreenDensity(scalingRequired ? mNoncompatDensity : 0);│
+  │                                                                         │
+  │          // 3. 执行 View 树绘制 ★★★                                     │
+  │          mView.draw(canvas);                                            │
+  │                                                                         │
+  │      } finally {                                                        │
+  │          // 4. 解锁并提交 Canvas ★★★                                    │
+  │          surface.unlockCanvasAndPost(canvas);                           │
+  │      }                                                                  │
+  │      return true;                                                       │
+  │  }                                                                      │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+              │
+              ▼
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │  Surface.lockCanvas() 底层调用                                          │
+  │  源码: frameworks/base/core/java/android/view/Surface.java              │
+  │  ─────────────────────────────────────────────────────────────────────── │
+  │                                                                         │
+  │  public Canvas lockCanvas(Rect inOutDirty) {                            │
+  │      // 调用 native 方法                                                │
+  │      return lockCanvasNative(inOutDirty);                               │
+  │  }                                                                      │
+  │                                                                         │
+  │  private native Canvas lockCanvasNative(Rect dirty);                    │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+              │
+              │ JNI
+              ▼
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │  Native 层: android_view_Surface.cpp                                    │
+  │  源码: frameworks/base/core/jni/android_view_Surface.cpp                │
+  │  ─────────────────────────────────────────────────────────────────────── │
+  │                                                                         │
+  │  static jlong nativeLockCanvas(JNIEnv* env, jclass clazz,              │
+  │          jobject surfaceObj, jobject dirtyRectObj) {                    │
+  │                                                                         │
+  │      // 1. 获取 Surface 对象                                            │
+  │      sp<Surface> surface(android_view_Surface_getSurface(env, surfaceObj));│
+  │                                                                         │
+  │      // 2. 锁定缓冲区 ★★★                                               │
+  │      ANativeWindowBuffer* buffer;                                       │
+  │      status_t err = surface->lock(&buffer, dirtyRectPtr);               │
+  │      // 内部调用: dequeueBuffer() 获取 GraphicBuffer                   │
+  │                                                                         │
+  │      // 3. 创建 SkBitmap (Skia 引擎)                                    │
+  │      SkBitmap bitmap;                                                   │
+  │      bitmap.setPixels(buffer->bits);  // 指向缓冲区内存                 │
+  │                                                                         │
+  │      // 4. 创建 Canvas 对象                                             │
+  │      Canvas* nativeCanvas = Canvas::create_canvas(bitmap);              │
+  │                                                                         │
+  │      return reinterpret_cast<jlong>(nativeCanvas);                      │
+  │  }                                                                      │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+```
+
+#### 2.11.4 硬件加速绘制流程 (ThreadedRenderer)
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         硬件加速绘制流程 (ThreadedRenderer)                 │
+│  源码: frameworks/base/core/java/android/view/ThreadedRenderer.java        │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  ViewRootImpl.draw()
+              │
+              │  mAttachInfo.mThreadedRenderer.draw()
+              ▼
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │  ThreadedRenderer.draw()                                                │
+  │  ─────────────────────────────────────────────────────────────────────── │
+  │                                                                         │
+  │  void draw(View view, AttachInfo attachInfo, DrawCallbacks callbacks,  │
+  │          Handler handler, boolean hasCallbacks) {                       │
+  │                                                                         │
+  │      // 1. 更新层级树                                                   │
+  │      updateHierarchyDisplayList(view);                                  │
+  │                                                                         │
+  │      // 2. 同步 DisplayList 到 RenderThread                            │
+  │      int syncResult = syncAndDrawFrame(frameInfo);                      │
+  │                                                                         │
+  │      // 3. RenderThread 执行 GPU 渲染                                  │
+  │      // (异步执行，不阻塞 UI 线程)                                      │
+  │  }                                                                      │
+  │                                                                         │
+  │  // 更新 DisplayList                                                    │
+  │  private void updateHierarchyDisplayList(View view) {                   │
+  │      // 递归构建 View 树的 DisplayList                                  │
+  │      view.updateDisplayListIfDirty();                                   │
+  │  }                                                                      │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+              │
+              ▼
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │  View.updateDisplayListIfDirty()                                        │
+  │  源码: frameworks/base/core/java/android/view/View.java                 │
+  │  ─────────────────────────────────────────────────────────────────────── │
+  │                                                                         │
+  │  public RenderNode updateDisplayListIfDirty() {                         │
+  │      final RenderNode renderNode = mRenderNode;                         │
+  │                                                                         │
+  │      // 1. 开始记录 DisplayList                                         │
+  │      RecordingCanvas canvas = renderNode.beginRecording(width, height);│
+  │                                                                         │
+  │      try {                                                              │
+  │          // 2. 执行绘制 (记录绘制命令，不实际绘制)                       │
+  │          if (layerType == LAYER_TYPE_SOFTWARE) {                        │
+  │              buildDrawingCache(true);                                   │
+  │              Bitmap cache = getDrawingCache(true);                      │
+  │              if (cache != null) {                                       │
+  │                  canvas.drawBitmap(cache, 0, 0, mLayerPaint);           │
+  │              }                                                          │
+  │          } else {                                                       │
+  │              // ★★★ 记录绘制命令到 DisplayList ★★★                      │
+  │              draw(canvas);                                              │
+  │          }                                                              │
+  │      } finally {                                                        │
+  │          // 3. 结束记录                                                 │
+  │          renderNode.endRecording();                                     │
+  │      }                                                                  │
+  │      return renderNode;                                                 │
+  │  }                                                                      │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+
+
+  软件绘制 vs 硬件加速对比:
+  ┌─────────────────┬─────────────────────────┬───────────────────────────────┐
+  │                 │  软件绘制 (Software)    │  硬件加速 (Hardware)          │
+  ├─────────────────┼─────────────────────────┼───────────────────────────────┤
+  │  渲染引擎       │  Skia (CPU)             │  OpenGL ES / Vulkan (GPU)     │
+  │  绘制方式       │  直接绘制到缓冲区       │  记录 DisplayList，异步渲染   │
+  │  Canvas 类型    │  SkiaCanvas             │  RecordingCanvas              │
+  │  线程           │  UI 线程 (同步)         │  RenderThread (异步)          │
+  │  性能           │  慢，CPU 计算           │  快，GPU 并行                 │
+  │  适用场景       │  兼容模式、截图         │  正常应用                     │
+  └─────────────────┴─────────────────────────┴───────────────────────────────┘
+```
+
+### 2.12 Surface 到 SurfaceFlinger 调用详解
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         Surface 到 SurfaceFlinger 调用详解                  │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+#### 2.12.1 Surface 创建流程
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         Surface 创建流程                                    │
+│  从 ViewRootImpl 到 SurfaceFlinger                                         │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  ViewRootImpl.setView()
+              │
+              │  mWindowSession.addToDisplay()
+              ▼
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │  WindowManagerService.addWindow()                                       │
+  │  源码: frameworks/base/services/core/java/com/android/server/wm/        │
+  │  ─────────────────────────────────────────────────────────────────────── │
+  │                                                                         │
+  │  // 1. 创建 WindowState                                                 │
+  │  final WindowState win = new WindowState(this, session, client, ...);  │
+  │                                                                         │
+  │  // 2. 创建 SurfaceControl                                              │
+  │  win.createSurfaceControl();                                            │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+              │
+              ▼
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │  WindowSurfaceController 创建 SurfaceControl                            │
+  │  ─────────────────────────────────────────────────────────────────────── │
+  │                                                                         │
+  │  WindowSurfaceController(SurfaceSession s, String name, ...) {          │
+  │      mSurfaceControl = new SurfaceControl.Builder(s)                   │
+  │              .setName(name)                                             │
+  │              .setSize(w, h)                                             │
+  │              .build();                                                  │
+  │  }                                                                      │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+              │
+              │ JNI
+              ▼
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │  Native: SurfaceComposerClient::createSurface()                         │
+  │  源码: frameworks/native/libs/gui/                                      │
+  │  ─────────────────────────────────────────────────────────────────────── │
+  │                                                                         │
+  │  status_t SurfaceComposerClient::createSurface(...) {                   │
+  │      // 通过 Binder 调用 SurfaceFlinger                                 │
+  │      return mClient->createSurface(...);                                │
+  │  }                                                                      │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+              │
+              │ Binder IPC
+              ▼
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │  SurfaceFlinger::createLayer()                                          │
+  │  源码: frameworks/native/services/surfaceflinger/                       │
+  │  ─────────────────────────────────────────────────────────────────────── │
+  │                                                                         │
+  │  status_t SurfaceFlinger::createLayer(...) {                            │
+  │      // 创建 BufferLayer                                                │
+  │      sp<BufferLayer> layer = new BufferLayer(this, client, name, w, h);│
+  │                                                                         │
+  │      // 创建 BufferQueue (生产者-消费者)                                │
+  │      layer->setBuffers(w, h, format, flags);                            │
+  │                                                                         │
+  │      // 返回 IGraphicBufferProducer 给应用                              │
+  │      *gbp = layer->getProducer();                                       │
+  │                                                                         │
+  │      // 添加到 Layer 列表                                               │
+  │      addClientLayer(client, handle, gbp, layer);                        │
+  │  }                                                                      │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+```
+
+#### 2.12.2 BufferQueue 创建与组件
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         BufferQueue 核心组件                                │
+│  源码: frameworks/native/libs/gui/                                         │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │                                                                         │
+  │  ┌─────────────────────────────────────────────────────────────────┐   │
+  │  │                      BufferQueueCore                             │   │
+  │  │  核心状态管理                                                    │   │
+  │  │  - mSlots[64]: 缓冲区槽位数组                                    │   │
+  │  │  - mQueue: 待消费的缓冲区队列                                    │   │
+  │  │  - mFreeSlots: 空闲槽位集合                                      │   │
+  │  └─────────────────────────────────────────────────────────────────┘   │
+  │                                    │                                    │
+  │                    ┌───────────────┴───────────────┐                   │
+  │                    ▼                               ▼                    │
+  │  ┌─────────────────────────────┐   ┌─────────────────────────────┐    │
+  │  │  BufferQueueProducer        │   │  BufferQueueConsumer        │    │
+  │  │  (生产者接口)                │   │  (消费者接口)                │    │
+  │  │                             │   │                             │    │
+  │  │  dequeueBuffer()            │   │  acquireBuffer()            │    │
+  │  │  queueBuffer()              │   │  releaseBuffer()            │    │
+  │  └─────────────────────────────┘   └─────────────────────────────┘    │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+```
+
+#### 2.12.3 应用绘制到 SurfaceFlinger 完整流程
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         应用绘制到 SurfaceFlinger 完整流程                   │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  Step 1: 应用获取缓冲区 (dequeueBuffer)
+  ─────────────────────────────────────────────────────────────────────────────
+  Java: Surface.lockCanvas() → JNI → Native: Surface::lock()
+      → BufferQueueProducer::dequeueBuffer()
+      → 状态: FREE → DEQUEUED
+      → 返回 GraphicBuffer (共享内存)
+
+  Step 2: 应用绘制到缓冲区
+  ─────────────────────────────────────────────────────────────────────────────
+  软件绘制: Canvas.draw → Skia 写入 GraphicBuffer 内存
+  硬件加速: RenderThread → OpenGL ES → GPU 写入 GraphicBuffer
+
+  Step 3: 应用提交缓冲区 (queueBuffer)
+  ─────────────────────────────────────────────────────────────────────────────
+  Java: Surface.unlockCanvasAndPost() → Native: Surface::unlockAndPost()
+      → BufferQueueProducer::queueBuffer()
+      → 状态: DEQUEUED → QUEUED
+      → 通知 SurfaceFlinger 有新帧
+
+  Step 4: SurfaceFlinger 获取缓冲区 (acquireBuffer)
+  ─────────────────────────────────────────────────────────────────────────────
+  VSync 到来时:
+  Layer::latchBuffer() → BufferQueueConsumer::acquireBuffer()
+      → 状态: QUEUED → ACQUIRED
+
+  Step 5: SurfaceFlinger 合成并显示
+  ─────────────────────────────────────────────────────────────────────────────
+  SurfaceFlinger::handleMessageRefresh()
+      → 合成所有 Layer (GLES 或 HWC)
+      → 提交到 FrameBuffer
+      → BufferQueueConsumer::releaseBuffer()
+      → 状态: ACQUIRED → FREE
+      → 显示到屏幕
+```
+
+#### 2.12.4 跨进程通信方式
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         跨进程通信方式                                      │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │                                                                         │
+  │  应用进程                          SurfaceFlinger 进程                  │
+  │  ┌───────────────────────┐       ┌───────────────────────┐             │
+  │  │                       │       │                       │             │
+  │  │  Surface              │       │  Layer                │             │
+  │  │       │               │       │       │               │             │
+  │  │       ▼               │       │       ▼               │             │
+  │  │  BufferQueueProducer  │◄─────►│  BufferQueueConsumer  │             │
+  │  │       │               │       │       │               │             │
+  │  │       │               │       │       │               │             │
+  │  │       ▼               │       │       ▼               │             │
+  │  │  ┌─────────────────────────────────────────────────┐ │             │
+  │  │  │              BufferQueueCore                    │ │             │
+  │  │  │              (共享内存)                          │ │             │
+  │  │  │  GraphicBuffer[0] GraphicBuffer[1] ...          │ │             │
+  │  │  └─────────────────────────────────────────────────┘ │             │
+  │  │                       │       │                       │             │
+  │  └───────────────────────┘       └───────────────────────┘             │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+
+  通信方式:
+  ┌─────────────────┬───────────────────────────────────────────────────────┐
+  │  Binder IPC     │  创建 Surface、SurfaceControl                         │
+  │                 │  IWindowSession.addToDisplay()                        │
+  ├─────────────────┼───────────────────────────────────────────────────────┤
+  │  共享内存       │  GraphicBuffer (图形缓冲区)                           │
+  │  (DMA-BUF)      │  应用和 SurfaceFlinger 都可以直接访问                 │
+  ├─────────────────┼───────────────────────────────────────────────────────┤
+  │  Callback       │  IConsumerListener::onFrameAvailable()                │
+  │                 │  通知 SurfaceFlinger 有新帧                           │
+  └─────────────────┴───────────────────────────────────────────────────────┘
+```
+
+### 2.13 View 绘制多层级架构
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -1737,7 +2224,7 @@ Android 图形系统采用 生产者-消费者 模型:
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 2.12 层级调用完整流程
+### 2.14 层级调用完整流程
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -1805,7 +2292,7 @@ Android 图形系统采用 生产者-消费者 模型:
   └─────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 2.13 层级总结表
+### 2.15 层级总结表
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
