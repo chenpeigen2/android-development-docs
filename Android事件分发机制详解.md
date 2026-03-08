@@ -37,9 +37,9 @@
    - 9.1 [分发入口](#91-分发入口)
    - 9.2 [如何找到并分发给子 View](#92-viewgroup-如何找到并分发给子-view)
    - 9.3 [isTransformedTouchPointInView - 边界检查](#93-istransformedtouchpointinview---检查触摸点是否在子-view-内)
-   - 9.4 [dispatchTransformedTouchEvent - 分发事件](#94-dispatchtransformedtouchevent---分发事件给子-view)
-   - 9.5 [子 View 收不到事件的原因](#95-子-view-收不到事件的完整原因)
-   - 9.6 [TouchDelegate 为什么设置在父 ViewGroup 上](#96-touchdelegate-为什么设置在父-viewgroup-上才生效)
+   - 9.4 [dispatchTransformedTouchEvent - 分发事件](#94-dispatchtransformedtouchevent---分发事件)
+   - 9.5 [子 View 收不到事件的原因](#95-子-view-收不到事件的原因)
+   - 9.6 [TouchDelegate 为什么设置在父 ViewGroup 上](#96-touchdelegate-为什么设置在父-viewgroup-上)
    - 9.7 [TouchTarget 链表](#97-touchtarget-链表)
 10. [View 事件分发](#10-view-事件分发)
     - 10.1 [分发流程](#101-分发流程)
@@ -349,52 +349,821 @@ public boolean onTouchEvent(MotionEvent event) {
 
 ## 9. ViewGroup 事件分发
 
-### 9.1 分发流程
+### 9.1 分发入口
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    ViewGroup.dispatchTouchEvent() 流程图                    │
+│  源码位置: frameworks/base/core/java/android/view/ViewGroup.java            │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  MotionEvent 事件到达 ViewGroup
+        │
+        ▼
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │  Step 1: 辅助处理                                                        │
+  │  ─────────────────────────────────────────────────────────────────────── │
+  │  - 安全检查（窗口已停止则丢弃）                                           │
+  │  - 鼠标/触控笔按钮状态处理                                                │
+  │  - 取消之前的悬停状态                                                     │
+  └─────────────────────────────────────────────────────────────────────────┘
+        │
+        ▼
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │  Step 2: 检查是否拦截                                                    │
+  │  ─────────────────────────────────────────────────────────────────────── │
+  │                                                                         │
+  │  final boolean intercepted;                                             │
+  │  if (actionMasked == ACTION_DOWN || mFirstTouchTarget != null) {        │
+  │      // ★ DOWN 事件 或 已有触摸目标时才检查拦截                           │
+  │      intercepted = onInterceptTouchEvent(ev);                           │
+  │  } else {                                                               │
+  │      // ★ 非 DOWN 且无触摸目标，直接拦截                                  │
+  │      intercepted = true;                                                │
+  │  }                                                                       │
+  │                                                                         │
+  │  // requestDisallowInterceptTouchEvent 可以阻止拦截                      │
+  │  if (!disallowIntercept && intercepted) { ... }                         │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+        │
+        ├──── intercepted=true ────► 自己处理 onTouchEvent()
+        │
+        ▼ (intercepted=false)
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │  Step 3: 遍历子 View，找到触摸目标                                        │
+  │  ─────────────────────────────────────────────────────────────────────── │
+  │                                                                         │
+  │  if (actionMasked == ACTION_DOWN) {                                     │
+  │      // ★ 只有 DOWN 事件才需要找子 View                                  │
+  │      // 后续事件直接发给 mFirstTouchTarget                               │
+  │      for (int i = childrenCount - 1; i >= 0; i--) {                     │
+  │          View child = children[i];                                      │
+  │                                                                         │
+  │          // 1. 检查 child 是否能接收事件                                  │
+  │          if (!canViewReceivePointerEvents(child)) continue;             │
+  │                                                                         │
+  │          // 2. 检查触摸点是否在 child 范围内                              │
+  │          if (!isTransformedTouchPointInView(x, y, child, null))         │
+  │              continue;                                                  │
+  │                                                                         │
+  │          // 3. 分发给 child                                              │
+  │          if (dispatchTransformedTouchEvent(ev, false, child, id)) {     │
+  │              // ★★★ child 消费了事件，加入 TouchTarget 链表 ★★★         │
+  │              newTouchTarget = addTouchTarget(child, idBitsToAssign);    │
+  │              alreadyDispatched = true;                                  │
+  │              break;  // 找到目标，退出循环                                │
+  │          }                                                               │
+  │      }                                                                   │
+  │  }                                                                       │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+        │
+        ▼
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │  Step 4: 后续事件处理                                                    │
+  │  ─────────────────────────────────────────────────────────────────────── │
+  │                                                                         │
+  │  if (mFirstTouchTarget == null) {                                       │
+  │      // ★ 没有子 View 消费，自己处理                                      │
+  │      handled = dispatchTransformedTouchEvent(ev, canceled, null, 0);    │
+  │  } else {                                                               │
+  │      // ★ 有触摸目标，分发给链表中的所有目标                               │
+  │      TouchTarget target = mFirstTouchTarget;                            │
+  │      while (target != null) {                                           │
+  │          dispatchTransformedTouchEvent(ev, canceled, target.child, id); │
+  │          target = target.next;                                          │
+  │      }                                                                   │
+  │  }                                                                       │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+        │
+        ▼
+     返回 handled
+```
+
+**源码片段**（简化版）：
 
 ```java
+// frameworks/base/core/java/android/view/ViewGroup.java
+@Override
 public boolean dispatchTouchEvent(MotionEvent ev) {
-    // 1. 处理鼠标事件（hover、scroll 等）
-    ...
+    int action = ev.getAction();
+    int actionMasked = action & MotionEvent.ACTION_MASK;
     
-    boolean handled = false;
-    
-    // 2. 检查是否拦截
-    final boolean intercepted;
-    if (actionMasked == MotionEvent.ACTION_DOWN || mFirstTouchTarget != null) {
-        // 只有 DOWN 事件或者已经有目标时才检查拦截
-        intercepted = onInterceptTouchEvent(ev);
-    } else {
-        intercepted = false;
+    // ========== Step 1: 处理 ACTION_DOWN ==========
+    if (actionMasked == MotionEvent.ACTION_DOWN) {
+        // 取消之前的触摸目标
+        cancelAndClearTouchTargets(ev);
+        resetTouchState();
     }
     
-    // 3. 事件没有被拦截，分发给子 View
+    // ========== Step 2: 检查拦截 ==========
+    final boolean intercepted;
+    if (actionMasked == MotionEvent.ACTION_DOWN 
+            || mFirstTouchTarget != null) {
+        final boolean disallowIntercept = 
+                (mGroupFlags & FLAG_DISALLOW_INTERCEPT) != 0;
+        if (!disallowIntercept) {
+            intercepted = onInterceptTouchEvent(ev);
+        } else {
+            intercepted = false;
+        }
+    } else {
+        // 没有 DOWN 且没有目标，直接拦截
+        intercepted = true;
+    }
+    
+    // ========== Step 3: 分发给子 View ==========
+    TouchTarget newTouchTarget = null;
+    boolean alreadyDispatched = false;
+    
     if (!intercepted) {
-        if (child != null) {
-            // 分发给子 View
-            handled = dispatchTransformedTouchEvent(ev, false, child, idBitsToAssign);
+        if (actionMasked == MotionEvent.ACTION_DOWN) {
+            final int childrenCount = mChildrenCount;
+            final View[] children = mChildren;
+            
+            // 倒序遍历（后添加的 View 在上层）
+            for (int i = childrenCount - 1; i >= 0; i--) {
+                final int childIndex = getAndVerifyPreorderedIndex(
+                        childrenCount, i, customOrder);
+                final View child = children[childIndex];
+                
+                // ★★★ 关键：检查触摸点是否在 child 内 ★★★
+                if (!canViewReceivePointerEvents(child)
+                        || !isTransformedTouchPointInView(x, y, child, null)) {
+                    continue;
+                }
+                
+                // 分发给 child
+                if (dispatchTransformedTouchEvent(ev, false, child, idBits)) {
+                    // ★★★ child 消费了，加入 TouchTarget ★★★
+                    newTouchTarget = addTouchTarget(child, idBitsToAssign);
+                    alreadyDispatched = true;
+                    break;
+                }
+            }
         }
     }
     
-    // 4. 如果没有子 View 处理，交给自身处理
-    if (!handled) {
-        handled = super.onTouchEvent(ev); // 即 ViewGroup 的 onTouchEvent
+    // ========== Step 4: 处理结果 ==========
+    if (mFirstTouchTarget == null) {
+        // 没有子 View 消费，自己处理
+        handled = dispatchTransformedTouchEvent(ev, canceled, null, 0);
+    } else {
+        // 分发给 TouchTarget 链表
+        TouchTarget target = mFirstTouchTarget;
+        while (target != null) {
+            final TouchTarget next = target.next;
+            if (alreadyDispatched && target == newTouchTarget) {
+                handled = true;
+            } else {
+                final boolean cancelChild = resetCancelNextUpFlag(target.child)
+                        || intercepted;
+                if (dispatchTransformedTouchEvent(ev, cancelChild,
+                        target.child, target.pointerIdBits)) {
+                    handled = true;
+                }
+            }
+            target = next;
+        }
     }
     
     return handled;
 }
 ```
 
-### 9.2 触摸目标 (TouchTarget)
+### 9.2 如何找到并分发给子 View
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    ViewGroup 找子 View 的流程                               │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  触摸点坐标 (x, y) 是相对于 ViewGroup 的
+        │
+        ▼
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │  1. 获取所有子 View                                                      │
+  │  ─────────────────────────────────────────────────────────────────────── │
+  │  final View[] children = mChildren;                                     │
+  │  final int childrenCount = mChildrenCount;                              │
+  │                                                                         │
+  │  // 按照 Z-order 倒序遍历（后添加的 View 可能在上层）                      │
+  │  for (int i = childrenCount - 1; i >= 0; i--) { ... }                   │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+        │
+        ▼
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │  2. 过滤不可见/不可点击的 View                                            │
+  │  ─────────────────────────────────────────────────────────────────────── │
+  │                                                                         │
+  │  // View 正在播放动画 或 View 可见                                        │
+  │  if (!canViewReceivePointerEvents(child)) continue;                     │
+  │                                                                         │
+  │  // 判断逻辑：                                                           │
+  │  // (child.getAnimation() != null) || (child.mViewFlags & VISIBILITY)   │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+        │
+        ▼
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │  3. 检查触摸点是否在子 View 范围内                                        │
+  │  ─────────────────────────────────────────────────────────────────────── │
+  │                                                                         │
+  │  if (!isTransformedTouchPointInView(x, y, child, null)) continue;       │
+  │                                                                         │
+  │  // 这个方法会：                                                         │
+  │  // 1. 将 ViewGroup 坐标转换为 child 的本地坐标                           │
+  │  // 2. 检查本地坐标是否在 child 的 (0, 0, width, height) 内               │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+        │
+        ▼
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │  4. 分发给子 View                                                        │
+  │  ─────────────────────────────────────────────────────────────────────── │
+  │                                                                         │
+  │  if (dispatchTransformedTouchEvent(ev, false, child, idBits)) {         │
+  │      // child 消费了事件                                                 │
+  │      addTouchTarget(child, idBits);  // 加入 TouchTarget 链表           │
+  │      break;  // 退出循环                                                 │
+  │  }                                                                       │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+```
+
+### 9.3 isTransformedTouchPointInView - 边界检查
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    isTransformedTouchPointInView 源码分析                   │
+│  源码位置: frameworks/base/core/java/android/view/ViewGroup.java            │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  /**
+   * 检查触摸点是否在子 View 的范围内
+   * 
+   * @param x 触摸点 x（ViewGroup 坐标系）
+   * @param y 触摸点 y（ViewGroup 坐标系）
+   * @param child 子 View
+   * @param outPoint 输出转换后的本地坐标（可选）
+   * @return true 表示在范围内
+   */
+  private boolean isTransformedTouchPointInView(
+          float x, float y, View child, PointF outPoint) {
+      
+      // ★★★ 坐标转换 ★★★
+      // 将 ViewGroup 的坐标转换为 child 的本地坐标
+      float localX = x + mScrollX - child.mLeft;
+      float localY = y + mScrollY - child.mTop;
+      
+      // 考虑 child 的变换矩阵（scale, rotation, translation）
+      if (!child.hasIdentityMatrix()) {
+          final float[] point = getTempPoint();
+          point[0] = localX;
+          point[1] = localY;
+          child.getInverseMatrix().mapPoints(point);
+          localX = point[0];
+          localY = point[1];
+      }
+      
+      // ★★★ 边界检查 ★★★
+      // 检查本地坐标是否在 child 的边界内
+      // child 的本地坐标范围是 (0, 0, width, height)
+      final boolean isInView = child.pointInView(localX, localY);
+      
+      // 输出转换后的坐标
+      if (outPoint != null) {
+          outPoint.x = localX;
+          outPoint.y = localY;
+      }
+      
+      return isInView;
+  }
+```
+
+**View.pointInView() 源码**：
 
 ```java
-private static final class TouchTarget {
-    public View child;          // 目标 View
-    public TouchTarget next;   // 下一个目标（支持多指）
-    public int pointerIdBits;   // 触摸点 ID
+// frameworks/base/core/java/android/view/View.java
+public boolean pointInView(float localX, float localY) {
+    // 检查是否在 (0, 0, width, height) 范围内
+    return localX >= 0 && localX < (mRight - mLeft)
+        && localY >= 0 && localY < (mBottom - mTop);
 }
 ```
 
-TouchTarget 是一个链表结构，用于支持多指触控。
+**关键点**：
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         坐标转换公式                                        │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  ViewGroup 坐标 (x, y) → Child 本地坐标 (localX, localY)
+
+  localX = x + mScrollX - child.mLeft
+  localY = y + mScrollY - child.mTop
+
+  其中：
+  - (x, y): 触摸点相对于 ViewGroup 的坐标
+  - mScrollX/mScrollY: ViewGroup 的滚动偏移
+  - child.mLeft/mTop: child 在 ViewGroup 中的位置
+
+  示例：
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │                                                                         │
+  │  ViewGroup (mScrollX = 0)                                               │
+  │  ┌───────────────────────────────────────────────────────────────────┐  │
+  │  │                                                                   │  │
+  │  │         (x=150, y=100)  ← 触摸点                                  │  │
+  │  │              ●                                                    │  │
+  │  │              │                                                    │  │
+  │  │              │                                                    │  │
+  │  │         ┌────┴──────────┐                                        │  │
+  │  │         │               │                                        │  │
+  │  │         │   Child       │  mLeft=100, mTop=50                    │  │
+  │  │         │   width=100   │  width = mRight - mLeft = 200 - 100    │  │
+  │  │         │   height=80   │  height = mBottom - mTop = 130 - 50    │  │
+  │  │         └───────────────┘                                        │  │
+  │  │                                                                   │  │
+  │  └───────────────────────────────────────────────────────────────────┘  │
+  │                                                                         │
+  │  localX = 150 + 0 - 100 = 50  ✓ (0 <= 50 < 100)                        │
+  │  localY = 100 + 0 - 50  = 50  ✓ (0 <= 50 < 80)                         │
+  │                                                                         │
+  │  结论：触摸点在 Child 范围内                                             │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+```
+
+### 9.4 dispatchTransformedTouchEvent - 分发事件
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    dispatchTransformedTouchEvent 源码分析                   │
+│  源码位置: frameworks/base/core/java/android/view/ViewGroup.java            │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  /**
+   * 将事件分发给子 View 或自己处理
+   * 
+   * @param event 原始事件
+   * @param cancel 是否发送 CANCEL
+   * @param child 目标子 View（null 表示自己处理）
+   * @param desiredPointerIdBits 目标触摸点 ID
+   * @return true 表示事件被消费
+   */
+  private boolean dispatchTransformedTouchEvent(
+          MotionEvent event, boolean cancel, View child, int desiredPointerIdBits) {
+      
+      final boolean handled;
+      
+      // ========== 处理 CANCEL ==========
+      if (cancel) {
+          MotionEvent cancelEvent = MotionEvent.obtain(event);
+          cancelEvent.setAction(MotionEvent.ACTION_CANCEL);
+          
+          if (child == null) {
+              handled = super.dispatchTouchEvent(cancelEvent);
+          } else {
+              handled = child.dispatchTouchEvent(cancelEvent);
+          }
+          
+          cancelEvent.recycle();
+          return handled;
+      }
+      
+      // ========== 处理多点触控分割 ==========
+      final int oldPointerIdBits = event.getPointerIdBits();
+      final int newPointerIdBits = oldPointerIdBits & desiredPointerIdBits;
+      
+      // 如果没有匹配的触摸点，直接返回
+      if (newPointerIdBits == 0) {
+          return false;
+      }
+      
+      // ========== 分发事件 ==========
+      MotionEvent transformedEvent;
+      
+      if (newPointerIdBits == oldPointerIdBits) {
+          // 不需要分割触摸点
+          if (child == null || child.hasIdentityMatrix()) {
+              // 直接使用原事件
+              if (child == null) {
+                  handled = super.dispatchTouchEvent(event);
+              } else {
+                  // ★★★ 坐标转换后分发给 child ★★★
+                  final float offsetX = mScrollX - child.mLeft;
+                  final float offsetY = mScrollY - child.mTop;
+                  event.offsetLocation(offsetX, offsetY);
+                  handled = child.dispatchTouchEvent(event);
+                  event.offsetLocation(-offsetX, -offsetY);  // 恢复
+              }
+              return handled;
+          }
+          transformedEvent = MotionEvent.obtain(event);
+      } else {
+          // 分割触摸点
+          transformedEvent = event.split(newPointerIdBits);
+      }
+      
+      // ========== 坐标转换 + 分发 ==========
+      if (child == null) {
+          // 没有子 View，自己处理
+          handled = super.dispatchTouchEvent(transformedEvent);
+      } else {
+          // 坐标转换
+          final float offsetX = mScrollX - child.mLeft;
+          final float offsetY = mScrollY - child.mTop;
+          transformedEvent.offsetLocation(offsetX, offsetY);
+          
+          // 考虑 child 的变换矩阵
+          if (!child.hasIdentityMatrix()) {
+              transformedEvent.transform(child.getInverseMatrix());
+          }
+          
+          // ★★★ 分发给 child ★★★
+          handled = child.dispatchTouchEvent(transformedEvent);
+      }
+      
+      transformedEvent.recycle();
+      return handled;
+  }
+```
+
+**关键点**：
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    dispatchTransformedTouchEvent 关键点                     │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  1. 坐标转换
+     ─────────────────────────────────────────────────────────────────────────
+     event.offsetLocation(mScrollX - child.mLeft, mScrollY - child.mTop)
+     
+     这样 child 收到的 event.getX()/getY() 就是相对于自己的坐标
+
+  2. 变换矩阵
+     ─────────────────────────────────────────────────────────────────────────
+     如果 child 有 scale/rotation/translation，需要用逆矩阵转换坐标
+
+  3. 多点触控分割
+     ─────────────────────────────────────────────────────────────────────────
+     event.split(newPointerIdBits) 可以从一个多点触控事件中分离出特定触摸点
+
+  4. CANCEL 处理
+     ─────────────────────────────────────────────────────────────────────────
+     当 intercepted=true 时，会给当前的 TouchTarget 发送 CANCEL
+```
+
+### 9.5 子 View 收不到事件的原因
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    子 View 收不到事件的常见原因                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  原因 1：触摸点不在子 View 范围内
+  ─────────────────────────────────────────────────────────────────────────────
+
+  isTransformedTouchPointInView() 返回 false
+
+  可能的情况：
+  - 触摸点确实在子 View 外面
+  - 子 View 超出了父 ViewGroup 的边界（默认会被裁剪）
+  - 子 View 有负的 margin/translation
+
+
+  原因 2：子 View 不可见或正在隐藏动画
+  ─────────────────────────────────────────────────────────────────────────────
+
+  canViewReceivePointerEvents() 返回 false
+
+  检查：
+  - child.getVisibility() != VISIBLE
+  - child.getAnimation() == null || !child.getAnimation().isInitialized()
+
+
+  原因 3：父 ViewGroup 拦截了事件
+  ─────────────────────────────────────────────────────────────────────────────
+
+  onInterceptTouchEvent() 返回 true
+
+  解决方案：
+  - 在子 View 中调用 parent.requestDisallowInterceptTouchEvent(true)
+
+
+  原因 4：子 View 在 ACTION_DOWN 时返回了 false
+  ─────────────────────────────────────────────────────────────────────────────
+
+  如果子 View 的 dispatchTouchEvent() 在 ACTION_DOWN 时返回 false：
+  - 子 View 不会被加入 TouchTarget 链表
+  - 后续的 MOVE/UP 事件不会再分发给该子 View
+
+
+  原因 5：子 View 被其他 View 覆盖
+  ─────────────────────────────────────────────────────────────────────────────
+
+  ViewGroup 倒序遍历子 View，后添加的 View 优先接收事件
+
+  检查：
+  - 子 View 的 Z-order（elevation, translationZ）
+  - 子 View 在 mChildren 数组中的位置
+
+
+  原因 6：子 View 超出边界（无 TouchDelegate）
+  ─────────────────────────────────────────────────────────────────────────────
+
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │                                                                         │
+  │  ViewGroup                                                              │
+  │  ┌───────────────────────────────────────────────────────────────────┐  │
+  │  │                                                                   │  │
+  │  │     点击这里                                                       │  │
+  │  │        ●─────────┐                                                │  │
+  │  │                  │                                                │  │
+  │  │                  ▼                                                │  │
+  │  │         ┌────────────────┐                                        │  │
+  │  │         │                │                                        │  │
+  │  │         │   Child View   │  ← child 实际边界                      │  │
+  │  │         │                │                                        │  │
+  │  │         └────────────────┘                                        │  │
+  │  │                                                                   │  │
+  │  └───────────────────────────────────────────────────────────────────┘  │
+  │                                                                         │
+  │  问题：点击在 child 边界外，事件不会分发给 child                          │
+  │  解决：使用 TouchDelegate（见 9.6 节）                                   │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+```
+
+### 9.6 TouchDelegate 为什么设置在父 ViewGroup 上
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    TouchDelegate 设置位置的原理                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  问题：为什么 TouchDelegate 必须设置在父 ViewGroup 上？
+
+  答案：因为事件分发顺序决定的！
+
+  事件分发顺序：
+  ─────────────────────────────────────────────────────────────────────────────
+
+  ViewGroup.dispatchTouchEvent()
+      │
+      ├─► Step 1: 检查自己的 TouchDelegate  ★★★ 先检查 ★★★
+      │       if (mTouchDelegate != null) {
+      │           if (mTouchDelegate.onTouchEvent(event)) return true;
+      │       }
+      │
+      ├─► Step 2: 检查是否拦截
+      │       intercepted = onInterceptTouchEvent(ev);
+      │
+      ├─► Step 3: 遍历子 View，找触摸目标
+      │       for (child : children) {
+      │           // isTransformedTouchPointInView 检查触摸点是否在 child 内
+      │           // 如果触摸点在 child 边界外，这里直接 continue
+      │           if (!isTransformedTouchPointInView(x, y, child)) continue;
+      │           
+      │           // 分发给 child
+      │           child.dispatchTouchEvent(event);
+      │       }
+      │
+      └─► Step 4: 自己处理
+              super.dispatchTouchEvent(event);
+
+
+  如果 TouchDelegate 设置在子 View 上：
+  ─────────────────────────────────────────────────────────────────────────────
+
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │                                                                         │
+  │  ViewGroup                                                              │
+  │  ┌───────────────────────────────────────────────────────────────────┐  │
+  │  │                                                                   │  │
+  │  │     点击这里                                                       │  │
+  │  │        ●─────────┐                                                │  │
+  │  │                  │                                                │  │
+  │  │                  ▼                                                │  │
+  │  │         ┌────────────────┐                                        │  │
+  │  │         │                │                                        │  │
+  │  │         │   Child View   │  child.setTouchDelegate(delegate)      │  │
+  │  │         │                │                                        │  │
+  │  │         └────────────────┘                                        │  │
+  │  │                                                                   │  │
+  │  └───────────────────────────────────────────────────────────────────┘  │
+  │                                                                         │
+  │  流程：                                                                 │
+  │  1. ViewGroup.dispatchTouchEvent() 被调用                              │
+  │  2. isTransformedTouchPointInView() 检查触摸点                          │
+  │  3. 触摸点不在 child 内 → continue（跳过 child）                        │
+  │  4. child.dispatchTouchEvent() 不会被调用                               │
+  │  5. child 的 TouchDelegate 永远不会执行                                 │
+  │                                                                         │
+  │  ★★★ 结论：TouchDelegate 无效 ★★★                                      │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+
+
+  如果 TouchDelegate 设置在父 ViewGroup 上：
+  ─────────────────────────────────────────────────────────────────────────────
+
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │                                                                         │
+  │  ViewGroup  parent.setTouchDelegate(delegate)                          │
+  │  ┌───────────────────────────────────────────────────────────────────┐  │
+  │  │                                                                   │  │
+  │  │     点击这里  ← 在 TouchDelegate.bounds 内                         │  │
+  │  │        ●─────────┐                                                │  │
+  │  │        │         │                                                │  │
+  │  │        │    ┌────┴───────────┐                                    │  │
+  │  │        │    │                │                                    │  │
+  │  │        │    │   Child View   │  delegateView = child              │  │
+  │  │        │    │                │                                    │  │
+  │  │        │    └────────────────┘                                    │  │
+  │  │        │         bounds（扩展区域）                                 │  │
+  │  │        └─────────────────────────┘                                │  │
+  │  │                                                                   │  │
+  │  └───────────────────────────────────────────────────────────────────┘  │
+  │                                                                         │
+  │  流程：                                                                 │
+  │  1. ViewGroup.dispatchTouchEvent() 被调用                              │
+  │  2. ★ 先检查 ViewGroup 的 TouchDelegate ★                              │
+  │  3. TouchDelegate.onTouchEvent() 检查触摸点在 bounds 内                 │
+  │  4. 调用 child.dispatchTouchEvent()                                    │
+  │  5. child 响应点击                                                     │
+  │                                                                         │
+  │  ★★★ 结论：TouchDelegate 生效 ★★★                                      │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+```
+
+### 9.7 TouchTarget 链表
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         TouchTarget 链表结构                                │
+│  源码位置: frameworks/base/core/java/android/view/ViewGroup.java            │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  private static final class TouchTarget {
+      public View child;              // 目标 View
+      public TouchTarget next;        // 链表下一个节点
+      public int pointerIdBits;       // 关联的触摸点 ID（支持多点触控）
+  }
+
+  // ViewGroup 的成员变量
+  private TouchTarget mFirstTouchTarget;  // 链表头
+
+
+  为什么需要链表？
+  ─────────────────────────────────────────────────────────────────────────────
+
+  支持多点触控：多个手指可能同时触摸不同的子 View
+
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │                                                                         │
+  │  ViewGroup                                                              │
+  │  ┌───────────────────────────────────────────────────────────────────┐  │
+  │  │                                                                   │  │
+  │  │     手指1 ●              手指2 ●                                  │  │
+  │  │         │                    │                                    │  │
+  │  │         ▼                    ▼                                    │  │
+  │  │    ┌─────────┐          ┌─────────┐                               │  │
+  │  │    │ Child A │          │ Child B │                               │  │
+  │  │    └─────────┘          └─────────┘                               │  │
+  │  │                                                                   │  │
+  │  └───────────────────────────────────────────────────────────────────┘  │
+  │                                                                         │
+  │  mFirstTouchTarget → [Child A, pointerId=0]                            │
+  │                           │                                            │
+  │                           ▼                                            │
+  │                       [Child B, pointerId=1]                           │
+  │                           │                                            │
+  │                           ▼                                            │
+  │                          null                                          │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+
+
+  关键方法
+  ─────────────────────────────────────────────────────────────────────────────
+
+  1. addTouchTarget() - 添加目标
+  ─────────────────────────────────────────────────────────────────────────────
+
+  private TouchTarget addTouchTarget(View child, int pointerIdBits) {
+      TouchTarget target = TouchTarget.obtain(child, pointerIdBits);
+      target.next = mFirstTouchTarget;  // 头插法
+      mFirstTouchTarget = target;
+      return target;
+  }
+
+  2. TouchTarget.obtain() - 从对象池获取
+  ─────────────────────────────────────────────────────────────────────────────
+
+  // TouchTarget 使用对象池避免频繁创建对象
+  private static final int MAX_RECYCLED = 32;
+  private static TouchTarget sRecycleBin;
+  private static int sRecycledCount;
+
+  public static TouchTarget obtain(View child, int pointerIdBits) {
+      TouchTarget target;
+      if (sRecycleBin == null) {
+          target = new TouchTarget();
+      } else {
+          target = sRecycleBin;
+          sRecycleBin = target.next;
+          sRecycledCount--;
+          target.next = null;
+      }
+      target.child = child;
+      target.pointerIdBits = pointerIdBits;
+      return target;
+  }
+
+  3. clearTouchTargets() - 清空链表
+  ─────────────────────────────────────────────────────────────────────────────
+
+  private void clearTouchTargets() {
+      TouchTarget target = mFirstTouchTarget;
+      while (target != null) {
+          TouchTarget next = target.next;
+          target.recycle();  // 回收对象
+          target = next;
+      }
+      mFirstTouchTarget = null;
+  }
+
+
+  后续事件如何分发？
+  ─────────────────────────────────────────────────────────────────────────────
+
+  // MOVE/UP 事件直接分发给 mFirstTouchTarget 链表中的所有目标
+  if (mFirstTouchTarget != null) {
+      TouchTarget target = mFirstTouchTarget;
+      while (target != null) {
+          TouchTarget next = target.next;
+          if (alreadyDispatched && target == newTouchTarget) {
+              handled = true;
+          } else {
+              dispatchTransformedTouchEvent(ev, cancelChild,
+                      target.child, target.pointerIdBits);
+          }
+          target = next;
+      }
+  }
+```
+
+**TouchTarget 完整源码**：
+
+```java
+// frameworks/base/core/java/android/view/ViewGroup.java
+private static final class TouchTarget {
+    public View child;
+    public TouchTarget next;
+    public int pointerIdBits;
+    
+    // 对象池
+    private static final Object sRecycleLock = new Object();
+    private static TouchTarget sRecycleBin;
+    private static int sRecycledCount;
+    private static final int MAX_RECYCLED = 32;
+    
+    public static TouchTarget obtain(View child, int pointerIdBits) {
+        final TouchTarget target;
+        synchronized (sRecycleLock) {
+            if (sRecycleBin == null) {
+                target = new TouchTarget();
+            } else {
+                target = sRecycleBin;
+                sRecycleBin = target.next;
+                sRecycledCount--;
+                target.next = null;
+            }
+        }
+        target.child = child;
+        target.pointerIdBits = pointerIdBits;
+        return target;
+    }
+    
+    public void recycle() {
+        synchronized (sRecycleLock) {
+            if (sRecycledCount < MAX_RECYCLED) {
+                next = sRecycleBin;
+                sRecycleBin = this;
+                sRecycledCount++;
+            }
+        }
+    }
+}
+```
 
 ---
 
