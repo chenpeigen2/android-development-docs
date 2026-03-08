@@ -9,17 +9,18 @@
 | 1 | [Android_View_绘制流程.md](./Android_View_绘制流程.md) | 347KB | 2026-03-08 |
 | 2 | [Android_性能优化详解.md](./Android_性能优化详解.md) | 156KB | 2026-03-08 |
 | 3 | [Android_自定义View_绘制完全指南.md](./Android_自定义View_绘制完全指南.md) | 145KB | 2026-03-08 |
-| 4 | [Android_Activity_启动流程.md](./Android_Activity_启动流程.md) | 101KB | 2026-03-08 |
-| 5 | [Android事件分发机制详解.md](./Android事件分发机制详解.md) | 140KB | 2026-03-08 |
-| 6 | [Android_Handler机制详解.md](./Android_Handler机制详解.md) | 89KB | 2026-03-08 |
-| 7 | [Android_虚拟机详解.md](./Android_虚拟机详解.md) | 62KB | 2026-03-08 |
-| 8 | [Android事件分发机制完全指南.md](./Android事件分发机制完全指南.md) | 55KB | 2026-03-08 |
-| 9 | [Android_Gradle与AGP详解.md](./Android_Gradle与AGP详解.md) | 35KB | 2026-03-08 |
-| 10 | [Android_ClassLoader详解.md](./Android_ClassLoader详解.md) | 42KB | 2026-03-08 |
-| 11 | [Android_动画完全指南.md](./Android_动画完全指南.md) | 46KB | 2026-03-08 |
-| 12 | [Android_网络编程详解.md](./Android_网络编程详解.md) | 12KB | 2026-03-08 |
+| 4 | [Android事件分发机制详解.md](./Android事件分发机制详解.md) | 140KB | 2026-03-08 |
+| 5 | [Android_Activity_启动流程.md](./Android_Activity_启动流程.md) | 101KB | 2026-03-08 |
+| 6 | [Android_Binder机制深度解析.md](./Android_Binder机制深度解析.md) | 128KB | 2026-03-08 |
+| 7 | [Android_Handler机制详解.md](./Android_Handler机制详解.md) | 91KB | 2026-03-08 |
+| 8 | [Android_虚拟机详解.md](./Android_虚拟机详解.md) | 62KB | 2026-03-08 |
+| 9 | [Android事件分发机制完全指南.md](./Android事件分发机制完全指南.md) | 55KB | 2026-03-08 |
+| 10 | [Android_动画完全指南.md](./Android_动画完全指南.md) | 46KB | 2026-03-08 |
+| 11 | [Android_ClassLoader详解.md](./Android_ClassLoader详解.md) | 42KB | 2026-03-08 |
+| 12 | [Android_Gradle与AGP详解.md](./Android_Gradle与AGP详解.md) | 35KB | 2026-03-08 |
+| 13 | [Android_网络编程详解.md](./Android_网络编程详解.md) | 12KB | 2026-03-08 |
 
-**总计：12 篇文档，约 1.2MB**
+**总计：13 篇文档，约 1.35MB**
 
 ## 文档简介
 
@@ -55,15 +56,7 @@
 - Merge/Include/ViewStub 详解
 - 实战案例 (圆形进度条, 组合标题栏, 钢琴键盘)
 
-### 4. Android Activity 启动流程
-- ActivityThread 核心流程
-- PhoneWindow 创建时机
-- DecorView 添加到 WindowManager
-- mContentParent 初始化
-- Activity.attach() 详解
-- 从应用层到系统层的完整调用链
-
-### 5. Android 事件分发机制详解
+### 4. Android 事件分发机制详解
 - 事件类型 (MotionEvent)
 - 分发流程 (dispatchTouchEvent, onInterceptTouchEvent, onTouchEvent)
 - ViewGroup 事件分发详解
@@ -79,7 +72,34 @@
 - TouchDelegate 扩大点击区域
 - 滑动冲突解决
 
-### 6. Android Handler 机制详解
+### 5. Android Activity 启动流程
+- ActivityThread 核心流程
+- PhoneWindow 创建时机
+- DecorView 添加到 WindowManager
+- mContentParent 初始化
+- Activity.attach() 详解
+- 从应用层到系统层的完整调用链
+
+### 6. Android Binder 机制深度解析 ⭐ 新增
+- 为什么选择 Binder（性能、安全性对比）
+- Binder 整体架构（4 层架构图）
+- Binder 全局流程图（14 步完整调用链）
+- Binder 驱动层
+  - 核心数据结构（binder_proc, binder_thread, binder_node, binder_ref）
+  - 内存映射 mmap（一次拷贝原理）
+  - 缓冲区大小限制（1M - 8K 原因）
+  - ioctl 命令（BC_*/BR_*）
+- Native 层（ProcessState, IPCThreadState, BpBinder/BBinder）
+- Framework 层（Binder.java, BinderProxy.java, JNI）
+- AIDL 详解
+  - 语法与支持的数据类型
+  - 生成的代码结构（Stub/Proxy）
+  - 双向通信完整示例
+- Binder 线程池（默认 16 线程）
+- 跨进程通信方式对比（7 种 IPC 方式）
+- 常见问题（TransactionTooLargeException, 线程耗尽, 死亡通知）
+
+### 7. Android Handler 机制详解
 - Handler、Looper、MessageQueue 核心原理
 - ThreadLocal 存储机制
 - 同步屏障 (Sync Barrier)
@@ -88,40 +108,40 @@
 - loop() 为什么不会卡死
 - 完整源码分析
 
-### 7. Android 虚拟机详解
+### 8. Android 虚拟机详解
 - JVM vs Dalvik vs ART 对比
 - 基于栈 vs 基于寄存器架构
 - DEX 文件格式
 - ODEX 与 OAT 文件
 - 内存管理与 GC 算法
 
-### 8. Android 事件分发机制完全指南
+### 9. Android 事件分发机制完全指南
 - 事件分发基础
 - 典型场景分析
 - 滑动冲突解决
 - 最佳实践
 
-### 9. Android Gradle 与 AGP 详解
-- Gradle 构建流程
-- AGP (Android Gradle Plugin) 详解
-- 构建变体 (Build Variants)
-- 依赖管理
-- 自定义插件开发
-
-### 10. Android ClassLoader 详解
-- BootClassLoader、PathClassLoader
-- DexClassLoader、InMemoryDexClassLoader
-- 双亲委派模型
-- 热修复与插件化原理
-
-### 11. Android 动画完全指南
+### 10. Android 动画完全指南
 - 帧动画 (Frame Animation)
 - 补间动画 (Tween Animation)
 - 属性动画 (Property Animation)
 - 过渡动画 (Transition)
 - 共享元素动画
 
-### 12. Android 网络编程详解
+### 11. Android ClassLoader 详解
+- BootClassLoader、PathClassLoader
+- DexClassLoader、InMemoryDexClassLoader
+- 双亲委派模型
+- 热修复与插件化原理
+
+### 12. Android Gradle 与 AGP 详解
+- Gradle 构建流程
+- AGP (Android Gradle Plugin) 详解
+- 构建变体 (Build Variants)
+- 依赖管理
+- 自定义插件开发
+
+### 13. Android 网络编程详解
 - HTTP/HTTPS 协议
 - HTTP/1.1 vs HTTP/2 vs HTTP/3
 - TCP vs UDP
@@ -133,7 +153,17 @@
 
 ## 更新日志
 
-### 2026-03-08
+### 2026-03-08 (晚间)
+- ⭐ 新增 Android_Binder机制深度解析.md (128KB, 2085 行)
+  - 全局流程图（14 步完整调用链）
+  - 驱动层核心数据结构源码
+  - mmap 一次拷贝原理
+  - 缓冲区大小限制（1M - 8K）
+  - AIDL 双向通信完整示例
+  - Binder 线程池（16 线程）
+  - 7 种跨进程通信方式对比
+
+### 2026-03-08 (日间)
 - 重大更新 Android 事件分发机制详解
   - ViewGroup 事件分发 9.1-9.7 完整重写
   - View 事件分发详解
@@ -146,8 +176,6 @@
   - Choreographer 详解
   - ThreadedRenderer 详解
   - Canvas → Surface → SurfaceFlinger 调用链
-
-### 2026-03-08
 - 新增 Android 虚拟机详解
 - 新增 Android ClassLoader 详解
 - 新增 Android 网络编程详解
