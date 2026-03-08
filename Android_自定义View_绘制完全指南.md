@@ -7,14 +7,41 @@ _日期：2026-03-08_
 
 ## 目录
 
-1. [概述](#概述)
-2. [Drawable 资源详解](#drawable-资源详解)
-3. [View 绘制三大流程](#view-绘制三大流程)
-4. [Canvas 画布详解](#canvas-画布详解)
-5. [Paint 画笔详解](#paint-画笔详解)
-6. [渐变与色彩](#渐变与色彩)
-7. [自定义 View 实战](#自定义-view-实战)
-8. [性能优化](#性能优化)
+1. [概述](#1-概述)
+2. [Drawable 资源详解](#2-drawable-资源详解)
+3. [View 绘制三大流程](#3-view-绘制三大流程)
+4. [Canvas 画布详解](#4-canvas-画布详解)
+5. [Paint 画笔详解](#5-paint-画笔详解)
+6. [渐变与色彩](#6-渐变与色彩)
+7. [自定义 View 实战](#7-自定义-view-实战)
+8. [性能优化](#8-性能优化)
+9. [LayoutInflater 流程](#9-layoutinflater-流程)
+10. [Invalidate 与 RequestLayout](#10-invalidate-与-requestlayout)
+11. [Draw 流程详解](#11-draw-流程详解)
+12. [Canvas 高级用法](#12-canvas-高级用法)
+    - [Canvas Save/Restore 详解](#121-canvas-saverestore-详解)
+    - [Canvas saveLayer/RestoreToCount 详解](#122-canvas-savelayerrestoretoount-详解)
+    - [Canvas 裁剪高级用法](#123-canvas-裁剪高级用法)
+    - [混合模式 (PorterDuff) 详细解析](#124-混合模式-porterduff-详细解析)
+13. [View 与 ViewGroup 区别](#13-view-与-viewgroup-区别)
+14. [wrap_content 不生效问题](#14-wrap_content-不生效问题)
+15. [获取 View 宽高的正确时机](#15-获取-view-宽高的正确时机)
+    - [为什么 onResume 中获取宽高返回 0](#151-为什么-onresume-中获取宽高返回-0)
+    - [View.post() 原理详解](#152-viewpost-原理详解)
+    - [其他获取方式](#153-其他获取方式)
+16. [线程与 UI 更新](#16-线程与-ui-更新)
+    - [子线程不能更新 UI 的原因](#161-子线程不能更新-ui-的原因)
+    - [更新 UI 的正确方式](#162-更新-ui-的正确方式)
+    - [SurfaceView 特殊情况](#163-特殊情况surfaceview)
+17. [width/height 与 measuredWidth/measuredHeight](#17-widthheight-与-measuredwidthmeasuredheight)
+18. [根视图的多次 Measure](#18-根视图的多次-measure)
+19. [自定义 View 类型与分类](#19-自定义-view-类型与分类)
+20. [核心生命周期方法详解](#20-核心生命周期方法详解)
+21. [自定义属性详解](#21-自定义属性详解)
+22. [事件处理与交互](#22-事件处理与交互)
+23. [实战案例](#23-实战案例)
+24. [完整知识体系总结](#24-完整知识体系总结)
+25. [总结](#总结)
 
 ---
 
@@ -1653,7 +1680,7 @@ android:childrenDrawingOrderEnabled="true"
 
 ## 12. Canvas 高级用法
 
-### 12.1 Canvas Save/Restore 详解
+### 12.1 Canvas Save/Restore 详解 详解
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -2526,7 +2553,7 @@ class CustomView @JvmOverloads constructor(
 
 ## 15. 获取 View 宽高的正确时机
 
-### 15.1 onResume 中获取宽高
+### 15.1 为什么 onResume 中获取宽高返回 0
 
 ```kotlin
 /**
@@ -2550,7 +2577,7 @@ class MainActivity : AppCompatActivity() {
 }
 ```
 
-### 15.2 View.post() 获取宽高
+### 15.2 View.post() 原理详解
 
 ```kotlin
 /**
@@ -2591,7 +2618,7 @@ public void post(Runnable action) {
 }
 ```
 
-### 15.3 其他获取方式
+### 15.3 其他获取宽高的正确方式
 
 ```kotlin
 // 方式1: ViewTreeObserver
