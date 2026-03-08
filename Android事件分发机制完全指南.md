@@ -1,23 +1,58 @@
 # Android 事件分发机制完全指南
 
+> 作者：OpenClaw | 日期：2026-03-08
+
+---
+
 ## 目录
 
 1. [概述](#1-概述)
 2. [整体架构流程图](#2-整体架构流程图)
+   - 2.1 [完整架构图](#21-完整架构图)
 3. [内核层 (Linux Kernel)](#3-内核层-linux-kernel)
+   - 3.1 [触摸屏中断流程](#31-触摸屏中断流程)
+   - 3.2 [关键数据结构](#32-关键数据结构)
 4. [Native 层](#4-native-层)
+   - 4.1 [InputReader](#41-inputreader)
+   - 4.2 [InputDispatcher](#42-inputdispatcher)
+   - 4.3 [Socket 通信](#43-socket-通信)
 5. [Framework 层 - Input 子系统](#5-framework-层---input-子系统)
+   - 5.1 [InputReader 流程](#51-inputreader-流程)
+   - 5.2 [InputDispatcher 分发](#52-inputdispatcher-分发)
 6. [Framework 层 - WindowManagerService](#6-framework-层---windowmanagerservice)
-7. [App 层 - ViewRootImpl](#7-app层---viewrootimpl)
-8. [App 层 - Activity](#8-app层---activity)
-9. [App 层 - ViewGroup](#9-app层---viewgroup)
-10. [App 层 - View](#10-app层---view)
+   - 6.1 [WMS 角色](#61-wms-角色)
+   - 6.2 [Input 事件路由](#62-input-事件路由)
+7. [App层 - ViewRootImpl](#7-app层---viewrootimpl)
+   - 7.1 [ViewRootImpl 角色](#71-viewrootimpl-角色)
+   - 7.2 [Input 事件接收](#72-input-事件接收)
+   - 7.3 [ViewRootImpl 流程图](#73-viewrootimpl-流程图)
+8. [App层 - Activity](#8-app层---activity)
+   - 8.1 [Activity 事件分发入口](#81-activity-事件分发入口)
+   - 8.2 [Activity 流程图](#82-activity-流程图)
+9. [App层 - ViewGroup](#9-app层---viewgroup)
+   - 9.1 [ViewGroup 核心逻辑](#91-viewgroup-核心逻辑)
+   - 9.2 [ViewGroup 完整流程图](#92-viewgroup-完整流程图)
+10. [App层 - View](#10-app层---view)
+    - 10.1 [View 事件处理](#101-view-事件处理)
+    - 10.2 [View 事件处理流程图](#102-view-事件处理流程图)
 11. [完整流程图汇总](#11-完整流程图汇总)
+    - 11.1 [从内核到 View 的完整链路](#111-从内核到-view-的完整链路)
 12. [核心方法详解](#12-核心方法详解)
+    - 12.1 [方法对比表](#121-方法对比表)
+    - 12.2 [事件消费优先级](#122-事件消费优先级)
 13. [事件序列与状态管理](#13-事件序列与状态管理)
-14. [典型场景分[Android事件分发机制详解.md](Android%E4%BA%8B%E4%BB%B6%E5%88%86%E5%8F%91%E6%9C%BA%E5%88%B6%E8%AF%A6%E8%A7%A3.md)析](#14-典型场景分析)
+    - 13.1 [ACTION_DOWN 的特殊性](#131-action_down-的特殊性)
+    - 13.2 [事件序列图](#132-事件序列图)
+14. [典型场景分析](#14-典型场景分析)
+    - 场景一：子 View 处理事件
+    - 场景二：ViewGroup 拦截事件
 15. [滑动冲突解决](#15-滑动冲突解决)
+    - 15.1 [外部拦截法](#151-外部拦截法)
+    - 15.2 [内部拦截法](#152-内部拦截法)
 16. [进阶知识点](#16-进阶知识点)
+    - 16.1 [多指触控](#161-多指触控)
+    - 16.2 [TouchDelegate 扩大点击区域](#162-touchdelegate-扩大点击区域)
+    - 16.3 [异步事件处理](#163-异步事件处理)
 
 ---
 

@@ -1,22 +1,66 @@
 # Android 事件分发机制详解
 
+> 作者：OpenClaw | 日期：2026-03-08
+
+---
+
 ## 目录
 
-1. [概述](#概述)
-2. [事件类型](#事件类型)
-3. [分发流程](#分发流程)
-4. [核心方法](#核心方法)
-5. [dispatchTouchEvent](#dispatchtouchevent)
-6. [onInterceptTouchEvent](#onintercepttouchevent)
-7. [onTouchEvent](#ontouchevent)
-8. [事件传递规则](#事件传递规则)
-9. [ViewGroup 事件分发](#viewgroup-事件分发)
-10. [View 事件分发](#view-事件分发)
-11. [Activity 事件分发](#activity-事件分发)
-12. [典型场景分析](#典型场景分析)
-13. [滑动冲突解决](#滑动冲突解决)
-14. [源码解析](#源码解析)
-15. [最佳实践](#最佳实践)
+1. [概述](#1-概述)
+2. [事件类型](#2-事件类型)
+   - 2.1 [触摸事件 (MotionEvent)](#21-触摸事件-motionevent)
+   - 2.2 [事件批次](#22-事件批次)
+3. [分发流程](#3-分发流程)
+   - 3.1 [整体流程图](#31-整体流程图)
+   - 3.2 [传递顺序](#32-传递顺序)
+4. [核心方法详解](#4-核心方法详解)
+   - 4.1 [方法签名](#41-方法签名)
+   - 4.2 [方法返回值含义](#42-方法返回值含义)
+5. [dispatchTouchEvent](#5-dispatchtouchevent)
+   - 5.1 [作用](#51-作用)
+   - 5.2 [ViewGroup 中的实现逻辑](#52-viewgroup-中的实现逻辑)
+   - 5.3 [关键点](#53-关键点)
+6. [onInterceptTouchEvent](#6-onintercepttouchevent)
+   - 6.1 [作用](#61-作用)
+   - 6.2 [默认实现](#62-默认实现)
+   - 6.3 [拦截时机](#63-拦截时机)
+   - 6.4 [拦截后的处理](#64-拦截后的处理)
+7. [onTouchEvent](#7-ontouchevent)
+   - 7.1 [作用](#71-作用)
+   - 7.2 [View 的默认实现](#72-view-的默认实现)
+   - 7.3 [关键结论](#73-关键结论)
+8. [事件传递规则](#8-事件传递规则)
+   - 8.1 [传递规则总结](#81-传递规则总结)
+   - 8.2 [核心规则](#82-核心规则)
+   - 8.3 [ACTION_DOWN 的特殊性](#83-action_down-的特殊性)
+9. [ViewGroup 事件分发](#9-viewgroup-事件分发)
+   - 9.1 [分发流程](#91-分发流程)
+   - 9.2 [触摸目标 (TouchTarget)](#92-触摸目标-touchtarget)
+10. [View 事件分发](#10-view-事件分发)
+    - 10.1 [分发流程](#101-分发流程)
+    - 10.2 [优先级](#102-优先级)
+    - 10.3 [onTouchEvent 详解](#103-ontouchevent-详解)
+11. [Activity 事件分发](#11-activity-事件分发)
+    - 11.1 [Activity 的 dispatchTouchEvent](#111-activity-的-dispatchtouchevent)
+    - 11.2 [Activity 的 onTouchEvent](#112-activity-的-ontouchevent)
+12. [典型场景分析](#12-典型场景分析)
+    - 场景一：子 View 处理事件
+    - 场景二：ViewGroup 拦截事件
+    - 场景三：子 View 不处理事件
+    - 场景四：多层嵌套不处理
+    - 场景五：子 View 重叠时的分配
+13. [TouchDelegate 扩大点击区域](#13-touchdelegate-扩大点击区域)
+    - 13.1 [使用场景](#131-使用场景)
+    - 13.2 [实现方式](#132-实现方式)
+    - 13.3 [原理](#133-原理)
+14. [滑动冲突解决](#14-滑动冲突解决)
+    - 14.1 [常见滑动冲突场景](#141-常见滑动冲突场景)
+    - 14.2 [解决策略](#142-解决策略)
+15. [源码解析](#15-源码解析)
+    - 15.1 [ViewGroup.findTouchTarget](#151-viewgroupfindtouchtarget)
+    - 15.2 [dispatchTransformedTouchEvent](#152-dispatchtransformedtouchevent)
+16. [最佳实践](#16-最佳实践)
+    - 16.1 [开发建议](#161-开发建议)
 
 ---
 
