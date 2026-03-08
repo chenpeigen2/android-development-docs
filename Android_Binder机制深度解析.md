@@ -17,7 +17,13 @@
 9. [Binder 线程池](#9-binder-线程池)
 10. [跨进程通信方式对比](#10-跨进程通信方式对比)
 11. [常见问题](#11-常见问题)
-12. [总结](#12-总结)
+12. [ServiceManager](#12-servicemanager)
+13. [Messenger](#13-messenger)
+14. [ContentProvider](#14-contentprovider)
+15. [文件共享](#15-文件共享)
+16. [Socket IPC](#16-socket-ipc)
+17. [Binder 调试技巧](#17-binder-调试技巧)
+18. [总结](#18-总结)
 
 ---
 
@@ -2016,7 +2022,661 @@
 
 ---
 
-## 12. 总结
+## 12. ServiceManager
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         ServiceManager 详解                                 │
+│  源码位置: frameworks/native/cmds/servicemanager/                          │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  ServiceManager 是 Android 系统中 Binder 服务的"管家"：
+  ─────────────────────────────────────────────────────────────────────────────
+
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │                                                                         │
+  │                        ServiceManager                                   │
+  │  ┌───────────────────────────────────────────────────────────────────┐  │
+  │  │                                                                   │  │
+  │  │    服务注册表                                                      │  │
+  │  │    ┌─────────────────────────────────────────────────────────────┐│  │
+  │  │    │  名称              │  Binder 引用                           ││  │
+  │  │    ├────────────────────┼────────────────────────────────────────┤│  │
+  │  │    │  "activity"        │  ActivityManagerService                ││  │
+  │  │    │  "package"         │  PackageManagerService                 ││  │
+  │  │    │  "window"          │  WindowManagerService                  ││  │
+  │  │    │  "audio"           │  AudioManagerService                   ││  │
+  │  │    │  ...               │  ...                                   ││  │
+  │  │    └────────────────────┴────────────────────────────────────────┘│  │
+  │  │                                                                   │  │
+  │  │    功能:                                                          │  │
+  │  │    1. addService(name, binder) - 注册服务                         │  │
+  │  │    2. getService(name) - 查询服务                                  │  │
+  │  │    3. listServices() - 列出所有服务                                │  │
+  │  │                                                                   │  │
+  │  └───────────────────────────────────────────────────────────────────┘  │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+
+
+  ServiceManager 启动流程：
+  ─────────────────────────────────────────────────────────────────────────────
+
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │                                                                         │
+  │  1. init 进程启动 ServiceManager                                        │
+  │     ─────────────────────────────────────────────────────────────────── │
+  │     // init.rc                                                         │
+  │     service servicemanager /system/bin/servicemanager                  │
+  │         class core                                                     │
+  │         user system                                                    │
+  │         critical                                                       │
+  │                                                                         │
+  │  2. ServiceManager 初始化                                               │
+  │     ─────────────────────────────────────────────────────────────────── │
+  │     // frameworks/native/cmds/servicemanager/service_manager.c         │
+  │     int main() {                                                        │
+  │         // 打开 Binder 驱动                                             │
+  │         bs = binder_open(128*1024);  // ★ 128K 缓冲区 ★               │
+  │                                                                         │
+  │         // 注册为上下文管理者                                           │
+  │         ioctl(bs->fd, BINDER_SET_CONTEXT_MGR, 0);                      │
+  │                                                                         │
+  │         // 进入循环                                                     │
+  │         binder_loop(bs, svcmgr_handler);                               │
+  │     }                                                                   │
+  │                                                                         │
+  │  3. 处理请求                                                            │
+  │     ─────────────────────────────────────────────────────────────────── │
+  │     int svcmgr_handler(...) {                                          │
+  │         switch(txn->code) {                                            │
+  │             case SVC_MGR_ADD_SERVICE:                                  │
+  │                 // 注册服务                                             │
+  │                 do_add_service(...);                                   │
+  │                 break;                                                 │
+  │             case SVC_MGR_GET_SERVICE:                                  │
+  │                 // 查询服务                                             │
+  │                 do_find_service(...);                                  │
+  │                 break;                                                 │
+  │         }                                                              │
+  │     }                                                                  │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+
+
+  为什么 ServiceManager 缓冲区只有 128K？
+  ─────────────────────────────────────────────────────────────────────────────
+
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │                                                                         │
+  │  原因：                                                                 │
+  │  1. ServiceManager 只处理服务注册/查询                                   │
+  │  2. 传递的数据量很小（服务名称 + Binder 引用）                            │
+  │  3. 不需要传输大数据                                                    │
+  │  4. 节省内核内存                                                        │
+  │                                                                         │
+  │  对比：                                                                 │
+  │  - ServiceManager: 128K                                                │
+  │  - 普通应用进程: (1M - 8K)                                              │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+
+
+  获取 ServiceManager：
+  ─────────────────────────────────────────────────────────────────────────────
+
+  // frameworks/base/core/java/android/os/ServiceManager.java
+  
+  public final class ServiceManager {
+      
+      private static IServiceManager sServiceManager;
+      
+      /**
+       * 获取 ServiceManager 代理
+       */
+      public static IServiceManager getServiceManager() {
+          if (sServiceManager != null) {
+              return sServiceManager;
+          }
+          
+          // ★ 获取 ServiceManager 的 BinderProxy (handle = 0) ★
+          sServiceManager = ServiceManagerNative.asInterface(
+                  BinderInternal.getContextObject());
+          
+          return sServiceManager;
+      }
+      
+      /**
+       * 根据名称获取服务
+       */
+      public static IBinder getService(String name) {
+          try {
+              IBinder service = sCache.get(name);
+              if (service != null) {
+                  return service;
+              }
+              return ServiceManager.getServiceManager().getService(name);
+          } catch (RemoteException e) {
+              Log.e(TAG, "error in getService", e);
+          }
+          return null;
+      }
+      
+      /**
+       * 注册服务
+       */
+      public static void addService(String name, IBinder service) {
+          try {
+              ServiceManager.getServiceManager().addService(name, service, false);
+          } catch (RemoteException e) {
+              Log.e(TAG, "error in addService", e);
+          }
+      }
+  }
+```
+
+---
+
+## 13. Messenger
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         Messenger 详解                                      │
+│  源码位置: frameworks/base/core/java/android/os/Messenger.java              │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  Messenger 是对 Binder 的轻量级封装，用于简单的消息传递：
+
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │                                                                         │
+  │  特点：                                                                 │
+  │  ─────────────────────────────────────────────────────────────────────  │
+  │  1. 基于 Handler + Binder 实现                                          │
+  │  2. 一次只处理一个请求（串行）                                           │
+  │  3. 不支持并发                                                          │
+  │  4. 单向通信（需要两个 Messenger 实现双向）                              │
+  │  5. 使用 Message 传递数据                                               │
+  │                                                                         │
+  │  对比 AIDL：                                                            │
+  │  ─────────────────────────────────────────────────────────────────────  │
+  │  - Messenger: 简单、串行、消息传递                                       │
+  │  - AIDL: 复杂、并发、方法调用                                           │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+
+
+  源码分析：
+  ─────────────────────────────────────────────────────────────────────────────
+
+  // frameworks/base/core/java/android/os/Messenger.java
+  
+  public final class Messenger implements Parcelable {
+      
+      private final IMessenger mTarget;
+      
+      /**
+       * 从 Handler 创建 Messenger
+       */
+      public Messenger(Handler target) {
+          mTarget = target.getIMessenger();
+      }
+      
+      /**
+       * 发送消息
+       */
+      public void send(Message message) throws RemoteException {
+          mTarget.send(message);
+      }
+      
+      /**
+       * 获取底层的 IBinder
+       */
+      public IBinder getBinder() {
+          return mTarget.asBinder();
+      }
+  }
+
+
+  // IMessenger.aidl
+  oneway interface IMessenger {
+      void send(in Message msg);
+  }
+
+
+  完整示例：
+  ─────────────────────────────────────────────────────────────────────────────
+
+  // 服务端
+  public class MessengerService extends Service {
+      
+      // 服务端 Handler
+      private Handler mHandler = new Handler(Looper.getMainLooper()) {
+          @Override
+          public void handleMessage(Message msg) {
+              switch (msg.what) {
+                  case MSG_FROM_CLIENT:
+                      // ★ 收到客户端消息 ★
+                      String data = msg.getData().getString("msg");
+                      Log.d("Service", "Received: " + data);
+                      
+                      // 回复客户端
+                      Message reply = Message.obtain(null, MSG_FROM_SERVER);
+                      Bundle bundle = new Bundle();
+                      bundle.putString("reply", "Hello from Service");
+                      reply.setData(bundle);
+                      
+                      try {
+                          // ★ 通过客户端的 Messenger 回复 ★
+                          msg.replyTo.send(reply);
+                      } catch (RemoteException e) {
+                          e.printStackTrace();
+                      }
+                      break;
+              }
+          }
+      };
+      
+      // 创建 Messenger
+      private final Messenger mMessenger = new Messenger(mHandler);
+      
+      @Override
+      public IBinder onBind(Intent intent) {
+          // ★ 返回 Messenger 的 Binder ★
+          return mMessenger.getBinder();
+      }
+  }
+
+
+  // 客户端
+  public class MainActivity extends Activity {
+      
+      private Messenger mServiceMessenger;
+      private boolean mBound = false;
+      
+      // 客户端 Handler (接收服务端回复)
+      private Handler mHandler = new Handler(Looper.getMainLooper()) {
+          @Override
+          public void handleMessage(Message msg) {
+              switch (msg.what) {
+                  case MSG_FROM_SERVER:
+                      String reply = msg.getData().getString("reply");
+                      Log.d("Client", "Reply: " + reply);
+                      break;
+              }
+          }
+      };
+      
+      // 客户端 Messenger
+      private Messenger mClientMessenger = new Messenger(mHandler);
+      
+      private ServiceConnection mConnection = new ServiceConnection() {
+          @Override
+          public void onServiceConnected(ComponentName name, IBinder service) {
+              // ★ 获取服务端 Messenger ★
+              mServiceMessenger = new Messenger(service);
+              mBound = true;
+              
+              // 发送消息
+              Message msg = Message.obtain(null, MSG_FROM_CLIENT);
+              Bundle bundle = new Bundle();
+              bundle.putString("msg", "Hello from Client");
+              msg.setData(bundle);
+              
+              // ★ 设置回复 Messenger ★
+              msg.replyTo = mClientMessenger;
+              
+              try {
+                  mServiceMessenger.send(msg);
+              } catch (RemoteException e) {
+                  e.printStackTrace();
+              }
+          }
+          
+          @Override
+          public void onServiceDisconnected(ComponentName name) {
+              mServiceMessenger = null;
+              mBound = false;
+          }
+      };
+  }
+```
+
+---
+
+## 14. ContentProvider
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         ContentProvider 详解                                │
+│  源码位置: frameworks/base/core/java/android/content/ContentProvider.java   │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  ContentProvider 是 Android 提供的结构化数据共享机制：
+
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │                                                                         │
+  │  特点：                                                                 │
+  │  ─────────────────────────────────────────────────────────────────────  │
+  │  1. 标准化接口（CRUD 操作）                                              │
+  │  2. 内置权限控制                                                        │
+  │  3. 支持 URI 匹配                                                       │
+  │  4. 支持 Cursor 返回结果集                                              │
+  │  5. 基于 Binder 实现                                                    │
+  │                                                                         │
+  │  适用场景：                                                             │
+  │  ─────────────────────────────────────────────────────────────────────  │
+  │  - 跨应用数据共享（联系人、短信、媒体库）                                 │
+  │  - 数据库共享                                                           │
+  │  - 文件共享                                                             │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+
+
+  核心方法：
+  ─────────────────────────────────────────────────────────────────────────────
+
+  public abstract class ContentProvider {
+      
+      // 初始化
+      public abstract boolean onCreate();
+      
+      // 查询
+      public abstract Cursor query(Uri uri, String[] projection,
+              String selection, String[] selectionArgs, String sortOrder);
+      
+      // 插入
+      public abstract Uri insert(Uri uri, ContentValues values);
+      
+      // 更新
+      public abstract int update(Uri uri, ContentValues values,
+              String selection, String[] selectionArgs);
+      
+      // 删除
+      public abstract int delete(Uri uri, String selection,
+              String[] selectionArgs);
+      
+      // 获取类型
+      public abstract String getType(Uri uri);
+  }
+
+
+  ContentProvider 的 Binder 通信：
+  ─────────────────────────────────────────────────────────────────────────────
+
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │                                                                         │
+  │  ContentResolver (Client)              ContentProvider (Server)         │
+  │  ┌─────────────────────┐               ┌─────────────────────┐         │
+  │  │                     │               │                     │         │
+  │  │ query()             │               │ query()             │         │
+  │  │ insert()            │  ═════════►   │ insert()            │         │
+  │  │ update()            │  Binder IPC   │ update()            │         │
+  │  │ delete()            │  ◄═════════   │ delete()            │         │
+  │  │                     │               │                     │         │
+  │  │ ContentResolver     │               │ ContentProvider     │         │
+  │  │ (应用进程)          │               │ (提供者进程)        │         │
+  │  └─────────────────────┘               └─────────────────────┘         │
+  │                                                                         │
+  │  通信方式：                                                             │
+  │  ─────────────────────────────────────────────────────────────────────  │
+  │  1. 客户端通过 ContentResolver 调用                                     │
+  │  2. AMS 找到目标 ContentProvider                                        │
+  │  3. 通过 Binder 调用目标进程的 ContentProvider                          │
+  │  4. 返回 Cursor (通过 CursorWindow 共享内存)                            │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+
+
+  CursorWindow 共享内存优化：
+  ─────────────────────────────────────────────────────────────────────────────
+
+  // CursorWindow 使用共享内存传输大数据
+  
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │                                                                         │
+  │  ContentProvider 进程                    Client 进程                    │
+  │  ┌─────────────────────┐                ┌─────────────────────┐         │
+  │  │                     │                │                     │         │
+  │  │  查询数据库          │                │                     │         │
+  │  │       │             │                │                     │         │
+  │  │       ▼             │                │                     │         │
+  │  │  填充 CursorWindow  │                │                     │         │
+  │  │  (共享内存)         │───────────────►│  读取 CursorWindow  │         │
+  │  │                     │   共享内存      │  (同一块内存)       │         │
+  │  │                     │                │                     │         │
+  │  └─────────────────────┘                └─────────────────────┘         │
+  │                                                                         │
+  │  ★ CursorWindow 使用共享内存，避免大量数据通过 Binder 拷贝 ★            │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 15. 文件共享
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         文件共享 IPC                                        │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  适用场景：
+  ─────────────────────────────────────────────────────────────────────────────
+  - 低频数据持久化
+  - 大文件共享
+  - 简单的数据交换
+
+
+  实现方式：
+  ─────────────────────────────────────────────────────────────────────────────
+
+  // 进程 A: 写入文件
+  public void writeFile(String content) {
+      File file = new File(getExternalFilesDir(null), "shared.txt");
+      try (FileOutputStream fos = new FileOutputStream(file)) {
+          fos.write(content.getBytes());
+      } catch (IOException e) {
+          e.printStackTrace();
+      }
+  }
+
+  // 进程 B: 读取文件
+  public String readFile() {
+      File file = new File(getExternalFilesDir(null), "shared.txt");
+      try (FileInputStream fis = new FileInputStream(file)) {
+          byte[] buffer = new byte[1024];
+          StringBuilder sb = new StringBuilder();
+          int len;
+          while ((len = fis.read(buffer)) > 0) {
+              sb.append(new String(buffer, 0, len));
+          }
+          return sb.toString();
+      } catch (IOException e) {
+          e.printStackTrace();
+      }
+      return null;
+  }
+
+
+  注意事项：
+  ─────────────────────────────────────────────────────────────────────────────
+  1. 需要处理并发访问（使用文件锁）
+  2. 实时性差（需要轮询或监听）
+  3. 需要处理文件权限
+
+
+  SharedPreferences 跨进程：
+  ─────────────────────────────────────────────────────────────────────────────
+
+  // ⚠️ 注意：SharedPreferences 不支持跨进程安全访问！
+  // Android 7.0 后，MODE_MULTI_PROCESS 已废弃
+
+  // 推荐使用 ContentProvider 或其他 IPC 机制
+```
+
+---
+
+## 16. Socket IPC
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         Socket IPC                                          │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  适用场景：
+  ─────────────────────────────────────────────────────────────────────────────
+  - 跨设备通信
+  - 实时双向通信
+  - 需要跨平台兼容
+
+
+  本地 Socket 示例：
+  ─────────────────────────────────────────────────────────────────────────────
+
+  // 服务端
+  public class LocalSocketServer {
+      
+      private LocalServerSocket mServerSocket;
+      
+      public void start() {
+          try {
+              mServerSocket = new LocalServerSocket("my.socket");
+              
+              while (true) {
+                  LocalSocket client = mServerSocket.accept();
+                  
+                  // 处理客户端连接
+                  new Thread(() -> handleClient(client)).start();
+              }
+          } catch (IOException e) {
+              e.printStackTrace();
+          }
+      }
+      
+      private void handleClient(LocalSocket client) {
+          try {
+              InputStream is = client.getInputStream();
+              OutputStream os = client.getOutputStream();
+              
+              // 读取数据
+              byte[] buffer = new byte[1024];
+              int len = is.read(buffer);
+              String msg = new String(buffer, 0, len);
+              
+              // 回复
+              os.write("Received".getBytes());
+              
+              client.close();
+          } catch (IOException e) {
+              e.printStackTrace();
+          }
+      }
+  }
+
+
+  // 客户端
+  public class LocalSocketClient {
+      
+      public void connect() {
+          try {
+              LocalSocket socket = new LocalSocket();
+              socket.connect(new LocalSocketAddress("my.socket"));
+              
+              OutputStream os = socket.getOutputStream();
+              InputStream is = socket.getInputStream();
+              
+              // 发送数据
+              os.write("Hello".getBytes());
+              
+              // 接收回复
+              byte[] buffer = new byte[1024];
+              int len = is.read(buffer);
+              String reply = new String(buffer, 0, len);
+              
+              socket.close();
+          } catch (IOException e) {
+              e.printStackTrace();
+          }
+      }
+  }
+```
+
+---
+
+## 17. Binder 调试技巧
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         Binder 调试技巧                                     │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  1. 查看 Binder 线程状态
+  ─────────────────────────────────────────────────────────────────────────────
+
+  // 查看进程的 Binder 线程
+  adb shell cat /proc/<pid>/status | grep -i binder
+
+
+  2. 查看 Binder 统计信息
+  ─────────────────────────────────────────────────────────────────────────────
+
+  // 查看 Binder 驱动统计
+  adb shell cat /d/binder/stats
+
+
+  3. 查看 Binder 进程信息
+  ─────────────────────────────────────────────────────────────────────────────
+
+  // 查看所有 Binder 进程
+  adb shell cat /d/binder/proc
+
+
+  4. 查看 Binder 事务
+  ─────────────────────────────────────────────────────────────────────────────
+
+  // 开启 Binder 事务日志
+  adb shell echo 1 > /d/binder/transaction_log
+  
+  // 查看事务日志
+  adb shell cat /d/binder/transaction_log
+
+
+  5. dumpsys 查看 Binder 状态
+  ─────────────────────────────────────────────────────────────────────────────
+
+  // 查看所有服务
+  adb shell service list
+  
+  // 查看特定服务
+  adb shell dumpsys activity
+  
+  // 查看 Binder 线程池状态
+  adb shell dumpsys <service_name>
+
+
+  6. 常见错误排查
+  ─────────────────────────────────────────────────────────────────────────────
+
+  错误: TransactionTooLargeException
+  原因: 传输数据超过 1M - 8K
+  解决: 减少数据量或使用文件共享
+
+  错误: DeadObjectException
+  原因: 对端进程已死亡
+  解决: 使用 DeathRecipient 监听并重连
+
+  错误: SecurityException
+  原因: 权限不足
+  解决: 检查 AndroidManifest.xml 权限声明
+
+  错误: RemoteException
+  原因: Binder 通信失败
+  解决: 检查服务端是否正常、Binder 线程是否耗尽
+```
+
+---
+
+## 18. 总结
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
