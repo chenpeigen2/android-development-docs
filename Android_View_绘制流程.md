@@ -31,7 +31,8 @@
      - 2.11.1 [Canvas 与 Surface 关系](#2111-canvas-与-surface-关系)
      - 2.11.2 [View 绘制到 Canvas 流程](#2112-view-绘制到-canvas-流程)
      - 2.11.3 [软件绘制流程](#2113-软件绘制流程-drawsoftware)
-     - 2.11.4 [硬件加速绘制流程](#2114-硬件加速绘制流程-threadedrenderer)
+     - 2.11.4 [Canvas 如何绑定到 Surface](#2114-canvas-如何绑定到-surface)
+     - 2.11.5 [硬件加速绘制流程](#2115-硬件加速绘制流程-threadedrenderer)
    - 2.12 [Surface 到 SurfaceFlinger 调用详解](#212-surface-到-surfaceflinger-调用详解)
      - 2.12.1 [Surface 创建流程](#2121-surface-创建流程)
      - 2.12.2 [BufferQueue 创建与组件](#2122-bufferqueue-创建与组件)
@@ -1633,10 +1634,189 @@ Android 图形系统采用 生产者-消费者 模型:
   │  }                                                                      │
   │                                                                         │
   └─────────────────────────────────────────────────────────────────────────┘
+```
+
+#### 2.11.4 Canvas 如何绑定到 Surface
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         Canvas 如何绑定到 Surface                           │
+│  核心原理: Canvas 的底层内存指向 Surface 中的 GraphicBuffer               │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │  关键问题: Canvas.drawRect() 等绘制操作如何写入 Surface？               │
+  │                                                                         │
+  │  答案: Canvas 持有一个指向 Surface 缓冲区的内存指针                     │
+  │        所有绘制操作直接写入这块共享内存                                 │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+
+
+  详细绑定流程:
+  ─────────────────────────────────────────────────────────────────────────────
+
+  Step 1: Surface.lockCanvas() 请求缓冲区
+  ─────────────────────────────────────────────────────────────────────────────
+  Java:  Surface.lockCanvas() → lockCanvasNative()
+  JNI:   nativeLockCanvas()
+         │
+         ▼
+  Native (android_view_Surface.cpp):
+         // 1. 获取 Surface
+         sp<Surface> surface = ...;
+         
+         // 2. ★★★ 锁定缓冲区 ★★★
+         ANativeWindowBuffer* buffer;
+         surface->lock(&buffer, dirtyRect);
+         // 内部: dequeueBuffer() → 获取 GraphicBuffer
+         
+         // 3. buffer->bits 就是缓冲区的内存地址!
+         void* pixels = buffer->bits;
+         
+         // 4. ★★★ 创建 Canvas，绑定到这块内存 ★★★
+         SkBitmap bitmap;
+         bitmap.setPixels(pixels);  // 关键: 绑定内存
+         
+         Canvas* canvas = new SkiaCanvas(bitmap);
+         return canvas;
+
+  Step 2: Canvas 绘制直接写入内存
+  ─────────────────────────────────────────────────────────────────────────────
+  canvas.drawRect(0, 0, 100, 100, paint);
+         │
+         ▼
+  SkiaCanvas::drawRect()
+         │
+         ▼
+  Skia 引擎直接写入 pixels 内存
+         │  for (y = top; y < bottom; y++) {
+         │      for (x = left; x < right; x++) {
+         │          pixels[x + y * stride] = color;
+         │      }
+         │  }
+         ▼
+  GraphicBuffer (共享内存)
+
+  Step 3: Surface.unlockCanvasAndPost() 提交缓冲区
+  ─────────────────────────────────────────────────────────────────────────────
+  Java:  Surface.unlockCanvasAndPost(canvas)
+  JNI:   nativeUnlockCanvasAndPost()
+         │
+         ▼
+  Native: surface->unlockAndPost()
+         │
+         ▼
+  queueBuffer() → 提交给 BufferQueue → SurfaceFlinger 可消费
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         Canvas 与 Surface 内存关系图                        │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │                                                                         │
+  │  ┌─────────────────┐      指向        ┌────────────────────────────┐   │
+  │  │     Canvas      │ ───────────────► │   GraphicBuffer (共享内存) │   │
+  │  │  (绘图 API)     │                  │                            │   │
+  │  │                 │                  │  pixels (void*):           │   │
+  │  │  drawRect()  ───┼──────┐           │  ┌──────────────────────┐  │   │
+  │  │  drawCircle()───┼───┐  │           │  │ 像素数据 (RGBA)      │  │   │
+  │  │  drawText()  ───┼─┐ │  │           │  │ [0,0][1,0][2,0]...   │  │   │
+  │  │                 │ │ │  │  直接写入 │  │ [0,1][1,1][2,1]...   │  │   │
+  │  └─────────────────┘ │ │  └─────────►│  │ ...                  │  │   │
+  │                      │ │             │  └──────────────────────┘  │   │
+  │                      │ │             │                            │   │
+  │                      │ │             │  属于: Surface → BufferQueue│   │
+  │                      │ │             └────────────────────────────┘   │
+  │                      │ │                                                │
+  │                      ▼ ▼                                                │
+  │  所有绘制操作直接修改这块内存，SurfaceFlinger 可以直接读取            │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         硬件加速模式的 Canvas 绑定                          │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  硬件加速模式下，Canvas 不直接绑定内存，而是记录绘制命令:
+
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │                                                                         │
+  │  ┌─────────────────┐                                                   │
+  │  │ RecordingCanvas │     不绑定实际内存                                │
+  │  │                 │                                                   │
+  │  │  drawRect()     │ ──► 记录命令: { type: DRAW_RECT, rect, paint }   │
+  │  │  drawCircle()   │ ──► 记录命令: { type: DRAW_CIRCLE, cx, cy, r }   │
+  │  │  drawText()     │ ──► 记录命令: { type: DRAW_TEXT, text, x, y }    │
+  │  └────────┬────────┘                                                   │
+  │           │                                                             │
+  │           ▼                                                             │
+  │  ┌─────────────────┐                                                   │
+  │  │   DisplayList   │     存储所有绘制命令                              │
+  │  │   (命令列表)    │     [cmd1, cmd2, cmd3, ...]                       │
+  │  └────────┬────────┘                                                   │
+  │           │                                                             │
+  │           ▼ RenderThread (异步)                                         │
+  │  ┌─────────────────┐                                                   │
+  │  │  OpenGL ES /    │     GPU 执行命令，渲染到 FBO                      │
+  │  │  Vulkan         │     FBO 绑定到 GraphicBuffer                      │
+  │  └────────┬────────┘                                                   │
+  │           │                                                             │
+  │           ▼                                                             │
+  │  ┌─────────────────┐                                                   │
+  │  │ GraphicBuffer   │     最终像素数据                                  │
+  │  └─────────────────┘                                                   │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+
+
+  对比总结:
+  ┌─────────────────┬─────────────────────────┬───────────────────────────────┐
+  │                 │  软件绘制 (Skia)        │  硬件加速 (HWUI)              │
+  ├─────────────────┼─────────────────────────┼───────────────────────────────┤
+  │  Canvas 类型    │  SkiaCanvas             │  RecordingCanvas              │
+  │  绑定方式       │  直接绑定内存指针       │  不绑定，记录命令             │
+  │  绘制时机       │  draw() 立即写入内存    │  RenderThread 异步执行        │
+  │  内存写入       │  CPU 逐像素写入         │  GPU 并行渲染                 │
+  │  缓冲区         │  GraphicBuffer.bits     │  FBO → GraphicBuffer          │
+  └─────────────────┴─────────────────────────┴───────────────────────────────┘
+```
+
+#### 2.11.5 硬件加速绘制流程 (ThreadedRenderer)
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         硬件加速绘制流程 (ThreadedRenderer)                 │
+│  源码: frameworks/base/core/java/android/view/ThreadedRenderer.java        │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  ViewRootImpl.draw()
+              │
+              │  mAttachInfo.mThreadedRenderer.draw()
+              ▼
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │  ThreadedRenderer.draw()                                                │
+  │  ─────────────────────────────────────────────────────────────────────── │
+  │                                                                         │
+  │  void draw(View view, AttachInfo attachInfo, DrawCallbacks callbacks,  │
+  │          Handler handler, boolean hasCallbacks) {                       │
+  │                                                                         │
+  │      // 1. 更新层级树                                                   │
+  │      updateHierarchyDisplayList(view);                                  │
+  │                                                                         │
+  │      // 2. 同步 DisplayList 到 RenderThread                            │
+  │      int syncResult = syncAndDrawFrame(frameInfo);                      │
+  │                                                                         │
+  │      // 3. RenderThread 执行 GPU 渲染 (异步，不阻塞 UI 线程)           │
+  │  }                                                                      │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
               │
               ▼
   ┌─────────────────────────────────────────────────────────────────────────┐
-  │  Surface.lockCanvas() 底层调用                                          │
+  │  View.updateDisplayListIfDirty()                                        │
   │  源码: frameworks/base/core/java/android/view/Surface.java              │
   │  ─────────────────────────────────────────────────────────────────────── │
   │                                                                         │
