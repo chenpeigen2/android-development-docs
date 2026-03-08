@@ -7,6 +7,13 @@
 1. [概述](#1-概述)
 2. [Activity 启动的两种方式](#2-activity-启动的两种方式)
 3. [启动流程详解](#3-启动流程详解)
+   - [整体架构](#31-整体架构)
+   - [完整流程图](#32-完整流程图)
+   - [PhoneWindow 详解](#38-phonewindow-详解)
+     - [PhoneWindow 创建时机](#381-phonewindow-创建时机)
+     - [mContentParent 初始化](#382-mcontentparent-初始化)
+     - [DecorView 添加到 WindowManager](#383-decorview-什么时候添加到-windowmanager)
+     - [Activity.attach() 详解](#384-activityattach-详解)
 4. [核心组件交互](#4-核心组件交互)
 5. [生命周期回调](#5-生命周期回调)
 6. [常见问题与优化](#6-常见问题与优化)
@@ -810,7 +817,364 @@ ViewRootImpl.performTraversals()
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 3.7 完整时序图 (AMS → AT → ViewRootImpl)
+### 3.8 PhoneWindow 详解
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         PhoneWindow 详解                                   │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+PhoneWindow 是 Window 抽象类的唯一实现类，负责：
+- 管理 Activity 的顶层视图 (DecorView)
+- 窗口装饰（标题栏、状态栏等）
+- 内容区域的布局管理
+```
+
+#### 3.8.1 PhoneWindow 创建时机
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    PhoneWindow 创建时机                                     │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+ActivityThread.performLaunchActivity()
+       │
+       ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  1. 创建 Activity 实例 (反射)                                               │
+│     Activity activity = mInstrumentation.newActivity(cl, className, intent) │
+└──────────────────────────────────────────────────────────────────────────────┘
+       │
+       ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  2. 调用 Activity.attach()                                                  │
+│     activity.attach(appContext, this, r.token, ...)                        │
+│                                                                             │
+│     ⚠️ PhoneWindow 在这里创建！                                             │
+└──────────────────────────────────────────────────────────────────────────────┘
+       │
+       ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  3. 触发 onCreate()                                                         │
+│     instrumentation.callActivityOnCreate(activity, r.state)                │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+**源码解析：**
+
+```java
+// ActivityThread.java
+private Activity performLaunchActivity(ActivityClientRecord r, Intent customIntent) {
+    // 1. 创建 Activity 实例
+    Activity activity = mInstrumentation.newActivity(cl, component.getClassName(), r.intent);
+    
+    // 2. 调用 attach() 初始化窗口
+    // ⚠️ PhoneWindow 在这里创建！
+    activity.attach(appContext, this, r.token, r.ident, r.application, ...);
+    
+    // 3. 触发 onCreate()
+    if (r.isPersistable()) {
+        mInstrumentation.callActivityOnCreate(activity, r.state, r.persistentState);
+    } else {
+        mInstrumentation.callActivityOnCreate(activity, r.state);
+    }
+    
+    return activity;
+}
+
+// Activity.java
+final void attach(Context context, ActivityThread aThread, IBinder token, ...) {
+    // ⚠️ 创建 PhoneWindow 实例
+    mWindow = new PhoneWindow(this, windowActivityController);
+    
+    // 设置 WindowManager
+    mWindow.setWindowManager(
+        (WindowManager) context.getSystemService(Context.WINDOW_SERVICE),
+        mToken, mComponent.flattenToString(),
+        (info.flags & ActivityInfo.FLAG_HARDWARE_ACCELERATED) != 0
+    );
+}
+```
+
+#### 3.8.2 mContentParent 初始化
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    mContentParent 初始化流程                                │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+Activity.setContentView(layoutResID)
+       │
+       ▼
+PhoneWindow.setContentView(layoutResID)
+       │
+       ▼
+installDecor()  // 安装 DecorView
+       │
+       ├──► generateDecor()  // 创建 DecorView
+       │
+       └──► generateLayout(mDecor)  // 生成布局，返回 mContentParent
+                  │
+                  ▼
+           mContentParent = decor.findViewById(android.R.id.content)
+```
+
+**源码解析：**
+
+```java
+// PhoneWindow.java
+@Override
+public void setContentView(int layoutResID) {
+    // 1. 如果 DecorView 未创建，先创建
+    if (mContentParent == null) {
+        installDecor();
+    } else {
+        mContentParent.removeAllViews();
+    }
+    
+    // 2. 将布局添加到 mContentParent
+    mLayoutInflater.inflate(layoutResID, mContentParent);
+}
+
+private void installDecor() {
+    if (mDecor == null) {
+        // 创建 DecorView
+        mDecor = generateDecor(-1);
+    }
+    if (mContentParent == null) {
+        // 生成布局并获取 mContentParent
+        mContentParent = generateLayout(mDecor);
+    }
+}
+
+// ⚠️ 核心：generateLayout() 根据主题选择布局模板
+protected ViewGroup generateLayout(DecorView decor) {
+    // 1. 根据窗口主题选择布局模板（如 R.layout.screen_simple）
+    int layoutResource = R.layout.screen_simple;
+    
+    // 根据主题选择不同的布局模板
+    if ((features & (1 << FEATURE_NO_TITLE)) != 0) {
+        layoutResource = R.layout.screen_simple;  // 无标题栏
+    } else {
+        layoutResource = R.layout.screen_title;  // 有标题栏
+    }
+    
+    // 2. 加载布局模板到 DecorView 中
+    View in = mLayoutInflater.inflate(layoutResource, null);
+    decor.addView(in, new ViewGroup.LayoutParams(MATCH_PARENT, MATCH_PARENT));
+    
+    // 3. 找到内容区域的父容器（即 mContentParent）
+    // ⚠️ android.R.id.content 就是内容区域的容器
+    ViewGroup contentParent = decor.findViewById(android.R.id.content);
+    
+    return contentParent;
+}
+```
+
+#### 3.8.3 DecorView 什么时候添加到 WindowManager
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                  DecorView 添加到 WindowManager 时机                        │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+ActivityThread.handleResumeActivity()
+       │
+       ▼
+r.activity.makeVisible()
+       │
+       ▼
+WindowManager.addView(decor, layoutParams)
+       │
+       ▼
+WindowManagerGlobal.addView()
+       │
+       ├──► 创建 ViewRootImpl
+       │
+       └──► ViewRootImpl.setView(view)
+                  │
+                  ▼
+           requestLayout() → scheduleTraversals()
+                  │
+                  ▼
+           performTraversals() → measure/layout/draw
+```
+
+**源码解析：**
+
+```java
+// ActivityThread.java
+public void handleResumeActivity(ActivityClientRecord r, boolean finalStateRequest, ...) {
+    // 1. 执行 onResume
+    performResumeActivity(r, finalStateRequest, reason);
+    
+    // 2. 将 DecorView 添加到 WindowManager
+    if (r.window == null && !a.mFinished && willBeVisible) {
+        r.window = r.activity.getWindow();
+        View decor = r.window.getDecorView();
+        decor.setVisibility(View.INVISIBLE);
+        ViewManager wm = a.getWindowManager();
+        WindowManager.LayoutParams l = r.window.getAttributes();
+        
+        // ⚠️ 这里添加 DecorView 到 WindowManager！
+        wm.addView(decor, l);
+    }
+    
+    // 3. 设置可见
+    if (a.mVisibleFromClient) {
+        a.mWindowAdded = true;
+        // 使 DecorView 可见
+        r.activity.makeVisible();
+    }
+}
+
+// Activity.java
+void makeVisible() {
+    if (!mWindowAdded) {
+        ViewManager wm = getWindowManager();
+        // ⚠️ 将 DecorView 添加到 WindowManager
+        wm.addView(mDecor, getWindow().getAttributes());
+        mWindowAdded = true;
+    }
+    // 设置可见
+    mDecor.setVisibility(View.VISIBLE);
+}
+```
+
+#### 3.8.4 Activity.attach() 详解
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    Activity.attach() 详解                                   │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+Activity.attach() 主要职责：
+1. 创建 PhoneWindow 对象
+2. 绑定上下文与资源
+3. 关联窗口与 UI 线程
+4. 设置 WindowManager
+```
+
+```java
+// Activity.java
+final void attach(Context context, ActivityThread aThread,
+        IBinder token, int ident, Application application, Intent intent,
+        ActivityInfo info, CharSequence title, Activity parent, String id,
+        NonConfigurationInstances lastNonConfigurationInstances,
+        Configuration config, String referrer, IVoiceInteractor voiceInteractor,
+        Window window, ActivityConfigCallback activityConfigCallback) {
+    
+    // 1. 绑定上下文
+    attachBaseContext(context);
+    
+    // 2. 创建 UI 线程引用
+    mUiThread = Thread.currentThread();
+    
+    // 3. 关联 ActivityThread
+    mMainThread = aThread;
+    
+    // 4. 保存 Application
+    mApplication = application;
+    
+    // 5. 保存 Intent
+    mIntent = intent;
+    
+    // 6. ⚠️ 创建 PhoneWindow
+    mWindow = new PhoneWindow(this, window, activityConfigCallback);
+    
+    // 7. 设置回调
+    mWindow.setWindowControllerCallback(this);
+    mWindow.setCallback(this);
+    
+    // 8. 设置窗口标志
+    mWindow.setOnWindowDismissedCallback(this);
+    mWindow.getLayoutInflater().setPrivateFactory(this);
+    
+    // 9. 处理软键盘模式
+    if (info.softInputMode != WindowManager.LayoutParams.SOFT_INPUT_STATE_UNSPECIFIED) {
+        mWindow.setSoftInputMode(info.softInputMode);
+    }
+    
+    // 10. 设置窗口标题
+    if (info.uiOptions != 0) {
+        mWindow.setUiOptions(info.uiOptions);
+    }
+    
+    // 11. ⚠️ 设置 WindowManager
+    mWindow.setWindowManager(
+        (WindowManager) context.getSystemService(Context.WINDOW_SERVICE),
+        mToken, mComponent.flattenToString(),
+        (info.flags & ActivityInfo.FLAG_HARDWARE_ACCELERATED) != 0
+    );
+    
+    // 12. 处理父 Activity
+    if (parent != null) {
+        mWindow.setContainer(parent.getWindow());
+    }
+    
+    // 13. 保存 WindowManager
+    mWindowManager = mWindow.getWindowManager();
+}
+```
+
+#### 3.8.5 完整流程总结
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                  Activity 创建与窗口初始化完整流程                           │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+ActivityThread.performLaunchActivity()
+       │
+       ├──► 1. 创建 Activity 实例（反射）
+       │        Activity activity = mInstrumentation.newActivity(...)
+       │
+       ├──► 2. 调用 Activity.attach()
+       │        │
+       │        ├──► 创建 PhoneWindow
+       │        │        mWindow = new PhoneWindow(this, ...)
+       │        │
+       │        ├──► 设置 WindowManager
+       │        │        mWindow.setWindowManager(...)
+       │        │
+       │        └──► 绑定 UI 线程
+       │                 mUiThread = Thread.currentThread()
+       │
+       ├──► 3. 调用 Activity.onCreate()
+       │        │
+       │        └──► setContentView(layoutResID)
+       │                 │
+       │                 ├──► PhoneWindow.setContentView()
+       │                 │
+       │                 ├──► installDecor()
+       │                 │        │
+       │                 │        ├──► generateDecor() → 创建 DecorView
+       │                 │        │
+       │                 │        └──► generateLayout() → 初始化 mContentParent
+       │                 │
+       │                 └──► mLayoutInflater.inflate(layoutResID, mContentParent)
+       │
+       ├──► 4. 调用 Activity.onStart()
+       │
+       └──► 5. 调用 Activity.onResume()
+                │
+                └──► ActivityThread.handleResumeActivity()
+                         │
+                         └──► WindowManager.addView(decor, params)
+                                  │
+                                  ├──► 创建 ViewRootImpl
+                                  │
+                                  └──► ViewRootImpl.performTraversals()
+                                           │
+                                           ├──► measure()
+                                           ├──► layout()
+                                           └──► draw()
+                                                   │
+                                                   ▼
+                                             屏幕显示 ✓
+```
+
+### 3.9 完整时序图 (AMS → AT → ViewRootImpl)
 
 ```
 User    Activity   Instrumentation   ATMS      Stack   Zygote   AT       ViewRootImpl
