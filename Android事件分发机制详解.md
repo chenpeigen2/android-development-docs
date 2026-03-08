@@ -42,9 +42,14 @@
    - 9.6 [TouchDelegate 为什么设置在父 ViewGroup 上](#96-touchdelegate-为什么设置在父-viewgroup-上)
    - 9.7 [TouchTarget 链表](#97-touchtarget-链表)
 10. [View 事件分发](#10-view-事件分发)
-    - 10.1 [分发流程](#101-分发流程)
-    - 10.2 [优先级](#102-优先级)
-    - 10.3 [onTouchEvent 详解](#103-ontouchevent-详解)
+    - 10.1 [分发入口](#101-分发入口)
+    - 10.2 [事件处理优先级](#102-事件处理优先级)
+    - 10.3 [onTouchEvent 详解](#103-ontouchevent-完整源码分析)
+    - 10.4 [点击、长按、双击检测机制](#104-点击长按双击检测机制)
+      - 10.4.1 [点击检测](#1041-点击检测click)
+      - 10.4.2 [长按检测](#1042-长按检测long-click)
+      - 10.4.3 [双击检测](#1043-双击检测double-tap)
+      - 10.4.4 [完整示例](#1044-完整示例支持单击长按双击的-view)
 11. [Activity 事件分发](#11-activity-事件分发)
     - 11.1 [Activity 的 dispatchTouchEvent](#111-activity-的-dispatchtouchevent)
     - 11.2 [Activity 的 onTouchEvent](#112-activity-的-ontouchevent)
@@ -1169,65 +1174,853 @@ private static final class TouchTarget {
 
 ## 10. View 事件分发
 
-### 10.1 分发流程
+### 10.1 分发入口
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    View.dispatchTouchEvent() 流程图                         │
+│  源码位置: frameworks/base/core/java/android/view/View.java                 │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  MotionEvent 到达 View
+        │
+        ▼
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │  Step 1: 辅助处理                                                        │
+  │  ─────────────────────────────────────────────────────────────────────── │
+  │  - 安全检查（窗口已停止则丢弃）                                           │
+  │  - 鼠标/触控笔按钮状态处理                                                │
+  │  - 处理嵌套滑动（NestedScroll）                                          │
+  └─────────────────────────────────────────────────────────────────────────┘
+        │
+        ▼
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │  Step 2: 检查 TouchDelegate                                              │
+  │  ─────────────────────────────────────────────────────────────────────── │
+  │                                                                         │
+  │  if (mTouchDelegate != null) {                                          │
+  │      if (mTouchDelegate.onTouchEvent(event)) {                          │
+  │          return true;  // TouchDelegate 消费了事件                      │
+  │      }                                                                  │
+  │  }                                                                       │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+        │
+        ▼
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │  Step 3: 检查 OnTouchListener                                            │
+  │  ─────────────────────────────────────────────────────────────────────── │
+  │                                                                         │
+  │  if (mListenerInfo != null                                              │
+  │          && mListenerInfo.mOnTouchListener != null                      │
+  │          && (mViewFlags & ENABLED_MASK) == ENABLED                      │
+  │          && mListenerInfo.mOnTouchListener.onTouch(this, event)) {      │
+  │      return true;  // OnTouchListener 消费了事件                        │
+  │  }                                                                       │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+        │
+        ▼
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │  Step 4: 调用 onTouchEvent()                                             │
+  │  ─────────────────────────────────────────────────────────────────────── │
+  │                                                                         │
+  │  return onTouchEvent(event);                                            │
+  │                                                                         │
+  │  // onTouchEvent 内部会处理：                                            │
+  │  // - 点击检测（performClick）                                           │
+  │  // - 长按检测（performLongClick）                                       │
+  │  // - 滚动检测                                                           │
+  │  // - 上下文菜单                                                         │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+```
+
+**源码片段**：
 
 ```java
+// frameworks/base/core/java/android/view/View.java
 public boolean dispatchTouchEvent(MotionEvent event) {
-    // 1. 如果设置了 OnTouchListener，优先调用 onTouch
-    if (mListenerInfo != null && mListenerInfo.mOnTouchListener != null) {
-        if (mListenerInfo.mOnTouchListener.onTouch(this, event)) {
-            return true; // onTouch 处理了事件
+    // 辅助处理（省略）
+    ...
+    
+    boolean result = false;
+    
+    // Step 1: TouchDelegate 处理
+    if (mTouchDelegate != null) {
+        if (mTouchDelegate.onTouchEvent(event)) {
+            result = true;
         }
     }
     
-    // 2. 如果 onTouch 没有处理，调用 onTouchEvent
-    return onTouchEvent(event);
+    // Step 2: OnTouchListener 处理
+    if (!result && mListenerInfo != null) {
+        final OnTouchListener li = mListenerInfo.mOnTouchListener;
+        if (li != null && (mViewFlags & ENABLED_MASK) == ENABLED
+                && li.onTouch(this, event)) {
+            result = true;
+        }
+    }
+    
+    // Step 3: onTouchEvent 处理
+    if (!result && onTouchEvent(event)) {
+        result = true;
+    }
+    
+    return result;
 }
 ```
 
-### 10.2 优先级
+### 10.2 事件处理优先级
 
 ```
-OnTouchListener.onTouch > View.onTouchEvent > OnClickListener.onClick
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         View 事件处理优先级                                 │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  优先级从高到低：
+
+  1. TouchDelegate.onTouchEvent()
+     ─────────────────────────────────────────────────────────────────────────
+     用于扩大点击区域，优先级最高
+     
+  2. OnTouchListener.onTouch()
+     ─────────────────────────────────────────────────────────────────────────
+     外部设置的监听器，可以完全控制事件处理
+     
+  3. View.onTouchEvent()
+     ─────────────────────────────────────────────────────────────────────────
+     View 内部的触摸处理，包括：
+     - 点击检测
+     - 长按检测
+     - 滚动检测
+     - 状态更新（pressed、focused）
+     
+  4. OnClickListener.onClick()
+     ─────────────────────────────────────────────────────────────────────────
+     在 onTouchEvent 的 ACTION_UP 中调用
+     只有当 View 是 clickable 时才会触发
+     
+  5. OnLongClickListener.onLongClick()
+     ─────────────────────────────────────────────────────────────────────────
+     在 ACTION_DOWN 后约 500ms 触发
+     如果返回 true，则不会再触发 onClick
+
+
+  完整调用链：
+  ─────────────────────────────────────────────────────────────────────────────
+
+  dispatchTouchEvent()
+      │
+      ├─► TouchDelegate.onTouchEvent()  ──► return true  (消费)
+      │
+      ├─► OnTouchListener.onTouch()     ──► return true  (消费)
+      │
+      └─► onTouchEvent()
+              │
+              ├─► ACTION_DOWN:
+              │     ├─► 设置 pressed 状态
+              │     └─► postDelayed(mPendingCheckForLongPress, 500ms)
+              │
+              ├─► ACTION_MOVE:
+              │     └─► 检查是否移出边界
+              │
+              ├─► ACTION_UP:
+              │     ├─► 移除长按回调
+              │     ├─► performClick()  ──► OnClickListener.onClick()
+              │     └─► 清除 pressed 状态
+              │
+              └─► ACTION_CANCEL:
+                    └─► 清除所有状态
 ```
 
-### 10.3 onTouchEvent 详解
+### 10.3 onTouchEvent 完整源码分析
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    View.onTouchEvent() 完整源码                             │
+│  源码位置: frameworks/base/core/java/android/view/View.java                 │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  public boolean onTouchEvent(MotionEvent event) {
+      final float x = event.getX();
+      final float y = event.getY();
+      final int viewFlags = mViewFlags;
+      final int action = event.getAction();
+      
+      // ========== 检查 View 是否可点击 ==========
+      final boolean clickable = (viewFlags & CLICKABLE) == CLICKABLE
+              || (viewFlags & LONG_CLICKABLE) == LONG_CLICKABLE
+              || (viewFlags & CONTEXT_CLICKABLE) == CONTEXT_CLICKABLE;
+      
+      // 如果 View 被禁用但可点击，仍返回 true（消费事件但不执行动作）
+      if ((viewFlags & ENABLED_MASK) == DISABLED) {
+          if (action == MotionEvent.ACTION_UP && (mPrivateFlags & PFLAG_PRESSED) != 0) {
+              setPressed(false);
+          }
+          mPrivateFlags3 &= ~PFLAG3_FINGER_DOWN;
+          return clickable;
+      }
+      
+      // ========== 委托给 TouchDelegate 处理 ==========
+      if (mTouchDelegate != null) {
+          if (mTouchDelegate.onTouchEvent(event)) {
+              return true;
+          }
+      }
+      
+      // ========== 可点击则处理事件 ==========
+      if (clickable || (viewFlags & TOOLTIP) == TOOLTIP) {
+          switch (action) {
+              case MotionEvent.ACTION_DOWN:
+                  // ★★★ 按下处理 ★★★
+                  mPrivateFlags3 |= PFLAG3_FINGER_DOWN;
+                  
+                  // 记录按下位置和时间
+                  mHasPerformedLongPress = false;
+                  
+                  if (!clickable) {
+                      // 不可点击，检查长按以显示 tooltip
+                      checkForLongClick(0, x, y);
+                      break;
+                  }
+                  
+                  // 设置 pressed 状态
+                  setPressed(true, x, y);
+                  
+                  // ★★★ 关键：检查长按 ★★★
+                  checkForLongClick(ViewConfiguration.getLongPressTimeout(), x, y);
+                  break;
+                  
+              case MotionEvent.ACTION_MOVE:
+                  // ★★★ 移动处理 ★★★
+                  if (!clickable) {
+                      break;
+                  }
+                  
+                  // 检查是否移出 View 边界
+                  if (!pointInView(x, y, mTouchSlop)) {
+                      // 移出边界，取消 pressed 状态
+                      removeLongPressCallback();
+                      setPressed(false);
+                  }
+                  
+                  // 更新 pressed 区域
+                  if ((mPrivateFlags & PFLAG_PRESSED) != 0) {
+                      // Drawable 状态更新
+                      refreshDrawableState();
+                  }
+                  break;
+                  
+              case MotionEvent.ACTION_UP:
+                  // ★★★ 抬起处理 ★★★
+                  mPrivateFlags3 &= ~PFLAG3_FINGER_DOWN;
+                  
+                  // 移除长按回调
+                  removeLongPressCallback();
+                  
+                  if ((mPrivateFlags & PFLAG_PRESSED) != 0) {
+                      // 在 pressed 状态下抬起
+                      
+                      // 检查是否可以获取焦点
+                      boolean focusTaken = false;
+                      if (isFocusable() && isFocusableInTouchMode() && !isFocused()) {
+                          focusTaken = requestFocus();
+                      }
+                      
+                      if (!mHasPerformedLongPress && !focusTaken) {
+                          // ★★★ 执行点击 ★★★
+                          removeTapCallback();
+                          
+                          // performClick 内部会调用 OnClickListener
+                          if (performClick()) {
+                              return true;
+                          }
+                      }
+                      
+                      // 清除 pressed 状态
+                      setPressed(false);
+                  }
+                  
+                  removeTapCallback();
+                  break;
+                  
+              case MotionEvent.ACTION_CANCEL:
+                  // ★★★ 取消处理 ★★★
+                  removeLongPressCallback();
+                  removeTapCallback();
+                  mPrivateFlags3 &= ~PFLAG3_FINGER_DOWN;
+                  setPressed(false);
+                  break;
+          }
+          
+          return true;  // 可点击的 View 始终消费事件
+      }
+      
+      return false;  // 不可点击的 View 不消费事件
+  }
+```
+
+---
+
+## 10.5 点击、长按、双击检测机制
+
+### 10.4 点击、长按、双击检测机制
+
+#### 10.4.1 点击检测（Click）
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         点击检测机制                                        │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  触发条件：
+  ─────────────────────────────────────────────────────────────────────────────
+  1. ACTION_DOWN 时 View 进入 pressed 状态
+  2. ACTION_MOVE 时手指没有移出 View 边界（touchSlop 范围内）
+  3. ACTION_UP 时 View 仍处于 pressed 状态
+  4. 没有触发长按（mHasPerformedLongPress = false）
+  5. 按下时间 < 长按超时（默认 500ms）
+
+  时序图：
+  ─────────────────────────────────────────────────────────────────────────────
+
+  ACTION_DOWN                    ACTION_UP
+       │                              │
+       │◄──────── 约 100ms ──────────►│
+       │                              │
+       ▼                              ▼
+  ┌─────────┐                    ┌─────────┐
+  │ pressed │                    │ perform │
+  │ = true  │                    │ Click() │
+  └─────────┘                    └─────────┘
+       │                              │
+       │         手指在 View 内        │
+       │    ◄─────────────────────►   │
+       │                              │
+       └──────────────────────────────┘
+
+
+  performClick() 源码：
+  ─────────────────────────────────────────────────────────────────────────────
+
+  public boolean performClick() {
+      // 通知无障碍服务
+      notifyAutofillManagerOnClick();
+      
+      final boolean result;
+      final ListenerInfo li = mListenerInfo;
+      
+      if (li != null && li.mOnClickListener != null) {
+          // 播放点击音效
+          playSoundEffect(SoundEffectConstants.CLICK);
+          
+          // ★★★ 调用 OnClickListener ★★★
+          li.mOnClickListener.onClick(this);
+          result = true;
+      } else {
+          result = false;
+      }
+      
+      // 发送无障碍事件
+      sendAccessibilityEvent(AccessibilityEvent.TYPE_VIEW_CLICKED);
+      
+      return result;
+  }
+```
+
+#### 10.4.2 长按检测（Long Click）
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         长按检测机制                                        │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  触发条件：
+  ─────────────────────────────────────────────────────────────────────────────
+  1. ACTION_DOWN 后约 500ms（ViewConfiguration.getLongPressTimeout()）
+  2. 手指没有移出 View 边界
+  3. ACTION_UP 没有发生
+
+  实现原理：Handler + Runnable 延迟执行
+  ─────────────────────────────────────────────────────────────────────────────
+
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │                                                                         │
+  │  ACTION_DOWN                                                            │
+  │       │                                                                 │
+  │       ▼                                                                 │
+  │  setPressed(true)                                                       │
+  │       │                                                                 │
+  │       ▼                                                                 │
+  │  postDelayed(mPendingCheckForLongPress, 500ms)                         │
+  │       │                                                                 │
+  │       │   ┌────────────────────────────────────────────────────────┐    │
+  │       │   │                    500ms 后                           │    │
+  │       │   │                                                        │    │
+  │       │   │  if (still pressed && !moved out) {                   │    │
+  │       │   │      mHasPerformedLongPress = true;                   │    │
+  │       │   │      performLongClick();  // ★★★ 触发长按 ★★★       │    │
+  │       │   │  }                                                     │    │
+  │       │   │                                                        │    │
+  │       │   └────────────────────────────────────────────────────────┘    │
+  │       │                                                                 │
+  │       │   如果手指抬起或移出边界：                                       │
+  │       │   removeLongPressCallback();  // 取消长按检测                   │
+  │       │                                                                 │
+  │       ▼                                                                 │
+  │  ACTION_UP / ACTION_CANCEL / MOVE_OUT                                  │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+
+
+  关键源码：
+  ─────────────────────────────────────────────────────────────────────────────
+
+  // CheckForLongPress 是一个 Runnable
+  private final class CheckForLongPress implements Runnable {
+      private int mOriginalWindowAttachCount;
+      private float mX;
+      private float mY;
+      
+      @Override
+      public void run() {
+          if ((mViewFlags & LONG_CLICKABLE) == LONG_CLICKABLE
+                  || (mViewFlags & TOOLTIP) == TOOLTIP) {
+              
+              // 检查 View 状态
+              if (isPressed() 
+                      && mOriginalWindowAttachCount == mWindowAttachCount) {
+                  
+                  // ★★★ 执行长按 ★★★
+                  if (performLongClick(mX, mY)) {
+                      mHasPerformedLongPress = true;
+                  }
+              }
+          }
+      }
+  }
+  
+  // 检查并设置长按回调
+  private void checkForLongClick(int delay, float x, float y) {
+      if ((mViewFlags & LONG_CLICKABLE) == LONG_CLICKABLE
+              || (mViewFlags & TOOLTIP) == TOOLTIP) {
+          mHasPerformedLongPress = false;
+          
+          if (mPendingCheckForLongPress == null) {
+              mPendingCheckForLongPress = new CheckForLongPress();
+          }
+          mPendingCheckForLongPress.setAnchor(x, y);
+          mPendingCheckForLongPress.rememberWindowAttachCount();
+          
+          // ★★★ 延迟 500ms 执行 ★★★
+          postDelayed(mPendingCheckForLongPress, delay);
+      }
+  }
+  
+  // performLongClick 源码
+  public boolean performLongClick() {
+      return performLongClickInternal(Float.NaN, Float.NaN);
+  }
+  
+  private boolean performLongClickInternal(float x, float y) {
+      sendAccessibilityEvent(AccessibilityEvent.TYPE_VIEW_LONG_CLICKED);
+      
+      boolean handled = false;
+      final ListenerInfo li = mListenerInfo;
+      
+      if (li != null && li.mOnLongClickListener != null) {
+          // ★★★ 调用 OnLongClickListener ★★★
+          handled = li.mOnLongClickListener.onLongClick(View.this);
+      }
+      
+      // 显示 tooltip
+      if (!handled) {
+          handled = showTooltip(x, y);
+      }
+      
+      return handled;
+  }
+
+
+  长按与点击的关系：
+  ─────────────────────────────────────────────────────────────────────────────
+
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │                                                                         │
+  │  情况 1：短按（< 500ms）                                                 │
+  │  ─────────────────────────────────────────────────────────────────────  │
+  │  ACTION_DOWN ──► ~100ms ──► ACTION_UP                                  │
+  │                                    │                                    │
+  │                                    ▼                                    │
+  │                              performClick() ✓                           │
+  │                                                                         │
+  │                                                                         │
+  │  情况 2：长按（>= 500ms），onLongClick 返回 false                        │
+  │  ─────────────────────────────────────────────────────────────────────  │
+  │  ACTION_DOWN ──► 500ms ──► onLongClick() ──► ACTION_UP                 │
+  │                              │                      │                   │
+  │                              ▼                      ▼                   │
+  │                         返回 false            performClick() ✓          │
+  │                                                                         │
+  │                                                                         │
+  │  情况 3：长按（>= 500ms），onLongClick 返回 true                         │
+  │  ─────────────────────────────────────────────────────────────────────  │
+  │  ACTION_DOWN ──► 500ms ──► onLongClick() ──► ACTION_UP                 │
+  │                              │                      │                   │
+  │                              ▼                      ▼                   │
+  │                         返回 true            performClick() ✗          │
+  │                              │              (mHasPerformedLongPress    │
+  │                              ▼               = true，跳过)              │
+  │                         点击被吞掉                                       │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+```
+
+#### 10.4.3 双击检测（Double Tap）
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         双击检测机制                                        │
+│  ★★★ 双击不是 View 原生支持，需要使用 GestureDetector ★★★                  │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  View 本身不直接支持双击检测，需要使用 GestureDetector：
+  ─────────────────────────────────────────────────────────────────────────────
+
+  public class DoubleTapView extends View implements GestureDetector.OnDoubleTapListener {
+      
+      private GestureDetector mGestureDetector;
+      
+      public DoubleTapView(Context context, AttributeSet attrs) {
+          super(context, attrs);
+          
+          // 创建 GestureDetector
+          mGestureDetector = new GestureDetector(context, new GestureDetector.SimpleOnGestureListener());
+          
+          // 设置双击监听
+          mGestureDetector.setOnDoubleTapListener(this);
+          
+          // 必须设置可点击
+          setClickable(true);
+      }
+      
+      @Override
+      public boolean onTouchEvent(MotionEvent event) {
+          // ★★★ 先让 GestureDetector 处理 ★★★
+          boolean consumed = mGestureDetector.onTouchEvent(event);
+          
+          // 如果 GestureDetector 没处理，交给父类
+          if (!consumed) {
+              return super.onTouchEvent(event);
+          }
+          return true;
+      }
+      
+      @Override
+      public boolean onSingleTapConfirmed(MotionEvent e) {
+          // 单击确认（确定不是双击）
+          Log.d("TAG", "Single tap");
+          return true;
+      }
+      
+      @Override
+      public boolean onDoubleTap(MotionEvent e) {
+          // ★★★ 双击 ★★★
+          Log.d("TAG", "Double tap");
+          return true;
+      }
+      
+      @Override
+      public boolean onDoubleTapEvent(MotionEvent e) {
+          // 双击期间的额外事件
+          return false;
+      }
+  }
+
+
+  GestureDetector 原理：
+  ─────────────────────────────────────────────────────────────────────────────
+
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │                                                                         │
+  │  GestureDetector 内部实现：                                              │
+  │  ─────────────────────────────────────────────────────────────────────  │
+  │                                                                         │
+  │  核心变量：                                                              │
+  │  - mDoubleTapTimeout = 300ms  （两次点击的最大间隔）                     │
+  │  - mDoubleTapSlop          （两次点击的最大距离）                        │
+  │  - mLastDownTime           （上次 DOWN 的时间）                          │
+  │  - mLastDownX/Y            （上次 DOWN 的位置）                          │
+  │                                                                         │
+  │                                                                         │
+  │  检测逻辑：                                                              │
+  │  ─────────────────────────────────────────────────────────────────────  │
+  │                                                                         │
+  │  第一次点击：                                                            │
+  │  ACTION_DOWN ──► ACTION_UP                                              │
+  │       │              │                                                  │
+  │       │              ▼                                                  │
+  │       │         记录 mFirstTapTime、mFirstTapX/Y                        │
+  │       │         发送延迟消息（300ms）                                    │
+  │       │              │                                                  │
+  │       │              ▼                                                  │
+  │       │         等待第二次点击...                                        │
+  │                                                                         │
+  │  第二次点击（在 300ms 内）：                                             │
+  │  ACTION_DOWN                                                            │
+  │       │                                                                 │
+  │       ▼                                                                 │
+  │  检查：                                                                  │
+  │  - 当前时间 - mFirstTapTime < 300ms                                     │
+  │  - 当前位置 - mFirstTapX/Y < mDoubleTapSlop                             │
+  │       │                                                                 │
+  │       ▼                                                                 │
+  │  移除延迟消息                                                            │
+  │       │                                                                 │
+  │       ▼                                                                 │
+  │  ACTION_UP ──► onDoubleTap() ✓                                         │
+  │                                                                         │
+  │                                                                         │
+  │  没有第二次点击（超过 300ms）：                                          │
+  │  ─────────────────────────────────────────────────────────────────────  │
+  │                                                                         │
+  │  延迟消息触发 ──► onSingleTapConfirmed() ✓                              │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+
+
+  GestureDetector 核心源码：
+  ─────────────────────────────────────────────────────────────────────────────
+
+  // frameworks/base/core/java/android/view/GestureDetector.java
+  
+  public class GestureDetector {
+      
+      // 双击超时（300ms）
+      private static final int DOUBLE_TAP_TIMEOUT = ViewConfiguration.getDoubleTapTimeout();
+      
+      // 双击最大距离
+      private int mDoubleTapSlop;
+      
+      // 状态
+      private boolean mStillDown;
+      private boolean mInLongPress;
+      private boolean mAlwaysInTapRegion;
+      
+      // 第一次点击信息
+      private long mPreviousUpTime;
+      private float mPreviousDownX;
+      private float mPreviousDownY;
+      
+      // 双击检测
+      private boolean mIsDoubleTapping;
+      
+      public boolean onTouchEvent(MotionEvent ev) {
+          final int action = ev.getAction();
+          
+          switch (action & MotionEvent.ACTION_MASK) {
+              case MotionEvent.ACTION_DOWN:
+                  mStillDown = true;
+                  mInLongPress = false;
+                  mAlwaysInTapRegion = true;
+                  
+                  // ★★★ 检查是否是双击 ★★★
+                  if (mIsLongpressEnabled) {
+                      // 设置长按检测
+                      mHandler.removeMessages(LONG_PRESS);
+                      mHandler.sendEmptyMessageAtTime(LONG_PRESS, 
+                              mCurrentDownEvent.getDownTime() + LONGPRESS_TIMEOUT);
+                  }
+                  
+                  // 检查是否在双击窗口内
+                  if (mPreviousUpTime != 0 
+                          && (eventTime - mPreviousUpTime) <= DOUBLE_TAP_TIMEOUT) {
+                      
+                      // 检查位置
+                      if (mDoubleTapListener != null) {
+                          // ★★★ 检查是否是双击的第二次 DOWN ★★★
+                          final double deltaX = x - mPreviousDownX;
+                          final double deltaY = y - mPreviousDownY;
+                          
+                          if (deltaX * deltaX + deltaY * deltaY < mDoubleTapSlop * mDoubleTapSlop) {
+                              // 在双击范围内
+                              mIsDoubleTapping = true;
+                              mDoubleTapListener.onDoubleTap(ev);
+                          }
+                      }
+                  }
+                  break;
+                  
+              case MotionEvent.ACTION_UP:
+                  mStillDown = false;
+                  
+                  if (mIsDoubleTapping) {
+                      // ★★★ 双击的 UP 事件 ★★★
+                      mDoubleTapListener.onDoubleTapEvent(ev);
+                      handled = true;
+                  } else if (mInLongPress) {
+                      mInLongPress = false;
+                  } else {
+                      // 单击
+                      if (mDoubleTapListener != null) {
+                          // 延迟发送单击确认，等待可能的第二次点击
+                          mHandler.sendEmptyMessageDelayed(SINGLE_TAP, DOUBLE_TAP_TIMEOUT);
+                      }
+                  }
+                  break;
+          }
+          
+          return handled;
+      }
+  }
+
+
+  双击时序图：
+  ─────────────────────────────────────────────────────────────────────────────
+
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │                                                                         │
+  │  第一次点击                          第二次点击                          │
+  │  ─────────────────────────────────────────────────────────────────────  │
+  │                                                                         │
+  │  DOWN ──► UP                          DOWN ──► UP                       │
+  │    │        │                           │        │                      │
+  │    │        ▼                           │        ▼                      │
+  │    │   记录时间/位置                     │   onDoubleTap()               │
+  │    │   等待 300ms                        │   onDoubleTapEvent()          │
+  │    │        │                           │                               │
+  │    │        │◄──── < 300ms ────────────►│                               │
+  │    │        │                           │                               │
+  │    │   如果超过 300ms：                  │                               │
+  │    │   onSingleTapConfirmed()           │                               │
+  │    │                                     │                               │
+  │    └─────────────────────────────────────┘                               │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+
+
+  点击 vs 长按 vs 双击 对比：
+  ─────────────────────────────────────────────────────────────────────────────
+
+  ┌─────────────────┬─────────────────┬─────────────────┬─────────────────┐
+  │                 │    点击         │    长按         │    双击         │
+  ├─────────────────┼─────────────────┼─────────────────┼─────────────────┤
+  │ 检测方式        │ onTouchEvent    │ onTouchEvent    │ GestureDetector │
+  │                 │ (原生支持)       │ (原生支持)       │ (需要使用)      │
+  ├─────────────────┼─────────────────┼─────────────────┼─────────────────┤
+  │ 时间要求        │ < 500ms         │ >= 500ms        │ 两次点击间隔    │
+  │                 │                 │                 │ < 300ms         │
+  ├─────────────────┼─────────────────┼─────────────────┼─────────────────┤
+  │ 触发时机        │ ACTION_UP       │ ACTION_DOWN     │ 第二次 UP       │
+  │                 │                 │ 后 500ms        │                 │
+  ├─────────────────┼─────────────────┼─────────────────┼─────────────────┤
+  │ 位置要求        │ 手指未移出边界   │ 手指未移出边界   │ 两次位置接近    │
+  │                 │                 │                 │ (< doubleTapSlop)│
+  ├─────────────────┼─────────────────┼─────────────────┼─────────────────┤
+  │ 回调方法        │ onClick()       │ onLongClick()   │ onDoubleTap()   │
+  └─────────────────┴─────────────────┴─────────────────┴─────────────────┘
+```
+
+#### 10.4.4 完整示例：支持单击、长按、双击的 View
 
 ```java
-public boolean onTouchEvent(MotionEvent event) {
-    final int action = event.getAction();
-
-    // 检查是否可以点击
-    if (clickable || longClickable) {
-        switch (action) {
-            case MotionEvent.ACTION_DOWN:
-                // 记录按下时间、位置等
-                break;
-                
-            case MotionEvent.ACTION_MOVE:
-                // 检查是否移出 View 边界
-                if (!isInBoundsOfChild) {
-                    // 移除长按回调
-                    removeLongPressCallback();
-                }
-                break;
-                
-            case MotionEvent.ACTION_UP:
-                // 执行点击
-                if (!postPressed) {
-                    performClick();
-                }
-                break;
-                
-            case MotionEvent.ACTION_CANCEL:
-                // 重置状态
-                break;
-        }
-        return true; // 可点击的 View 始终返回 true
+/**
+ * 支持单击、长按、双击的自定义 View
+ */
+public class MultiTouchView extends View {
+    
+    private GestureDetector mGestureDetector;
+    private OnMultiTouchListener mListener;
+    
+    public interface OnMultiTouchListener {
+        void onSingleTap();      // 单击
+        void onDoubleTap();      // 双击
+        void onLongPress();      // 长按
     }
-
-    return false;
+    
+    public MultiTouchView(Context context, AttributeSet attrs) {
+        super(context, attrs);
+        init(context);
+    }
+    
+    private void init(Context context) {
+        // 必须设置可点击
+        setClickable(true);
+        setLongClickable(true);
+        
+        // 创建 GestureDetector
+        mGestureDetector = new GestureDetector(context, 
+                new GestureDetector.SimpleOnGestureListener() {
+            
+            @Override
+            public boolean onSingleTapConfirmed(MotionEvent e) {
+                // 确认是单击（不是双击）
+                if (mListener != null) {
+                    mListener.onSingleTap();
+                }
+                return true;
+            }
+            
+            @Override
+            public boolean onDoubleTap(MotionEvent e) {
+                // 双击
+                if (mListener != null) {
+                    mListener.onDoubleTap();
+                }
+                return true;
+            }
+            
+            @Override
+            public void onLongPress(MotionEvent e) {
+                // 长按
+                if (mListener != null) {
+                    mListener.onLongPress();
+                }
+            }
+        });
+        
+        // 设置双击监听
+        mGestureDetector.setOnDoubleTapListener(
+                (GestureDetector.OnDoubleTapListener) mGestureDetector.getOnGestureListener());
+    }
+    
+    @Override
+    public boolean onTouchEvent(MotionEvent event) {
+        // 先让 GestureDetector 处理
+        boolean consumed = mGestureDetector.onTouchEvent(event);
+        
+        // 如果 GestureDetector 没处理，交给父类
+        if (!consumed) {
+            return super.onTouchEvent(event);
+        }
+        return true;
+    }
+    
+    public void setOnMultiTouchListener(OnMultiTouchListener listener) {
+        mListener = listener;
+    }
 }
+
+
+// 使用示例
+MultiTouchView touchView = findViewById(R.id.touch_view);
+touchView.setOnMultiTouchListener(new MultiTouchView.OnMultiTouchListener() {
+    @Override
+    public void onSingleTap() {
+        Log.d("TAG", "单击");
+    }
+    
+    @Override
+    public void onDoubleTap() {
+        Log.d("TAG", "双击");
+    }
+    
+    @Override
+    public void onLongPress() {
+        Log.d("TAG", "长按");
+    }
+});
 ```
 
 ---
