@@ -4305,7 +4305,7 @@ performTraversals()
           SurfaceFlinger 合成显示
 ```
 
-### 8.2 关键类总结
+### 9.2 关键类总结
 
 | 类 | 职责 |
 |---|---|
