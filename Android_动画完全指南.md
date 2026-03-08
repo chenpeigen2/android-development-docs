@@ -689,6 +689,108 @@ void doFrame(long frameTimeNanos, int frame) {
 
 这与 View 动画完全不同：View 动画只在 `draw()` 阶段通过 `canvas.concat(matrix)` 临时改变绘制位置，而不修改任何成员变量。
 
+#### 属性动画的帧更新时机
+
+属性动画是基于 VSYNC 信号驱动的，帧更新的时机如下：
+
+```
+VSYNC 信号触发
+    ↓
+Choreographer.doFrame()
+    ↓
+CALLBACK_ANIMATION 阶段（计算新值）
+    ↓
+setAnimatedValue() 更新属性
+    ↓
+View.setter() 触发 invalidate()
+    ↓
+CALLBACK_TRAVERSAL 阶段（重绘生效）
+    ↓
+屏幕刷新
+```
+
+**结论：属性动画设置的参数在下一帧才生效。**
+
+| 操作 | 生效时机 |
+|-----|---------|
+| `animator.start()` | 立即注册到下一帧 |
+| `animator.setDuration(1000)` | **不影响已启动的动画** |
+| `animator.cancel()` | 立即停止，但当前帧可能已更新 |
+| `animator.pause()` | 暂停，恢复后从当前位置继续 |
+| 修改动画目标值 | 需要**重新创建动画实例** |
+
+#### 动态修改动画参数
+
+如果在动画运行过程中需要修改参数（如动态改变目标位置），**必须重新创建动画实例**：
+
+```java
+// ❌ 错误：动态修改参数无效
+ObjectAnimator animator = ObjectAnimator.ofFloat(view, "translationX", 0, 100);
+animator.start();
+// 这里的修改不会影响正在运行的动画
+animator.setFloatValues(0, 200); 
+
+// ✅ 正确：重新创建动画
+private ObjectAnimator currentAnimator;
+
+private void animateTo(float targetX) {
+    // 先取消之前的动画
+    if (currentAnimator != null) {
+        currentAnimator.cancel();
+    }
+    
+    // 从当前位置开始动画
+    float startX = view.getTranslationX();
+    currentAnimator = ObjectAnimator.ofFloat(view, "translationX", startX, targetX);
+    currentAnimator.setDuration(300);
+    currentAnimator.start();
+}
+```
+
+或者使用 `ValueAnimator` 手动控制：
+
+```java
+// 使用 ValueAnimator 手动控制进度
+ValueAnimator animator = ValueAnimator.ofFloat(0, 1);
+animator.addUpdateListener(animation -> {
+    float fraction = (float) animation.getAnimatedValue();
+    // 动态计算当前值
+    float currentValue = startValue + (targetValue - startValue) * fraction;
+    view.setTranslationX(currentValue);
+});
+```
+
+#### 动画的 lifecycle 回调
+
+```java
+animator.addListener(new AnimatorListenerAdapter() {
+    @Override
+    public void onAnimationStart(Animator animation) {
+        // 动画开始（重新开始时也会调用）
+    }
+
+    @Override
+    public void onAnimationEnd(Animator animation) {
+        // 动画结束
+    }
+
+    @Override
+    public void onAnimationPause(Animator animation) {
+        // 动画暂停
+    }
+
+    @Override
+    public void onAnimationResume(Animator animation) {
+        // 动画恢复
+    }
+
+    @Override
+    public void onAnimationCancel(Animator animation) {
+        // 动画取消（也会触发 onAnimationEnd）
+    }
+});
+```
+
 ---
 
 ## 帧动画 (Drawable Animation)
