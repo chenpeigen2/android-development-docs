@@ -6,12 +6,17 @@
 
 | # | 文档名称 | 大小 | 更新日期 |
 |---|----------|------|----------|
-| 1 | [Android_自定义View_绘制完全指南.md](./Android_自定义View_绘制完全指南.md) | 135KB | 2026-03-08 |
-| 2 | [Android_View_绘制流程.md](./Android_View_绘制流程.md) | 105KB | 2026-03-07 |
-| 3 | [Android_Activity_启动流程.md](./Android_Activity_启动流程.md) | 86KB | 2026-03-07 |
-| 4 | [Android事件分发机制完全指南.md](./Android事件分发机制完全指南.md) | 54KB | 2026-03-07 |
-| 5 | [Android_动画完全指南.md](./Android_动画完全指南.md) | 46KB | 2026-03-08 |
-| 6 | [Android事件分发机制详解.md](./Android事件分发机制详解.md) | 21KB | 2026-03-07 |
+| 1 | [Android_自定义View_绘制完全指南.md](./Android_自定义View_绘制完全指南.md) | 145KB | 2026-03-08 |
+| 2 | [Android_Activity_启动流程.md](./Android_Activity_启动流程.md) | 145KB | 2026-03-08 |
+| 3 | [Android_View_绘制流程.md](./Android_View_绘制流程.md) | 105KB | 2026-03-08 |
+| 4 | [Android_虚拟机详解.md](./Android_虚拟机详解.md) | 62KB | 2026-03-08 |
+| 5 | [Android_Handler机制详解.md](./Android_Handler机制详解.md) | 41KB | 2026-03-08 |
+| 6 | [Android_ClassLoader详解.md](./Android_ClassLoader详解.md) | 41KB | 2026-03-08 |
+| 7 | [Android_性能优化详解.md](./Android_性能优化详解.md) | 39KB | 2026-03-08 |
+| 8 | [Android事件分发机制完全指南.md](./Android事件分发机制完全指南.md) | 54KB | 2026-03-08 |
+| 9 | [Android_动画完全指南.md](./Android_动画完全指南.md) | 46KB | 2026-03-08 |
+| 10 | [Android_网络编程详解.md](./Android_网络编程详解.md) | 11KB | 2026-03-08 |
+| 11 | [Android事件分发机制详解.md](./Android事件分发机制详解.md) | 21KB | 2026-03-08 |
 
 ## 文档简介
 
@@ -22,52 +27,76 @@
 - Paint 画笔 (阴影, 渐变, 路径效果)
 - LayoutInflater 流程
 - Invalidate 与 RequestLayout 源码详解
-- ViewGroup.drawChild() 详解
 - 自定义属性与事件处理
 - View.post() 获取宽高原理
 - 子线程更新 UI 机制
+- Merge/Include/ViewStub 详解
 - 实战案例 (圆形进度条, 组合标题栏, 钢琴键盘)
 
-### 2. Android View 绘制流程
-- ViewRootImpl 核心流程
-- Measure/Layout/Draw 详解
-- WindowManager 架构
-- 与 WMS 通信机制
-
-### 3. Android Activity 启动流程
-- Activity 启动源码解析
+### 2. Android Activity 启动流程
 - ActivityThread 核心流程
-- Window 和 View 创建过程
+- PhoneWindow 创建时机
+- DecorView 添加到 WindowManager
+- mContentParent 初始化
+- Activity.attach() 详解
 
-### 4. Android 事件分发机制完全指南
-- 事件分发源码解析
-- ViewGroup 和 View 事件处理
-- 滑动冲突解决
+### 3. Android 虚拟机详解
+- JVM vs Dalvik vs ART 对比
+- 基于栈 vs 基于寄存器架构
+- DEX 文件格式
+- ODEX 与 OAT 文件
+- 内存管理与 GC 算法
 
-### 5. Android 动画完全指南
-- View 动画 (Tween Animation)
-- 属性动画 (Property Animation)
-- 帧动画 (Drawable Animation)
-- Interpolator 和 TypeEvaluator 详解
-- 动画性能优化
+### 4. Android Handler 机制详解
+- Handler、Looper、MessageQueue 核心原理
+- ThreadLocal 存储机制
+- 同步屏障 (Sync Barrier)
+- IdleHandler 空闲处理
+- HandlerThread 使用
+- loop() 为什么不会卡死
 
-### 6. Android 事件分发机制详解
-- 基础事件分发流程
-- 案例分析
+### 5. Android ClassLoader 详解
+- BootClassLoader、PathClassLoader
+- DexClassLoader、InMemoryDexClassLoader
+- 双亲委派模型
+- 热修复与插件化原理
+
+### 6. Android 性能优化详解
+- 启动优化策略
+- UI 渲染优化 (16ms法则)
+- 内存优化 (泄漏检测)
+- 电量优化
+- 网络优化
+- APK 体积优化
+- 性能分析工具
+
+### 7. Android 网络编程详解
+- HTTP/HTTPS 协议
+- HTTP/1.1 vs HTTP/2 vs HTTP/3
+- TCP vs UDP
+- TCP 三次握手与四次挥手
+- OkHttp/Retrofit 使用
+- 网络优化策略
 
 ---
 
 ## 更新日志
 
 ### 2026-03-08
-- 新增 Android 自定义 View 绘制完全指南
+- 新增 Android 虚拟机详解
+- 新增 Android ClassLoader 详解
+- 新增 Android 网络编程详解
+- 新增 Android 性能优化详解
+- 新增 Android Handler 机制详解
 
 ### 2026-03-08
-- 添加 Interpolator 和 TypeEvaluator 详细教程
+- 新增 Android 自定义 View 绘制完全指南
+- 添加 Merge/Include/ViewStub 详解
 
 ### 2026-03-07
-- 完善动画文档
-- 添加 View 动画底层原理
+- 完善 Activity 启动流程文档
+- 添加动画文档
+- 添加 View 绘制流程文档
 
 ---
 
