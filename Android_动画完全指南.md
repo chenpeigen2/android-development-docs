@@ -9,7 +9,9 @@ _日期：2026-03-08_
 
 1. [概述](#概述)
 2. [View 动画 (Animation)](#view-动画-animation)
+   - [View 动画底层原理：与 ViewRootImpl 的结合](#view-动画底层原理与-viewrootimpl-的结合)
 3. [属性动画 (Property Animation)](#属性动画-property-animation)
+   - [属性动画与 ViewRootImpl 的结合](#属性动画与-viewrootimpl-的结合)
 4. [帧动画 (Drawable Animation)](#帧动画-drawable-animation)
 5. [转场动画 (Transition API)](#转场动画-transition-api)
 6. [Material Design 动画](#material-design-动画)
@@ -131,6 +133,129 @@ animation.setAnimationListener(new Animation.AnimationListener() {
 1. **不改变实际属性**：动画后 View 的 `getX()`、`getY()` 等方法返回值不变
 2. **点击区域不变**：即使 View 移动了，点击区域仍停留在原位置
 3. **功能有限**：只能做有限的几种变换
+
+### View 动画底层原理：与 ViewRootImpl 的结合
+
+View 动画虽然不改变实际属性，但它同样需要通过 ViewRootImpl 和 Choreographer 来驱动绘制。
+
+#### 完整流程
+
+```
+View.startAnimation()
+    ↓
+Animation.attach()
+    ↓
+View.invalidate() + requestChildAnimation()
+    ↓
+ViewParent.requestLayout()
+    ↓
+ViewRootImpl.scheduleTraversals()
+    ↓
+Choreographer.postCallback(CALLBACK_TRAVERSAL)
+    ↓
+VSYNC 信号
+    ↓
+ViewRootImpl.doTraversal()
+    ↓
+ViewRootImpl.performTraversals()
+    ↓
+View.draw(canvas)
+    ↓
+applyLegacyAnimation(canvas) ← 动画在这里生效
+    ↓
+canvas.concat(t.getMatrix()) ← Canvas 矩阵变换
+```
+
+#### 关键：applyLegacyAnimation()
+
+```java
+// View.java
+boolean applyLegacyAnimation(Canvas canvas) {
+    boolean more = false;
+    
+    if (mCurrentAnimation != null) {
+        final Transformation t = getChildTransformation();
+        
+        // 计算当前帧的动画变换
+        more = mCurrentAnimation.getTransformation(
+            AnimationUtils.currentAnimationTimeMillis(), 
+            t
+        );
+        
+        // 关键：将动画的矩阵应用到 Canvas
+        if (more) {
+            canvas.concat(t.getMatrix());
+            
+            // 如果有透明度变化
+            float alpha = t.getAlpha();
+            if (alpha != 1.0f) {
+                canvas.saveLayerAlpha(canvas.getClipBounds(), (int) (alpha * 255));
+                canvas.restore();
+            }
+        }
+        
+        // 动画未结束时继续请求重绘
+        if (more && !mAttachInfo.mHardwareAccelerated) {
+            invalidate(true);
+        }
+    }
+    
+    return more;
+}
+```
+
+#### Animation.getTransformation()
+
+```java
+// Animation.java
+public boolean getTransformation(long currentTime, Transformation outTransform) {
+    // 1. 初始化开始时间
+    if (mStartTime < 0) {
+        mStartTime = currentTime;
+    }
+    
+    // 2. 计算进度
+    long deltaTime = currentTime - mStartTime;
+    float normalizedTime = deltaTime / (float) mDuration;
+    
+    // 3. 应用插值器
+    if (mInterpolator != null) {
+        normalizedTime = mInterpolator.getInterpolation(normalizedTime);
+    }
+    
+    // 4. 计算变换矩阵
+    applyTransformation(normalizedTime, outTransform);
+    
+    return normalizedTime < 1.0f; // 动画是否继续
+}
+
+protected void applyTransformation(float interpolatedTime, Transformation t) {
+    // 根据动画类型（平移、缩放、旋转、透明度）计算矩阵
+    // ...
+}
+```
+
+#### View 动画 vs 属性动画：核心区别
+
+| 特性 | View 动画 | 属性动画 |
+|-----|----------|---------|
+| **作用对象** | Canvas 画布 | View 属性成员 |
+| **实际位置** | 不变 | 真正改变 |
+| **点击区域** | 不变 | 跟随移动 |
+| **实现方式** | `canvas.concat(matrix)` | `setXXX()` 方法 |
+| **触发绘制** | 在 `draw()` 中 | 在 `onAnimationUpdate()` 中 |
+| **性能** | 较高 | 较低 |
+
+#### 总结
+
+View 动画的流程可以总结为：
+1. **启动**：调用 `startAnimation()`，设置 `mCurrentAnimation`
+2. **触发**：调用 `invalidate()` 触发 `ViewRootImpl.scheduleTraversals()`
+3. **绘制**：在 `View.draw()` 中通过 `applyLegacyAnimation()` 应用动画
+4. **变换**：通过 `canvas.concat(matrix)` 改变绘制位置
+5. **循环**：动画未结束时再次调用 `invalidate()` 继续下一帧
+
+这就是为什么 View 动画"看起来"移动了，但 `getX()` / `getY()` 返回的还是原始位置。
 
 ---
 
@@ -280,6 +405,289 @@ animator.addListener(new AnimatorListenerAdapter() {
     }
 });
 ```
+
+### 属性动画与 ViewRootImpl 的结合
+
+属性动画之所以能**真正改变 View 的实际属性**（如 `translationX`、`alpha`、`rotation`），是因为它在动画过程中会持续触发 ViewRootImpl 的绘制流程。
+
+#### 核心流程
+
+```
+ObjectAnimator.start()
+    ↓
+ValueAnimator.start()
+    ↓
+AnimationHandler.scheduleAnimation()
+    ↓
+Choreographer.postCallback(CALLBACK_ANIMATION, ...)
+    ↓
+VSYNC 信号触发
+    ↓
+AnimationFrameCallback.doFrame()
+    ↓
+ValueAnimator.doAnimationFrame()
+    ↓
+onAnimationUpdate() 回调
+    ↓
+View.setProperty() 直接修改属性
+    ↓
+View.invalidate() / requestLayout()
+    ↓
+ViewRootImpl.scheduleTraversals()
+    ↓
+performTraversals() 重新绘制
+```
+
+#### 1. 动画启动：ValueAnimator.start()
+
+```java
+// ValueAnimator.java
+public void start() {
+    // 确保在主线程
+    if (Looper.myLooper() == null) {
+        throw new AndroidRuntimeException("Animators may only be run on the main thread");
+    }
+    
+    // 标记正在运行
+    mRunning = true;
+    mPlayingBackwards = false;
+    mCurrentIteration = 0;
+    mLastIteration = 0;
+    
+    // 设置开始时间
+    long startTime = AnimationUtils.currentAnimationTimeMillis();
+    mStartTime = startTime;
+    
+    // 添加到 AnimationHandler
+    sAnimationHandler.addAnimationFrameCallback(this, 0);
+}
+```
+
+#### 2. AnimationHandler：管理所有属性动画
+
+属性动画通过 `AnimationHandler` 统一管理，它是一个单例：
+
+```java
+// ValueAnimator.java - 内部类
+public static final AnimationHandler sAnimationHandler = new AnimationHandler();
+
+private static class AnimationHandler extends Handler {
+    // 保存所有正在运行的动画
+    private final ArrayList<WeakReference<FrameCallback>> mAnimations = 
+        new ArrayList<>();
+    
+    // 通过 Choreographer 接收 VSYNC 回调
+    public void addAnimationFrameCallback(FrameCallback callback, int priority) {
+        // 添加到回调列表
+    }
+    
+    // Choreographer 回调
+    private final Choreographer.FrameCallback mFrameCallback = new Choreographer.FrameCallback() {
+        @Override
+        public void doFrame(long frameTimeNanos) {
+            // 遍历所有动画，调用它们的 doAnimationFrame
+            doAnimationFrame(frameTimeNanos);
+            // 继续注册下一帧
+            postFrameCallback();
+        }
+    };
+    
+    void doAnimationFrame(long frameTimeNanos) {
+        // 遍历所有动画
+        for (int i = 0; i < callbacks.size(); i++) {
+            FrameCallback callback = callbacks.get(i);
+            if (callback != null) {
+                // 关键：调用动画的 doAnimationFrame
+                callback.doAnimationFrame(frameTimeNanos);
+            }
+        }
+    }
+}
+```
+
+#### 3. Choreographer：帧调度中心
+
+```java
+// ValueAnimator 实现了 FrameCallback 接口
+public boolean doAnimationFrame(long frameTime) {
+    // 1. 计算当前帧的动画值
+    final long now = AnimationUtils.currentAnimationTimeMillis();
+    final long remaining = (mStartTime + mDuration) - now;
+    
+    // 2. 计算动画进度
+    float fraction = mDuration > 0 ? (float) (now - mStartTime) / mDuration : 1f;
+    
+    // 3. 应用插值
+    if (mInterpolator != null) {
+        fraction = mInterpolator.getInterpolation(fraction);
+    }
+    
+    // 4. 设置动画值
+    if (mEvaluator != null) {
+        Object value = mEvaluator.evaluate(fraction, mStartValue, mEndValue);
+        setAnimatedValue(value);
+    }
+    
+    // 5. 通知监听器
+    if (mUpdateListeners != null) {
+        for (int i = 0; i < mUpdateListeners.size(); i++) {
+            mUpdateListeners.get(i).onAnimationUpdate(this);
+        }
+    }
+    
+    return mRunning;
+}
+```
+
+#### 4. setAnimatedValue：真正改变属性
+
+```java
+// ObjectAnimator.java
+@Override
+public void setAnimatedValue(Object target) {
+    // 逐个设置每个属性的值
+    for (int i = 0; i < mPropertyValues.length; i++) {
+        PropertyValuesHolder pvh = mPropertyValues[i];
+        pvh.setAnimatedValue(target);
+    }
+}
+
+// PropertyValuesHolder.java
+void setAnimatedValue(Object target) {
+    if (mProperty != null) {
+        // 通过 Property 直接设置值
+        mProperty.set(target, getAnimatedValue());
+    } else if (mSetter != null) {
+        // 通过反射调用 setter 方法
+        mSetter.invoke(target, getAnimatedValue());
+    }
+}
+```
+
+#### 5. 触发 ViewRootImpl 重绘
+
+当属性值改变后，View 需要重新绘制。属性动画有两种方式触发绘制：
+
+**方式一：通过 View.setProperty() 自动触发**
+
+```java
+// View.java
+public void setTranslationX(float translationX) {
+    // 1. 直接修改属性值
+    mTranslationX = translationX;
+    
+    // 2.  invalidate 触发重绘
+    invalidate();
+    
+    // 3.  invalidate 无效时，请求重新布局
+    invalidateParentCaches();
+}
+```
+
+**方式二：通过 onAnimationUpdate 手动触发**
+
+```java
+ObjectAnimator animator = ObjectAnimator.ofFloat(view, "translationX", 0, 100);
+animator.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
+    @Override
+    public void onAnimationUpdate(ValueAnimator animation) {
+        // 这里修改属性后，View.invalidate() 会被自动调用
+        // 但如果需要更强制刷新，可以手动调用：
+        // view.setTranslationX(...);
+        // view.getParent().requestLayout(); // 如果改变了布局参数
+    }
+});
+animator.start();
+```
+
+#### 6. ViewRootImpl.scheduleTraversals()
+
+无论哪种方式触发，最终都会汇聚到 `ViewRootImpl.scheduleTraversals()`：
+
+```java
+// ViewRootImpl.java
+void scheduleTraversals() {
+    if (!mTraversalScheduled) {
+        mTraversalScheduled = true;
+        
+        // 通过 Choreographer 注册下一帧的绘制任务
+        mChoreographer.postCallback(
+            Choreographer.CALLBACK_TRAVERSAL,
+            mTraversalRunnable,
+            null
+        );
+    }
+}
+```
+
+#### 7. Choreographer 的回调顺序
+
+```java
+// Choreographer.java
+void doFrame(long frameTimeNanos, int frame) {
+    // 按优先级顺序执行回调
+    // 1. CALLBACK_INPUT - 输入事件
+    // 2. CALLBACK_ANIMATION - 动画更新 ← 属性动画在这里更新值
+    // 3. CALLBACK_TRAVERSAL - View 遍历/绘制 ← ViewRootImpl 在这里重绘
+    
+    doCallbacks(Choreographer.CALLBACK_INPUT, frameTimeNanos);
+    doCallbacks(Choreographer.CALLBACK_ANIMATION, frameTimeNanos);
+    doCallbacks(Choreographer.CALLBACK_TRAVERSAL, frameTimeNanos);
+}
+```
+
+这意味着：
+- **CALLBACK_ANIMATION** 阶段：属性动画计算新值，更新 View 属性
+- **CALLBACK_TRAVERSAL** 阶段：ViewRootImpl 执行 performTraversals()，重新绘制整个 View 树
+
+#### 属性动画 vs View 动画：与 ViewRootImpl 的区别
+
+| 特性 | View 动画 | 属性动画 |
+|-----|----------|---------|
+| 触发方式 | `View.startAnimation()` | `ObjectAnimator.start()` |
+| 回调机制 | 直接调用 `invalidate()` | 通过 AnimationHandler + Choreographer |
+| 属性变化 | 只改变 Canvas 矩阵 | **真正改变 View 的成员变量** |
+| 触发重绘 | 在 `applyLegacyAnimation()` 中 | 在 `setAnimatedValue()` 中 |
+| 与 ViewRootImpl | 通过 `scheduleTraversals()` | 同样通过 `scheduleTraversals()` |
+| 性能 | 较高（只重绘一次） | 较低（每帧都计算+重绘） |
+
+#### 完整的帧流程时序图
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                         VSYNC 信号                                    │
+│                              ↓                                       │
+│  ┌─────────────────────────────────────────────────────────────────┐ │
+│  │              Choreographer.doFrame()                            │ │
+│  │  ┌─────────────────┐  ┌─────────────────┐  ┌────────────────┐  │ │
+│  │  │ CALLBACK_INPUT  │  │ CALLBACK_ANIM   │  │CALLBACK_TRAV   │  │ │
+│  │  │   输入事件       │→ │  属性动画更新值  │→ │  View 重绘     │  │ │
+│  │  │                 │  │                 │  │                │  │ │
+│  │  │                 │  │ ValueAnimator   │  │ performTraver  │  │ │
+│  │  │                 │  │ .doAnimationFram│  │ sals()         │  │ │
+│  │  │                 │  │                 │  │                │  │ │
+│  │  │                 │  │ setAnimatedValue│  │ View.draw()    │  │ │
+│  │  │                 │  │ setTranslationX │  │                │  │ │
+│  │  │                 │  │ View.mTranslatio│  │                │  │ │
+│  │  │                 │  │ nX = newValue    │  │                │  │ │
+│  │  └─────────────────┘  └─────────────────┘  └────────────────┘  │ │
+│  └─────────────────────────────────────────────────────────────────┘ │
+│                              ↓                                       │
+│  屏幕刷新                                                                 │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+#### 为什么属性动画能改变实际属性？
+
+通过上面的分析，答案很清楚了：
+
+1. **直接修改成员变量**：`setTranslationX()` 会直接修改 `View.mTranslationX`
+2. **属性反射机制**：`PropertyValuesHolder` 通过反射调用 `setTranslationX()` 方法
+3. **自动触发重绘**：每个 setter 方法内部都调用了 `invalidate()` 或 `requestLayout()`
+4. **ViewRootImpl 调度**：`invalidate()` 最终会调用 `ViewRootImpl.scheduleTraversals()`
+5. **Choreographer 驱动**：每帧的更新由 Choreographer 的 VSYNC 信号统一驱动
+
+这与 View 动画完全不同：View 动画只在 `draw()` 阶段通过 `canvas.concat(matrix)` 临时改变绘制位置，而不修改任何成员变量。
 
 ---
 
