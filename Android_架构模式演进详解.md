@@ -1304,7 +1304,216 @@ lifecycleScope.launch {
 }
 ```
 
----
+### 10.4 LiveData postValue 和 setValue 区别？
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    LiveData postValue vs setValue                          │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  setValue(value)：
+  ─────────────────────────────────────────────────────────────────────────
+  - 必须在主线程调用
+  - 同步设置值，立即通知观察者
+  - 主线程调用时使用
+
+  postValue(value)：
+  ─────────────────────────────────────────────────────────────────────────
+  - 可以在任意线程调用
+  - 内部通过 Handler 切换到主线程
+  - 最终会调用 setValue()
+  - 子线程调用时使用
+
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │                                                                         │
+  │  注意事项：                                                             │
+  │  ─────────────────────────────────────────────────────────────────────── │
+  │                                                                         │
+  │  1. postValue 多次调用，只会通知最后一次值                              │
+  │                                                                         │
+  │     // 子线程                                                           │
+  │     liveData.postValue(1)                                               │
+  │     liveData.postValue(2)                                               │
+  │     liveData.postValue(3)                                               │
+  │     // 观察者只会收到 3，中间值被合并                                    │
+  │                                                                         │
+  │  2. setValue 在子线程调用会崩溃                                         │
+  │                                                                         │
+  │     // 错误！                                                            │
+  │     thread { liveData.setValue(1) }  // CalledFromWrongThreadException  │
+  │                                                                         │
+  │     // 正确                                                              │
+  │     thread { liveData.postValue(1) }                                    │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+```
+
+```kotlin
+// 示例：正确使用
+class UserViewModel(private val repository: UserRepository) : ViewModel() {
+    
+    private val _users = MutableLiveData<List<User>>()
+    val users: LiveData<List<User>> = _users
+    
+    fun loadUsers() {
+        viewModelScope.launch(Dispatchers.IO) {
+            // 子线程获取数据
+            val result = repository.getUsers()
+            
+            // 方式1：postValue（子线程）
+            _users.postValue(result.getOrNull())
+            
+            // 方式2：切回主线程 setValue
+            // withContext(Dispatchers.Main) {
+            //     _users.value = result.getOrNull()
+            // }
+        }
+    }
+}
+```
+
+### 10.5 Flow 的发射线程和收集线程是什么关系？
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         Flow 线程模型                                      │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  核心概念：
+  ─────────────────────────────────────────────────────────────────────────
+  - Flow 是冷流：不收集就不执行
+  - 发射线程：由 flowOn() 决定
+  - 收集线程：由 collect 所在的协程决定
+
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │                                                                         │
+  │  flowOn() 的作用：                                                      │
+  │  ─────────────────────────────────────────────────────────────────────── │
+  │                                                                         │
+  │  1. 改变上游（发射）的执行线程                                          │
+  │  2. 不影响下游（收集）的执行线程                                        │
+  │  3. 多次 flowOn() 只有最后一个生效                                     │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+```
+
+```kotlin
+// ==================== 示例1：基本线程控制 ====================
+fun getUsers(): Flow<List<User>> = flow {
+    // 这里在 IO 线程执行（由 flowOn 决定）
+    println("发射线程: ${Thread.currentThread().name}")  // DefaultDispatcher-worker-1
+    
+    val users = apiService.getUsers()  // 网络请求
+    emit(users)  // 发射数据
+}.flowOn(Dispatchers.IO)  // 指定上游在 IO 线程
+
+// ViewModel
+viewModelScope.launch {
+    // 这里在主线程执行（由 viewModelScope 决定）
+    repository.getUsers().collect { users ->
+        println("收集线程: ${Thread.currentThread().name}")  // main
+        _state.update { it.copy(users = users) }
+    }
+}
+
+// 输出：
+// 发射线程: DefaultDispatcher-worker-1
+// 收集线程: main
+```
+
+```kotlin
+// ==================== 示例2：flowOn 只影响上游 ====================
+fun getData(): Flow<Int> = flow {
+    // 上游：flowOn(Dispatchers.IO) 生效
+    println("上游线程: ${Thread.currentThread().name}")
+    repeat(10) {
+        emit(it)
+        delay(100)
+    }
+}
+    .map { 
+        // 中间操作：也受 flowOn(Dispatchers.IO) 影响
+        println("map 线程: ${Thread.currentThread().name}")
+        it * 2 
+    }
+    .flowOn(Dispatchers.IO)  // 上游和中间操作都在 IO 线程
+
+// 收集
+lifecycleScope.launch {
+    // 下游：在 launch 的上下文（主线程）
+    getData().collect { 
+        println("collect 线程: ${Thread.currentThread().name}")
+    }
+}
+
+// 输出：
+// 上游线程: DefaultDispatcher-worker-1
+// map 线程: DefaultDispatcher-worker-1
+// collect 线程: main
+```
+
+```kotlin
+// ==================== 示例3：StateFlow 线程安全 ====================
+class UserViewModel : ViewModel() {
+    
+    private val _state = MutableStateFlow(UiState())
+    val state: StateFlow<UiState> = _state.asStateFlow()
+    
+    fun loadData() {
+        // 在 IO 线程发射
+        viewModelScope.launch(Dispatchers.IO) {
+            val data = repository.getData()
+            
+            // StateFlow.value 是线程安全的
+            // 内部有同步机制，可以在任意线程调用
+            _state.update { it.copy(data = data) }
+        }
+        
+        // 或者
+        viewModelScope.launch {
+            repository.getDataFlow()
+                .flowOn(Dispatchers.IO)
+                .collect { data ->
+                    // 这里在主线程（viewModelScope 默认主线程）
+                    _state.update { it.copy(data = data) }
+                }
+        }
+    }
+}
+```
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    Flow 线程控制总结                                       │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │                                                                         │
+  │  规则：                                                                 │
+  │  ─────────────────────────────────────────────────────────────────────── │
+  │                                                                         │
+  │  1. flow { } 里的代码：由最近的 flowOn() 决定                          │
+  │  2. collect { } 里的代码：由 collect 所在的协程决定                     │
+  │  3. StateFlow.value / update：线程安全，任意线程可调用                  │
+  │                                                                         │
+  │  常见模式：                                                             │
+  │  ─────────────────────────────────────────────────────────────────────── │
+  │                                                                         │
+  │  // ViewModel 中                                                        │
+  │  viewModelScope.launch {                    // 主线程                   │
+  │      repository.getData()                   // 返回 Flow               │
+  │          .flowOn(Dispatchers.IO)            // 上游在 IO 线程          │
+  │          .collect { data ->                 // 下游在主线程            │
+  │              _state.update { ... }          // 更新状态                │
+  │          }                                                              │
+  │  }                                                                      │
+  │                                                                         │
+  │  UI 更新：collect 在主线程 → 可以直接更新 UI                           │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+```
+
+### 10.6 LiveData vs Flow 怎么选？
 
 ## 11. 知识体系总结
 
