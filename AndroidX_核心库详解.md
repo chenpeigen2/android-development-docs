@@ -16,8 +16,9 @@
 8. [DataStore](#8-datastore)
 9. [Paging](#9-paging)
 10. [核心库对比](#10-核心库对比)
-11. [常见问题](#11-常见问题)
-12. [知识体系总结](#12-知识体系总结)
+11. [ConstraintLayout](#11-constraintlayout)
+12. [常见问题](#12-常见问题)
+13. [知识体系总结](#13-知识体系总结)
 
 ---
 
@@ -1694,6 +1695,8 @@ class UserFragment : Fragment() {
   │ DataStore       │ 数据存储         │ 替代 SP，异步 API，类型安全            │
   ├─────────────────┼─────────────────┼───────────────────────────────────────┤
   │ Paging          │ 分页加载         │ 自动分页，加载状态管理                 │
+  ├─────────────────┼─────────────────┼───────────────────────────────────────┤
+  │ ConstraintLayout│ 布局优化         │ 扁平化布局，减少嵌套层级               │
   └─────────────────┴─────────────────┴───────────────────────────────────────┘
 
   LiveData vs Flow 选择：
@@ -1705,9 +1708,9 @@ class UserFragment : Fragment() {
 
 ---
 
-## 10. ConstraintLayout
+## 11. ConstraintLayout
 
-### 10.1 ConstraintLayout 是什么
+### 12.1 ConstraintLayout 是什么
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -1733,7 +1736,7 @@ class UserFragment : Fragment() {
   - ConstraintLayout：强大约束，扁平化，性能好
 ```
 
-### 10.2 相对定位
+### 12.2 相对定位
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -1797,7 +1800,7 @@ class UserFragment : Fragment() {
 </androidx.constraintlayout.widget.ConstraintLayout>
 ```
 
-### 10.3 居中和偏移
+### 12.3 居中和偏移
 
 ```xml
 <!-- ==================== 居中 ==================== -->
@@ -1834,7 +1837,7 @@ class UserFragment : Fragment() {
 <!-- bias 范围：0.0（最左/最上）到 1.0（最右/最下），默认 0.5（居中）-->
 ```
 
-### 10.4 尺寸约束
+### 11.4 尺寸约束
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -1903,7 +1906,7 @@ class UserFragment : Fragment() {
     app:layout_constraintRight_toRightOf="parent" />
 ```
 
-### 10.5 Chain 链
+### 11.5 Chain 链
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -2002,7 +2005,7 @@ class UserFragment : Fragment() {
   | 作为一个整体，bias 控制位置 |
 ```
 
-### 10.6 Guideline 辅助线
+### 11.6 Guideline 辅助线
 
 ```xml
 <!-- ==================== Guideline ==================== -->
@@ -2044,7 +2047,7 @@ class UserFragment : Fragment() {
 </androidx.constraintlayout.widget.ConstraintLayout>
 ```
 
-### 10.7 Barrier 屏障
+### 11.7 Barrier 屏障
 
 ```xml
 <!-- ==================== Barrier ==================== -->
@@ -2088,7 +2091,7 @@ class UserFragment : Fragment() {
 </androidx.constraintlayout.widget.ConstraintLayout>
 ```
 
-### 10.8 Group 分组
+### 11.8 Group 分组
 
 ```xml
 <!-- ==================== Group ==================== -->
@@ -2114,7 +2117,7 @@ class UserFragment : Fragment() {
 binding.group.visibility = View.GONE  // 同时隐藏 tv1, tv2, tv3
 ```
 
-### 10.9 Flow 流式布局
+### 11.9 Flow 流式布局
 
 ```xml
 <!-- ==================== Flow（ConstraintLayout 2.0+）==================== -->
@@ -2151,7 +2154,7 @@ binding.group.visibility = View.GONE  // 同时隐藏 tv1, tv2, tv3
 -->
 ```
 
-### 10.10 Layer 图层
+### 12.10 Layer 图层
 
 ```xml
 <!-- ==================== Layer ==================== -->
@@ -2173,7 +2176,7 @@ binding.group.visibility = View.GONE  // 同时隐藏 tv1, tv2, tv3
 </androidx.constraintlayout.widget.ConstraintLayout>
 ```
 
-### 10.11 ConstraintLayout 常见问题
+### 12.11 ConstraintLayout 常见问题
 
 ```
 Q1: 为什么设置约束后 View 还是在左上角？
@@ -2200,9 +2203,9 @@ A:
 
 ---
 
-## 11. 常见问题
+## 12. 常见问题
 
-### 11.1 ViewModel 什么时候销毁？
+### 12.1 ViewModel 什么时候销毁？
 
 ```
 ViewModel 在以下情况销毁：
@@ -2214,7 +2217,7 @@ ViewModel 在以下情况销毁：
 - ViewModel.onCleared() 在销毁时调用
 ```
 
-### 11.2 LiveData 和 Flow 怎么选？
+### 12.2 LiveData 和 Flow 怎么选？
 
 ```
 LiveData：
@@ -2228,7 +2231,7 @@ Flow（推荐）：
 - 新项目首选
 ```
 
-### 11.3 Room 能在主线程访问吗？
+### 12.3 Room 能在主线程访问吗？
 
 ```
 默认：不允许在主线程访问（会抛异常）
@@ -2245,7 +2248,7 @@ Room.databaseBuilder(...)
 
 ---
 
-## 12. 知识体系总结
+## 13. 知识体系总结
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
