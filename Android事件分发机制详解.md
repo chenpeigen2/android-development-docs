@@ -10,6 +10,16 @@
 2. [事件类型](#2-事件类型)
    - 2.1 [触摸事件 (MotionEvent)](#21-触摸事件-motionevent)
    - 2.2 [事件批次](#22-事件批次)
+   - 2.3 [多指触控详解](#23-多指触控详解)
+     - 2.3.1 [基本概念](#231-基本概念)
+     - 2.3.2 [多指触控事件类型](#232-多指触控事件类型)
+     - 2.3.3 [获取手指信息的关键方法](#233-获取手指信息的关键方法)
+     - 2.3.4 [正确处理多指触控](#234-正确处理多指触控)
+     - 2.3.5 [多指触控的事件分发](#235-多指触控的事件分发)
+     - 2.3.6 [多指触控的典型场景](#236-多指触控的典型场景)
+     - 2.3.7 [多指触控与 ViewGroup 分发](#237-多指触控与-viewgroup-分发)
+     - 2.3.8 [多指触控常见问题](#238-多指触控常见问题)
+     - 2.3.9 [手势检测器汇总](#239-手势检测器汇总)
 3. [分发流程](#3-分发流程)
    - 3.1 [整体流程图](#31-整体流程图)
    - 3.2 [传递顺序](#32-传递顺序)
@@ -119,6 +129,717 @@ DOWN → [MOVE → MOVE → ...] → UP
 ```
 
 中间可能穿插 ACTION_CANCEL 表示事件被中断。
+
+### 2.3 多指触控详解
+
+#### 2.3.1 基本概念
+
+多指触控（Multi-touch）是指同时有多根手指触摸屏幕的场景。Android 通过 **Pointer ID** 来区分不同的手指。
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         多指触控核心概念                                    │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  Pointer（指针）= 每一根手指
+  Pointer ID = 手指的唯一标识符（从0开始分配）
+
+  典型场景：
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │                                                                         │
+  │    手指1 (Pointer ID=0)          手指2 (Pointer ID=1)                  │
+  │         ●                            ●                                 │
+  │         │                            │                                 │
+  │         ▼                            ▼                                 │
+  │                                                                         │
+  │    ┌───────────────────────────────────────────────────────────────┐   │
+  │    │                       屏幕                                     │   │
+  │    │                                                               │   │
+  │    │                                                               │   │
+  │    └───────────────────────────────────────────────────────────────┘   │
+  │                                                                         │
+  │  事件序列：                                                          │
+  │  ACTION_DOWN (pointerId=0)                                           │
+  │      ↓                                                               │
+  │  ACTION_POINTER_DOWN (pointerId=1)  ← 第二个手指按下                  │
+  │      ↓                                                               │
+  │  ACTION_MOVE (包含两个手指的信息)                                      │
+  │      ↓                                                               │
+  │  ACTION_POINTER_UP (pointerId=1)    ← 第二个手指抬起                   │
+  │      ↓                                                               │
+  │  ACTION_UP (pointerId=0)                                            │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+```
+
+#### 2.3.2 多指触控事件类型
+
+| 事件 | 常量 | 值 | 描述 |
+|------|------|-----|------|
+| ACTION_DOWN | 0 | 0x0 | 第一个手指按下，**开始一个新的触摸序列** |
+| ACTION_POINTER_DOWN | 5 | 0x5 | **其他手指**按下（第二个、第三个...） |
+| ACTION_MOVE | 2 | 0x2 | 任意手指移动，**包含所有手指的位置信息** |
+| ACTION_POINTER_UP | 6 | 0x6 | **其他手指**抬起（第二个、第三个...） |
+| ACTION_UP | 1 | 0x1 | 最后一个手指抬起，**结束触摸序列** |
+| ACTION_CANCEL | 3 | 0x3 | 整个触摸序列被取消 |
+
+**重要**：`ACTION_POINTER_DOWN` 和 `ACTION_POINTER_UP` **不会结束触摸序列**，只有 `ACTION_UP` 才会。
+
+#### 2.3.3 获取手指信息的关键方法
+
+```java
+// 获取当前触摸点数量（几根手指）
+int pointerCount = event.getPointerCount();
+
+// 获取指定索引的 Pointer ID
+int pointerId = event.getPointerId(int pointerIndex);
+
+// 根据 Pointer ID 获取指针索引
+int pointerIndex = event.findPointerIndex(int pointerId);
+
+// 获取指定索引手指的 X 坐标
+float x = event.getX(int pointerIndex);
+
+// 获取指定索引手指的 Y 坐标
+float y = event.getY(int pointerIndex);
+
+// 获取动作的指针索引（哪个手指触发了这个事件）
+int actionIndex = event.getActionIndex();
+
+// 获取动作（已废弃，使用 getActionMasked()）
+int action = event.getAction();
+
+// ★★★ 获取动作掩码（排除索引信息）★★★
+int actionMasked = event.getActionMasked();
+
+// 获取所有手指的位掩码（哪些手指在触摸）
+int pointerIdBits = event.getPointerIdBits();
+```
+
+#### 2.3.4 正确处理多指触控
+
+```java
+@Override
+public boolean onTouchEvent(MotionEvent event) {
+    // ★★★ 必须使用 getActionMasked() ★★★
+    int actionMasked = event.getActionMasked();
+    
+    switch (actionMasked) {
+        case MotionEvent.ACTION_DOWN:
+            // 第一个手指按下
+            // 记录初始触摸
+            mActivePointerId = event.getPointerId(0);
+            mLastX = event.getX(0);
+            mLastY = event.getY(0);
+            break;
+            
+        case MotionEvent.ACTION_POINTER_DOWN:
+            // ★★★ 新增手指按下 ★★★
+            // 获取是第几个手指（actionIndex）
+            int newPointerIndex = event.getActionIndex();
+            int newPointerId = event.getPointerId(newPointerIndex);
+            
+            // 可以记录新增手指的位置
+            float x = event.getX(newPointerIndex);
+            float y = event.getY(newPointerIndex);
+            break;
+            
+        case MotionEvent.ACTION_MOVE:
+            // ★★★ 手指移动，遍历所有触摸点 ★★★
+            // 注意：可能有多个手指在移动
+            for (int i = 0; i < event.getPointerCount(); i++) {
+                int pointerId = event.getPointerId(i);
+                float x = event.getX(i);
+                float y = event.getY(i);
+                
+                // 处理每个手指的移动
+                if (pointerId == mActivePointerId) {
+                    // 主手指
+                    handlePrimaryMove(x, y);
+                } else {
+                    // 辅助手指（如双指缩放）
+                    handleSecondaryMove(pointerId, x, y);
+                }
+            }
+            break;
+            
+        case MotionEvent.ACTION_POINTER_UP:
+            // ★★★ 某个手指抬起 ★★★
+            int pointerIndex = event.getActionIndex();
+            int pointerId = event.getPointerId(pointerIndex);
+            
+            if (pointerId == mActivePointerId) {
+                // ★★★ 主手指抬起，切换到另一个手指 ★★★
+                // 找到剩余手指中索引最小的作为新的主手指
+                int newPointerIndex = pointerIndex == 0 ? 1 : 0;
+                mActivePointerId = event.getPointerId(newPointerIndex);
+                mLastX = event.getX(newPointerIndex);
+                mLastY = event.getY(newPointerIndex);
+            }
+            break;
+            
+        case MotionEvent.ACTION_UP:
+            // 最后一个手指抬起，触摸序列结束
+            mActivePointerId = -1;
+            break;
+            
+        case MotionEvent.ACTION_CANCEL:
+            // 触摸序列被取消
+            mActivePointerId = -1;
+            break;
+    }
+    
+    return true;
+}
+```
+
+#### 2.3.5 多指触控的事件分发
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    多指触控的事件分发流程                                    │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  1. 第一根手指按下：ACTION_DOWN
+  ─────────────────────────────────────────────────────────────────────────────
+     
+     系统
+       │
+       ▼
+     Activity.dispatchTouchEvent(DOWN, pointerId=0)
+       │
+       ▼
+     ViewGroup.dispatchTouchEvent(DOWN, pointerId=0)
+       │
+       ├─► onInterceptTouchEvent(DOWN)
+       │
+       ├─► findTouchTarget() → 找到目标子 View
+       │
+       ├─► addTouchTarget(child, pointerIdBit=0x1)  ★ 将 pointerId 加入 TouchTarget
+       │
+       └─► mFirstTouchTarget 指向 [Child, pointerIdBit=0x1]
+     
+     后续 MOVE/UP 事件都会直接分发给这个 Child
+
+
+  2. 第二根手指按下：ACTION_POINTER_DOWN
+  ─────────────────────────────────────────────────────────────────────────────
+
+     系统
+       │
+       ▼
+     Activity.dispatchTouchEvent(POINTER_DOWN, pointerId=1)
+       │
+       ▼
+     ViewGroup.dispatchTouchEvent(POINTER_DOWN, pointerId=1)
+       │
+       ├─► onInterceptTouchEvent(POINTER_DOWN)  ★ 也会调用！
+       │
+       ├─► 遍历子 View，找新手指的目标
+       │     （同一点评下可能找到不同或相同的子 View）
+       │
+       ├─► 如果找到新目标：
+       │     addTouchTarget(newChild, pointerIdBit=0x2)
+       │
+       └─► mFirstTouchTarget 可能指向多个目标
+           ┌─────────────────────────────────────────┐
+           │  TouchTarget 链表结构                   │
+           │  mFirstTouchTarget → [ChildA, id=0x1]  │
+           │                        → [ChildB, id=0x2]│
+           │                        → null           │
+           └─────────────────────────────────────────┘
+
+     ★★★ 关键：每个 pointerId 有自己的 TouchTarget ★★★
+
+
+  3. 手指移动：ACTION_MOVE
+  ─────────────────────────────────────────────────────────────────────────────
+
+     系统
+       │
+       ▼
+     Activity.dispatchTouchEvent(MOVE, 包含所有手指信息)
+       │
+       ▼
+     ViewGroup.dispatchTouchEvent(MOVE)
+       │
+       ▼
+     遍历 TouchTarget 链表，分发给所有目标：
+     
+     TouchTarget target = mFirstTouchTarget;
+     while (target != null) {
+         // 分发事件给每个目标
+         dispatchTransformedTouchEvent(ev, false, 
+                 target.child, target.pointerIdBits);
+         target = target.next;
+     }
+     
+     ★★★ 重要 ★★★
+     - 所有被触摸的子 View 都会收到 MOVE 事件
+     - 事件包含所有手指的信息
+     - 每个 View 需要自己提取相关信息
+
+
+  4. 第二根手指抬起：ACTION_POINTER_UP
+  ─────────────────────────────────────────────────────────────────────────────
+
+     系统
+       │
+       ▼
+     Activity.dispatchTouchEvent(POINTER_UP, pointerId=1)
+       │
+       ▼
+     ViewGroup.dispatchTouchEvent(POINTER_UP, pointerId=1)
+       │
+       ├─► 找到 pointerId=1 对应的 TouchTarget
+       │
+       ├─► 从链表中移除该 TouchTarget
+       │
+       └─► 剩余手指继续分发给剩余的 TouchTarget
+     
+     ★★★ 重要 ★★★
+     - ACTION_POINTER_UP 不会结束触摸序列
+     - 只有所有手指都抬起（ACTION_UP）才会结束
+
+
+  5. 最后一根手指抬起：ACTION_UP
+  ─────────────────────────────────────────────────────────────────────────────
+
+     系统
+       │
+       ▼
+     Activity.dispatchTouchEvent(UP)
+       │
+       ▼
+     ViewGroup.dispatchTouchEvent(UP)
+       │
+       ├─► 清空 TouchTarget 链表
+       │     cancelAndClearTouchTargets(ev)
+       │
+       └─► 触摸序列结束
+```
+
+#### 2.3.6 多指触控的典型场景
+
+**场景一：双指缩放（ScaleGestureDetector）**
+
+```java
+public class ScaleView extends View {
+    private ScaleGestureDetector mScaleDetector;
+    private float mScaleFactor = 1.0f;
+    
+    public ScaleView(Context context) {
+        super(context);
+        mScaleDetector = new ScaleGestureDetector(context, 
+                new ScaleGestureDetector.SimpleOnScaleGestureListener() {
+            @Override
+            public boolean onScale(ScaleGestureDetector detector) {
+                // ★★★ 获取缩放因子 ★★★
+                mScaleFactor *= detector.getScaleFactor();
+                
+                // 限制缩放范围
+                mScaleFactor = Math.max(0.5f, Math.min(mScaleFactor, 3.0f));
+                
+                // 重新绘制
+                invalidate();
+                return true;
+            }
+        });
+    }
+    
+    @Override
+    public boolean onTouchEvent(MotionEvent event) {
+        // ★★★ 交给 ScaleGestureDetector 处理 ★★★
+        mScaleDetector.onTouchEvent(event);
+        return true;
+    }
+}
+```
+
+**ScaleGestureDetector 原理：**
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    ScaleGestureDetector 原理                                │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  核心变量：
+  - mFocusX, mFocusY        焦点位置（两手指中间）
+  - mPrevSpanX, mPrevSpanY  上一帧两手指的距离
+  - mCurrSpanX, mCurrSpanY  当前帧两手指的距离
+  - mScaleFactor            缩放因子
+
+
+  检测逻辑：
+  ─────────────────────────────────────────────────────────────────────────────
+
+  ACTION_POINTER_DOWN（第二根手指按下）:
+       │
+       ▼
+  记录初始位置和距离
+       │
+       ▼
+  等待 MOVE 事件
+       │
+       ▼
+  ACTION_MOVE:
+       │
+       ├─► 计算当前两指距离
+       │     span = sqrt((x2-x1)² + (y2-y1)²)
+       │
+       ├─► 计算缩放因子
+       │     scaleFactor = currentSpan / previousSpan
+       │
+       ├─► 计算焦点位置
+       │     focusX = (x1 + x2) / 2
+       │     focusY = (y1 + y2) / 2
+       │
+       └─► onScale() 回调
+           │
+           ├─► 返回 true：处理缩放，后续事件继续
+           └─► 返回 false：忽略本次缩放
+
+
+  时序图：
+  ─────────────────────────────────────────────────────────────────────────────
+
+  手指1按下 → 手指2按下 → 双指移动 → 手指1抬起 → 手指2抬起
+     │           │            │           │           │
+     ▼           ▼            ▼           ▼           ▼
+  DOWN    POINTER_DOWN    MOVE     POINTER_UP       UP
+              │          onScale      (如果缩放完成)
+              │            │
+              └────────────┘
+              保存为上一帧距离
+```
+
+**场景二：双指滚动（Scroll）**
+
+```java
+@Override
+public boolean onTouchEvent(MotionEvent event) {
+    switch (event.getActionMasked()) {
+        case MotionEvent.ACTION_DOWN:
+            mLastX = event.getX();
+            mLastY = event.getY();
+            break;
+            
+        case MotionEvent.ACTION_POINTER_DOWN:
+            // 第二根手指按下，放弃之前的滚动
+            mLastX = event.getX(event.getActionIndex());
+            mLastY = event.getY(event.getActionIndex());
+            break;
+            
+        case MotionEvent.ACTION_MOVE:
+            if (event.getPointerCount() >= 2) {
+                // ★★★ 双指滚动：计算中心点移动 ★★★
+                float focusX = (event.getX(0) + event.getX(1)) / 2;
+                float focusY = (event.getY(0) + event.getY(1)) / 2;
+                
+                float deltaX = focusX - mLastX;
+                float deltaY = focusY - mLastY;
+                
+                // 执行滚动
+                scrollBy((int) -deltaX, (int) -deltaY);
+                
+                mLastX = focusX;
+                mLastY = focusY;
+            } else {
+                // 单指滚动
+                float x = event.getX();
+                float y = event.getY();
+                
+                int deltaX = (int) (x - mLastX);
+                int deltaY = (int) (y - mLastY);
+                
+                scrollBy(-deltaX, -deltaY);
+                
+                mLastX = x;
+                mLastY = y;
+            }
+            break;
+    }
+    return true;
+}
+```
+
+**场景三：同时双指缩放和滚动**
+
+```java
+@Override
+public boolean onTouchEvent(MotionEvent event) {
+    // 让 ScaleGestureDetector 处理缩放
+    mScaleDetector.onTouchEvent(event);
+    
+    // 让 RotationGestureDetector 处理旋转
+    mRotationDetector.onTouchEvent(event);
+    
+    // 处理滚动（排除缩放的手指）
+    switch (event.getActionMasked()) {
+        case MotionEvent.ACTION_MOVE:
+            if (event.getPointerCount() == 1) {
+                // 单指滚动
+                handleScroll(event.getX(), event.getY());
+            } else if (event.getPointerCount() == 2) {
+                // 双指滚动
+                float focusX = (event.getX(0) + event.getX(1)) / 2;
+                float focusY = (event.getY(0) + event.getY(1)) / 2;
+                handleScroll(focusX, focusY);
+            }
+            break;
+    }
+    return true;
+}
+```
+
+#### 2.3.7 多指触控与 ViewGroup 分发
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                 ViewGroup 多指触控分发源码解析                              │
+│  源码位置: frameworks/base/core/java/android/view/ViewGroup.java            │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  关键字段：
+  ─────────────────────────────────────────────────────────────────────────────
+
+  // 触摸目标链表（支持多指）
+  private TouchTarget mFirstTouchTarget;
+
+  // 位掩码：哪些 pointerId 已经被分发了
+  // 例如：0x3 表示 pointer 0 和 1 都已分发
+  private int mFirstTouchTargetChildPointerIdBits;
+
+
+  dispatchTouchEvent 关键代码：
+  ─────────────────────────────────────────────────────────────────────────────
+
+  @Override
+  public boolean dispatchTouchEvent(MotionEvent ev) {
+      ...
+      final int actionMasked = ev.getActionMasked();
+      final int actionIndex = ev.getActionIndex();
+      
+      // ★★★ 处理 ACTION_DOWN（第一个手指） ★★★
+      if (actionMasked == MotionEvent.ACTION_DOWN) {
+          // 重置状态
+          cancelAndClearTouchTargets(ev);
+          resetTouchState();
+      }
+      
+      // 检查是否拦截
+      final boolean intercepted;
+      if (actionMasked == MotionEvent.ACTION_DOWN 
+              || mFirstTouchTarget != null) {
+          // ★★★ DOWN 或有目标时检查拦截 ★★★
+          final boolean disallowIntercept = 
+                  (mGroupFlags & FLAG_DISALLOW_INTERCEPT) != 0;
+          if (!disallowIntercept) {
+              intercepted = onInterceptTouchEvent(ev);
+          } else {
+              intercepted = false;
+          }
+      } else {
+          intercepted = true;
+      }
+      
+      // ★★★ 分发事件 ★★★
+      if (!intercepted) {
+          // 分发给子 View
+          if (actionMasked == MotionEvent.ACTION_DOWN) {
+              // ★★★ 只有 DOWN 才找新目标 ★★★
+              for (int i = 0; i < childrenCount; i++) {
+                  // 找到目标子 View
+                  if (dispatchTransformedTouchEvent(ev, false, child, idBits)) {
+                      // ★★★ 加入 TouchTarget 链表 ★★★
+                      newTouchTarget = addTouchTarget(child, idBitsToAssign);
+                      alreadyDispatched = true;
+                      break;
+                  }
+              }
+          } else if (actionMasked == MotionEvent.ACTION_POINTER_DOWN) {
+              // ★★★ POINTER_DOWN：新增手指 ★★★
+              // 获取新手指的 pointerId
+              final int pointerId = ev.getPointerId(actionIndex);
+              final int idBits = 1 << pointerId;  // 例如：0x4 表示 pointer 2
+              
+              // 检查是否已经分发给这个 pointer
+              if ((idBits & mFirstTouchTargetChildPointerIdBits) == 0) {
+                  // 找新手指的目标
+                  for (int i = 0; i < childrenCount; i++) {
+                      if (dispatchTransformedTouchEvent(ev, false, child, idBits)) {
+                          newTouchTarget = addTouchTarget(child, idBits);
+                          break;
+                      }
+                  }
+              }
+          }
+      }
+      
+      // ★★★ 分发给现有 TouchTarget ★★★
+      if (mFirstTouchTarget != null) {
+          TouchTarget target = mFirstTouchTarget;
+          while (target != null) {
+              // 分发给链表中的每个目标
+              final boolean handled = dispatchTransformedTouchEvent(
+                      ev, canceled, target.child, target.pointerIdBits);
+              target = target.next;
+          }
+      }
+      
+      return handled;
+  }
+```
+
+#### 2.3.8 多指触控常见问题
+
+**问题一：双指缩放时画面抖动**
+
+```java
+// 错误做法：在 onScale 中直接使用 detector.getFocusX()
+@Override
+public boolean onScale(ScaleGestureDetector detector) {
+    float focusX = detector.getFocusX();  // 焦点的坐标可能跳动
+    // 导致画面抖动
+    return true;
+}
+
+// 正确做法：使用上一帧记录的焦点位置
+private float mLastFocusX;
+private float mLastFocusY;
+
+@Override
+public boolean onTouchEvent(MotionEvent event) {
+    mScaleDetector.onTouchEvent(event);
+    
+    switch (event.getActionMasked()) {
+        case MotionEvent.ACTION_MOVE:
+            if (event.getPointerCount() >= 2) {
+                // ★★★ 计算稳定的焦点位置 ★★★
+                mLastFocusX = (event.getX(0) + event.getX(1)) / 2;
+                mLastFocusY = (event.getY(0) + event.getY(1)) / 2;
+            }
+            break;
+    }
+    return true;
+}
+
+@Override
+public boolean onScale(ScaleGestureDetector detector) {
+    // 使用稳定的焦点位置
+    float focusX = mLastFocusX;
+    float focusY = mLastFocusY;
+    // ...
+    return true;
+}
+```
+
+**问题二：手指抬起后缩放失效**
+
+```java
+// 原因：ACTION_POINTER_UP 后没有更新状态
+@Override
+public boolean onTouchEvent(MotionEvent event) {
+    mScaleDetector.onTouchEvent(event);
+    
+    switch (event.getActionMasked()) {
+        case MotionEvent.ACTION_POINTER_UP:
+            // ★★★ 必须通知 ScaleGestureDetector ★★★
+            // 否则它会认为手指数量没变
+            // ScaleGestureDetector 内部会自动处理
+            break;
+    }
+    return true;
+}
+
+// 实际上 ScaleGestureDetector.onTouchEvent() 已经处理了 POINTER_UP
+// 只需要调用它即可，不需要额外处理
+```
+
+**问题三：双指操作时触发单击事件**
+
+```java
+// 原因：单击检测只看 ACTION_UP，没考虑多指
+@Override
+public boolean onTouchEvent(MotionEvent event) {
+    switch (event.getActionMasked()) {
+        case MotionEvent.ACTION_UP:
+            // ★★★ 检查是否是多指操作 ★★★
+            if (event.getPointerCount() == 1) {
+                // 只有单指才触发单击
+                performClick();
+            }
+            break;
+    }
+    return true;
+}
+```
+
+#### 2.3.9 手势检测器汇总
+
+Android 提供了多种手势检测器，都在 `android.view` 包下：
+
+| 检测器 | 用途 | 关键方法 |
+|--------|------|----------|
+| GestureDetector | 单击、长按、双击 | onSingleTapConfirmed, onDoubleTap, onLongPress |
+| ScaleGestureDetector | 双指缩放 | onScale, getScaleFactor |
+| RotateGestureDetector | 双指旋转 | onRotate, getRotationDegrees |
+| VelocityTracker | 速度追踪 | computeCurrentVelocity, getXVelocity |
+
+**组合使用示例：**
+
+```java
+public class MultiGestureView extends View {
+    private GestureDetector mGestureDetector;
+    private ScaleGestureDetector mScaleDetector;
+    private RotateGestureDetector mRotateDetector;
+    private VelocityTracker mVelocityTracker;
+    
+    public MultiGestureView(Context context) {
+        super(context);
+        
+        // 单击、双击、长按
+        mGestureDetector = new GestureDetector(context, 
+                new GestureDetector.SimpleOnGestureListener());
+        
+        // 缩放
+        mScaleDetector = new ScaleGestureDetector(context,
+                new ScaleGestureDetector.SimpleOnScaleGestureListener());
+        
+        // 旋转
+        mRotateDetector = new RotateGestureDetector(context,
+                new RotateGestureDetector.SimpleOnRotateGestureListener() {
+            @Override
+            public boolean onRotate(RotateGestureDetector detector) {
+                // 处理旋转
+                return true;
+            }
+        });
+        
+        // 速度追踪
+        mVelocityTracker = VelocityTracker.obtain();
+    }
+    
+    @Override
+    public boolean onTouchEvent(MotionEvent event) {
+        // ★★★ 按顺序调用所有检测器 ★★★
+        mGestureDetector.onTouchEvent(event);
+        mScaleDetector.onTouchEvent(event);
+        mRotateDetector.onTouchEvent(event);
+        
+        // 速度追踪
+        mVelocityTracker.addMovement(event);
+        
+        return true;
+    }
+    
+    @Override
+    protected void onDetachedFromWindow() {
+        super.onDetachedFromWindow();
+        mVelocityTracker.recycle();
+    }
+}
+```
 
 ---
 
