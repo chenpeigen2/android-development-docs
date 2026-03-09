@@ -786,6 +786,210 @@ Android 提供了多种手势检测器，都在 `android.view` 包下：
 | RotateGestureDetector | 双指旋转 | onRotate, getRotationDegrees |
 | VelocityTracker | 速度追踪 | computeCurrentVelocity, getXVelocity |
 
+**VelocityTracker 在 RecyclerView 滑动中的应用：**
+
+```java
+/**
+ * 使用 VelocityTracker 实现类似 RecyclerView 的 fling 效果
+ */
+public class FlingView extends View {
+    private VelocityTracker mVelocityTracker;
+    private Scroller mScroller;
+    
+    private int mLastX;
+    private int mLastY;
+    private int mScrollX;
+    private int mScrollY;
+    
+    // 最大 fling 速度（像素/秒）
+    private static final int MAX_FLING_VELOCITY = 5000;
+    
+    public FlingView(Context context) {
+        super(context);
+        mVelocityTracker = VelocityTracker.obtain();
+        mScroller = new Scroller(context);
+    }
+    
+    @Override
+    public boolean onTouchEvent(MotionEvent event) {
+        // ★★★ 速度追踪 ★★★
+        mVelocityTracker.addMovement(event);
+        
+        switch (event.getActionMasked()) {
+            case MotionEvent.ACTION_DOWN:
+                // 停止正在进行的 fling
+                if (!mScroller.isFinished()) {
+                    mScroller.abortAnimation();
+                }
+                
+                mLastX = (int) event.getX();
+                mLastY = (int) event.getY();
+                break;
+                
+            case MotionEvent.ACTION_MOVE:
+                int x = (int) event.getX();
+                int y = (int) event.getY();
+                
+                int deltaX = x - mLastX;
+                int deltaY = y - mLastY;
+                
+                // 滚动内容
+                mScrollX -= deltaX;
+                mScrollY -= deltaY;
+                
+                // 重绘
+                invalidate();
+                
+                mLastX = x;
+                mLastY = y;
+                break;
+                
+            case MotionEvent.ACTION_UP:
+                // ★★★ 计算 fling 速度 ★★★
+                mVelocityTracker.computeCurrentVelocity(1000, MAX_FLING_VELOCITY);
+                
+                float velocityX = mVelocityTracker.getXVelocity();
+                float velocityY = mVelocityTracker.getYVelocity();
+                
+                // 如果速度足够快，启动 fling
+                if (Math.abs(velocityX) > ViewConfiguration.getMinimumFlingVelocity()
+                        || Math.abs(velocityY) > ViewConfiguration.getMinimumFlingVelocity()) {
+                    startFling((int) -velocityX, (int) -velocityY);
+                }
+                break;
+                
+            case MotionEvent.ACTION_CANCEL:
+                mVelocityTracker.clear();
+                break;
+        }
+        
+        return true;
+    }
+    
+    private void startFling(int velocityX, int velocityY) {
+        // ★★★ 使用 Scroller 实现惯性滑动 ★★★
+        mScroller.fling(
+                mScrollX, mScrollY,          // 起始位置
+                velocityX, velocityY,        // 初始速度
+                0, 10000,                    // 最小/最大 X 滚动范围
+                0, 10000                     // 最小/最大 Y 滚动范围
+        );
+        
+        // 触发重绘，启动动画
+        postInvalidateOnAnimation();
+    }
+    
+    @Override
+    public void computeScroll() {
+        // ★★★ Scroller 滚动计算 ★★★
+        if (mScroller.computeScrollOffset()) {
+            // 更新滚动位置
+            mScrollX = mScroller.getCurrX();
+            mScrollY = mScroller.getCurrY();
+            
+            // 重绘
+            postInvalidateOnAnimation();
+        }
+    }
+    
+    @Override
+    protected void onDetachedFromWindow() {
+        super.onDetachedFromWindow();
+        mVelocityTracker.recycle();
+    }
+}
+```
+
+**VelocityTracker 核心方法：**
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    VelocityTracker 使用方法                                 │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  1. 获取 VelocityTracker 实例
+  ─────────────────────────────────────────────────────────────────────────────
+  // 推荐方式：从池中获取，复用对象
+  VelocityTracker tracker = VelocityTracker.obtain();
+
+  2. 添加运动事件
+  ─────────────────────────────────────────────────────────────────────────────
+  tracker.addMovement(motionEvent);
+
+  3. 计算速度（重要：必须在 ACTION_UP 中调用）
+  ─────────────────────────────────────────────────────────────────────────────
+  // 参数：时间单位（毫秒），最大速度
+  tracker.computeCurrentVelocity(1000);
+
+  4. 获取速度
+  ─────────────────────────────────────────────────────────────────────────────
+  float velocityX = tracker.getXVelocity();  // 水平速度
+  float velocityY = tracker.getYVelocity();    // 垂直速度
+
+  // 也可以获取指定指针的速度
+  float vX = tracker.getXVelocity(pointerId);
+  float vY = tracker.getYVelocity(pointerId);
+
+  5. 回收
+  ─────────────────────────────────────────────────────────────────────────────
+  tracker.recycle();
+
+
+  RecyclerView 滑动速度计算原理：
+  ─────────────────────────────────────────────────────────────────────────────
+
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │                                                                     │
+  │  RecyclerView 内部使用类似逻辑：                                       │
+  │  ────────────────────────────────────────────────────────────────── │
+  │                                                                     │
+  │  1. ACTION_DOWN: 记录起始位置，清空速度                                │
+  │                                                                     │
+  │  2. ACTION_MOVE:                                                    │
+  │     - 记录多个采样点                                                  │
+  │     - 每次 MOVE 都添加到 VelocityTracker                              │
+  │                                                                     │
+  │  3. ACTION_UP:                                                      │
+  │     - computeCurrentVelocity(1000) 计算速度                          │
+  │     - 如果速度 > 最小 fling 阈值                                     │
+  │     - 调用 startScroll() / fling() 启动惯性滑动                       │
+  │                                                                     │
+  │  4. computeScroll():                                                │
+  │     - Scroller 计算下一帧位置                                         │
+  │     - scrollTo() 应用滚动                                            │
+  │     - postInvalidateOnAnimation() 继续下一帧                          │
+  │                                                                     │
+  └─────────────────────────────────────────────────────────────────────────┘
+
+
+  速度计算详解：
+  ─────────────────────────────────────────────────────────────────────────────
+
+  computeCurrentVelocity(units, maxVelocity)
+
+  参数：
+  - units: 时间单位（1000 = 1秒，100 = 0.1秒）
+  - maxVelocity: 最大速度限制
+
+  返回速度 = (当前位置 - 起始位置) / 时间
+
+  示例：
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │                                                                         │
+  │  假设采样点：                                                          │
+  │  time=0ms:   x=0                                                     │
+  │  time=100ms: x=100                                                   │
+  │  time=200ms: x=200                                                   │
+  │                                                                         │
+  │  computeCurrentVelocity(1000):                                         │
+  │  velocityX = (200 - 0) / 200 * 1000 = 1000 px/s                       │
+  │                                                                         │
+  │  computeCurrentVelocity(100):                                          │
+  │  velocityX = (200 - 0) / 200 * 100 = 100 px/0.1s = 1000 px/s         │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+```
+
 **组合使用示例：**
 
 ```java
