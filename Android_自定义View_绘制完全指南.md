@@ -3643,7 +3643,7 @@ class OptimizedView : View {
 
 ## 20. 自定义 View 类型与分类
 
-### 19.1 自定义 View 类型
+### 18.1 自定义 View 类型
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -3664,7 +3664,7 @@ class OptimizedView : View {
 └─────────────────────┴─────────────────────────────────────────────────────┘
 ```
 
-#### 19.1.1 继承 View 类
+#### 20.1.1 继承 View 类
 
 ```kotlin
 /**
@@ -3685,7 +3685,7 @@ class CircleView @JvmOverloads constructor(
 }
 ```
 
-#### 19.1.2 组合控件
+#### 20.1.2 组合控件
 
 ```kotlin
 /**
@@ -3709,7 +3709,7 @@ class TitleBarView @JvmOverloads constructor(
 // <com.app.TitleBarView ... />
 ```
 
-#### 19.1.3 继承 ViewGroup
+#### 20.1.3 继承 ViewGroup
 
 ```kotlin
 /**
