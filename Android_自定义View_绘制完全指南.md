@@ -10,14 +10,115 @@
 2. [Drawable 资源体系](#2-drawable-资源体系)
    - 2.1 [Drawable 体系概述](#21-drawable-体系概述)
    - 2.2 [ShapeDrawable 形状绘制](#22-shapedrawable-形状绘制)
+     - 2.2.1 [矩形](#221-矩形---最常用)
+     - 2.2.2 [渐变矩形](#222-渐变矩形)
+     - 2.2.3 [椭圆](#223-椭圆)
+     - 2.2.4 [环形](#224-环形)
    - 2.3 [LayerListDrawable 层叠绘制](#23-layerlistdrawable-层叠绘制)
+     - 2.3.1 [卡片阴影效果](#231-卡片阴影效果)
    - 2.4 [SelectorDrawable 状态选择器](#24-selectordrawable-状态选择器)
    - 2.5 [VectorDrawable 矢量图形](#25-vectordrawable-矢量图形)
    - 2.6 [代码中创建 Drawable](#26-代码中创建-drawable)
 3. [View 绘制三大流程](#3-view-绘制三大流程)
    - 3.1 [流程概述](#31-流程概述)
    - 3.2 [Measure 测量阶段](#32-measure-测量阶段)
+     - 3.2.1 [MeasureSpec 测量规格](#321-measurespec-测量规格)
+     - 3.2.2 [onMeasure 核心逻辑](#322-onmeasure-核心逻辑)
+     - 3.2.3 [获取 View 尺寸的正确方式](#323-获取-view-尺寸的正确方式)
    - 3.3 [Layout 布局阶段](#33-layout-布局阶段)
+   - 3.4 [Draw 绘制阶段](#34-draw-绘制阶段)
+4. [Canvas 画布详解](#4-canvas-画布详解)
+   - 4.1 [Canvas 核心功能](#41-canvas-核心功能)
+   - 4.2 [Canvas 基础绘制](#42-canvas-基础绘制)
+   - 4.3 [Canvas 变换操作](#43-canvas-变换操作)
+   - 4.4 [Canvas 裁剪操作](#44-canvas-裁剪操作)
+   - 4.5 [Path 高级绘制](#45-path-高级绘制)
+5. [Paint 画笔与效果](#5-paint-画笔与效果)
+   - 5.1 [Paint 核心属性](#51-paint-核心属性)
+   - 5.2 [Paint 高级效果](#52-paint-高级效果)
+     - 5.2.1 [setShadowLayer 阴影](#521-setshadowlayer-阴影)
+     - 5.2.2 [BlurMaskFilter 模糊遮罩](#522-blurmaskfilter-模糊遮罩)
+     - 5.2.3 [elevation 和 translationZ](#523-elevation-和-translationz)
+     - 5.2.4 [阴影颜色设置](#524-阴影颜色设置)
+   - 5.3 [Xfermode 混合模式](#53-xfermode-混合模式)
+   - 5.4 [PathEffect 路径效果](#54-patheffect-路径效果)
+6. [渐变与色彩](#6-渐变与色彩)
+   - 6.1 [渐变类型详解](#61-渐变类型详解)
+   - 6.2 [颜色工具](#62-颜色工具)
+7. [自定义 View 实战](#7-自定义-view-实战)
+   - 7.1 [自定义属性](#71-自定义属性)
+   - 7.2 [完整示例：圆形进度条](#72-完整示例圆形进度条)
+8. [性能优化](#8-性能优化)
+   - 8.1 [绘制优化原则](#81-绘制优化原则)
+   - 8.2 [最佳实践](#82-最佳实践)
+9. [LayoutInflater 流程](#9-layoutinflater-流程)
+   - 9.1 [Inflation 完整流程](#91-inflation-完整流程)
+   - 9.2 [inflate() 方法解析](#92-inflate-方法解析)
+   - 9.3 [注意事项](#93-注意事项)
+10. [Merge、Include 与 ViewStub](#10-mergeinclude-与-viewstub)
+    - 10.1 [merge 标签](#101-merge-标签)
+    - 10.2 [include 标签](#102-include-标签)
+    - 10.3 [ViewStub 标签](#103-viewstub-标签)
+11. [Invalidate 与 RequestLayout](#11-invalidate-与-requestlayout)
+    - 11.1 [Invalidate - 重绘](#111-invalidate---重绘)
+    - 11.2 [RequestLayout - 重新布局](#112-requestlayout---重新布局)
+    - 11.3 [两者对比与选择](#113-两者对比与选择)
+    - 11.4 [forceLayout()](#114-forcelayout)
+12. [Draw 流程源码解析](#12-draw-流程源码解析)
+    - 12.1 [View.draw() 源码流程](#121-viewdraw-源码流程)
+    - 12.2 [DecorView.draw() 特殊流程](#122-decorviewdraw-特殊流程)
+    - 12.3 [ViewGroup.drawChild() 源码详解](#123-viewgroupdrawchild-源码详解)
+    - 12.4 [绘制顺序控制](#124-绘制顺序控制)
+13. [Canvas 高级用法](#13-canvas-高级用法)
+    - 13.1 [Canvas Save/Restore 详解](#131-canvas-saverestore-详解)
+    - 13.2 [Canvas saveLayer 详解](#132-canvas-savelayer-详解)
+    - 13.3 [Canvas 裁剪高级用法](#133-canvas-裁剪高级用法)
+    - 13.4 [PorterDuff 混合模式](#134-porterduff-混合模式)
+14. [View 与 ViewGroup 区别](#14-view-与-viewgroup-区别)
+    - 14.1 [核心区别](#141-核心区别)
+    - 14.2 [setWillNotDraw()](#142-setwillnotdraw)
+    - 14.3 [ViewGroup 绘制相关方法](#143-viewgroup-绘制相关方法)
+15. [wrap_content 不生效问题](#15-wrap_content-不生效问题)
+    - 15.1 [问题原因](#151-问题原因)
+    - 15.2 [解决方案](#152-解决方案)
+16. [获取 View 宽高的正确时机](#16-获取-view-宽高的正确时机)
+    - 16.1 [onResume 中获取宽高返回 0](#161-onresume-中获取宽高返回-0)
+    - 16.2 [View.post() 原理详解](#162-viewpost-原理详解)
+    - 16.3 [其他正确方式](#163-其他正确方式)
+17. [线程与 UI 更新](#17-线程与-ui-更新)
+    - 17.1 [子线程不能更新 UI 的原因](#171-子线程不能更新-ui-的原因)
+    - 17.2 [更新 UI 的正确方式](#172-更新-ui-的正确方式)
+    - 17.3 [SurfaceView 特殊情况](#173-surfaceview-特殊情况)
+18. [width/height 区别](#18-widthheight-区别)
+    - 18.1 [区别](#181-区别)
+    - 18.2 [两者不一致的情况](#182-两者不一致的情况)
+19. [根视图的多次 Measure](#19-根视图的多次-measure)
+    - 19.1 [多次 Measure 的原因](#191-多次-measure-的原因)
+    - 19.2 [源码流程](#192-源码流程)
+    - 19.3 [避免重复 Measure](#193-避免重复-measure)
+20. [自定义 View 类型与分类](#20-自定义-view-类型与分类)
+    - 20.1 [继承 View 类](#201-继承-view-类)
+    - 20.2 [组合控件](#202-组合控件)
+    - 20.3 [继承 ViewGroup](#203-继承-viewgroup)
+21. [核心生命周期方法详解](#21-核心生命周期方法详解)
+    - 21.1 [三大方法对比](#211-三大方法对比)
+    - 21.2 [MeasureSpec 三种模式处理](#212-measurespec-三种模式处理)
+    - 21.3 [处理 wrap_content 和 padding](#213-处理-wrap_content-和-padding)
+22. [自定义属性详解](#22-自定义属性详解)
+    - 22.1 [属性声明](#221-属性声明)
+    - 22.2 [属性解析](#222-属性解析)
+    - 22.3 [属性优先级](#223-属性优先级)
+    - 22.4 [在 XML 中使用](#224-在-xml-中使用)
+23. [事件处理与交互](#23-事件处理与交互)
+    - 23.1 [onTouchEvent](#231-ontouchevent)
+    - 23.2 [GestureDetector 手势处理](#232-gesturedetector-手势处理)
+    - 23.3 [滑动冲突解决](#233-滑动冲突解决)
+    - 23.4 [多点触控](#234-多点触控)
+24. [实战案例](#24-实战案例)
+    - 24.1 [圆形进度条](#241-圆形进度条)
+    - 24.2 [组合标题栏](#242-组合标题栏)
+    - 24.3 [钢琴键盘（多点触控）](#243-钢琴键盘多点触控)
+25. [完整知识体系总结](#25-完整知识体系总结)
    - 3.4 [Draw 绘制阶段](#34-draw-绘制阶段)
 4. [Canvas 画布详解](#4-canvas-画布详解)
    - 4.1 [Canvas 核心功能](#41-canvas-核心功能)
@@ -691,7 +792,7 @@ override fun onDraw(canvas: Canvas) {
 
 ---
 
-## 4. Paint 画笔与效果
+## 5. Paint 画笔与效果
 
 ### 5.1 Paint 核心属性
 
@@ -1048,7 +1149,7 @@ override fun onDraw(canvas: Canvas) {
   outline.setRoundRect(...)  // 自定义阴影形状
 ```
 
-### 5.3 Xfermode 混合模式
+### 5.4 PathEffect 路径效果
 
 ```kotlin
 /**
@@ -1075,7 +1176,7 @@ fun createCircularBitmap(src: Bitmap): Bitmap {
 }
 ```
 
-### 5.4 PathEffect 路径效果
+### 5.5 PathEffect 路径效果
 
 ```kotlin
 val pathPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -1699,7 +1800,7 @@ class StateView @JvmOverloads constructor(
 
 ## 11. Invalidate 与 RequestLayout
 
-### 10.1 Invalidate - 重绘
+### 11.1 Invalidate - 重绘
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -1871,7 +1972,7 @@ fun updateProgress(progress: Int) {
 }
 ```
 
-### 10.2 RequestLayout - 重新布局
+### 11.2 RequestLayout - 重新布局
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -2035,7 +2136,7 @@ fun setNewData(newData: List<String>) {
 // 性能开销较大，频繁调用会影响性能
 ```
 
-### 10.3 两者对比与选择
+### 11.3 两者对比与选择
 
 | 对比项 | invalidate() | requestLayout() |
 |--------|-------------|-----------------|
@@ -2080,7 +2181,7 @@ fun updateContent(newContent: String, newWidth: Int) {
 }
 ```
 
-### 10.4 forceLayout() 强制重新布局
+### 11.4 forceLayout() 强制重新布局
 
 ```kotlin
 /**
@@ -2102,7 +2203,7 @@ parent.requestLayout() // 父容器触发时会强制测量子 View
 
 ---
 
-## 11. Draw 流程详解
+## 12. Draw 流程源码解析
 
 ### 11.1 View.draw() 源码流程
 
@@ -2308,7 +2409,7 @@ android:childrenDrawingOrderEnabled="true"
 
 ---
 
-## 12. Canvas 高级用法
+## 13. Canvas 高级用法
 
 ### 12.1 Canvas Save/Restore 详解 详解
 
@@ -3006,7 +3107,7 @@ override fun onDraw(canvas: Canvas) {
 
 ---
 
-## 13. View 与 ViewGroup 区别
+## 14. View 与 ViewGroup 区别
 
 ### 13.1 核心区别
 
@@ -3092,7 +3193,7 @@ class CustomViewGroup : ViewGroup {
 
 ---
 
-## 14. wrap_content 不生效问题
+## 15. wrap_content 不生效问题
 
 ### 14.1 问题原因
 
@@ -3181,7 +3282,7 @@ class CustomView @JvmOverloads constructor(
 
 ---
 
-## 15. 获取 View 宽高的正确时机
+## 16. 获取 View 宽高的正确时机
 
 ### 15.1 为什么 onResume 中获取宽高返回 0
 
@@ -3278,7 +3379,7 @@ override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
 
 ---
 
-## 16. 线程与 UI 更新
+## 17. 线程与 UI 更新
 
 ### 16.1 子线程不能更新 UI 的原因
 
@@ -3388,7 +3489,7 @@ class MySurfaceView : SurfaceView, Runnable {
 
 ---
 
-## 17. width/height 与 measuredWidth/measuredHeight
+## 18. width/height 区别
 
 ### 17.1 区别
 
@@ -3449,7 +3550,7 @@ class MyViewGroup : ViewGroup {
 
 ---
 
-## 18. 根视图的多次 Measure
+## 19. 根视图的多次 Measure
 
 ### 18.1 多次 Measure 的原因
 
@@ -3540,7 +3641,7 @@ class OptimizedView : View {
 
 ---
 
-## 19. 自定义 View 类型与分类
+## 20. 自定义 View 类型与分类
 
 ### 19.1 自定义 View 类型
 
@@ -3639,7 +3740,7 @@ class FlowLayout @JvmOverloads constructor(
 
 ---
 
-## 20. 核心生命周期方法详解
+## 21. 核心生命周期方法详解
 
 ### 20.1 三大方法对比
 
@@ -3738,7 +3839,7 @@ class CustomView : View {
 
 ---
 
-## 21. 自定义属性详解
+## 22. 自定义属性详解
 
 ### 21.1 属性声明
 
@@ -3862,7 +3963,7 @@ class CustomView @JvmOverloads constructor(
 
 ---
 
-## 22. 事件处理与交互
+## 23. 事件处理与交互
 
 ### 22.1 onTouchEvent
 
@@ -4057,7 +4158,7 @@ class MultiTouchView @JvmOverloads constructor(
 
 ---
 
-## 23. 实战案例
+## 24. 实战案例
 
 ### 23.1 圆形进度条
 
@@ -4385,7 +4486,7 @@ class PianoView @JvmOverloads constructor(
 
 ---
 
-## 24. 完整知识体系总结
+## 25. 完整知识体系总结
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
