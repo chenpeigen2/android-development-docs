@@ -1705,6 +1705,501 @@ class UserFragment : Fragment() {
 
 ---
 
+## 10. ConstraintLayout
+
+### 10.1 ConstraintLayout 是什么
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    ConstraintLayout 定义                                    │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  定义：
+  ─────────────────────────────────────────────────────────────────────────
+  ConstraintLayout 是一个灵活高效的布局管理器，通过约束关系定位子视图
+
+  优势：
+  ─────────────────────────────────────────────────────────────────────────
+  1. 扁平化布局：减少嵌套层级，提高性能
+  2. 灵活定位：相对定位、居中、偏移
+  3. 性能优化：减少 Measure 嵌套次数
+  4. 可视化编辑：Layout Editor 支持
+
+  与其他布局对比：
+  ─────────────────────────────────────────────────────────────────────────
+  - LinearLayout：简单线性排列，需要嵌套
+  - RelativeLayout：相对定位，但复杂布局性能差
+  - FrameLayout：简单叠加，定位能力有限
+  - ConstraintLayout：强大约束，扁平化，性能好
+```
+
+### 10.2 相对定位
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         相对定位约束                                        │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  基本约束：
+  ─────────────────────────────────────────────────────────────────────────
+  layout_constraintLeft_toLeftOf        左边对齐到某边
+  layout_constraintLeft_toRightOf       左边对齐到某边右边
+  layout_constraintRight_toLeftOf       右边对齐到某边左边
+  layout_constraintRight_toRightOf      右边对齐到某边
+  layout_constraintTop_toTopOf          顶部对齐到某边
+  layout_constraintTop_toBottomOf       顶部对齐到某边底部
+  layout_constraintBottom_toTopOf       底部对齐到某边顶部
+  layout_constraintBottom_toBottomOf    底部对齐到某边
+  layout_constraintStart_toEndOf        开始边对齐到某边结束边
+  layout_constraintStart_toStartOf      开始边对齐到某边开始边
+  layout_constraintEnd_toStartOf        结束边对齐到某边开始边
+  layout_constraintEnd_toEndOf          结束边对齐到某边结束边
+
+  特殊值：
+  ─────────────────────────────────────────────────────────────────────────
+  - parent：父容器
+  - @id/xxx：指定 View 的 ID
+```
+
+```xml
+<!-- ==================== 基本相对定位 ==================== -->
+<androidx.constraintlayout.widget.ConstraintLayout
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+    
+    <!-- A 在左上角 -->
+    <TextView
+        android:id="@+id/tvA"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="A"
+        app:layout_constraintLeft_toLeftOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+    
+    <!-- B 在 A 的右边 -->
+    <TextView
+        android:id="@+id/tvB"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="B"
+        app:layout_constraintLeft_toRightOf="@id/tvA"
+        app:layout_constraintTop_toTopOf="@id/tvA" />
+    
+    <!-- C 在 A 的下面 -->
+    <TextView
+        android:id="@+id/tvC"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="C"
+        app:layout_constraintLeft_toLeftOf="@id/tvA"
+        app:layout_constraintTop_toBottomOf="@id/tvA" />
+    
+</androidx.constraintlayout.widget.ConstraintLayout>
+```
+
+### 10.3 居中和偏移
+
+```xml
+<!-- ==================== 居中 ==================== -->
+<!-- 水平居中 -->
+<TextView
+    app:layout_constraintLeft_toLeftOf="parent"
+    app:layout_constraintRight_toRightOf="parent" />
+
+<!-- 垂直居中 -->
+<TextView
+    app:layout_constraintTop_toTopOf="parent"
+    app:layout_constraintBottom_toBottomOf="parent" />
+
+<!-- 完全居中 -->
+<TextView
+    app:layout_constraintLeft_toLeftOf="parent"
+    app:layout_constraintRight_toRightOf="parent"
+    app:layout_constraintTop_toTopOf="parent"
+    app:layout_constraintBottom_toBottomOf="parent" />
+
+<!-- ==================== 偏移（bias）==================== -->
+<!-- 水平偏移 0.3（30% 位置）-->
+<TextView
+    app:layout_constraintLeft_toLeftOf="parent"
+    app:layout_constraintRight_toRightOf="parent"
+    app:layout_constraintHorizontal_bias="0.3" />
+
+<!-- 垂直偏移 0.7（70% 位置）-->
+<TextView
+    app:layout_constraintTop_toTopOf="parent"
+    app:layout_constraintBottom_toBottomOf="parent"
+    app:layout_constraintVertical_bias="0.7" />
+
+<!-- bias 范围：0.0（最左/最上）到 1.0（最右/最下），默认 0.5（居中）-->
+```
+
+### 10.4 尺寸约束
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         尺寸约束                                            │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  layout_width / layout_height 取值：
+  ─────────────────────────────────────────────────────────────────────────
+  1. 固定值：100dp
+  2. wrap_content：根据内容，但有约束限制
+  3. 0dp（MATCH_CONSTRAINT）：根据约束扩展填充
+
+  layout_constrainedWidth / layout_constrainedHeight：
+  ─────────────────────────────────────────────────────────────────────────
+  - 当 width/height 为 wrap_content 时，限制不超过约束边界
+  - 默认 false（可能超出边界）
+  - 设为 true 时，内容过长会被限制
+
+  layout_constrainedPercent：
+  ─────────────────────────────────────────────────────────────────────────
+  - 按父容器百分比设置尺寸
+```
+
+```xml
+<!-- ==================== 0dp 扩展填充 ==================== -->
+<!-- 宽度占满父容器 -->
+<TextView
+    android:layout_width="0dp"
+    android:layout_height="wrap_content"
+    app:layout_constraintLeft_toLeftOf="parent"
+    app:layout_constraintRight_toRightOf="parent" />
+
+<!-- 占据两个 View 之间的空间 -->
+<View
+    android:layout_width="0dp"
+    android:layout_height="1dp"
+    app:layout_constraintLeft_toRightOf="@id/tvA"
+    app:layout_constraintRight_toLeftOf="@id/tvB" />
+
+<!-- ==================== 百分比尺寸 ==================== -->
+<!-- 宽度为父容器的 50% -->
+<TextView
+    android:layout_width="0dp"
+    android:layout_height="wrap_content"
+    app:layout_constraintLeft_toLeftOf="parent"
+    app:layout_constraintRight_toRightOf="parent"
+    app:layout_constraintWidth_percent="0.5" />
+
+<!-- 高度为父容器的 30% -->
+<View
+    android:layout_width="match_parent"
+    android:layout_height="0dp"
+    app:layout_constraintTop_toTopOf="parent"
+    app:layout_constraintBottom_toBottomOf="parent"
+    app:layout_constraintHeight_percent="0.3" />
+
+<!-- ==================== constrainedWidth ==================== -->
+<!-- 内容过长时不会超出约束边界 -->
+<TextView
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:singleLine="true"
+    android:ellipsize="end"
+    app:layout_constrainedWidth="true"
+    app:layout_constraintLeft_toLeftOf="parent"
+    app:layout_constraintRight_toRightOf="parent" />
+```
+
+### 10.5 Chain 链
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         Chain 链                                            │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  定义：
+  ─────────────────────────────────────────────────────────────────────────
+  链是一组 View 通过双向约束连接，作为一个整体在约束边界内分布
+
+  链模式：
+  ─────────────────────────────────────────────────────────────────────────
+  - CHAIN_SPREAD：均匀分布（默认）
+  - CHAIN_SPREAD_INSIDE：两端贴边，中间均匀分布
+  - CHAIN_PACKED：紧密排列，可通过 bias 调整整体位置
+  - CHAIN_WEIGHTED：按权重分配空间
+```
+
+```xml
+<!-- ==================== 水平链 ==================== -->
+<androidx.constraintlayout.widget.ConstraintLayout
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+    
+    <TextView
+        android:id="@+id/tv1"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="1"
+        app:layout_constraintHorizontal_chainStyle="spread"
+        app:layout_constraintLeft_toLeftOf="parent"
+        app:layout_constraintRight_toLeftOf="@id/tv2" />
+    
+    <TextView
+        android:id="@+id/tv2"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="2"
+        app:layout_constraintLeft_toRightOf="@id/tv1"
+        app:layout_constraintRight_toLeftOf="@id/tv3" />
+    
+    <TextView
+        android:id="@+id/tv3"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="3"
+        app:layout_constraintLeft_toRightOf="@id/tv2"
+        app:layout_constraintRight_toRightOf="parent" />
+    
+</androidx.constraintlayout.widget.ConstraintLayout>
+
+<!-- ==================== Weighted Chain（按权重分配）==================== -->
+<TextView
+    android:id="@+id/tv1"
+    android:layout_width="0dp"
+    android:layout_height="wrap_content"
+    app:layout_constraintHorizontal_weight="1"
+    app:layout_constraintLeft_toLeftOf="parent"
+    app:layout_constraintRight_toLeftOf="@id/tv2" />
+
+<TextView
+    android:id="@+id/tv2"
+    android:layout_width="0dp"
+    android:layout_height="wrap_content"
+    app:layout_constraintHorizontal_weight="2"
+    app:layout_constraintLeft_toRightOf="@id/tv1"
+    app:layout_constraintRight_toRightOf="parent" />
+<!-- tv2 宽度是 tv1 的 2 倍 -->
+
+<!-- ==================== Packed Chain ==================== -->
+<TextView
+    android:id="@+id/tv1"
+    app:layout_constraintHorizontal_chainStyle="packed"
+    app:layout_constraintHorizontal_bias="0.2"
+    ... />
+<!-- 整体靠左偏移 20% -->
+```
+
+```
+  链模式图示：
+  ─────────────────────────────────────────────────────────────────────────
+  
+  CHAIN_SPREAD（均匀分布）：
+  |   A   |   B   |   C   |
+  |  ↑    |  ↑    |  ↑    |
+  | 等间距分布                |
+  
+  CHAIN_SPREAD_INSIDE（两端贴边）：
+  |A     B     C|
+  |↑            ↑|
+  |两端贴边，中间等间距        |
+  
+  CHAIN_PACKED（紧密排列）：
+  |  ABC         |
+  |  ↑           |
+  | 作为一个整体，bias 控制位置 |
+```
+
+### 10.6 Guideline 辅助线
+
+```xml
+<!-- ==================== Guideline ==================== -->
+<androidx.constraintlayout.widget.ConstraintLayout
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+    
+    <!-- 垂直辅助线，距左边 100dp -->
+    <androidx.constraintlayout.widget.Guideline
+        android:id="@+id/guideVertical"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        app:layout_constraintGuide_begin="100dp" />
+    
+    <!-- 水平辅助线，距顶部 30% -->
+    <androidx.constraintlayout.widget.Guideline
+        android:id="@+id/guideHorizontal"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        app:layout_constraintGuide_percent="0.3" />
+    
+    <!-- 距右边 50dp -->
+    <androidx.constraintlayout.widget.Guideline
+        android:id="@+id/guideEnd"
+        android:orientation="vertical"
+        app:layout_constraintGuide_end="50dp" />
+    
+    <!-- 使用辅助线定位 -->
+    <TextView
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        app:layout_constraintLeft_toLeftOf="@id/guideVertical"
+        app:layout_constraintTop_toTopOf="@id/guideHorizontal"
+        app:layout_constraintRight_toRightOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent" />
+    
+</androidx.constraintlayout.widget.ConstraintLayout>
+```
+
+### 10.7 Barrier 屏障
+
+```xml
+<!-- ==================== Barrier ==================== -->
+<!-- Barrier 根据多个 View 的位置自动调整 -->
+<androidx.constraintlayout.widget.ConstraintLayout
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content">
+    
+    <TextView
+        android:id="@+id/tvLabel1"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Label 1"
+        app:layout_constraintLeft_toLeftOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+    
+    <TextView
+        android:id="@+id/tvLabel2"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Longer Label 2"
+        app:layout_constraintLeft_toLeftOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/tvLabel1" />
+    
+    <!-- Barrier 在最长的 Label 右边 -->
+    <androidx.constraintlayout.widget.Barrier
+        android:id="@+id/barrier"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        app:barrierDirection="end"
+        app:constraint_referenced_ids="tvLabel1,tvLabel2" />
+    
+    <!-- 输入框始终在最长 Label 右边 -->
+    <EditText
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        app:layout_constraintLeft_toRightOf="@id/barrier"
+        app:layout_constraintRight_toRightOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+    
+</androidx.constraintlayout.widget.ConstraintLayout>
+```
+
+### 10.8 Group 分组
+
+```xml
+<!-- ==================== Group ==================== -->
+<!-- 批量控制多个 View 的可见性 -->
+<androidx.constraintlayout.widget.ConstraintLayout
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+    
+    <TextView android:id="@+id/tv1" ... />
+    <TextView android:id="@+id/tv2" ... />
+    <TextView android:id="@+id/tv3" ... />
+    
+    <!-- 分组 -->
+    <androidx.constraintlayout.widget.Group
+        android:id="@+id/group"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        app:constraint_referenced_ids="tv1,tv2,tv3" />
+    
+</androidx.constraintlayout.widget.ConstraintLayout>
+
+// 代码中控制
+binding.group.visibility = View.GONE  // 同时隐藏 tv1, tv2, tv3
+```
+
+### 10.9 Flow 流式布局
+
+```xml
+<!-- ==================== Flow（ConstraintLayout 2.0+）==================== -->
+<!-- 自动换行的流式布局 -->
+<androidx.constraintlayout.widget.ConstraintLayout
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+    
+    <androidx.constraintlayout.helper.widget.Flow
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        app:constraint_referenced_ids="tv1,tv2,tv3,tv4,tv5"
+        app:flow_wrapMode="chain"
+        app:flow_horizontalStyle="spread"
+        app:flow_verticalStyle="spread"
+        app:flow_horizontalGap="8dp"
+        app:flow_verticalGap="8dp"
+        app:layout_constraintLeft_toLeftOf="parent"
+        app:layout_constraintRight_toRightOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+    
+    <TextView android:id="@+id/tv1" ... />
+    <TextView android:id="@+id/tv2" ... />
+    <TextView android:id="@+id/tv3" ... />
+    <TextView android:id="@+id/tv4" ... />
+    <TextView android:id="@+id/tv5" ... />
+    
+</androidx.constraintlayout.widget.ConstraintLayout>
+
+<!-- flow_wrapMode 取值：
+  - none：不换行（默认）
+  - chain：换行，每行作为链
+  - aligned：换行，对齐排列
+-->
+```
+
+### 10.10 Layer 图层
+
+```xml
+<!-- ==================== Layer ==================== -->
+<!-- 批量设置背景、padding、elevation 等 -->
+<androidx.constraintlayout.widget.ConstraintLayout
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+    
+    <androidx.constraintlayout.helper.widget.Layer
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:background="@drawable/bg_rounded"
+        android:padding="16dp"
+        app:constraint_referenced_ids="tv1,tv2" />
+    
+    <TextView android:id="@+id/tv1" ... />
+    <TextView android:id="@+id/tv2" ... />
+    
+</androidx.constraintlayout.widget.ConstraintLayout>
+```
+
+### 10.11 ConstraintLayout 常见问题
+
+```
+Q1: 为什么设置约束后 View 还是在左上角？
+─────────────────────────────────────────────────────────────────────────
+A: 需要同时设置水平和垂直两个方向的约束：
+   - 水平：left + right
+   - 垂直：top + bottom
+
+Q2: wrap_content 为什么会超出边界？
+─────────────────────────────────────────────────────────────────────────
+A: 使用 app:layout_constrainedWidth="true" 限制
+
+Q3: 如何让两个 View 宽度相等？
+─────────────────────────────────────────────────────────────────────────
+A: 都设置为 0dp，使用 chain 或设置相同 weight
+
+Q4: ConstraintLayout 性能真的更好吗？
+─────────────────────────────────────────────────────────────────────────
+A: 
+   - 减少嵌套层级 → 减少 Measure 次数
+   - 复杂布局效果明显
+   - 简单布局差异不大
+```
+
+---
+
 ## 11. 常见问题
 
 ### 11.1 ViewModel 什么时候销毁？
