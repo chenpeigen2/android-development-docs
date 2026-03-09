@@ -676,7 +676,7 @@ class UserActivity : AppCompatActivity() {
   ┌───────────┬─────────────────┬─────────────────┬─────────────────┬─────────────────┐
   │   特性     │      MVC        │      MVP        │      MVVM       │      MVI        │
   ├───────────┼─────────────────┼─────────────────┼─────────────────┼─────────────────┤
-  │ 数据流     │ 双向            │ 双向            │ 双向绑定        │ 单向            │
+  │ 数据流     │ 双向            │ 双向            │ 双向绑定/单向*  │ 单向            │
   ├───────────┼─────────────────┼─────────────────┼─────────────────┼─────────────────┤
   │ View-Model │ 可直接通信      │ 完全解耦        │ 完全解耦        │ 完全解耦        │
   │ 耦合度     │                 │                 │                 │                 │
@@ -691,6 +691,68 @@ class UserActivity : AppCompatActivity() {
   ├───────────┼─────────────────┼─────────────────┼─────────────────┼─────────────────┤
   │ 适用场景   │ 简单项目        │ 中型项目        │ 中大型项目      │ 复杂状态项目    │
   └───────────┴─────────────────┴─────────────────┴─────────────────┴─────────────────┘
+
+  *注：现代 MVVM 使用 StateFlow 可以实现单向数据流，与 MVI 模式接近
+```
+
+### 7.2 MVVM vs MVI 的界限模糊
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    现代 MVVM 与 MVI 的融合                                  │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  传统 MVVM（双向绑定）：
+  ─────────────────────────────────────────────────────────────────────────
+  - DataBinding 双向绑定 @={}
+  - 多个 LiveData 独立管理
+  - 状态分散
+
+  现代 MVVM（单向数据流）：
+  ─────────────────────────────────────────────────────────────────────────
+  - 使用 StateFlow/SharedFlow
+  - 单一 UiState 状态类
+  - 用户操作通过函数调用
+
+  // 现代 MVVM（类似 MVI）
+  class UserViewModel : ViewModel() {
+      // 单一状态源
+      private val _state = MutableStateFlow(UiState())
+      val state: StateFlow<UiState> = _state
+      
+      // 用户操作
+      fun loadUsers() { ... }
+      fun deleteUser(id: String) { ... }
+  }
+
+  // MVI
+  class UserViewModel : ViewModel() {
+      private val _state = MutableStateFlow(UiState())
+      val state: StateFlow<UiState> = _state
+      
+      // 用户意图
+      fun processIntent(intent: UserIntent) { ... }
+  }
+
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │                                                                         │
+  │  核心区别：                                                             │
+  │  ─────────────────────────────────────────────────────────────────────── │
+  │                                                                         │
+  │  MVVM：用户操作 → ViewModel 方法调用                                   │
+  │        loadUsers(), deleteUser(id)                                     │
+  │                                                                         │
+  │  MVI：用户操作 → Intent → processIntent()                              │
+  │        UserIntent.LoadUsers, UserIntent.DeleteUser(id)                 │
+  │                                                                         │
+  │  MVI 的优势：                                                           │
+  │  - Intent 是密封类，可以穷举所有用户操作                               │
+  │  - 便于日志记录、调试、回放                                            │
+  │  - 更严格的单向数据流约束                                               │
+  │                                                                         │
+  │  实际上：现代 MVVM + StateFlow 已经是"轻量级 MVI"                      │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -821,15 +883,67 @@ class UserViewModel(private val getUsersUseCase: GetUsersUseCase) : ViewModel() 
 ### 10.1 MVVM 和 MVI 怎么选？
 
 ```
-选择 MVVM：
-- 状态相对简单
-- 团队熟悉 DataBinding
-- 快速开发
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    MVVM vs MVI：界限已经模糊                               │
+└─────────────────────────────────────────────────────────────────────────────┘
 
-选择 MVI：
-- 状态复杂，需要严格管理
-- 需要状态回溯/调试
-- 强调单向数据流
+  现代 MVVM（推荐）：
+  ─────────────────────────────────────────────────────────────────────────
+  class UserViewModel : ViewModel() {
+      // 单一状态源（单向数据流）
+      private val _state = MutableStateFlow(UiState())
+      val state: StateFlow<UiState> = _state
+      
+      // 事件
+      private val _event = MutableSharedFlow<UiEvent>()
+      val event: SharedFlow<UiEvent> = _event
+      
+      // 直接调用方法
+      fun loadUsers() { ... }
+      fun deleteUser(id: String) { ... }
+  }
+
+  MVI：
+  ─────────────────────────────────────────────────────────────────────────
+  class UserViewModel : ViewModel() {
+      private val _state = MutableStateFlow(UiState())
+      val state: StateFlow<UiState> = _state
+      
+      // 统一 Intent 入口
+      fun processIntent(intent: UserIntent) {
+          when (intent) {
+              is UserIntent.LoadUsers -> loadUsers()
+              is UserIntent.DeleteUser -> deleteUser(intent.id)
+          }
+      }
+  }
+
+  选择建议：
+  ─────────────────────────────────────────────────────────────────────────
+  
+  选择 MVVM（现代写法）：
+  - 大多数场景足够用
+  - 代码更简洁
+  - 团队更容易上手
+  
+  选择 MVI：
+  - 需要严格记录所有用户操作（日志/分析）
+  - 需要状态回溯/时间旅行调试
+  - 复杂的状态机逻辑
+  - 团队有前端 Redux 经验
+
+  结论：
+  ─────────────────────────────────────────────────────────────────────────
+  现代 MVVM + StateFlow = 轻量级 MVI
+  
+  两者核心思想相同：
+  - 单一状态源
+  - 单向数据流
+  - 不可变状态（StateFlow）
+  
+  区别只是 API 设计风格：
+  - MVVM：直接调用方法
+  - MVI：通过 Intent 封装操作
 ```
 
 ### 10.2 ViewModel 如何传递参数？
