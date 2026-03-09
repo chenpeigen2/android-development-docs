@@ -3150,9 +3150,11 @@ class CustomViewGroup : ViewGroup {
 
 ---
 
-## 15. wrap_content 不生效问题
+## 15. 常见问题
 
-### 15.1 问题原因
+### 15.1 wrap_content 不生效问题
+
+#### 15.1.1 问题原因
 
 ```kotlin
 /**
@@ -3180,7 +3182,7 @@ public static int getDefaultSize(int size, int measureSpec) {
 }
 ```
 
-### 15.2 解决方案
+#### 15.1.2 解决方案
 
 ```kotlin
 class CustomView @JvmOverloads constructor(
@@ -3239,7 +3241,7 @@ class CustomView @JvmOverloads constructor(
 
 ---
 
-## 16. 获取 View 宽高的正确时机
+### 15.2 获取 View 宽高的正确时机
 
 ### 16.1 为什么 onResume 中获取宽高返回 0
 
@@ -3336,9 +3338,9 @@ override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
 
 ---
 
-## 17. 线程与 UI 更新
+## 16. 线程与 UI 更新
 
-### 17.1 子线程不能更新 UI 的原因
+### 16.1 子线程不能更新 UI 的原因
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -3367,7 +3369,7 @@ void checkThread() {
 }
 ```
 
-### 17.2 更新 UI 的正确方式
+### 16.2 更新 UI 的正确方式
 
 ```kotlin
 class MyActivity : AppCompatActivity() {
@@ -3407,7 +3409,7 @@ Thread {
 }.start()
 ```
 
-### 17.3 特殊情况：SurfaceView
+### 16.3 特殊情况：SurfaceView
 
 ```kotlin
 /**
@@ -3446,7 +3448,7 @@ class MySurfaceView : SurfaceView, Runnable {
 
 ---
 
-## 18. width/height 区别
+### 15.3 width/height 区别
 
 ### 18.1 区别
 
@@ -3507,7 +3509,7 @@ class MyViewGroup : ViewGroup {
 
 ---
 
-## 19. 根视图的多次 Measure
+### 15.4 根视图的多次 Measure
 
 ### 19.1 多次 Measure 的原因
 
@@ -3598,9 +3600,9 @@ class OptimizedView : View {
 
 ---
 
-## 20. 自定义 View 类型与分类
+## 17. 自定义 View 类型与分类
 
-### 20.1 自定义 View 类型
+### 17.1 自定义 View 类型
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -3621,7 +3623,7 @@ class OptimizedView : View {
 └─────────────────────┴─────────────────────────────────────────────────────┘
 ```
 
-#### 20.1.1 继承 View 类
+#### 17.1.1 继承 View 类
 
 ```kotlin
 /**
@@ -3642,7 +3644,7 @@ class CircleView @JvmOverloads constructor(
 }
 ```
 
-#### 20.1.2 组合控件
+#### 17.1.2 组合控件
 
 ```kotlin
 /**
@@ -3666,7 +3668,7 @@ class TitleBarView @JvmOverloads constructor(
 // <com.app.TitleBarView ... />
 ```
 
-#### 20.1.3 继承 ViewGroup
+#### 17.1.3 继承 ViewGroup
 
 ```kotlin
 /**
@@ -3697,9 +3699,9 @@ class FlowLayout @JvmOverloads constructor(
 
 ---
 
-## 21. 核心生命周期方法详解
+## 18. 核心生命周期方法详解
 
-### 21.1 三大方法对比
+### 18.1 三大方法对比
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -3727,7 +3729,7 @@ onMeasure() -> onLayout() -> onDraw()
  测量尺寸      确定位置        绘制内容
 ```
 
-### 21.2 MeasureSpec 三种模式处理
+### 18.2 MeasureSpec 三种模式处理
 
 ```kotlin
 override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
@@ -3759,7 +3761,7 @@ override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
 }
 ```
 
-### 21.3 处理 wrap_content 和 padding
+### 18.3 处理 wrap_content 和 padding
 
 ```kotlin
 class CustomView : View {
@@ -3796,9 +3798,9 @@ class CustomView : View {
 
 ---
 
-## 22. 自定义属性详解
+## 19. 自定义属性详解
 
-### 22.1 属性声明
+### 19.1 属性声明
 
 ```xml
 <!-- res/values/attrs.xml -->
@@ -3837,7 +3839,7 @@ class CustomView : View {
 </resources>
 ```
 
-### 22.2 属性解析
+### 19.2 属性解析
 
 ```kotlin
 class CustomView @JvmOverloads constructor(
@@ -3878,7 +3880,7 @@ class CustomView @JvmOverloads constructor(
 }
 ```
 
-### 22.3 属性优先级
+### 19.3 属性优先级
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -3892,7 +3894,7 @@ class CustomView @JvmOverloads constructor(
 4. 默认值          代码中设置的值
 ```
 
-### 22.4 在 XML 中使用
+### 19.4 在 XML 中使用
 
 ```xml
 <!-- 布局中使用 -->
@@ -3920,9 +3922,9 @@ class CustomView @JvmOverloads constructor(
 
 ---
 
-## 23. 事件处理与交互
+## 20. 事件处理与交互
 
-### 23.1 onTouchEvent
+### 20.1 onTouchEvent
 
 ```kotlin
 class TouchView @JvmOverloads constructor(
@@ -3967,7 +3969,7 @@ class TouchView @JvmOverloads constructor(
 }
 ```
 
-### 23.2 GestureDetector 手势处理
+### 20.2 GestureDetector 手势处理
 
 ```kotlin
 class GestureView @JvmOverloads constructor(
@@ -4013,7 +4015,7 @@ class GestureView @JvmOverloads constructor(
 }
 ```
 
-### 23.3 滑动冲突解决
+### 20.3 滑动冲突解决
 
 ```kotlin
 /**
@@ -4064,7 +4066,7 @@ class ChildView @JvmOverloads constructor(
 }
 ```
 
-### 23.4 多点触控
+### 20.4 多点触控
 
 ```kotlin
 class MultiTouchView @JvmOverloads constructor(
@@ -4115,9 +4117,9 @@ class MultiTouchView @JvmOverloads constructor(
 
 ---
 
-## 24. 实战案例
+## 21. 实战案例
 
-### 24.1 圆形进度条
+### 21.1 圆形进度条
 
 ```kotlin
 class CircleProgressView @JvmOverloads constructor(
@@ -4213,7 +4215,7 @@ class CircleProgressView @JvmOverloads constructor(
 }
 ```
 
-### 24.2 组合标题栏
+### 21.2 组合标题栏
 
 ```xml
 <!-- res/layout/title_bar.xml -->
@@ -4286,7 +4288,7 @@ class TitleBarView @JvmOverloads constructor(
 }
 ```
 
-### 24.3 钢琴键盘（多点触控）
+### 21.3 钢琴键盘（多点触控）
 
 ```kotlin
 class PianoView @JvmOverloads constructor(
@@ -4443,7 +4445,7 @@ class PianoView @JvmOverloads constructor(
 
 ---
 
-## 25. 完整知识体系总结
+## 22. 完整知识体系总结
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
