@@ -825,6 +825,185 @@ abstract class BaseActivity : AppCompatActivity() {
 }
 ```
 
+### 6.5 AutoDensity 库
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         AutoDensity 库                                     │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  项目地址：
+  ─────────────────────────────────────────────────────────────────────────
+  https://gitlab.com/RucBlockChain/awesome-code/-/tree/main/android/androidx/autodensity-demo
+
+  特点：
+  ─────────────────────────────────────────────────────────────────────────
+  1. 自动适配屏幕密度
+  2. 支持自定义设计稿尺寸
+  3. 支持横竖屏切换
+  4. 无需继承特定 Activity
+  5. 支持 AndroidX
+```
+
+```gradle
+// 添加依赖
+implementation 'com.github.RucBlockChain:autodensity:1.0.0'
+```
+
+```kotlin
+// ==================== AutoDensity 使用 ====================
+// 方式1：Application 中初始化
+class MyApplication : Application() {
+    override fun onCreate() {
+        super.onCreate()
+        
+        // 设计稿宽度 360dp
+        AutoDensity.init(this, 360f)
+        
+        // 或使用高度适配
+        // AutoDensity.init(this, designHeight = 640f, isVertical = true)
+    }
+}
+
+// 方式2：Activity 中使用
+class MainActivity : AppCompatActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        // 在 setContentView 之前调用
+        AutoDensity.adapt(this, 360f)
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_main)
+    }
+}
+
+// ==================== AutoDensity 核心实现 ====================
+object AutoDensity {
+    
+    private var designWidth: Float = 360f
+    private var designHeight: Float = 640f
+    private var isVertical: Boolean = true
+    
+    // 系统原始值
+    private var systemDensity: Float = 0f
+    private var systemDensityDpi: Int = 0
+    private var systemScaledDensity: Float = 0f
+    
+    /**
+     * 初始化
+     * @param designWidth 设计稿宽度（dp）
+     */
+    fun init(application: Application, designWidth: Float = 360f) {
+        this.designWidth = designWidth
+        
+        val displayMetrics = application.resources.displayMetrics
+        systemDensity = displayMetrics.density
+        systemDensityDpi = displayMetrics.densityDpi
+        systemScaledDensity = displayMetrics.scaledDensity
+        
+        // 注册生命周期回调
+        application.registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {
+            override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {
+                adaptActivity(activity)
+            }
+            override fun onActivityStarted(activity: Activity) {}
+            override fun onActivityResumed(activity: Activity) {}
+            override fun onActivityPaused(activity: Activity) {}
+            override fun onActivityStopped(activity: Activity) {}
+            override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) {}
+            override fun onActivityDestroyed(activity: Activity) {}
+        })
+    }
+    
+    /**
+     * 适配 Activity
+     */
+    fun adapt(activity: Activity, designWidth: Float) {
+        this.designWidth = designWidth
+        adaptActivity(activity)
+    }
+    
+    private fun adaptActivity(activity: Activity) {
+        val displayMetrics = activity.resources.displayMetrics
+        
+        // 计算目标 density
+        val targetDensity = if (isVertical) {
+            displayMetrics.widthPixels / designWidth
+        } else {
+            displayMetrics.heightPixels / designHeight
+        }
+        
+        val targetDensityDpi = (160 * targetDensity).toInt()
+        val targetScaledDensity = targetDensity * (systemScaledDensity / systemDensity)
+        
+        // 修改 Activity 的 DisplayMetrics
+        displayMetrics.density = targetDensity
+        displayMetrics.densityDpi = targetDensityDpi
+        displayMetrics.scaledDensity = targetScaledDensity
+        
+        // 修改 Application 的 DisplayMetrics
+        val appMetrics = activity.application.resources.displayMetrics
+        appMetrics.density = targetDensity
+        appMetrics.densityDpi = targetDensityDpi
+        appMetrics.scaledDensity = targetScaledDensity
+        
+        // 修改 Configuration
+        val config = Configuration(activity.resources.configuration)
+        config.densityDpi = targetDensityDpi
+        activity.resources.updateConfiguration(config, displayMetrics)
+    }
+    
+    /**
+     * 切换适配方向
+     */
+    fun setVertical(isVertical: Boolean) {
+        this.isVertical = isVertical
+    }
+    
+    /**
+     * 获取设计稿对应的 px 值
+     */
+    fun dp2px(dp: Float): Int {
+        return (dp * systemDensity + 0.5f).toInt()
+    }
+}
+```
+
+### 6.6 头条方案 vs AutoDensity
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    头条方案 vs AutoDensity                                  │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  相同点：
+  ─────────────────────────────────────────────────────────────────────────
+  1. 都是通过修改 density 实现适配
+  2. 都需要处理 Activity 生命周期
+  3. 都有修改系统参数的副作用
+
+  不同点：
+  ─────────────────────────────────────────────────────────────────────────
+  
+  ┌─────────────────────┬─────────────────────┬─────────────────────────────┐
+  │       特性           │     头条方案         │     AutoDensity            │
+  ├─────────────────────┼─────────────────────┼─────────────────────────────┤
+  │ 集成方式             │ 手动复制代码         │ Gradle 依赖                │
+  ├─────────────────────┼─────────────────────┼─────────────────────────────┤
+  │ 配置方式             │ 代码配置            │ 代码配置                    │
+  ├─────────────────────┼─────────────────────┼─────────────────────────────┤
+  │ 横竖屏适配           │ 需要手动处理         │ 内置支持                    │
+  ├─────────────────────┼─────────────────────┼─────────────────────────────┤
+  │ 恢复系统默认         │ 支持                │ 支持                        │
+  ├─────────────────────┼─────────────────────┼─────────────────────────────┤
+  │ 维护更新             │ 自己维护            │ 库维护                      │
+  └─────────────────────┴─────────────────────┴─────────────────────────────┘
+
+  选择建议：
+  ─────────────────────────────────────────────────────────────────────────
+  - 小型项目：直接使用头条方案代码（更轻量）
+  - 大型项目：使用 AutoDensity 库（更规范）
+  - 需要横竖屏切换：AutoDensity
+```
+
 ---
 
 ## 7. smallestWidth 方案
