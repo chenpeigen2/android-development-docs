@@ -26,6 +26,11 @@
    - 4.8 [WebView 泄漏](#48-webview-泄漏)
 5. [内存泄漏检测工具](#5-内存泄漏检测工具)
    - 5.1 [LeakCanary](#51-leakcanary)
+     - 5.1.1 [LeakCanary 原理详解](#511-leakcanary-原理详解)
+     - 5.1.2 [WeakReference + ReferenceQueue 原理](#512-weakreference--referencequeue-原理)
+     - 5.1.3 [LeakCanary 检测流程图](#513-leakcanary-检测流程图)
+     - 5.1.4 [Shark 库原理](#514-shark-库原理)
+     - 5.1.5 [LeakCanary 自定义配置](#515-leakcanary-自定义配置)
    - 5.2 [Android Studio Profiler](#52-android-studio-profiler)
    - 5.3 [MAT](#53-mat)
    - 5.4 [dumpsys meminfo](#54-dumpsys-meminfo)
@@ -473,6 +478,238 @@ dependencies {
   * GC ROOT static MainActivity.instance
   * leaks MainActivity instance
   ───────────────────────────────────────────────────────────────────────
+```
+
+#### 5.1.1 LeakCanary 原理详解
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    LeakCanary 工作原理                                     │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  核心思想：利用 WeakReference + ReferenceQueue 检测对象是否被回收
+
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │                                                                         │
+  │  检测流程：                                                             │
+  │  ─────────────────────────────────────────────────────────────────────── │
+  │                                                                         │
+  │  1. 监听 Activity/Fragment 生命周期                                    │
+  │     ─────────────────────────────────────────────────────────────────────── │
+  │     - 注册 ActivityLifecycleCallbacks                                  │
+  │     - 在 onDestroy() 时触发检测                                        │
+  │                                                                         │
+  │  2. 创建 WeakReference + ReferenceQueue                                │
+  │     ─────────────────────────────────────────────────────────────────────── │
+  │     - 将 Activity/Fragment 包装成 WeakReference                        │
+  │     - 关联一个 ReferenceQueue                                          │
+  │                                                                         │
+  │  3. 延迟检测（等待 GC）                                                 │
+  │     ─────────────────────────────────────────────────────────────────────── │
+  │     - 延迟 5 秒后检查 ReferenceQueue                                   │
+  │     - 如果对象被回收，会进入 ReferenceQueue                            │
+  │                                                                         │
+  │  4. 判断是否泄漏                                                        │
+  │     ─────────────────────────────────────────────────────────────────────── │
+  │     - 如果 ReferenceQueue 中有该对象 → 已回收，无泄漏                   │
+  │     - 如果 ReferenceQueue 中没有该对象 → 未回收，可能泄漏               │
+  │                                                                         │
+  │  5. 触发 GC 再次确认                                                    │
+  │     ─────────────────────────────────────────────────────────────────────── │
+  │     - 调用 Runtime.getRuntime().gc()                                   │
+  │     - 再次检查 ReferenceQueue                                          │
+  │     - 仍然存在 → 确认泄漏                                              │
+  │                                                                         │
+  │  6. Dump Heap 并分析                                                    │
+  │     ─────────────────────────────────────────────────────────────────────── │
+  │     - 生成 .hprof 文件                                                 │
+  │     - 使用 Shark 库解析 Heap Dump                                      │
+  │     - 找到 GC Root 到泄漏对象的最短路径                                 │
+  │     - 生成泄漏链路报告                                                  │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+```
+
+#### 5.1.2 WeakReference + ReferenceQueue 原理
+
+```java
+/**
+ * WeakReference + ReferenceQueue 工作原理
+ * 
+ * 当 WeakReference 引用的对象被 GC 回收时，
+ * WeakReference 会被自动加入关联的 ReferenceQueue
+ */
+
+public class LeakDetector {
+    
+    private ReferenceQueue<Object> queue = new ReferenceQueue<>();
+    private Map<WeakReference<Object>, String> trackedObjects = new HashMap<>();
+    
+    /**
+     * 监控对象是否被回收
+     */
+    public void watch(Object object, String key) {
+        // 创建 WeakReference 并关联 ReferenceQueue
+        WeakReference<Object> reference = new WeakReference<>(object, queue);
+        trackedObjects.put(reference, key);
+    }
+    
+    /**
+     * 检查是否有对象被回收
+     */
+    public void checkForLeaks() {
+        // 被回收的对象会进入 ReferenceQueue
+        Reference<?> ref;
+        while ((ref = queue.poll()) != null) {
+            // 对象已被回收，移除跟踪
+            trackedObjects.remove(ref);
+        }
+        
+        // 剩余的对象可能泄漏
+        for (Map.Entry<WeakReference<Object>, String> entry : trackedObjects.entrySet()) {
+            Object obj = entry.getKey().get();
+            if (obj != null) {
+                // 对象未被回收 → 可能泄漏
+                onPotentialLeak(obj, entry.getValue());
+            }
+        }
+    }
+}
+```
+
+#### 5.1.3 LeakCanary 检测流程图
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    LeakCanary 检测流程图                                   │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  Activity.onDestroy()
+           │
+           ▼
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │  ObjectWatcher.watch(activity, "Activity destroyed")                   │
+  │  ─────────────────────────────────────────────────────────────────────── │
+  │  1. 创建 KeyedWeakReference(activity, referenceQueue)                  │
+  │  2. 记录期望销毁时间                                                    │
+  │  3. 加入 watchedObjects Map                                             │
+  └─────────────────────────────────────────────────────────────────────────┘
+           │
+           ▼
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │  延迟 5 秒后检查                                                        │
+  │  ─────────────────────────────────────────────────────────────────────── │
+  │  moveToRetained(key)                                                   │
+  │  - 检查 referenceQueue 是否包含该引用                                   │
+  │  - 如果包含 → 对象已回收，移除跟踪                                      │
+  │  - 如果不包含 → 对象仍存活，可能泄漏                                    │
+  └─────────────────────────────────────────────────────────────────────────┘
+           │
+           ▼
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │  触发 GC（可选）                                                        │
+  │  ─────────────────────────────────────────────────────────────────────── │
+  │  - Runtime.getRuntime().gc()                                           │
+  │  - 再次检查 referenceQueue                                             │
+  │  - 仍然存在 → 确认泄漏                                                  │
+  └─────────────────────────────────────────────────────────────────────────┘
+           │
+           ▼
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │  Dump Heap                                                              │
+  │  ─────────────────────────────────────────────────────────────────────── │
+  │  - Debug.dumpHprofData(heapDumpFile)                                   │
+  │  - 生成 .hprof 文件                                                    │
+  └─────────────────────────────────────────────────────────────────────────┘
+           │
+           ▼
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │  Shark 解析 Heap Dump                                                  │
+  │  ─────────────────────────────────────────────────────────────────────── │
+  │  1. 找到泄漏对象的实例                                                  │
+  │  2. 从泄漏对象反向搜索 GC Root                                          │
+  │  3. 计算最短引用链                                                      │
+  │  4. 生成可读的泄漏报告                                                  │
+  └─────────────────────────────────────────────────────────────────────────┘
+           │
+           ▼
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │  显示通知                                                               │
+  │  ─────────────────────────────────────────────────────────────────────── │
+  │  - 发送系统通知                                                         │
+  │  - 点击查看详细泄漏链路                                                  │
+  └─────────────────────────────────────────────────────────────────────────┘
+```
+
+#### 5.1.4 Shark 库原理
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         Shark 库原理                                       │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  Shark 是 LeakCanary 2.x 的核心解析库，用于分析 Heap Dump
+
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │                                                                         │
+  │  主要功能：                                                             │
+  │  ─────────────────────────────────────────────────────────────────────── │
+  │  1. 解析 .hprof 文件                                                   │
+  │  2. 构建对象图（Object Graph）                                         │
+  │  3. 查找 GC Root 到泄漏对象的路径                                       │
+  │  4. 生成人类可读的报告                                                  │
+  │                                                                         │
+  │  性能优化：                                                             │
+  │  ─────────────────────────────────────────────────────────────────────── │
+  │  - 使用 Kotlin 编写，性能优异                                           │
+  │  - 流式解析，内存占用低                                                 │
+  │  - 并行计算最短路径                                                     │
+  │  - 增量分析支持                                                         │
+  │                                                                         │
+  │  核心类：                                                               │
+  │  ─────────────────────────────────────────────────────────────────────── │
+  │  - HeapAnalyzer：堆分析入口                                             │
+  │  - HprofParser：解析 .hprof 文件                                       │
+  │  - ObjectFinder：查找对象实例                                           │
+  │  - ShortestPathFinder：计算最短引用链                                   │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+```
+
+#### 5.1.5 LeakCanary 自定义配置
+
+```kotlin
+// 自定义 LeakCanary 配置
+class MyLeakCanaryConfig : Config() {
+    
+    override fun dumpHeap(): Boolean {
+        // 是否在检测到泄漏时 dump heap
+        return true
+    }
+    
+    override fun retainedVisibleThreshold(): Int {
+        // 保留对象数量阈值，超过才 dump heap
+        return 5
+    }
+    
+    // 自定义要监控的对象
+    @SuppressLint("NewApi")
+    override fun objectWatcher(
+        application: Application
+    ): ObjectWatcher {
+        return ObjectWatcher(
+            clock = { SystemClock.uptimeMillis() },
+            checkRetainedExecutor = Executors.newSingleThreadExecutor(),
+            isEnabled = { true }
+        )
+    }
+}
+
+// 监控自定义对象
+LeakCanary.config.objectWatcher.watch(
+    watchReference = myObject,
+    description = "My custom object"
+)
 ```
 
 ### 5.2 Android Studio Profiler
