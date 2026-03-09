@@ -1107,35 +1107,6 @@ override fun onDraw(canvas: Canvas) {
 ```
 
 ### 5.3 Xfermode 混合模式
-  ─────────────────────────────────────────────────────────────────────────────
-  推荐：translationZ + 属性动画
-  
-  view.animate()
-      .translationZ(20f)
-      .setDuration(150)
-      .withEndAction {
-          view.translationZ = 0f  // 恢复
-      }
-      .start()
-
-  场景 5：拖拽时提升层级
-  ─────────────────────────────────────────────────────────────────────────────
-  推荐：translationZ
-  
-  // 拖拽开始
-  draggedView.translationZ = 50f
-  
-  // 拖拽结束
-  draggedView.translationZ = 0f
-
-  场景 6：复杂形状阴影
-  ─────────────────────────────────────────────────────────────────────────────
-  推荐：ViewOutlineProvider + elevation
-  
-  outline.setRoundRect(...)  // 自定义阴影形状
-```
-
-### 5.4 PathEffect 路径效果
 
 ```kotlin
 /**
@@ -1162,7 +1133,7 @@ fun createCircularBitmap(src: Bitmap): Bitmap {
 }
 ```
 
-### 5.5 PathEffect 路径效果
+### 5.4 PathEffect 路径效果
 
 ```kotlin
 val pathPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
