@@ -1,157 +1,122 @@
 # Android 自定义 View 绘制完全指南
 
-_作者：OpenClaw_
-_日期：2026-03-08_
+> 作者：OpenClaw | 日期：2026-03-08
 
 ---
 
 ## 目录
 
-### 第一部分：基础概念
-
-- [1. 概述](#1-概述)
-
-### 第二部分：Drawable 资源
-
-- [2. Drawable 资源详解](#2-drawable-资源详解)
-  - [2.1 Drawable 体系概述](#21-drawable-体系概述)
-  - [2.2 ShapeDrawable 形状绘制](#22-shapedrawable-形状绘制)
-    - [2.2.1 矩形](#221-矩形---最常用)
-    - [2.2.2 渐变矩形](#222-渐变矩形)
-    - [2.2.3 椭圆](#223-椭圆)
-    - [2.2.4 环形](#224-环形)
-  - [2.3 LayerListDrawable 层叠绘制](#23-layerlistdrawable-层叠绘制)
-    - [2.3.1 卡片阴影效果](#231-卡片阴影效果)
-  - [2.4 SelectorDrawable 状态选择器](#24-selectordrawable-状态选择器)
-  - [2.5 VectorDrawable 矢量图形](#25-vectordrawable-矢量图形)
-  - [2.6 Drawable 常用场景速查](#26-drawable-常用场景速查)
-  - [2.7 代码中创建 Drawable](#27-代码中创建-drawable)
-
-### 第三部分：绘制流程
-
-- [3. View 绘制三大流程](#3-view-绘制三大流程)
-  - [3.1 流程概述](#31-流程概述)
-  - [3.2 Measure 测量阶段](#32-measure-测量阶段)
-    - [3.2.1 MeasureSpec 测量规格](#321-measurespec-测量规格)
-    - [3.2.2 onMeasure 核心逻辑](#322-onmeasure-核心逻辑)
-    - [3.2.3 获取 View 尺寸的正确方式](#323-获取-view-尺寸的正确方式)
-  - [3.3 Layout 布局阶段](#33-layout-布局阶段)
-  - [3.4 Draw 绘制阶段](#34-draw-绘制阶段)
-- [4. Draw 流程详解](#4-draw-流程详解)
-  - [4.1 View.draw() 源码流程](#41-viewdraw-源码流程)
-  - [4.2 DecorView.draw() 特殊流程](#42-decorviewdraw-特殊流程)
-  - [4.3 ViewGroup.drawChild() 源码详解](#43-viewgroupdrawchild-源码详解)
-  - [4.4 绘制顺序控制](#44-绘制顺序控制)
-
-### 第四部分：Canvas 与 Paint
-
-- [5. Canvas 画布详解](#5-canvas-画布详解)
-  - [5.1 Canvas 核心功能](#51-canvas-核心功能)
-  - [5.2 Canvas 基础绘制](#52-canvas-基础绘制)
-  - [5.3 Canvas 变换操作](#53-canvas-变换操作)
-  - [5.4 Canvas 裁剪操作](#54-canvas-裁剪操作)
-  - [5.5 Path 高级绘制](#55-path-高级绘制)
-- [6. Paint 画笔详解](#6-paint-画笔详解)
-  - [6.1 Paint 核心属性](#61-paint-核心属性)
-  - [6.2 Paint 高级效果](#62-paint-高级效果)
-    - [6.2.1 setShadowLayer 阴影详解](#621-setshadowlayer-阴影详解)
-    - [6.2.2 BlurMaskFilter 模糊遮罩](#622-blurmaskfilter-模糊遮罩)
-    - [6.2.3 elevation 和 translationZ](#623-elevation-和-translationz)
-    - [6.2.4 阴影效果选择指南](#624-阴影效果选择指南)
-  - [6.3 Xfermode 混合模式](#63-xfermode-混合模式)
-  - [6.4 PathEffect 路径效果](#64-patheffect-路径效果)
-- [7. 渐变与色彩](#7-渐变与色彩)
-  - [7.1 渐变类型详解](#71-渐变类型详解)
-  - [7.2 颜色工具](#72-颜色工具)
-
-### 第五部分：Canvas 高级用法
-
-- [8. Canvas 高级用法](#8-canvas-高级用法)
-  - [8.1 Canvas Save/Restore 详解](#81-canvas-saverestore-详解)
-  - [8.2 Canvas saveLayer/RestoreToCount 详解](#82-canvas-savelayerrestoretoount-详解)
-  - [8.3 Canvas 裁剪高级用法](#83-canvas-裁剪高级用法)
-  - [8.4 混合模式 (PorterDuff) 详细解析](#84-混合模式-porterduff-详细解析)
-
-### 第六部分：View 进阶
-
-- [9. View 与 ViewGroup 区别](#9-view-与-viewgroup-区别)
-  - [9.1 核心区别](#91-核心区别)
-  - [9.2 setWillNotDraw()](#92-setwillnotdraw)
-  - [9.3 ViewGroup 绘制相关方法](#93-viewgroup-绘制相关方法)
-- [10. wrap_content 不生效问题](#10-wrap_content-不生效问题)
-  - [10.1 问题原因](#101-问题原因)
-  - [10.2 解决方案](#102-解决方案)
-- [11. 获取 View 宽高的正确时机](#11-获取-view-宽高的正确时机)
-  - [11.1 为什么 onResume 中获取宽高返回 0](#111-为什么-onresume-中获取宽高返回-0)
-  - [11.2 View.post() 原理详解](#112-viewpost-原理详解)
-  - [11.3 其他获取宽高的正确方式](#113-其他获取宽高的正确方式)
-- [12. 根视图的多次 Measure](#12-根视图的多次-measure)
-  - [12.1 多次 Measure 的原因](#121-多次-measure-的原因)
-  - [12.2 源码流程](#122-源码流程)
-  - [12.3 避免重复 Measure](#123-避免重复-measure)
-
-### 第七部分：事件与交互
-
-- [13. 事件处理与交互](#13-事件处理与交互)
-  - [13.1 onTouchEvent](#131-ontouchevent)
-  - [13.2 GestureDetector 手势处理](#132-gesturedetector-手势处理)
-  - [13.3 滑动冲突解决](#133-滑动冲突解决)
-  - [13.4 多点触控](#134-多点触控)
-
-### 第八部分：Layout 相关
-
-- [14. LayoutInflater 流程](#14-layoutinflater-流程)
-  - [14.1 Inflation 完整流程](#141-inflation-完整流程)
-  - [14.2 inflate() 方法解析](#142-inflate-方法解析)
-  - [14.3 注意事项](#143-注意事项)
-- [15. Merge、Include 与 ViewStub](#15-mergeinclude-与-viewstub)
-  - [15.1 merge 标签](#151-merge-标签)
-  - [15.2 include 标签](#152-include-标签)
-  - [15.3 ViewStub 标签](#153-viewstub-标签)
-- [16. Invalidate 与 RequestLayout](#16-invalidate-与-requestlayout)
-  - [16.1 Invalidate - 重绘](#161-invalidate---重绘)
-  - [16.2 RequestLayout - 重新布局](#162-requestlayout---重新布局)
-  - [16.3 两者对比与选择](#163-两者对比与选择)
-  - [16.4 forceLayout() 强制重新布局](#164-forcelayout-强制重新布局)
-
-### 第九部分：自定义 View
-
-- [17. 自定义 View 类型与分类](#17-自定义-view-类型与分类)
-  - [17.1 自定义 View 类型](#171-自定义-view-类型)
-    - [17.1.1 继承 View 类](#1711-继承-view-类)
-    - [17.1.2 组合控件](#1712-组合控件)
-    - [17.1.3 继承 ViewGroup](#1713-继承-viewgroup)
-- [18. 核心生命周期方法详解](#18-核心生命周期方法详解)
-  - [18.1 三大方法对比](#181-三大方法对比)
-  - [18.2 MeasureSpec 三种模式处理](#182-measurespec-三种模式处理)
-  - [18.3 处理 wrap_content 和 padding](#183-处理-wrap_content-和-padding)
-- [19. 自定义属性详解](#19-自定义属性详解)
-  - [19.1 属性声明](#191-属性声明)
-  - [19.2 属性解析](#192-属性解析)
-  - [19.3 属性优先级](#193-属性优先级)
-  - [19.4 在 XML 中使用](#194-在-xml-中使用)
-- [20. 线程与 UI 更新](#20-线程与-ui-更新)
-  - [20.1 子线程不能更新 UI 的原因](#201-子线程不能更新-ui-的原因)
-  - [20.2 更新 UI 的正确方式](#202-更新-ui-的正确方式)
-  - [20.3 特殊情况：SurfaceView](#203-特殊情况surfaceview)
-- [21. width/height 与 measuredWidth/measuredHeight](#21-widthheight-与-measuredwidthmeasuredheight)
-  - [21.1 区别](#211-区别)
-  - [21.2 两者不一致的情况](#212-两者不一致的情况)
-
-### 第十部分：实战与优化
-
-- [22. 自定义 View 实战](#22-自定义-view-实战)
-  - [22.1 自定义属性](#221-自定义属性)
-  - [22.2 完整示例：圆形进度条](#222-完整示例圆形进度条)
-- [23. 实战案例](#23-实战案例)
-  - [23.1 圆形进度条](#231-圆形进度条)
-  - [23.2 组合标题栏](#232-组合标题栏)
-  - [23.3 钢琴键盘（多点触控）](#233-钢琴键盘多点触控)
-- [24. 性能优化](#24-性能优化)
-  - [24.1 绘制优化原则](#241-绘制优化原则)
-  - [24.2 最佳实践](#242-最佳实践)
-- [25. 完整知识体系总结](#25-完整知识体系总结)
-- [总结](#总结)
+1. [概述](#1-概述)
+2. [Drawable 资源体系](#2-drawable-资源体系)
+   - 2.1 [Drawable 体系概述](#21-drawable-体系概述)
+   - 2.2 [ShapeDrawable 形状绘制](#22-shapedrawable-形状绘制)
+     - 2.2.1 [矩形](#221-矩形---最常用)
+     - 2.2.2 [渐变矩形](#222-渐变矩形)
+     - 2.2.3 [椭圆](#223-椭圆)
+     - 2.2.4 [环形](#224-环形)
+   - 2.3 [LayerListDrawable 层叠绘制](#23-layerlistdrawable-层叠绘制)
+     - 2.3.1 [卡片阴影效果](#231-卡片阴影效果)
+   - 2.4 [SelectorDrawable 状态选择器](#24-selectordrawable-状态选择器)
+   - 2.5 [VectorDrawable 矢量图形](#25-vectordrawable-矢量图形)
+   - 2.6 [代码中创建 Drawable](#26-代码中创建-drawable)
+3. [View 绘制三大流程](#3-view-绘制三大流程)
+   - 3.1 [流程概述](#31-流程概述)
+   - 3.2 [Measure 测量阶段](#32-measure-测量阶段)
+     - 3.2.1 [MeasureSpec 测量规格](#321-measurespec-测量规格)
+     - 3.2.2 [onMeasure 核心逻辑](#322-onmeasure-核心逻辑)
+     - 3.2.3 [获取 View 尺寸的正确方式](#323-获取-view-尺寸的正确方式)
+   - 3.3 [Layout 布局阶段](#33-layout-布局阶段)
+   - 3.4 [Draw 绘制阶段](#34-draw-绘制阶段)
+4. [Draw 流程源码解析](#4-draw-流程源码解析)
+   - 4.1 [View.draw() 源码流程](#41-viewdraw-源码流程)
+   - 4.2 [DecorView.draw() 特殊流程](#42-decorviewdraw-特殊流程)
+   - 4.3 [ViewGroup.drawChild() 源码详解](#43-viewgroupdrawchild-源码详解)
+   - 4.4 [绘制顺序控制](#44-绘制顺序控制)
+5. [Canvas 画布详解](#5-canvas-画布详解)
+   - 5.1 [Canvas 核心功能](#51-canvas-核心功能)
+   - 5.2 [Canvas 基础绘制](#52-canvas-基础绘制)
+   - 5.3 [Canvas 变换操作](#53-canvas-变换操作)
+   - 5.4 [Canvas 裁剪操作](#54-canvas-裁剪操作)
+   - 5.5 [Path 高级绘制](#55-path-高级绘制)
+6. [Paint 画笔与效果](#6-paint-画笔与效果)
+   - 6.1 [Paint 核心属性](#61-paint-核心属性)
+   - 6.2 [Paint 高级效果](#62-paint-高级效果)
+     - 6.2.1 [setShadowLayer 阴影](#621-setshadowlayer-阴影)
+     - 6.2.2 [BlurMaskFilter 模糊遮罩](#622-blurmaskfilter-模糊遮罩)
+     - 6.2.3 [elevation 和 translationZ](#623-elevation-和-translationz)
+     - 6.2.4 [阴影颜色设置](#624-阴影颜色设置)
+   - 6.3 [Xfermode 混合模式](#63-xfermode-混合模式)
+   - 6.4 [PathEffect 路径效果](#64-patheffect-路径效果)
+7. [渐变与色彩](#7-渐变与色彩)
+   - 7.1 [渐变类型详解](#71-渐变类型详解)
+   - 7.2 [颜色工具](#72-颜色工具)
+8. [Canvas 高级用法](#8-canvas-高级用法)
+   - 8.1 [Canvas Save/Restore 详解](#81-canvas-saverestore-详解)
+   - 8.2 [Canvas saveLayer 详解](#82-canvas-savelayer-详解)
+   - 8.3 [Canvas 裁剪高级用法](#83-canvas-裁剪高级用法)
+   - 8.4 [PorterDuff 混合模式](#84-porterduff-混合模式)
+9. [View 与 ViewGroup](#9-view-与-viewgroup)
+   - 9.1 [核心区别](#91-核心区别)
+   - 9.2 [setWillNotDraw()](#92-setwillnotdraw)
+   - 9.3 [ViewGroup 绘制相关方法](#93-viewgroup-绘制相关方法)
+10. [wrap_content 问题](#10-wrap_content-问题)
+    - 10.1 [问题原因](#101-问题原因)
+    - 10.2 [解决方案](#102-解决方案)
+11. [获取 View 尺寸](#11-获取-view-尺寸)
+    - 11.1 [onResume 中获取宽高返回 0](#111-onresume-中获取宽高返回-0)
+    - 11.2 [View.post() 原理详解](#112-viewpost-原理详解)
+    - 11.3 [其他正确方式](#113-其他正确方式)
+12. [根视图 Measure](#12-根视图-measure)
+    - 12.1 [多次 Measure 的原因](#121-多次-measure-的原因)
+    - 12.2 [源码流程](#122-源码流程)
+    - 12.3 [避免重复 Measure](#123-避免重复-measure)
+13. [事件处理与交互](#13-事件处理与交互)
+    - 13.1 [onTouchEvent](#131-ontouchevent)
+    - 13.2 [GestureDetector 手势处理](#132-gesturedetector-手势处理)
+    - 13.3 [滑动冲突解决](#133-滑动冲突解决)
+    - 13.4 [多点触控](#134-多点触控)
+14. [LayoutInflater 流程](#14-layoutinflater-流程)
+    - 14.1 [Inflation 完整流程](#141-inflation-完整流程)
+    - 14.2 [inflate() 方法解析](#142-inflate-方法解析)
+    - 14.3 [注意事项](#143-注意事项)
+15. [Include/Merge/ViewStub](#15-includemergeviewstub)
+    - 15.1 [merge 标签](#151-merge-标签)
+    - 15.2 [include 标签](#152-include-标签)
+    - 15.3 [ViewStub 标签](#153-viewstub-标签)
+16. [Invalidate 与 RequestLayout](#16-invalidate-与-requestlayout)
+    - 16.1 [Invalidate - 重绘](#161-invalidate---重绘)
+    - 16.2 [RequestLayout - 重新布局](#162-requestlayout---重新布局)
+    - 16.3 [两者对比与选择](#163-两者对比与选择)
+    - 16.4 [forceLayout()](#164-forcelayout)
+17. [自定义 View 类型](#17-自定义-view-类型)
+    - 17.1 [继承 View 类](#171-继承-view-类)
+    - 17.2 [组合控件](#172-组合控件)
+    - 17.3 [继承 ViewGroup](#173-继承-viewgroup)
+18. [核心生命周期方法](#18-核心生命周期方法)
+    - 18.1 [三大方法对比](#181-三大方法对比)
+    - 18.2 [MeasureSpec 三种模式处理](#182-measurespec-三种模式处理)
+    - 18.3 [处理 wrap_content 和 padding](#183-处理-wrap_content-和-padding)
+19. [自定义属性](#19-自定义属性)
+    - 19.1 [属性声明](#191-属性声明)
+    - 19.2 [属性解析](#192-属性解析)
+    - 19.3 [属性优先级](#193-属性优先级)
+    - 19.4 [在 XML 中使用](#194-在-xml-中使用)
+20. [线程与 UI 更新](#20-线程与-ui-更新)
+    - 20.1 [子线程不能更新 UI 的原因](#201-子线程不能更新-ui-的原因)
+    - 20.2 [更新 UI 的正确方式](#202-更新-ui-的正确方式)
+    - 20.3 [SurfaceView 特殊情况](#203-surfaceview-特殊情况)
+21. [width/height 区别](#21-widthheight-区别)
+    - 21.1 [区别](#211-区别)
+    - 21.2 [两者不一致的情况](#212-两者不一致的情况)
+22. [实战案例](#22-实战案例)
+    - 22.1 [圆形进度条](#221-圆形进度条)
+    - 22.2 [组合标题栏](#222-组合标题栏)
+    - 22.3 [钢琴键盘（多点触控）](#223-钢琴键盘多点触控)
+23. [性能优化](#23-性能优化)
+    - 23.1 [绘制优化原则](#231-绘制优化原则)
+    - 23.2 [最佳实践](#232-最佳实践)
+24. [知识体系总结](#24-知识体系总结)
+25. [总结](#总结)
 
 ---
 
@@ -986,32 +951,84 @@ override fun onDraw(canvas: Canvas) {
      └─────────────────────┴────────────────┴────────────────┘
 ```
 
-#### 5.2.4 阴影效果选择指南
+#### 5.2.4 阴影颜色设置
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                         阴影效果选择                                        │
+│                    elevation 阴影颜色设置                                    │
 └─────────────────────────────────────────────────────────────────────────────┘
 
-  场景 1：普通 View 的阴影
-  ─────────────────────────────────────────────────────────────────────────────
-  推荐：android:elevation="8dp"
-  
-  简单、性能好
+  使用 outlineAmbientShadowColor 和 outlineSpotShadowColor 设置阴影颜色
 
-  场景 2：自定义颜色/模糊半径的阴影
+  代码示例：
   ─────────────────────────────────────────────────────────────────────────────
-  推荐：Paint.setShadowLayer()
-  
-  需要关闭硬件加速：setLayerType(LAYER_TYPE_SOFTWARE, null)
 
-  场景 3：发光效果/特殊模糊
+  // 设置环境光阴影颜色
+  view.outlineAmbientShadowColor = Color.RED
+
+  // 设置投影阴影颜色
+  view.outlineSpotShadowColor = Color.RED
+
+  // 同时设置
+  view.outlineAmbientShadowColor = Color.parseColor("#FF5722")
+  view.outlineSpotShadowColor = Color.parseColor("#FF5722")
+
+  效果：
   ─────────────────────────────────────────────────────────────────────────────
-  推荐：BlurMaskFilter
-  
-  多种模糊类型可选
 
-  场景 4：点击反馈动画
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │                                                                         │
+  │  默认阴影（黑色）              自定义阴影（红色）                        │
+  │                                                                         │
+  │       ████                      ████                                   │
+  │     ██      ██                ██      ██                              │
+  │   ██          ██            ██          ██                            │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+
+  区别：
+  ─────────────────────────────────────────────────────────────────────────────
+
+  ┌─────────────────────┬─────────────────────────────────────────────────┐
+  │ 属性                 │ 说明                                           │
+  ├─────────────────────┼─────────────────────────────────────────────────┤
+  │ outlineAmbientShadowColor │ 环境光阴影（四周均匀）                      │
+  │ outlineSpotShadowColor   │ 点光源投影阴影（有方向性）                 │
+  └─────────────────────┴─────────────────────────────────────────────────┘
+
+  注意事项：
+  ─────────────────────────────────────────────────────────────────────────────
+
+  1. 只对 elevation 产生的阴影有效
+  2. 不需要关闭硬件加速
+  3. Material Design 建议阴影颜色为黑色或主色调的暗色
+  4. API 21+ 支持
+
+  ────────────────────────────────────────────────────────────────────────────
+
+  现代阴影方案推荐：
+  ─────────────────────────────────────────────────────────────────────────────
+
+  1. elevation（最简单）
+     android:elevation="8dp"
+
+  2. MaterialShapeDrawable（推荐）
+     MaterialShapeDrawable().apply {
+         cornerSize = 16f
+         setShadowColor(Color.parseColor("#40000000"))
+     }
+
+  3. CardView
+     <CardView
+         app:cardCornerRadius="16dp"
+         app:cardElevation="4dp" />
+
+  4. 自定义颜色阴影
+     view.elevation = 8f
+     view.outlineSpotShadowColor = Color.parseColor("#40000000")
+```
+
+### 5.3 Xfermode 混合模式
   ─────────────────────────────────────────────────────────────────────────────
   推荐：translationZ + 属性动画
   
