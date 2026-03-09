@@ -415,74 +415,388 @@ public class LoginActivity extends AppCompatActivity implements LoginContract.Vi
                     └─────────────────────────────────────┘
 ```
 
-### 5.3 MVVM 代码示例
+### 5.3 MVVM 三种实现方式
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    MVVM 三种实现方式                                        │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  1. LiveData 方式（传统，Google 官方推荐）
+  ─────────────────────────────────────────────────────────────────────────
+  - 使用 ViewModel + LiveData
+  - View 观察 LiveData 变化
+  - 手动更新 UI
+
+  2. DataBinding 方式
+  ─────────────────────────────────────────────────────────────────────────
+  - XML 布局直接绑定数据
+  - 双向绑定 @={}
+  - 自动更新 UI
+
+  3. StateFlow 方式（现代推荐）
+  ─────────────────────────────────────────────────────────────────────────
+  - 使用 Kotlin Flow
+  - 单向数据流
+  - 更灵活的线程控制
+```
+
+### 5.4 LiveData 方式（传统）
 
 ```kotlin
-// ==================== ViewModel ====================
-class UserListViewModel(private val repository: UserRepository) : ViewModel() {
+// ==================== ViewModel + LiveData ====================
+class UserViewModel(private val repository: UserRepository) : ViewModel() {
     
-    private val _isLoading = MutableStateFlow(false)
-    val isLoading: StateFlow<Boolean> = _isLoading
+    // 私有 MutableLiveData，对外暴露 LiveData
+    private val _users = MutableLiveData<List<User>>()
+    val users: LiveData<List<User>> = _users
     
-    private val _users = MutableStateFlow<List<User>>(emptyList())
-    val users: StateFlow<List<User>> = _users
+    private val _isLoading = MutableLiveData<Boolean>()
+    val isLoading: LiveData<Boolean> = _isLoading
     
-    private val _error = MutableSharedFlow<String>()
-    val error: SharedFlow<String> = _error
-    
-    init {
-        loadUsers()
-    }
+    private val _errorMessage = MutableLiveData<String>()
+    val errorMessage: LiveData<String> = _errorMessage
     
     fun loadUsers() {
+        _isLoading.value = true
+        
         viewModelScope.launch {
-            _isLoading.value = true
             repository.getUsers()
-                .onSuccess { _users.value = it }
-                .onFailure { _error.emit(it.message ?: "Unknown error") }
-            _isLoading.value = false
+                .onSuccess { users ->
+                    _isLoading.value = false
+                    _users.value = users
+                }
+                .onFailure { error ->
+                    _isLoading.value = false
+                    _errorMessage.value = error.message
+                }
+        }
+    }
+    
+    fun deleteUser(userId: String) {
+        viewModelScope.launch {
+            repository.deleteUser(userId)
+                .onSuccess {
+                    // 更新列表
+                    _users.value = _users.value?.filter { it.id != userId }
+                }
         }
     }
 }
 
-// ==================== View（Fragment）===================
-class UserListFragment : Fragment() {
-    private var _binding: FragmentUserListBinding? = null
-    private val binding get() = _binding!!
-    private val viewModel: UserListViewModel by viewModels()
+// ==================== Activity 观察 LiveData ====================
+class UserActivity : AppCompatActivity() {
+    private lateinit var binding: ActivityUserBinding
+    private val viewModel: UserViewModel by viewModels()
+    private lateinit var adapter: UserAdapter
     
-    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
-        _binding = FragmentUserListBinding.inflate(inflater, container, false)
-        return binding.root
-    }
-    
-    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        super.onViewCreated(view, savedInstanceState)
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        binding = ActivityUserBinding.inflate(layoutInflater)
+        setContentView(binding.root)
         
-        val adapter = UserAdapter()
+        adapter = UserAdapter { user ->
+            viewModel.deleteUser(user.id)
+        }
         binding.recyclerView.adapter = adapter
         
-        viewLifecycleOwner.lifecycleScope.launch {
-            viewModel.users.collect { users ->
-                adapter.submitList(users)
+        // 观察 users LiveData
+        viewModel.users.observe(this) { users ->
+            adapter.submitList(users)
+        }
+        
+        // 观察 isLoading LiveData
+        viewModel.isLoading.observe(this) { isLoading ->
+            binding.progressBar.visibility = if (isLoading) View.VISIBLE else View.GONE
+        }
+        
+        // 观察 errorMessage LiveData
+        viewModel.errorMessage.observe(this) { error ->
+            error?.let {
+                Snackbar.make(binding.root, it, Snackbar.LENGTH_SHORT).show()
             }
         }
         
-        viewLifecycleOwner.lifecycleScope.launch {
-            viewModel.isLoading.collect { isLoading ->
-                binding.progressBar.isVisible = isLoading
-            }
+        // 初始加载
+        viewModel.loadUsers()
+        
+        // 下拉刷新
+        binding.swipeRefresh.setOnRefreshListener {
+            viewModel.loadUsers()
+            binding.swipeRefresh.isRefreshing = false
         }
-    }
-    
-    override fun onDestroyView() {
-        super.onDestroyView()
-        _binding = null
     }
 }
 ```
 
-### 5.4 MVVM 优缺点
+### 5.5 DataBinding 方式
+
+```xml
+<!-- ==================== XML 布局（DataBinding）==================== -->
+<?xml version="1.0" encoding="utf-8"?>
+<layout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+    
+    <data>
+        <import type="android.view.View" />
+        <variable
+            name="viewModel"
+            type="com.example.UserViewModel" />
+    </data>
+    
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical">
+        
+        <!-- 双向绑定：EditText 内容自动同步到 ViewModel -->
+        <EditText
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="搜索用户"
+            android:text="@={viewModel.searchQuery}" />
+        
+        <!-- 条件显示 -->
+        <ProgressBar
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:visibility="@{viewModel.isLoading ? View.VISIBLE : View.GONE}" />
+        
+        <!-- RecyclerView 需要自定义 BindingAdapter -->
+        <androidx.recyclerview.widget.RecyclerView
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            app:items="@{viewModel.users}" />
+        
+        <!-- 单向绑定 -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@{viewModel.errorMessage}"
+            android:textColor="@color/red"
+            android:visibility="@{viewModel.errorMessage != null ? View.VISIBLE : View.GONE}" />
+            
+    </LinearLayout>
+</layout>
+```
+
+```kotlin
+// ==================== ViewModel（DataBinding）====================
+class UserViewModel(private val repository: UserRepository) : ViewModel() {
+    
+    // 双向绑定字段
+    val searchQuery = ObservableField<String>("")
+    
+    // LiveData
+    private val _users = MutableLiveData<List<User>>()
+    val users: LiveData<List<User>> = _users
+    
+    private val _isLoading = MutableLiveData<Boolean>(false)
+    val isLoading: LiveData<Boolean> = _isLoading
+    
+    private val _errorMessage = MutableLiveData<String?>()
+    val errorMessage: LiveData<String?> = _errorMessage
+    
+    init {
+        // 监听搜索框变化
+        searchQuery.addOnPropertyChangedCallback(object : Observable.OnPropertyChangedCallback() {
+            override fun onPropertyChanged(sender: Observable?, propertyId: Int) {
+                search(searchQuery.get() ?: "")
+            }
+        })
+    }
+    
+    fun loadUsers() {
+        _isLoading.value = true
+        viewModelScope.launch {
+            repository.getUsers()
+                .onSuccess { 
+                    _isLoading.value = false
+                    _users.value = it 
+                }
+                .onFailure { 
+                    _isLoading.value = false
+                    _errorMessage.value = it.message 
+                }
+        }
+    }
+    
+    private fun search(query: String) {
+        // 搜索逻辑
+    }
+}
+
+// ==================== Activity（DataBinding）====================
+class UserActivity : AppCompatActivity() {
+    private lateinit var binding: ActivityUserBinding
+    private val viewModel: UserViewModel by viewModels()
+    
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        
+        // DataBinding 初始化
+        binding = DataBindingUtil.setContentView(this, R.layout.activity_user)
+        binding.lifecycleOwner = this  // 重要！让 LiveData 生效
+        binding.viewModel = viewModel
+        
+        viewModel.loadUsers()
+    }
+}
+```
+
+### 5.6 StateFlow 方式（现代推荐）
+
+```kotlin
+// ==================== ViewModel + StateFlow ====================
+class UserViewModel(private val repository: UserRepository) : ViewModel() {
+    
+    // 单一状态源（UiState）
+    data class UiState(
+        val isLoading: Boolean = false,
+        val users: List<User> = emptyList(),
+        val error: String? = null
+    )
+    
+    private val _state = MutableStateFlow(UiState())
+    val state: StateFlow<UiState> = _state.asStateFlow()
+    
+    // 一次性事件（Toast/导航）
+    private val _event = MutableSharedFlow<UiEvent>()
+    val event: SharedFlow<UiEvent> = _event.asSharedFlow()
+    
+    sealed class UiEvent {
+        data class ShowToast(val message: String) : UiEvent()
+        data class NavigateToDetail(val userId: String) : UiEvent()
+    }
+    
+    fun loadUsers() {
+        viewModelScope.launch {
+            _state.update { it.copy(isLoading = true, error = null) }
+            
+            repository.getUsers()
+                .onSuccess { users ->
+                    _state.update { it.copy(isLoading = false, users = users) }
+                }
+                .onFailure { error ->
+                    _state.update { it.copy(isLoading = false, error = error.message) }
+                }
+        }
+    }
+    
+    fun onUserClick(userId: String) {
+        viewModelScope.launch {
+            _event.emit(UiEvent.NavigateToDetail(userId))
+        }
+    }
+    
+    fun deleteUser(userId: String) {
+        viewModelScope.launch {
+            repository.deleteUser(userId)
+                .onSuccess {
+                    _state.update { 
+                        it.copy(users = it.users.filter { u -> u.id != userId }) 
+                    }
+                    _event.emit(UiEvent.ShowToast("删除成功"))
+                }
+        }
+    }
+}
+
+// ==================== Activity（StateFlow）====================
+class UserActivity : AppCompatActivity() {
+    private lateinit var binding: ActivityUserBinding
+    private val viewModel: UserViewModel by viewModels()
+    private lateinit var adapter: UserAdapter
+    
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        binding = ActivityUserBinding.inflate(layoutInflater)
+        setContentView(binding.root)
+        
+        adapter = UserAdapter(
+            onItemClick = { viewModel.onUserClick(it.id) },
+            onDeleteClick = { viewModel.deleteUser(it.id) }
+        )
+        binding.recyclerView.adapter = adapter
+        
+        // 收集状态
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                // 收集 UI 状态
+                viewModel.state.collect { state ->
+                    render(state)
+                }
+            }
+        }
+        
+        // 收集一次性事件
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                viewModel.event.collect { event ->
+                    when (event) {
+                        is UserViewModel.UiEvent.ShowToast -> {
+                            Snackbar.make(binding.root, event.message, Snackbar.LENGTH_SHORT).show()
+                        }
+                        is UserViewModel.UiEvent.NavigateToDetail -> {
+                            startActivity(Intent(this@UserActivity, DetailActivity::class.java).apply {
+                                putExtra("userId", event.userId)
+                            })
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    private fun render(state: UserViewModel.UiState) {
+        binding.progressBar.isVisible = state.isLoading
+        adapter.submitList(state.users)
+        
+        state.error?.let {
+            binding.errorTextView.text = it
+            binding.errorTextView.isVisible = true
+        } ?: run {
+            binding.errorTextView.isVisible = false
+        }
+    }
+}
+```
+
+### 5.7 三种方式对比
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    MVVM 三种实现方式对比                                    │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  ┌─────────────────┬─────────────────┬─────────────────┬─────────────────┐
+  │     特性         │    LiveData     │   DataBinding   │   StateFlow     │
+  ├─────────────────┼─────────────────┼─────────────────┼─────────────────┤
+  │ 学习曲线         │ 低              │ 高              │ 中              │
+  ├─────────────────┼─────────────────┼─────────────────┼─────────────────┤
+  │ 代码量           │ 中              │ 少（XML绑定）   │ 中              │
+  ├─────────────────┼─────────────────┼─────────────────┼─────────────────┤
+  │ 调试难度         │ 低              │ 高              │ 低              │
+  ├─────────────────┼─────────────────┼─────────────────┼─────────────────┤
+  │ 线程控制         │ 自动（主线程）  │ 自动            │ 灵活            │
+  ├─────────────────┼─────────────────┼─────────────────┼─────────────────┤
+  │ 操作符支持       │ 少              │ 无              │ 丰富            │
+  ├─────────────────┼─────────────────┼─────────────────┼─────────────────┤
+  │ 状态管理         │ 分散（多个LD）  │ 分散            │ 集中（State）   │
+  ├─────────────────┼─────────────────┼─────────────────┼─────────────────┤
+  │ 推荐场景         │ 简单页面        │ 表单页面        │ 复杂页面        │
+  └─────────────────┴─────────────────┴─────────────────┴─────────────────┘
+
+  推荐选择：
+  ─────────────────────────────────────────────────────────────────────────
+  - 新项目：StateFlow（现代推荐）
+  - 表单页面：DataBinding（双向绑定方便）
+  - 简单页面：LiveData（够用即可）
+  - 已有项目：保持一致，不混用
+```
+
+### 5.8 MVVM 优缺点
 
 ```
 优点：
