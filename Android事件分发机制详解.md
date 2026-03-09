@@ -51,6 +51,15 @@
    - 9.5 [子 View 收不到事件的原因](#95-子-view-收不到事件的原因)
    - 9.6 [TouchDelegate 为什么设置在父 ViewGroup 上](#96-touchdelegate-为什么设置在父-viewgroup-上)
    - 9.7 [TouchTarget 链表](#97-touchtarget-链表)
+   - 9.8 [子 View 重叠时的触摸分配与 Z 轴](#98-子-view-重叠时的触摸分配与-z-轴)
+     - 9.8.1 [触摸分配规则](#981-触摸分配规则)
+     - 9.8.2 [源码解析](#982-源码解析)
+     - 9.8.3 [View 的 Z 轴与层级](#983-view-的-z-轴与层级)
+     - 9.8.4 [bringToFront() 详解](#984-bringtofront-详解)
+     - 9.8.5 [触摸分配与 bringToFront 的关系](#985-触摸分配与-bringtofront-的关系)
+     - 9.8.6 [实际开发中的应用场景](#986-实际开发中的应用场景)
+     - 9.8.7 [注意事项](#987-注意事项)
+     - 9.8.8 [完整示例](#988-完整示例)
 10. [View 事件分发](#10-view-事件分发)
     - 10.1 [分发入口](#101-分发入口)
     - 10.2 [事件处理优先级](#102-事件处理优先级)
@@ -2090,6 +2099,359 @@ private static final class TouchTarget {
                 sRecycleBin = this;
                 sRecycledCount++;
             }
+        }
+    }
+}
+```
+
+### 9.8 子 View 重叠时的触摸分配与 Z 轴
+
+#### 9.8.1 触摸分配规则
+
+当多个子 View 重叠时，触摸事件会分配给**最上层**的 View（Z 轴最高的 View）。
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    子 View 重叠时的事件分配                                  │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  ViewGroup
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │                                                                         │
+  │    Child1 (先添加，下层)                                                │
+  │    ┌─────────────┐                                                      │
+  │    │             │                                                      │
+  │    │             │                                                      │
+  │    └─────────────┘                                                      │
+  │                       Child2 (后添加，上层)                              │
+  │                       ┌─────────────┐                                   │
+  │                       │             │                                   │
+  │                       │      ●      │  ← 触摸点                         │
+  │                       │   事件给    │                                   │
+  │                       │   Child2   │                                   │
+  │                       └─────────────┘                                   │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+
+  规则：倒序遍历，先检查后添加的 View
+  - Child2 会先被检查，如果触摸点在 Child2 内，事件分配给 Child2
+  - Child1 永远收不到事件（被 Child2 遮挡）
+```
+
+#### 9.8.2 源码解析
+
+```java
+// ViewGroup.dispatchTouchEvent() 中的遍历逻辑
+for (int i = childrenCount - 1; i >= 0; i--) {
+    final View child = children[i];
+    
+    // 检查触摸点是否在 child 范围内
+    if (!canViewReceivePointerEvents(child) 
+            || !isTransformedTouchPointInView(x, y, child, null)) {
+        continue;  // 不在范围内，跳过
+    }
+    
+    // 找到目标，分配事件
+    if (dispatchTransformedTouchEvent(ev, false, child, idBits)) {
+        // 事件被消费，加入 TouchTarget
+        newTouchTarget = addTouchTarget(child, idBitsToAssign);
+        alreadyDispatched = true;
+        break;  // ★★★ 找到目标后立即退出 ★★★
+    }
+}
+```
+
+**关键点**：
+- `childrenCount - 1` 开始的倒序遍历
+- **后添加的 View 在数组末尾，优先被检查**
+- 找到目标后立即 `break`，不会继续检查下层的 View
+
+#### 9.8.3 View 的 Z 轴与层级
+
+Android 中 View 的层级（Z 轴）由以下因素决定：
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         View Z 轴决定因素                                   │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  1. 添加顺序（mChildren 数组中的位置）
+  ─────────────────────────────────────────────────────────────────────────────
+  后添加的 View 在上层（数组末尾）
+
+  2. elevation（海拔）
+  ─────────────────────────────────────────────────────────────────────────
+  view.setElevation(float elevation)
+  - elevation 越大，越靠近用户
+  - 主要影响阴影绘制
+
+  3. translationZ（Z 轴位移）
+  ─────────────────────────────────────────────────────────────────────────
+  view.setTranslationZ(float translationZ)
+  - 动画过程中临时提升 View 层级
+  - 动画结束后通常恢复为 0
+
+  4. bringToFront() 方法
+  ─────────────────────────────────────────────────────────────────────────
+  view.bringToFront()
+  - 将 View 移到 mChildren 数组末尾
+  - 变成最上层 View
+```
+
+#### 9.8.4 bringToFront() 详解
+
+**方法签名：**
+
+```java
+public void bringToFront() {
+    if (mParent != null) {
+        mParent.bringChildToFront(this);
+    }
+}
+```
+
+**ViewGroup.bringChildToFront() 源码：**
+
+```java
+public void bringChildToFront(View child) {
+    if (child != null) {
+        // 从数组中移除
+        removeFromArray(index);
+        // 添加到数组末尾（最上层）
+        addInArray(child, childrenCount - 1);
+        // 刷新视图
+        child.mParent = this;
+        invalidate();
+    }
+}
+```
+
+**效果演示：**
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         bringToFront() 效果                                │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  调用前：
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │  mChildren 数组: [Child1, Child2, Child3]                             │
+  │                                                                         │
+  │     Child1 (下层)                                                      │
+  │         │                                                              │
+  │     Child2 (中层)                                                      │
+  │         │                                                              │
+  │     Child3 (上层)  ← 触摸优先分配                                      │
+  └─────────────────────────────────────────────────────────────────────────┘
+
+  child2.bringToFront() 调用后：
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │  mChildren 数组: [Child1, Child3, Child2]  ★ Child2 移到末尾           │
+  │                                                                         │
+  │     Child1 (下层)                                                      │
+  │         │                                                              │
+  │     Child3 (中层)                                                      │
+  │         │                                                              │
+  │     Child2 (上层)  ← 现在 Child2 优先接收触摸事件！                     │
+  └─────────────────────────────────────────────────────────────────────────┘
+```
+
+#### 9.8.5 触摸分配与 bringToFront 的关系
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│              bringToFront() 对触摸事件分配的影响                            │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  示例场景：
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │                                                                         │
+  │  两个重叠的 Button                                                      │
+  │  ┌──────────────┐                                                      │
+  │  │ Button Red   │                                                      │
+  │  └──────────────┘                                                      │
+  │        ┌──────────────┐                                                │
+  │        │ Button Blue  │ ← 初始：Blue 在上层                            │
+  │        └──────────────┘                                                │
+  │                                                                         │
+  │  触摸 Blue 区域 → Blue 响应                                            │
+  │  触摸 Red 区域 → Blue 响应（因为 Blue 在上层遮挡了 Red）                │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+
+  点击 Red 区域让 Red 响应：
+  ─────────────────────────────────────────────────────────────────────────
+
+  redButton.bringToFront();
+
+  效果：
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │                                                                         │
+  │  两个重叠的 Button                                                      │
+  │  ┌──────────────┐                                                      │
+  │  │ Button Red   │ ← 现在 Red 在上层                                    │
+  │  └──────────────┘                                                      │
+  │        ┌──────────────┐                                                │
+  │        │ Button Blue  │                                                │
+  │        └──────────────┘                                                │
+  │                                                                         │
+  │  触摸 Red 区域 → Red 响应 ✓                                            │
+  │  触摸 Blue 区域 → 取决于位置：                                          │
+  │    - 如果完全被 Red 遮挡 → Red 响应                                     │
+  │    - 如果有部分露出 → 露出部分 → Blue 响应                             │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+```
+
+#### 9.8.6 实际开发中的应用场景
+
+**场景一：拖拽时提升层级**
+
+```java
+// 拖拽开始时，将拖拽的 View 移到最上层
+view.setOnLongClickListener(v -> {
+    // 方式一：bringToFront
+    v.bringToFront();
+    
+    // 方式二：设置 translationZ（动画效果更好）
+    v.setTranslationZ(10f);
+    
+    // 开始拖拽逻辑
+    startDrag(v);
+    return true;
+});
+
+// 拖拽结束后恢复
+view.setOnDragListener((v, event) -> {
+    switch (event.getAction()) {
+        case DragEvent.ACTION_DRAG_ENDED:
+            v.setTranslationZ(0f);  // 恢复层级
+            break;
+    }
+    return true;
+});
+```
+
+**场景二：RecyclerView Item 拖拽排序**
+
+```java
+// ItemTouchHelper 拖拽时自动调用 bringToFront
+// 源码简略：
+public void onSelectedChanged(RecyclerView.ViewHolder viewHolder, int actionState) {
+    if (actionState == ItemTouchHelper.ACTION_STATE_DRAG) {
+        // 拖拽时提升 Item 层级
+        viewHolder.itemView.setTranslationZ(10f);
+    }
+}
+
+public void clearView(RecyclerView recyclerView, 
+        RecyclerView.ViewHolder viewHolder) {
+    // 拖拽结束后恢复
+    viewHolder.itemView.setTranslationZ(0f);
+}
+```
+
+**场景三：自定义 ViewGroup 实现叠加选择**
+
+```java
+public class OverlapSelectLayout extends ViewGroup {
+    
+    @Override
+    public boolean onInterceptTouchEvent(MotionEvent ev) {
+        // 总是让下层 View 先处理 touch 事件
+        // 通过调整遍历顺序实现
+        return super.onInterceptTouchEvent(ev);
+    }
+    
+    @Override
+    public boolean dispatchTouchEvent(MotionEvent ev) {
+        // ★★★ 关键：倒序遍历 ★★★
+        // 让后添加的 View（上层）优先接收事件
+        for (int i = getChildCount() - 1; i >= 0; i--) {
+            View child = getChildAt(i);
+            if (isTransformedTouchPointInView(ev.getX(), ev.getY(), child, null)) {
+                if (child.dispatchTouchEvent(ev)) {
+                    return true;
+                }
+            }
+        }
+        return super.dispatchTouchEvent(ev);
+    }
+}
+```
+
+#### 9.8.7 注意事项
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    bringToFront() 注意事项                                 │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  1. bringToFront() 会修改 ViewGroup 的 mChildren 数组
+  ─────────────────────────────────────────────────────────────────────────────
+  - 可能触发 ViewGroup 重新布局
+  - 性能开销：O(n)，n 为子 View 数量
+
+  2. 动画过程中使用 translationZ 更平滑
+  ─────────────────────────────────────────────────────────────────────────────
+  view.setTranslationZ(20f);  // 不改变数组顺序，只改变绘制位置
+  // 动画结束后
+  view.setTranslationZ(0f);
+
+  3. bringToFront() 不改变 elevation
+  ─────────────────────────────────────────────────────────────────────────────
+  - 只改变 mChildren 数组顺序
+  - elevation 仍然影响阴影绘制
+
+  4. 多指触控时每个手指独立分配
+  ─────────────────────────────────────────────────────────────────────────────
+  - 不同手指可能分配给不同的子 View
+  - 由 TouchTarget 链表管理
+```
+
+#### 9.8.8 完整示例：动态切换顶层 View
+
+```java
+public class LayerSwitchView extends ViewGroup {
+    
+    private int mCheckedIndex = -1;
+    
+    public LayerSwitchView(Context context) {
+        super(context);
+        setClipChildren(false);  // 允许子 View 超出边界
+    }
+    
+    public void setCheckedIndex(int index) {
+        if (mCheckedIndex == index) return;
+        
+        int oldIndex = mCheckedIndex;
+        mCheckedIndex = index;
+        
+        if (oldIndex >= 0 && oldIndex < getChildCount()) {
+            // 旧的选中 View 移到下层
+            View oldView = getChildAt(oldIndex);
+            oldView.setTranslationZ(0f);
+        }
+        
+        if (index >= 0 && index < getChildCount()) {
+            // 新的选中 View 移到上层
+            View newView = getChildAt(index);
+            
+            // 方式一：bringToFront
+            newView.bringToFront();
+            
+            // 方式二：设置 translationZ（更平滑）
+            // newView.setTranslationZ(10f);
+        }
+        
+        invalidate();
+    }
+    
+    @Override
+    protected void onLayout(boolean changed, int l, int t, int r, int b) {
+        for (int i = 0; i < getChildCount(); i++) {
+            View child = getChildAt(i);
+            child.layout(l, t, r, b);
         }
     }
 }
