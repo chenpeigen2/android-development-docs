@@ -4,9 +4,9 @@
 
 ## 📚 文档统计
 
-- **总文档数**：24 篇
-- **总大小**：约 2.46 MB
-- **总行数**：约 30,000+ 行
+- **总文档数**：26 篇（新增 Flutter + Jetpack Compose）
+- **总大小**：约 2.60 MB
+- **总行数**：约 35,000+ 行
 
 ---
 
@@ -39,7 +39,7 @@
 | 16 | [Android_架构模式演进详解.md](./Android_架构模式演进详解.md) | 74KB | MVC/MVP/MVVM/MVI 演进 |
 | 17 | [Android_后台任务详解.md](./Android_后台任务详解.md) | 94KB | Service/JobScheduler/WorkManager |
 
-### 性能优化（3篇）
+### 性能优化（4篇）
 
 | # | 文档名称 | 大小 | 说明 |
 |---|----------|------|------|
@@ -48,200 +48,178 @@
 | 20 | [Android_ANR详解.md](./Android_ANR详解.md) | 39KB | ANR 原理 + 监控 + 优化 |
 | 21 | [Android_Systrace_性能分析详解.md](./Android_Systrace_性能分析详解.md) | 132KB | Systrace 工具使用 + 分析方法 |
 
-### 三方库详解（2篇）⭐ 新增
+### 三方库详解（2篇）⭐ 热门
 
 | # | 文档名称 | 大小 | 说明 |
 |---|----------|------|------|
 | 22 | [Android_三方库详解.md](./Android_三方库详解.md) | 201KB | Glide/Fresco/MMKV/PAG/Lottie |
 | 23 | [Android_网络请求库详解.md](./Android_网络请求库详解.md) | 84KB | OkHttp/Retrofit 完全指南 |
 
+### 跨平台开发（2篇）⭐ NEW!
+
+| # | 文档名称 | 大小 | 说明 |
+|---|----------|------|------|
+| 24 | [Flutter_完全指南.md](./Flutter_完全指南.md) | 29KB | ⭐ Google 跨平台 UI 框架 |
+| 25 | [Android_Jetpack_Compose详解.md](./Android_Jetpack_Compose详解.md) | 84KB | ⭐ Android 声明式 UI |
+
 ### 工具与构建（1篇）
 
 | # | 文档名称 | 大小 | 说明 |
 |---|----------|------|------|
-| 24 | [Android_Gradle与AGP详解.md](./Android_Gradle与AGP详解.md) | 35KB | Gradle 构建流程 + AGP 详解 |
+| 26 | [Android_Gradle与AGP详解.md](./Android_Gradle与AGP详解.md) | 35KB | Gradle 构建流程 + AGP 详解 |
 
 ---
 
 ## 🌟 重点推荐
 
-### 1. Android 三方库详解 ⭐ NEW!
+### 1. Flutter 完全指南 ⭐ NEW!
 
-> **201KB | 42章 | 5000+ 行 | 涵盖 5 个核心库**
+> **29KB | 18章 | 1000+ 行 | Google 跨平台 UI 框架**
 
-**第一部分：图片加载库**
-- **Glide**（10章）- Google 推荐
-  - 三级缓存机制（活动资源/内存/磁盘）
-  - 生命周期自动管理
-  - 图片变换（圆形/圆角/模糊）
-  - GIF/WebP 支持
-  - 性能优化技巧
-  - 面试常见问题（10题）
+**第一篇：Flutter 基础（6章）**
+- Flutter 概述与核心优势
+- Dart 语言基础（类型/函数/类/异步）
+- 项目结构与 pubspec.yaml
+- Widget 基础（StatelessWidget/StatefulWidget）
+- 基础 Widget（Text/Image/Container/Button）
+- 布局 Widget（Row/Column/ListView/GridView）
 
-- **Fresco**（7章）- Facebook 出品
-  - Native 内存管理（Ashmem）
-  - 渐进式 JPEG 支持
-  - 后处理器机制
-  - DraweeHierarchy 详解
+**第二篇：Flutter 进阶（6章）**
+- 导航与路由（Navigator/路由传参/拦截器）
+- 状态管理（Provider/Riverpod/Bloc/GetX）
+- 网络请求（http/dio/JSON 序列化）
+- 数据持久化（SharedPreferences/SQLite/Hive）
+- 动画（Tween/AnimatedBuilder/Hero/Lottie）
+- 手势与交互（GestureDetector/Dismissible）
 
-**第二部分：数据存储库**
-- **MMKV**（8章）- 腾讯开源
-  - mmap 内存映射原理
-  - 多进程安全支持
-  - 数据加密机制
-  - vs SharedPreferences（100倍性能提升）
-  - 面试常见问题（5题）
+**第三篇：Flutter 高级（6章）**
+- 自定义 Widget（CustomPaint/RenderObject）
+- Platform Channels（MethodChannel/EventChannel）
+- 插件开发与发布
+- 性能优化（渲染/内存/包体积）
+- 测试（单元测试/Widget 测试/集成测试）
+- 面试常见问题
 
-**第三部分：动画框架**
-- **PAG**（6章）- 腾讯高性能动画
-  - PAGView vs PAGImageView
-  - 图层替换（图片/文本/视频）
-  - 文本动态编辑
-  - vs Lottie 性能对比
-
-- **Lottie**（7章）- Airbnb 动画库
-  - JSON 动画加载
-  - 动态属性修改
-  - 手势交互
-  - 性能优化
-
-**第四部分：对比与选型**
-- 功能对比表
-- 性能数据对比
-- 选型建议
-- 迁移指南
-
-### 2. Android 网络请求库详解 ⭐ NEW!
-
-> **84KB | 20章 | 2700+ 行 | 面试必看**
-
-**第一篇：OkHttp**（10章）
-- 核心特性与优势
-- 基本使用（同步/异步/文件上传下载）
-- 拦截器机制（应用拦截器 vs 网络拦截器）
-- 缓存策略（强制缓存/协商缓存/离线缓存）
-- 连接管理（连接池/复用/超时）
-- WebSocket 长连接
-- HTTPS 与证书绑定
-- 核心原理（拦截器链/Dispatcher/ConnectionPool）
-- 性能优化技巧
-- 面试常见问题（10题）
-
-**第二篇：Retrofit**（10章）
-- 注解详解（@GET/@POST/@Body/@Field 等）
-- Converter 转换器（Gson/Moshi/Jackson）
-- CallAdapter 适配器（RxJava/Coroutines）
-- 文件上传下载（进度监听/断点续传）
-- 动态 URL
-- 与协程集成（suspend 函数）
-- 核心原理（动态代理/注解解析）
-- 源码解析（ServiceMethod/OkHttpCall）
-- 性能优化
-- 面试常见问题（10题）
-
-### 3. Android Binder 机制深度解析 ⭐ 必看
-
-> **185KB | 2085 行 | 面试高频**
-
-- 为什么选择 Binder（性能/安全性对比）
-- Binder 整体架构（4 层架构图）
-- **全局流程图**（14 步完整调用链）
-- Binder 驱动层
-  - 核心数据结构源码（binder_proc/thread/node/ref）
-  - mmap 一次拷贝原理
-  - 缓冲区大小限制（1M - 8K 原因）
-  - ioctl 命令（BC_*/BR_*）
-- Native 层（ProcessState/IPCThreadState）
-- Framework 层（Binder.java/JNI）
-- **AIDL 详解**
-  - 语法与支持的数据类型
-  - 生成的代码结构（Stub/Proxy）
-  - 双向通信完整示例
-- Binder 线程池（默认 16 线程）
-- 跨进程通信方式对比（7 种 IPC）
-- 常见问题（TransactionTooLargeException/线程耗尽）
-
-### 4. Android View 绘制流程
-
-> **347KB | 8 层架构完整解析**
-
-- View 绘制 8 层架构（应用层 → 硬件层）
-- Measure、Layout、Draw 三大流程
-- ViewRootImpl 详解
-- Choreographer 编舞者机制
-- BufferQueue 与双缓冲
-- 软件渲染 vs 硬件渲染
-- ThreadedRenderer 详解
-- Canvas → Surface → SurfaceFlinger 完整调用链
+**核心对比**：
+- Flutter vs React Native（详细对比表）
+- Flutter vs Jetpack Compose（选型建议）
+- Widget 生命周期流程图
+- 状态管理方案对比
 
 ---
 
-## 🎯 快速导航
+### 2. Jetpack Compose 完全指南 ⭐ NEW!
 
-### 按学习路径
+> **84KB | 18章 | 3100+ 行 | Android 声明式 UI**
 
-**初级开发者**（0-1年）：
-1. Android_四大组件详解.md
-2. Android_Activity_启动流程.md
-3. Android事件分发机制完全指南.md
-4. Android_动画完全指南.md
-5. Android_屏幕适配详解.md
+**第一篇：Compose 基础（12章）**
+- Compose 概述与核心特性
+- @Composable 函数详解
+- 布局组件（Column/Row/Box/ConstraintLayout）
+- Material 组件（Text/Button/TextField/Image/Card/Icon）
+- LazyColumn/LazyRow 懒加载列表
+- 动画（AnimatedVisibility/animate*AsState）
+- 主题与样式（MaterialTheme/颜色/字体）
+- Navigation 导航
+- ViewModel 集成
+- 协程集成（LaunchedEffect/DisposableEffect）
 
-**中级开发者**（1-3年）：
-1. Android_View_绘制流程.md
-2. Android_自定义View_绘制完全指南.md
-3. Android事件分发机制详解.md
-4. Android_Handler机制详解.md
-5. Android_性能优化详解.md
-6. Android_三方库详解.md
-7. Android_网络请求库详解.md
+**第二篇：Compose 进阶（6章）**
+- 手势处理（点击/长按/拖拽/缩放）
+- Canvas 绘图
+- View 互操作（AndroidView/ComposeView）
+- 性能优化（重组机制/稳定性）
+- UI 测试（Semantics/测试 API）
+- 面试常见问题
 
-**高级开发者**（3年+）：
-1. Android_Binder机制深度解析.md
-2. Android_虚拟机详解.md
-3. Android_ClassLoader详解.md
-4. Android_Zygote与SystemServer详解.md
-5. Android_架构模式演进详解.md
-6. Android_Systrace_性能分析详解.md
+**核心优势**：
+- 声明式 UI vs 命令式 UI
+- 智能重组机制
+- Kotlin 协程集成
+- 与传统 View 混合开发
 
-### 按面试准备
+---
 
-**高频面试题**（按重要性排序）：
+### 3. Android 三方库详解
 
-1. **Binder 机制** → Android_Binder机制深度解析.md
-2. **View 绘制** → Android_View_绘制流程.md + Android_自定义View_绘制完全指南.md
-3. **事件分发** → Android事件分发机制详解.md
-4. **Handler 机制** → Android_Handler机制详解.md
-5. **图片加载** → Android_三方库详解.md（Glide/Fresco）
-6. **网络请求** → Android_网络请求库详解.md（OkHttp/Retrofit）
-7. **动画** → Android_三方库详解.md（PAG/Lottie） + Android_动画完全指南.md
-8. **性能优化** → Android_性能优化详解.md + Android_ANR详解.md
-9. **内存管理** → Android_内存泄漏与内存优化详解.md
-10. **虚拟机** → Android_虚拟机详解.md
+> **201KB | 42章 | 5000+ 行 | 面试高频**
 
-### 按实际开发
+**第一部分：图片加载库**
+- **Glide**（10章）- Google 推荐
+  - 三级缓存机制
+  - 生命周期自动管理
+  - 图片变换（圆形/圆角/模糊）
+  - 面试常见问题
 
-**UI 开发**：
-- Android_自定义View_绘制完全指南.md
-- Android_动画完全指南.md
-- Android_屏幕适配详解.md
-- Android_三方库详解.md（动画框架）
+- **Fresco**（7章）- Facebook 出品
+  - Native 内存管理
+  - 渐进式 JPEG 支持
 
-**网络开发**：
-- Android_网络请求库详解.md
-- Android_网络编程详解.md
+**第二部分：数据存储库**
+- **MMKV**（8章）- 腾讯开源
+  - mmap 原理
+  - 多进程安全
+  - 性能对比（100x SharedPreferences）
 
-**性能优化**：
-- Android_性能优化详解.md
-- Android_内存泄漏与内存优化详解.md
-- Android_ANR详解.md
-- Android_Systrace_性能分析详解.md
-- Android_View_绘制流程.md
+**第三部分：动画框架**
+- **PAG**（6章）- 腾讯高性能动画
+- **Lottie**（7章）- Airbnb 动画库
 
-**架构设计**：
-- Android_架构模式演进详解.md
-- AndroidX_核心库详解.md
-- Android_Binder机制深度解析.md
+---
+
+### 4. Android 网络请求库详解
+
+> **84KB | 20章 | 2700+ 行 | 面试必看**
+
+**第一篇：OkHttp（10章）**
+- 拦截器机制
+- 缓存策略
+- 连接池管理
+- WebSocket
+- 面试常见问题
+
+**第二篇：Retrofit（10章）**
+- 动态代理原理
+- 注解详解
+- Converter/CallAdapter
+- 与协程集成
+
+---
+
+### 5. Android Binder 机制深度解析
+
+> **185KB | 2085 行 | 面试高频必看**
+
+- 全局流程图（14 步完整调用链）
+- Binder 驱动层核心源码
+- mmap 一次拷贝原理
+- AIDL 双向通信示例
+
+---
+
+## 🚀 新增内容
+
+### 2026-03-10 ⭐ 重大更新
+
+**新增跨平台开发（2篇）**：
+
+1. ✅ **Flutter_完全指南.md** (29KB, 18章, 1000+行)
+   - Google 跨平台 UI 框架
+   - Dart 语言基础
+   - Widget/状态管理/网络/动画
+   - Platform Channels
+   - 性能优化
+   - 面试常见问题
+
+2. ✅ **Android_Jetpack_Compose详解.md** (84KB, 18章, 3100+行)
+   - Android 声明式 UI
+   - Composable/State/Modifier
+   - 布局/动画/导航
+   - 手势/Canvas/性能优化
+   - 面试常见问题
+
+**文档总数**：24 篇 → **26 篇**（增加 2 篇）  
+**总大小**：2.46 MB → **2.60 MB**（增加 0.14 MB）
 
 ---
 
@@ -253,103 +231,26 @@
 | 核心机制 | 8 篇 | 0.80 MB | Binder/Handler/虚拟机/架构 |
 | 性能优化 | 4 篇 | 0.38 MB | 性能/内存/ANR/Systrace |
 | 三方库详解 | 2 篇 | 0.28 MB | 图片/网络/存储/动画库 |
+| 跨平台开发 | 2 篇 | 0.11 MB | Flutter/Compose ⭐ NEW! |
 | 工具与构建 | 1 篇 | 0.03 MB | Gradle/AGP |
-| **总计** | **24 篇** | **2.46 MB** | **30,000+ 行** |
+| **总计** | **26 篇** | **2.60 MB** | **35,000+ 行** |
 
 ---
 
-## 🔄 更新日志
+## 🎯 学习路径
 
-### 2026-03-10 ⭐ 重大更新
+### Android 开发者
 
-**新增文档（2篇）**：
-- ✅ Android_三方库详解.md (201KB, 42章, 5000+行)
-  - Glide 图片加载库（10章）
-  - Fresco 图片加载库（7章）
-  - MMKV 键值存储库（8章）
-  - PAG 动画框架（6章）
-  - Lottie 动画框架（7章）
-  - 对比与选型（4章）
+1. **基础阶段**：View 绘制 → 事件分发 → 四大组件
+2. **进阶阶段**：Binder → Handler → 虚拟机 → 性能优化
+3. **实战阶段**：三方库（Glide/Retrofit）→ 架构模式
+4. **现代 UI**：Jetpack Compose（Android 官方声明式 UI）
 
-- ✅ Android_网络请求库详解.md (84KB, 20章, 2700+行)
-  - OkHttp 完全指南（10章）
-  - Retrofit 完全指南（10章）
-  - 拦截器机制详解
-  - 缓存策略实现
-  - 文件上传/下载
-  - WebSocket 支持
-  - 面试常见问题（20题）
+### 跨平台开发者
 
-**文档总数**：13 篇 → **24 篇**（增加 11 篇）  
-**总大小**：1.35 MB → **2.46 MB**（增加 1.11 MB）
-
-### 2026-03-08
-
-- ⭐ 新增 Android_Binder机制深度解析.md (185KB, 2085行)
-  - 全局流程图（14步完整调用链）
-  - 驱动层核心数据结构源码
-  - mmap 一次拷贝原理
-  - AIDL 双向通信完整示例
-
-- 新增 Android_虚拟机详解.md
-- 新增 Android_ClassLoader详解.md
-- 新增 Android_网络编程详解.md
-- 新增 Android_性能优化详解.md
-- 新增 Android_Handler机制详解.md
-
-### 2026-03-07
-
-- 新增 Android_自定义View_绘制完全指南.md
-- 新增 Android 动画完全指南
-- 完善 Activity 启动流程文档
-- 添加 View 绘制流程文档
-
----
-
-## 🚀 待补充内容
-
-根据 Android 开发需求，计划补充：
-
-### 高优先级（⭐⭐⭐⭐⭐）
-1. **RxJava** - 响应式编程库
-2. **Kotlin Coroutines** - 协程详解
-3. **Hilt** - 依赖注入框架
-4. **Room** - 数据库 ORM
-
-### 中优先级（⭐⭐⭐⭐）
-1. **Gson/Moshi** - JSON 解析
-2. **Koin** - Kotlin 依赖注入
-3. **WorkManager** - 后台任务
-4. **ARouter** - 路由框架
-
-### 低优先级（⭐⭐⭐）
-1. EventBus - 事件总线
-2. Timber - 日志框架
-3. LeakCanary - 内存泄漏检测
-
----
-
-## 💡 使用建议
-
-### 阅读顺序
-1. **基础阶段**：按基础知识顺序阅读
-2. **进阶阶段**：深入核心机制
-3. **实战阶段**：结合三方库详解
-4. **面试准备**：重点看各文档的面试章节
-
-### 学习方法
-1. 先看概述，了解全局
-2. 再看原理，理解机制
-3. 然后实践，动手编码
-4. 最后总结，面试准备
-
-### 文档特色
-- ✅ 详细的架构图和流程图
-- ✅ 完整的源码解析
-- ✅ 丰富的代码示例（200+ 个）
-- ✅ 高频面试题解答（50+ 题）
-- ✅ 性能优化技巧
-- ✅ 最佳实践建议
+1. **Flutter 方向**：Dart → Widget → 状态管理 → 网络 → 动画
+2. **React Native 方向**：（规划中）
+3. **Compose Multiplatform**：（规划中）
 
 ---
 
