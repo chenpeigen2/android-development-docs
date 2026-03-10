@@ -1806,3 +1806,879 @@ WebSocket 基于 HTTP 协议升级：
 
 ---
 
+---
+
+## 第二篇：Retrofit - Square 出品的 REST 客户端
+
+---
+
+## 第 11 章 Retrofit 概述
+
+### 11.1 什么是 Retrofit？
+
+**Retrofit** 是 Square 公司开源的 Android/Java REST 客户端，基于 OkHttp，通过注解和动态代理简化网络请求。
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         Retrofit 核心特性                                    │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+                         ┌──────────────┐
+                         │   Retrofit   │
+                         └──────┬───────┘
+                                │
+        ┌───────────────────────┼───────────────────────┐
+        │                       │                       │
+        ▼                       ▼                       ▼
+┌───────────────┐      ┌───────────────┐      ┌───────────────┐
+│  注解驱动     │      │  类型安全     │      │  扩展性强     │
+│               │      │               │      │               │
+│ - @GET/@POST  │      │ - 编译时检查  │      │ - Converter   │
+│ - @Body/@Field│      │ - 自动序列化  │      │ - CallAdapter │
+│ - @Path/@Query│      │ - 泛型支持    │      │ - 拦截器      │
+└───────────────┘      └───────────────┘      └───────────────┘
+        │                       │                       │
+        ▼                       ▼                       ▼
+┌───────────────┐      ┌───────────────┐      ┌───────────────┐
+│  协程支持     │      │  RxJava 支持  │      │  OkHttp 集成  │
+│               │      │               │      │               │
+│ - suspend     │      │ - Observable  │      │ - 拦截器      │
+│ - Flow        │      │ - Single      │      │ - 缓存        │
+│ - 异常处理    │      │ - Completable │      │ - Cookie      │
+└───────────────┘      └───────────────┘      └───────────────┘
+```
+
+### 11.2 核心优势
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         Retrofit 核心优势                                    │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌──────────────────┬──────────────────────────────────────────────────────────┐
+│       优势        │                          说明                            │
+├──────────────────┼──────────────────────────────────────────────────────────┤
+│ 简洁的 API        │ 通过注解定义接口，代码简洁易读                          │
+│ 类型安全          │ 编译时检查参数类型，减少运行时错误                      │
+│ 自动序列化        │ 支持 JSON/XML/ProtoBuf 等多种格式                      │
+│ 灵活的适配器      │ 支持 Call/RxJava/Coroutines 等多种返回类型             │
+│ 与 OkHttp 无缝集成│ 共享 OkHttp 的所有特性（缓存、拦截器等）                │
+│ 动态代理          │ 运行时动态生成接口实现                                  │
+│ 异步支持          │ 支持协程和 RxJava，简化异步编程                         │
+└──────────────────┴──────────────────────────────────────────────────────────┘
+```
+
+### 11.3 添加依赖
+
+```gradle
+dependencies {
+    // Retrofit 核心库
+    implementation 'com.squareup.retrofit2:retrofit:2.9.0'
+    
+    // Gson 转换器
+    implementation 'com.squareup.retrofit2:converter-gson:2.9.0'
+    
+    // RxJava 适配器（可选）
+    implementation 'com.squareup.retrofit2:adapter-rxjava3:2.9.0'
+    
+    // Moshi 转换器（可选）
+    implementation 'com.squareup.retrofit2:converter-moshi:2.9.0'
+    
+    // Jackson 转换器（可选）
+    implementation 'com.squareup.retrofit2:converter-jackson:2.9.0'
+    
+    // ProtoBuf 转换器（可选）
+    implementation 'com.squareup.retrofit2:converter-protobuf:2.9.0'
+}
+```
+
+### 11.4 与 OkHttp 关系
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         Retrofit 与 OkHttp 关系                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                                                                             │
+│   应用层                                                                     │
+│   ┌───────────────────────────────────────────────────────────────────┐   │
+│   │  Retrofit                                                          │   │
+│   │  - 注解定义接口                                                    │   │
+│   │  - 动态代理                                                        │   │
+│   │  - 数据转换（Converter）                                           │   │
+│   │  - 适配器（CallAdapter）                                           │   │
+│   └───────────────────────────────────────────────────────────────────┘   │
+│                                    │                                        │
+│                                    ▼                                        │
+│   ┌───────────────────────────────────────────────────────────────────┐   │
+│   │  OkHttp                                                            │   │
+│   │  - 网络请求执行                                                    │   │
+│   │  - 拦截器链                                                        │   │
+│   │  - 连接池                                                          │   │
+│   │  - 缓存                                                            │   │
+│   └───────────────────────────────────────────────────────────────────┘   │
+│                                                                             │
+│   Retrofit 是 OkHttp 的上层封装，简化 API 调用                             │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 第 12 章 Retrofit 基本使用
+
+### 12.1 创建 Retrofit 实例
+
+```java
+// 方式1: 基础配置
+Retrofit retrofit = new Retrofit.Builder()
+    .baseUrl("https://api.example.com/")  // 基础 URL
+    .addConverterFactory(GsonConverterFactory.create())  // JSON 转换器
+    .build();
+
+// 方式2: 自定义 OkHttpClient
+OkHttpClient okHttpClient = new OkHttpClient.Builder()
+    .connectTimeout(30, TimeUnit.SECONDS)
+    .addInterceptor(new HttpLoggingInterceptor())
+    .build();
+
+Retrofit retrofit = new Retrofit.Builder()
+    .baseUrl("https://api.example.com/")
+    .client(okHttpClient)  // 自定义 OkHttp
+    .addConverterFactory(GsonConverterFactory.create())
+    .build();
+
+// 方式3: 单例模式
+public class RetrofitManager {
+    
+    private static volatile Retrofit instance;
+    
+    public static Retrofit getInstance() {
+        if (instance == null) {
+            synchronized (RetrofitManager.class) {
+                if (instance == null) {
+                    instance = new Retrofit.Builder()
+                        .baseUrl("https://api.example.com/")
+                        .addConverterFactory(GsonConverterFactory.create())
+                        .build();
+                }
+            }
+        }
+        return instance;
+    }
+}
+```
+
+### 12.2 定义 API 接口
+
+```java
+// 定义 API 接口
+public interface ApiService {
+    
+    // GET 请求
+    @GET("users")
+    Call<List<User>> getUsers();
+    
+    // 带路径参数
+    @GET("users/{id}")
+    Call<User> getUser(@Path("id") int userId);
+    
+    // 带查询参数
+    @GET("users")
+    Call<List<User>> getUsers(
+        @Query("page") int page,
+        @Query("size") int size
+    );
+    
+    // POST 请求
+    @POST("users")
+    Call<User> createUser(@Body User user);
+    
+    // PUT 请求
+    @PUT("users/{id}")
+    Call<User> updateUser(@Path("id") int userId, @Body User user);
+    
+    // DELETE 请求
+    @DELETE("users/{id}")
+    Call<Void> deleteUser(@Path("id") int userId);
+}
+```
+
+### 12.3 GET 请求
+
+```java
+// 1. 创建 API 接口实例
+ApiService apiService = retrofit.create(ApiService.class);
+
+// 2. 创建 Call 对象
+Call<List<User>> call = apiService.getUsers();
+
+// 3. 异步请求
+call.enqueue(new Callback<List<User>>() {
+    @Override
+    public void onResponse(Call<List<User>> call, Response<List<User>> response) {
+        if (response.isSuccessful()) {
+            List<User> users = response.body();
+            // 处理数据
+        } else {
+            // 处理错误
+        }
+    }
+    
+    @Override
+    public void onFailure(Call<List<User>> call, Throwable t) {
+        // 网络错误
+    }
+});
+
+// 4. 同步请求（在子线程）
+new Thread(() -> {
+    try {
+        Response<List<User>> response = call.execute();
+        if (response.isSuccessful()) {
+            List<User> users = response.body();
+        }
+    } catch (IOException e) {
+        e.printStackTrace();
+    }
+}).start();
+
+// 5. 取消请求
+call.cancel();
+```
+
+**带参数的 GET 请求：**
+
+```java
+// 方式1: 使用 @Query
+@GET("users")
+Call<List<User>> getUsers(
+    @Query("page") int page,
+    @Query("size") int size,
+    @Query("sort") String sort
+);
+
+// 调用
+apiService.getUsers(1, 20, "name");
+
+// 生成的 URL: /users?page=1&size=20&sort=name
+
+// 方式2: 使用 @QueryMap
+@GET("users")
+Call<List<User>> getUsers(@QueryMap Map<String, String> params);
+
+// 调用
+Map<String, String> params = new HashMap<>();
+params.put("page", "1");
+params.put("size", "20");
+apiService.getUsers(params);
+
+// 方式3: 使用 @Path
+@GET("users/{id}/posts/{postId}")
+Call<Post> getUserPost(
+    @Path("id") int userId,
+    @Path("postId") int postId
+);
+
+// 调用
+apiService.getUserPost(123, 456);
+
+// 生成的 URL: /users/123/posts/456
+```
+
+### 12.4 POST 请求
+
+```java
+// 1. POST JSON 数据
+@POST("users")
+Call<User> createUser(@Body User user);
+
+// 调用
+User user = new User("张三", 25);
+Call<User> call = apiService.createUser(user);
+
+// 2. POST 表单数据
+@FormUrlEncoded
+@POST("login")
+Call<User> login(
+    @Field("username") String username,
+    @Field("password") String password
+);
+
+// 调用
+apiService.login("admin", "123456");
+
+// 3. POST 表单数据（Map）
+@FormUrlEncoded
+@POST("register")
+Call<User> register(@FieldMap Map<String, String> fields);
+
+// 调用
+Map<String, String> fields = new HashMap<>();
+fields.put("username", "张三");
+fields.put("email", "zhangsan@example.com");
+apiService.register(fields);
+
+// 4. POST 多部分数据（文件上传）
+@Multipart
+@POST("upload")
+Call<ResponseBody> uploadFile(
+    @Part("description") RequestBody description,
+    @Part MultipartBody.Part file
+);
+
+// 调用
+File file = new File("/sdcard/image.jpg");
+RequestBody requestFile = RequestBody.create(
+    file, 
+    MediaType.parse("image/jpeg")
+);
+MultipartBody.Part body = MultipartBody.Part.createFormData(
+    "file", 
+    file.getName(), 
+    requestFile
+);
+RequestBody description = RequestBody.create(
+    "这是图片描述", 
+    MediaType.parse("text/plain")
+);
+apiService.uploadFile(description, body);
+```
+
+### 12.5 PUT 请求
+
+```java
+// PUT 更新资源
+@PUT("users/{id}")
+Call<User> updateUser(
+    @Path("id") int userId,
+    @Body User user
+);
+
+// 调用
+User user = new User("李四", 30);
+apiService.updateUser(123, user);
+
+// PUT 表单
+@FormUrlEncoded
+@PUT("users/{id}")
+Call<User> updateUser(
+    @Path("id") int userId,
+    @Field("name") String name,
+    @Field("age") int age
+);
+
+// 调用
+apiService.updateUser(123, "李四", 30);
+```
+
+### 12.6 DELETE 请求
+
+```java
+// DELETE 删除资源
+@DELETE("users/{id}")
+Call<Void> deleteUser(@Path("id") int userId);
+
+// 调用
+apiService.deleteUser(123);
+
+// DELETE 带请求体
+@HTTP(method = "DELETE", path = "users", hasBody = true)
+Call<Void> deleteUsers(@Body List<Integer> userIds);
+
+// 调用
+apiService.deleteUsers(Arrays.asList(1, 2, 3));
+```
+
+---
+
+## 第 13 章 Retrofit 注解详解
+
+### 13.1 请求方法注解
+
+```java
+// 标准请求方法
+@GET("users")        // GET 请求
+@POST("users")       // POST 请求
+@PUT("users")        // PUT 请求
+@DELETE("users")     // DELETE 请求
+@PATCH("users")      // PATCH 请求
+@HEAD("users")       // HEAD 请求
+@OPTIONS("users")    // OPTIONS 请求
+
+// 自定义请求方法
+@HTTP(method = "CUSTOM", path = "users")
+Call<User> customRequest();
+
+// 自定义请求方法（带请求体）
+@HTTP(method = "CUSTOM", path = "users", hasBody = true)
+Call<User> customRequestWithBody(@Body User user);
+```
+
+### 13.2 请求头注解
+
+```java
+// 方式1: 静态头部
+@GET("users")
+@Headers({
+    "Accept: application/json",
+    "Content-Type: application/json"
+})
+Call<List<User>> getUsers();
+
+// 方式2: 动态头部
+@GET("users")
+Call<List<User>> getUsers(@Header("Authorization") String token);
+
+// 方式3: 头部 Map
+@GET("users")
+Call<List<User>> getUsers(@HeaderMap Map<String, String> headers);
+
+// 调用
+Map<String, String> headers = new HashMap<>();
+headers.put("Authorization", "Bearer token123");
+headers.put("User-Agent", "Android App");
+apiService.getUsers(headers);
+```
+
+### 13.3 请求参数注解
+
+```java
+// 1. @Query - 查询参数
+@GET("users")
+Call<List<User>> getUsers(
+    @Query("page") int page,
+    @Query("size") int size,
+    @Query("status") String status
+);
+
+// 2. @QueryMap - 查询参数 Map
+@GET("users")
+Call<List<User>> getUsers(@QueryMap Map<String, String> params);
+
+// 3. @Path - 路径参数
+@GET("users/{id}/posts/{postId}")
+Call<Post> getPost(
+    @Path("id") int userId,
+    @Path("postId") int postId
+);
+
+// 4. @Field - 表单字段
+@FormUrlEncoded
+@POST("login")
+Call<User> login(
+    @Field("username") String username,
+    @Field("password") String password
+);
+
+// 5. @FieldMap - 表单字段 Map
+@FormUrlEncoded
+@POST("register")
+Call<User> register(@FieldMap Map<String, String> fields);
+
+// 6. @Body - 请求体
+@POST("users")
+Call<User> createUser(@Body User user);
+
+// 7. @Part - 多部分
+@Multipart
+@POST("upload")
+Call<ResponseBody> upload(
+    @Part("description") RequestBody description,
+    @Part MultipartBody.Part file
+);
+
+// 8. @PartMap - 多部分 Map
+@Multipart
+@POST("upload")
+Call<ResponseBody> upload(
+    @PartMap Map<String, RequestBody> params,
+    @Part MultipartBody.Part file
+);
+```
+
+### 13.4 请求体注解
+
+```java
+// 1. @Body - 对象作为请求体
+@POST("users")
+Call<User> createUser(@Body User user);
+
+// 2. RequestBody - 原始请求体
+@POST("data")
+Call<ResponseBody> postData(@Body RequestBody body);
+
+// 调用
+String json = "{\"name\":\"张三\"}";
+RequestBody body = RequestBody.create(
+    json,
+    MediaType.parse("application/json")
+);
+apiService.postData(body);
+
+// 3. 多部分请求体
+@Multipart
+@POST("upload")
+Call<ResponseBody> uploadMultipleFiles(
+    @Part MultipartBody.Part file1,
+    @Part MultipartBody.Part file2
+);
+
+// 调用
+File file1 = new File("/sdcard/image1.jpg");
+File file2 = new File("/sdcard/image2.jpg");
+
+MultipartBody.Part part1 = MultipartBody.Part.createFormData(
+    "file1", file1.getName(), RequestBody.create(file1, MediaType.parse("image/jpeg"))
+);
+
+MultipartBody.Part part2 = MultipartBody.Part.createFormData(
+    "file2", file2.getName(), RequestBody.create(file2, MediaType.parse("image/jpeg"))
+);
+
+apiService.uploadMultipleFiles(part1, part2);
+```
+
+### 13.5 标记注解
+
+```java
+// 1. @FormUrlEncoded - 表单编码
+@FormUrlEncoded
+@POST("login")
+Call<User> login(@Field("username") String username);
+
+// 2. @Multipart - 多部分
+@Multipart
+@POST("upload")
+Call<ResponseBody> upload(@Part MultipartBody.Part file);
+
+// 3. @Streaming - 流式响应（用于大文件下载）
+@Streaming
+@GET("download")
+Call<ResponseBody> downloadFile();
+```
+
+---
+
+## 第 14 章 Retrofit 高级功能
+
+### 14.1 Converter 转换器
+
+```java
+// 1. Gson 转换器
+Retrofit retrofit = new Retrofit.Builder()
+    .baseUrl("https://api.example.com/")
+    .addConverterFactory(GsonConverterFactory.create())
+    .build();
+
+// 2. 自定义 Gson
+Gson gson = new GsonBuilder()
+    .setDateFormat("yyyy-MM-dd HH:mm:ss")
+    .excludeFieldsWithoutExposeAnnotation()
+    .create();
+
+Retrofit retrofit = new Retrofit.Builder()
+    .baseUrl("https://api.example.com/")
+    .addConverterFactory(GsonConverterFactory.create(gson))
+    .build();
+
+// 3. Moshi 转换器
+Retrofit retrofit = new Retrofit.Builder()
+    .baseUrl("https://api.example.com/")
+    .addConverterFactory(MoshiConverterFactory.create())
+    .build();
+
+// 4. Jackson 转换器
+Retrofit retrofit = new Retrofit.Builder()
+    .baseUrl("https://api.example.com/")
+    .addConverterFactory(JacksonConverterFactory.create())
+    .build();
+
+// 5. Simple XML 转换器
+Retrofit retrofit = new Retrofit.Builder()
+    .baseUrl("https://api.example.com/")
+    .addConverterFactory(SimpleXmlConverterFactory.create())
+    .build();
+
+// 6. ProtoBuf 转换器
+Retrofit retrofit = new Retrofit.Builder()
+    .baseUrl("https://api.example.com/")
+    .addConverterFactory(ProtoConverterFactory.create())
+    .build();
+
+// 7. 多个转换器（按顺序）
+Retrofit retrofit = new Retrofit.Builder()
+    .baseUrl("https://api.example.com/")
+    .addConverterFactory(ProtoConverterFactory.create())
+    .addConverterFactory(GsonConverterFactory.create())
+    .build();
+```
+
+### 14.2 CallAdapter 适配器
+
+```java
+// 1. 默认 Call 适配器
+@GET("users")
+Call<List<User>> getUsers();
+
+// 2. RxJava 适配器
+// 添加依赖
+implementation 'com.squareup.retrofit2:adapter-rxjava3:2.9.0'
+
+// 配置
+Retrofit retrofit = new Retrofit.Builder()
+    .baseUrl("https://api.example.com/")
+    .addConverterFactory(GsonConverterFactory.create())
+    .addCallAdapterFactory(RxJava3CallAdapterFactory.create())
+    .build();
+
+// 使用
+@GET("users")
+Observable<List<User>> getUsers();
+
+@GET("users")
+Single<List<User>> getUsers();
+
+@GET("users")
+Flowable<List<User>> getUsers();
+
+// 3. 协程适配器
+@GET("users")
+suspend fun getUsers(): List<User>
+
+// 4. 自定义 CallAdapter
+public class StringCallAdapter implements CallAdapter<String, Call<String>> {
+    
+    @Override
+    public Type responseType() {
+        return String.class;
+    }
+    
+    @Override
+    public Call<String> adapt(Call<String> call) {
+        return call;
+    }
+}
+```
+
+### 14.3 文件上传
+
+```java
+// 1. 上传单个文件
+@Multipart
+@POST("upload")
+Call<ResponseBody> uploadFile(@Part MultipartBody.Part file);
+
+// 调用
+File file = new File("/sdcard/image.jpg");
+RequestBody requestFile = RequestBody.create(
+    file,
+    MediaType.parse("image/jpeg")
+);
+MultipartBody.Part body = MultipartBody.Part.createFormData(
+    "file",
+    file.getName(),
+    requestFile
+);
+apiService.uploadFile(body);
+
+// 2. 上传文件+参数
+@Multipart
+@POST("upload")
+Call<ResponseBody> uploadFile(
+    @Part("userId") RequestBody userId,
+    @Part("description") RequestBody description,
+    @Part MultipartBody.Part file
+);
+
+// 调用
+RequestBody userIdBody = RequestBody.create(
+    "123",
+    MediaType.parse("text/plain")
+);
+RequestBody descriptionBody = RequestBody.create(
+    "这是图片描述",
+    MediaType.parse("text/plain")
+);
+apiService.uploadFile(userIdBody, descriptionBody, body);
+
+// 3. 上传多个文件
+@Multipart
+@POST("upload")
+Call<ResponseBody> uploadFiles(@Part List<MultipartBody.Part> files);
+
+// 调用
+List<MultipartBody.Part> parts = new ArrayList<>();
+for (File file : files) {
+    RequestBody requestFile = RequestBody.create(
+        file,
+        MediaType.parse("image/jpeg")
+    );
+    parts.add(MultipartBody.Part.createFormData(
+        "files",
+        file.getName(),
+        requestFile
+    ));
+}
+apiService.uploadFiles(parts);
+
+// 4. 带进度的文件上传
+public class ProgressRequestBody extends RequestBody {
+    
+    private RequestBody requestBody;
+    private UploadCallback callback;
+    
+    public ProgressRequestBody(RequestBody requestBody, UploadCallback callback) {
+        this.requestBody = requestBody;
+        this.callback = callback;
+    }
+    
+    @Override
+    public MediaType contentType() {
+        return requestBody.contentType();
+    }
+    
+    @Override
+    public void writeTo(BufferedSink sink) throws IOException {
+        BufferedSink bufferedSink = Okio.buffer(new ForwardingSink(sink) {
+            long bytesWritten = 0L;
+            long contentLength = 0L;
+            
+            @Override
+            public void write(Buffer source, long byteCount) throws IOException {
+                super.write(source, byteCount);
+                if (contentLength == 0) {
+                    contentLength = contentLength();
+                }
+                bytesWritten += byteCount;
+                callback.onProgress(bytesWritten, contentLength);
+            }
+        });
+        requestBody.writeTo(bufferedSink);
+        bufferedSink.flush();
+    }
+}
+```
+
+### 14.4 文件下载
+
+```java
+// 1. 基础下载
+@GET("download/{filename}")
+Call<ResponseBody> downloadFile(@Path("filename") String filename);
+
+// 调用
+Call<ResponseBody> call = apiService.downloadFile("test.zip");
+call.enqueue(new Callback<ResponseBody>() {
+    @Override
+    public void onResponse(Call<ResponseBody> call, Response<ResponseBody> response) {
+        if (response.isSuccessful()) {
+            writeResponseBodyToDisk(response.body());
+        }
+    }
+    
+    @Override
+    public void onFailure(Call<ResponseBody> call, Throwable t) {
+    }
+});
+
+// 写入文件
+private void writeResponseBodyToDisk(ResponseBody body) {
+    try {
+        InputStream inputStream = body.byteStream();
+        FileOutputStream fos = new FileOutputStream("/sdcard/test.zip");
+        
+        byte[] buffer = new byte[4096];
+        int bytesRead;
+        while ((bytesRead = inputStream.read(buffer)) != -1) {
+            fos.write(buffer, 0, bytesRead);
+        }
+        
+        fos.flush();
+        fos.close();
+        inputStream.close();
+    } catch (IOException e) {
+        e.printStackTrace();
+    }
+}
+
+// 2. 大文件下载（流式）
+@Streaming
+@GET("download/{filename}")
+Call<ResponseBody> downloadLargeFile(@Path("filename") String filename);
+
+// 3. 断点续传
+@Streaming
+@GET("download/{filename}")
+Call<ResponseBody> downloadFile(
+    @Path("filename") String filename,
+    @Header("Range") String range
+);
+
+// 调用
+String range = "bytes=" + downloadedBytes + "-";
+apiService.downloadFile("test.zip", range);
+```
+
+### 14.5 动态 URL
+
+```java
+// 方式1: 使用 @Url
+@GET
+Call<User> getUser(@Url String url);
+
+// 调用
+apiService.getUser("https://other-api.example.com/user/123");
+
+// 方式2: 动态 baseUrl
+public class RetrofitManager {
+    
+    private static Retrofit createRetrofit(String baseUrl) {
+        return new Retrofit.Builder()
+            .baseUrl(baseUrl)
+            .addConverterFactory(GsonConverterFactory.create())
+            .build();
+    }
+    
+    public static ApiService getApiService(String baseUrl) {
+        return createRetrofit(baseUrl).create(ApiService.class);
+    }
+}
+
+// 调用
+ApiService api1 = RetrofitManager.getApiService("https://api1.example.com/");
+ApiService api2 = RetrofitManager.getApiService("https://api2.example.com/");
+```
+
+### 14.6 取消请求
+
+```java
+// 1. 取消单个请求
+Call<User> call = apiService.getUser(123);
+call.enqueue(callback);
+
+// 取消
+call.cancel();
+
+// 2. 取消多个请求
+List<Call> calls = new ArrayList<>();
+calls.add(apiService.getUser(1));
+calls.add(apiService.getUser(2));
+calls.add(apiService.getUser(3));
+
+// 取消所有
+for (Call call : calls) {
+    if (!call.isCanceled()) {
+        call.cancel();
+    }
+}
+
+// 3. 判断请求是否已取消
+if (call.isCanceled()) {
+    // 请求已取消
+}
+```
+
+---
+
