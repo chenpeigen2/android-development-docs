@@ -1,7 +1,7 @@
 # Android 三方库完全指南
 
 > 作者：OpenClaw | 日期：2026-03-10  
-> 涵盖：Glide | Fresco | MMKV | PAG
+> 涵盖：Glide | Fresco | MMKV | PAG | Lottie
 
 ---
 
@@ -205,9 +205,10 @@
 
 **第 27 章 PAG 基本使用**
 - 27.1 [PAGView 基础](#271-pagview-基础)
-- 27.2 [加载 PAG 文件](#272-加载-pag-文件)
-- 27.3 [播放控制](#273-播放控制)
-- 27.4 [性能优化](#274-性能优化)
+- 27.2 [PAGImageView 基础](#272-pagimageview-基础)
+- 27.3 [加载 PAG 文件](#273-加载-pag-文件)
+- 27.4 [播放控制](#274-播放控制)
+- 27.5 [性能优化](#275-性能优化)
 
 **第 28 章 PAG 高级功能**
 - 28.1 [图层替换](#281-图层替换)
@@ -231,6 +232,54 @@
 - 31.3 [与 Lottie 区别](#313-与-lottie-区别)
 - 31.4 [适用场景](#314-适用场景)
 - 31.5 [内存管理](#315-内存管理)
+
+---
+
+#### 第五篇：Lottie - Airbnb 开源的动画库
+
+**第 32 章 Lottie 概述**
+- 32.1 [什么是 Lottie？](#321-什么是-lottie)
+- 32.2 [核心优势](#322-核心优势)
+- 32.3 [添加依赖](#323-添加依赖)
+- 32.4 [工作流程](#324-工作流程)
+
+**第 33 章 Lottie 基本使用**
+- 33.1 [LottieAnimationView 基础](#331-lottieanimationview-基础)
+- 33.2 [加载 JSON 动画](#332-加载-json-动画)
+- 33.3 [播放控制](#333-播放控制)
+- 33.4 [缓存策略](#334-缓存策略)
+
+**第 34 章 Lottie 高级功能**
+- 34.1 [动态属性](#341-动态属性)
+- 34.2 [动态文本](#342-动态文本)
+- 34.3 [动态图片](#343-动态图片)
+- 34.4 [动画监听](#344-动画监听)
+- 34.5 [手势交互](#345-手势交互)
+
+**第 35 章 Lottie 核心原理**
+- 35.1 [渲染架构](#351-渲染架构)
+- 35.2 [JSON 数据结构](#352-json-数据结构)
+- 35.3 [动画解析流程](#353-动画解析流程)
+- 35.4 [性能优化原理](#354-性能优化原理)
+
+**第 36 章 Lottie 性能优化**
+- 36.1 [文件优化](#361-文件优化)
+- 36.2 [渲染优化](#362-渲染优化)
+- 36.3 [内存优化](#363-内存优化)
+- 36.4 [硬件加速](#364-硬件加速)
+
+**第 37 章 Lottie vs PAG**
+- 37.1 [功能对比](#371-功能对比)
+- 37.2 [性能对比](#372-性能对比)
+- 37.3 [生态系统对比](#373-生态系统对比)
+- 37.4 [选型建议](#374-选型建议)
+
+**第 38 章 Lottie 面试常见问题**
+- 38.1 [Lottie 原理](#381-lottie-原理)
+- 38.2 [性能问题](#382-性能问题)
+- 38.3 [与 PAG 区别](#383-与-pag-区别)
+- 38.4 [适用场景](#384-适用场景)
+- 38.5 [最佳实践](#385-最佳实践)
 
 ---
 
@@ -3629,7 +3678,255 @@ public class MyApplication extends Application {
 PAGView pagView = new PAGView(context);
 ```
 
-### 27.2 加载 PAG 文件
+### 27.2 PAGImageView 基础
+
+PAGImageView 是 PAG 提供的 ImageView 子类，更适合在列表等场景中使用。
+
+```xml
+<!-- 在 XML 中使用 -->
+<com.tencent.tav.pag.PAGImageView
+    android:id="@+id/pag_image_view"
+    android:layout_width="200dp"
+    android:layout_height="200dp"
+    android:scaleType="centerCrop" />
+```
+
+```java
+// 代码中使用
+PAGImageView pagImageView = new PAGImageView(context);
+```
+
+**PAGView vs PAGImageView 对比：**
+
+```
+┌──────────────────┬──────────────────┬──────────────────┐
+│       特性        │     PAGView      │   PAGImageView   │
+├──────────────────┼──────────────────┼──────────────────┤
+│ 继承关系          │   SurfaceView    │     ImageView    │
+│ 渲染方式          │   Surface 渲染   │   Canvas 渲染    │
+│ 列表性能          │      一般        │       优秀       │
+│ 层级关系          │   独立窗口层     │     普通层级     │
+│ 动画效果          │     最流畅       │       良好       │
+│ 内存占用          │      较高        │       较低       │
+│ 适用场景          │   全屏动画       │     列表项       │
+└──────────────────┴──────────────────┴──────────────────┘
+```
+
+**PAGImageView 使用示例：**
+
+```java
+// 1. 加载 PAG 文件
+PAGImageView pagImageView = findViewById(R.id.pag_image_view);
+
+// 从 assets 加载
+pagImageView.setPath("assets:///animation.pag");
+
+// 从网络加载（需要先下载）
+String localPath = downloadPAGFile(url);
+pagImageView.setPath(localPath);
+
+// 从 byte[] 加载
+byte[] data = readPAGFile();
+pagImageView.setByteArray(data);
+
+// 2. 播放控制
+pagImageView.play();           // 播放
+pagImageView.pause();          // 暂停
+pagImageView.stop();           // 停止
+
+// 3. 设置循环
+pagImageView.setRepeatCount(Integer.MAX_VALUE);  // 无限循环
+
+// 4. 设置监听
+pagImageView.addListener(new PAGImageView.PAGImageViewListener() {
+    @Override
+    public void onAnimationStart(PAGImageView view) {
+        // 动画开始
+    }
+    
+    @Override
+    public void onAnimationEnd(PAGImageView view) {
+        // 动画结束
+    }
+    
+    @Override
+    public void onAnimationCancel(PAGImageView view) {
+        // 动画取消
+    }
+    
+    @Override
+    public void onAnimationRepeat(PAGImageView view) {
+        // 动画重复
+    }
+});
+
+// 5. 进度控制
+pagImageView.setProgress(0.5);  // 跳转到 50%
+pagImageView.setCurrentTime(1000);  // 跳转到 1 秒
+
+// 6. 获取信息
+double duration = pagImageView.duration();  // 总时长
+double progress = pagImageView.getProgress();  // 当前进度
+```
+
+**在 RecyclerView 中使用 PAGImageView：**
+
+```java
+public class PAGAdapter extends RecyclerView.Adapter<PAGAdapter.ViewHolder> {
+    
+    private List<String> pagPaths;
+    
+    @Override
+    public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
+        String path = pagPaths.get(position);
+        
+        // 设置 PAG 文件
+        holder.pagImageView.setPath(path);
+        
+        // 自动播放
+        holder.pagImageView.play();
+    }
+    
+    @Override
+    public void onViewRecycled(@NonNull ViewHolder holder) {
+        super.onViewRecycled(holder);
+        
+        // 停止播放，释放资源
+        holder.pagImageView.stop();
+    }
+    
+    static class ViewHolder extends RecyclerView.ViewHolder {
+        PAGImageView pagImageView;
+        
+        ViewHolder(View itemView) {
+            super(itemView);
+            pagImageView = itemView.findViewById(R.id.pag_image_view);
+        }
+    }
+}
+```
+
+**PAGImageView 性能优化：**
+
+```java
+// 1. 设置最大帧率
+pagImageView.setMaxFrameRate(30);  // 限制 30fps
+
+// 2. 预加载
+// 提前加载 PAG 文件到内存
+PAGFile.preload("animation.pag");
+
+// 3. 内存管理
+@Override
+protected void onDestroy() {
+    super.onDestroy();
+    if (pagImageView != null) {
+        pagImageView.freeCache();  // 释放缓存
+        pagImageView.stop();       // 停止播放
+    }
+}
+
+// 4. 后台暂停
+@Override
+protected void onPause() {
+    super.onPause();
+    pagImageView.pause();
+}
+
+@Override
+protected void onResume() {
+    super.onResume();
+    pagImageView.play();
+}
+
+// 5. 设置缓存策略
+pagImageView.setCacheKey("unique_cache_key");  // 设置缓存标识
+```
+
+**PAGImageView 完整示例：**
+
+```java
+public class PAGImageActivity extends AppCompatActivity {
+    
+    private PAGImageView pagImageView;
+    
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_pag_image);
+        
+        pagImageView = findViewById(R.id.pag_image_view);
+        
+        // 加载 PAG 文件
+        loadPAGFile();
+        
+        // 设置监听
+        setupListener();
+        
+        // 开始播放
+        pagImageView.play();
+    }
+    
+    private void loadPAGFile() {
+        // 方式1: 从 assets 加载
+        pagImageView.setPath("assets:///welcome.pag");
+        
+        // 方式2: 从文件路径加载
+        // pagImageView.setPath("/sdcard/animation.pag");
+        
+        // 方式3: 从 byte[] 加载
+        // byte[] data = readFile("animation.pag");
+        // pagImageView.setByteArray(data);
+    }
+    
+    private void setupListener() {
+        pagImageView.addListener(new PAGImageView.PAGImageViewListener() {
+            @Override
+            public void onAnimationStart(PAGImageView view) {
+                Log.d("PAG", "Animation started");
+            }
+            
+            @Override
+            public void onAnimationEnd(PAGImageView view) {
+                Log.d("PAG", "Animation ended");
+                // 动画结束后重播
+                view.play();
+            }
+            
+            @Override
+            public void onAnimationCancel(PAGImageView view) {
+                Log.d("PAG", "Animation cancelled");
+            }
+            
+            @Override
+            public void onAnimationRepeat(PAGImageView view) {
+                Log.d("PAG", "Animation repeated");
+            }
+        });
+    }
+    
+    @Override
+    protected void onPause() {
+        super.onPause();
+        pagImageView.pause();
+    }
+    
+    @Override
+    protected void onResume() {
+        super.onResume();
+        pagImageView.play();
+    }
+    
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        pagImageView.freeCache();
+        pagImageView.stop();
+    }
+}
+```
+
+### 27.3 加载 PAG 文件
 
 ```java
 // 方式1: 从 assets 加载
