@@ -4451,3 +4451,956 @@ if (memoryUsage > MAX_MEMORY) {
 ---
 
 ## 第四部分：对比与选型
+---
+
+## 第五篇：Lottie - Airbnb 开源的动画库
+
+---
+
+## 第 32 章 Lottie 概述
+
+### 32.1 什么是 Lottie？
+
+**Lottie** 是 Airbnb 开源的一个库，用于解析 Adobe After Effects 动画并导出为 JSON 格式，在移动端原生渲染。
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         Lottie 核心特性                                      │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+                         ┌──────────────┐
+                         │    Lottie    │
+                         └──────┬───────┘
+                                │
+        ┌───────────────────────┼───────────────────────┐
+        │                       │                       │
+        ▼                       ▼                       ▼
+┌───────────────┐      ┌───────────────┐      ┌───────────────┐
+│  跨平台       │      │  易用性       │      │  生态系统     │
+│               │      │               │      │               │
+│ - Android     │      │ - JSON 格式   │      │ - LottieFiles │
+│ - iOS         │      │ - 简单 API    │      │ - 丰富资源    │
+│ - Web         │      │ - 实时预览    │      │ - 社区活跃    │
+│ - React Native│      │               │      │               │
+└───────────────┘      └───────────────┘      └───────────────┘
+```
+
+### 32.2 核心优势
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         Lottie 核心优势                                      │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌──────────────────┬──────────────────────────────────────────────────────────┐
+│       优势        │                          说明                            │
+├──────────────────┼──────────────────────────────────────────────────────────┤
+│ 跨平台一致性      │ Android、iOS、Web、React Native 使用同一套动画文件       │
+│ 文件体积小        │ JSON 格式，矢量数据，文件大小通常只有几十 KB              │
+│ 无需代码实现      │ 设计师在 AE 中制作，开发者直接使用 JSON 文件             │
+│ 实时预览          │ LottieFiles 网站提供在线预览和编辑功能                   │
+│ 社区资源丰富      │ LottieFiles 有大量免费和付费的动画资源                    │
+│ 易于集成          │ 简单的 API，几行代码即可播放动画                          │
+└──────────────────┴──────────────────────────────────────────────────────────┘
+```
+
+### 32.3 添加依赖
+
+```gradle
+dependencies {
+    implementation 'com.airbnb.android:lottie:6.4.0'
+}
+```
+
+### 32.4 工作流程
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         Lottie 工作流程                                      │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  After Effects          Bodymovin              Lottie              App
+       │                     │                    │                   │
+       │  1. 创建动画         │                    │                   │
+       ├────────────────────►│                    │                   │
+       │                     │  2. 导出 JSON      │                   │
+       │                     ├───────────────────►│                   │
+       │                     │                    │  3. 加载 JSON     │
+       │                     │                    ├──────────────────►│
+       │                     │                    │  4. 渲染动画      │
+       │                     │                    │                   │
+       │                     │                    │  5. 播放控制      │
+       │                     │                    │◄──────────────────┤
+```
+
+---
+
+## 第 33 章 Lottie 基本使用
+
+### 33.1 LottieAnimationView 基础
+
+```xml
+<!-- 在 XML 中使用 -->
+<com.airbnb.lottie.LottieAnimationView
+    android:id="@+id/animation_view"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    app:lottie_rawRes="@raw/animation"
+    app:lottie_autoPlay="true"
+    app:lottie_loop="true" />
+```
+
+```java
+// 代码中使用
+LottieAnimationView animationView = new LottieAnimationView(context);
+```
+
+### 33.2 加载 JSON 动画
+
+```java
+// 方式1: 从 assets 加载
+animationView.setAnimation("animation.json");
+animationView.playAnimation();
+
+// 方式2: 从 res/raw 加载
+animationView.setAnimation(R.raw.animation);
+animationView.playAnimation();
+
+// 方式3: 从 URL 加载
+animationView.setAnimationFromUrl("https://example.com/animation.json");
+animationView.playAnimation();
+
+// 方式4: 从 InputStream 加载
+InputStream is = getAssets().open("animation.json");
+animationView.setAnimation(is, "animation.json");
+animationView.playAnimation();
+
+// 方式5: 从 JSON 字符串加载
+String json = readJSONFromFile();
+animationView.setAnimationFromJson(json, "animation");
+animationView.playAnimation();
+
+// 方式6: 从 byte[] 加载（网络下载）
+byte[] data = downloadAnimation();
+animationView.setAnimation(data, "animation");
+animationView.playAnimation();
+```
+
+### 33.3 播放控制
+
+```java
+// 1. 基础控制
+animationView.playAnimation();       // 播放
+animationView.pauseAnimation();      // 暂停
+animationView.cancelAnimation();     // 取消
+animationView.resumeAnimation();     // 恢复
+
+// 2. 循环控制
+animationView.loop(true);            // 无限循环
+animationView.setRepeatCount(3);     // 循环 3 次
+animationView.setRepeatMode(LottieAnimationView.RESTART);  // 重头开始
+animationView.setRepeatMode(LottieAnimationView.REVERSE);  // 反向播放
+
+// 3. 进度控制
+float progress = animationView.getProgress();  // 获取当前进度 (0-1)
+animationView.setProgress(0.5f);               // 跳转到 50%
+animationView.setMinAndMaxProgress(0.2f, 0.8f); // 只播放 20%-80%
+
+// 4. 速度控制
+animationView.setSpeed(2.0f);        // 2 倍速
+animationView.setSpeed(-1.0f);       // 反向播放
+
+// 5. 播放监听
+animationView.addAnimatorListener(new AnimatorListenerAdapter() {
+    @Override
+    public void onAnimationStart(Animator animation) {
+        // 动画开始
+    }
+    
+    @Override
+    public void onAnimationEnd(Animator animation) {
+        // 动画结束
+    }
+    
+    @Override
+    public void onAnimationCancel(Animator animation) {
+        // 动画取消
+    }
+    
+    @Override
+    public void onAnimationRepeat(Animator animation) {
+        // 动画重复
+    }
+});
+
+// 6. 帧控制
+animationView.setMinFrame(50);       // 从第 50 帧开始
+animationView.setMaxFrame(100);      // 到第 100 帧结束
+animationView.setMinAndMaxFrame(50, 100);
+```
+
+### 33.4 缓存策略
+
+```java
+// 1. 启用缓存
+animationView.setCacheComposition(true);  // 默认 true
+
+// 2. 缓存策略
+LottieComposition.Factory
+    .fromAsset(context, "animation.json")
+    .setCacheKey("unique_key");
+
+// 3. 清除缓存
+LottieComposition.Factory.clearCache();
+
+// 4. 自定义缓存
+public class AnimationCache {
+    private static LruCache<String, LottieComposition> cache;
+    
+    static {
+        int maxSize = 10 * 1024 * 1024;  // 10MB
+        cache = new LruCache<>(maxSize);
+    }
+    
+    public static void put(String key, LottieComposition composition) {
+        cache.put(key, composition);
+    }
+    
+    public static LottieComposition get(String key) {
+        return cache.get(key);
+    }
+}
+```
+
+---
+
+## 第 34 章 Lottie 高级功能
+
+### 34.1 动态属性
+
+```java
+// 1. 修改颜色
+animationView.addValueCallback(
+    new KeyPath("layer_name", "**"),
+    LottieProperty.COLOR,
+    new SimpleLottieValueCallback<Integer>() {
+        @Override
+        public Integer getValue(LottieFrameInfo<Integer> frameInfo) {
+            return Color.RED;  // 动态返回颜色
+        }
+    }
+);
+
+// 2. 修改透明度
+animationView.addValueCallback(
+    new KeyPath("layer_name"),
+    LottieProperty.OPACITY,
+    new SimpleLottieValueCallback<Integer>() {
+        @Override
+        public Integer getValue(LottieFrameInfo<Integer> frameInfo) {
+            return 50;  // 50% 透明度
+        }
+    }
+);
+
+// 3. 修改位置
+animationView.addValueCallback(
+    new KeyPath("layer_name"),
+    LottieProperty.TRANSFORM_POSITION,
+    new SimpleLottieValueCallback<PointF>() {
+        @Override
+        public PointF getValue(LottieFrameInfo<PointF> frameInfo) {
+            return new PointF(100, 200);  // 动态位置
+        }
+    }
+);
+
+// 4. 修改缩放
+animationView.addValueCallback(
+    new KeyPath("layer_name"),
+    LottieProperty.TRANSFORM_SCALE,
+    new SimpleLottieValueCallback<ScaleXY>() {
+        @Override
+        public ScaleXY getValue(LottieFrameInfo<ScaleXY> frameInfo) {
+            return new ScaleXY(2.0f, 2.0f);  // 放大 2 倍
+        }
+    }
+);
+
+// 5. 修改旋转
+animationView.addValueCallback(
+    new KeyPath("layer_name"),
+    LottieProperty.TRANSFORM_ROTATION,
+    new SimpleLottieValueCallback<Float>() {
+        @Override
+        public Float getValue(LottieFrameInfo<Float> frameInfo) {
+            return 45f;  // 旋转 45 度
+        }
+    }
+);
+```
+
+### 34.2 动态文本
+
+```java
+// 1. 替换文本内容
+animationView.addTextDelegate(new TextDelegate() {
+    @Override
+    public String getText(String input) {
+        if (input.equals("username")) {
+            return "张三";
+        }
+        return input;
+    }
+});
+
+// 2. 动态文本监听
+animationView.addTextDelegate(new TextDelegate() {
+    @Override
+    public String getText(String input) {
+        // 根据当前时间返回不同文本
+        long currentTime = System.currentTimeMillis();
+        return "Time: " + currentTime;
+    }
+});
+
+// 3. 修改文本样式
+animationView.addValueCallback(
+    new KeyPath("text_layer"),
+    LottieProperty.COLOR,
+    new SimpleLottieValueCallback<Integer>() {
+        @Override
+        public Integer getValue(LottieFrameInfo<Integer> frameInfo) {
+            return Color.BLUE;  // 文本颜色
+        }
+    }
+);
+```
+
+### 34.3 动态图片
+
+```java
+// 1. 替换图片
+LottieImageAsset imageAsset = new LottieImageAsset(
+    width, height, id, "image.png", bitmap
+);
+
+animationView.setImageAssetDelegate(new ImageAssetDelegate() {
+    @Override
+    public Bitmap fetchBitmap(LottieImageAsset asset) {
+        // 从网络或本地加载图片
+        if (asset.getId().equals("avatar")) {
+            return loadAvatarFromNetwork();
+        }
+        return null;  // 使用默认图片
+    }
+});
+
+// 2. 批量替换图片
+Map<String, Bitmap> imageMap = new HashMap<>();
+imageMap.put("avatar", avatarBitmap);
+imageMap.put("logo", logoBitmap);
+
+animationView.setImageAssetDelegate(new ImageAssetDelegate() {
+    @Override
+    public Bitmap fetchBitmap(LottieImageAsset asset) {
+        return imageMap.get(asset.getId());
+    }
+});
+```
+
+### 34.4 动画监听
+
+```java
+// 1. 帧更新监听
+animationView.addAnimatorUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
+    @Override
+    public void onAnimationUpdate(ValueAnimator animation) {
+        float progress = animation.getAnimatedFraction();
+        Log.d("Lottie", "Progress: " + progress);
+        
+        // 根据进度执行操作
+        if (progress > 0.5f) {
+            // 执行某些操作
+        }
+    }
+});
+
+// 2. 完成监听
+animationView.addAnimatorListener(new AnimatorListenerAdapter() {
+    @Override
+    public void onAnimationEnd(Animator animation) {
+        // 动画结束后的操作
+        showNextScreen();
+    }
+});
+
+// 3. 自定义监听
+animationView.setLottieOnCompositionLoadedListener(new LottieOnCompositionLoadedListener() {
+    @Override
+    public void onCompositionLoaded(LottieComposition composition) {
+        // 动画加载完成
+        Log.d("Lottie", "Duration: " + composition.getDuration());
+    }
+});
+```
+
+### 34.5 手势交互
+
+```java
+// 1. 拖动控制进度
+animationView.setOnTouchListener(new View.OnTouchListener() {
+    private float startX;
+    
+    @Override
+    public boolean onTouch(View v, MotionEvent event) {
+        switch (event.getAction()) {
+            case MotionEvent.ACTION_DOWN:
+                startX = event.getX();
+                animationView.pauseAnimation();
+                return true;
+                
+            case MotionEvent.ACTION_MOVE:
+                float deltaX = event.getX() - startX;
+                float progress = deltaX / animationView.getWidth();
+                animationView.setProgress(progress);
+                return true;
+                
+            case MotionEvent.ACTION_UP:
+                animationView.playAnimation();
+                return true;
+        }
+        return false;
+    }
+});
+
+// 2. 点击触发动画
+animationView.setOnClickListener(v -> {
+    if (animationView.isAnimating()) {
+        animationView.pauseAnimation();
+    } else {
+        animationView.playAnimation();
+    }
+});
+```
+
+---
+
+## 第 35 章 Lottie 核心原理
+
+### 35.1 渲染架构
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         Lottie 渲染架构                                      │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                                                                             │
+│   After Effects (AE)                                                        │
+│        │                                                                    │
+│        ▼                                                                    │
+│   ┌────────────┐                                                           │
+│   │ Bodymovin  │  ──► 导出 JSON                                            │
+│   └────────────┘                                                           │
+│        │                                                                    │
+│        ▼                                                                    │
+│   ┌────────────────────────────────────────────────────────────────────┐  │
+│   │                      JSON 文件结构                                 │  │
+│   ├────────────────────────────────────────────────────────────────────┤  │
+│   │  Version  │  Assets  │  Layers  │  Shapes  │  Animations          │  │
+│   └────────────────────────────────────────────────────────────────────┘  │
+│        │                                                                    │
+│        ▼                                                                    │
+│   ┌────────────────────────────────────────────────────────────────────┐  │
+│   │                      Lottie Runtime                                │  │
+│   ├────────────────────────────────────────────────────────────────────┤  │
+│   │  JSON Parser  │  Composition  │  Animator  │  Renderer            │  │
+│   └────────────────────────────────────────────────────────────────────┘  │
+│        │                                                                    │
+│        ▼                                                                    │
+│   ┌────────────────────────────────────────────────────────────────────┐  │
+│   │                      Platform Layer                                │  │
+│   ├────────────────────────────────────────────────────────────────────┤  │
+│   │  Android (Canvas)  │  iOS (Core Animation)  │  Web (Canvas/SVG)   │  │
+│   └────────────────────────────────────────────────────────────────────┘  │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 35.2 JSON 数据结构
+
+```json
+{
+  "v": "5.7.4",              // Bodymovin 版本
+  "fr": 60,                   // 帧率
+  "ip": 0,                    // 起始帧
+  "op": 60,                   // 结束帧
+  "w": 512,                   // 宽度
+  "h": 512,                   // 高度
+  "nm": "Animation",          // 名称
+  "ddd": 0,                   // 3D 标志
+  "assets": [],               // 资源（图片、预合成）
+  "layers": [                 // 图层数组
+    {
+      "ddd": 0,
+      "ind": 0,               // 图层索引
+      "ty": 4,                // 图层类型（4=形状）
+      "nm": "Shape Layer",    // 图层名称
+      "sr": 1,                // 时间拉伸
+      "ks": {                 // 变换属性
+        "o": {"a": 0, "k": 100},  // 不透明度
+        "r": {"a": 0, "k": 0},    // 旋转
+        "p": {"a": 0, "k": [256, 256]},  // 位置
+        "a": {"a": 0, "k": [0, 0]},       // 锚点
+        "s": {"a": 0, "k": [100, 100]}    // 缩放
+      },
+      "shapes": [             // 形状数组
+        {
+          "ty": "rc",         // 矩形
+          "d": 1,
+          "s": {"a": 0, "k": [100, 100]},  // 大小
+          "p": {"a": 0, "k": [0, 0]}        // 位置
+        }
+      ]
+    }
+  ]
+}
+```
+
+### 35.3 动画解析流程
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         Lottie 解析流程                                      │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+1. JSON 加载
+   ┌──────────────┐    parse()    ┌──────────────┐
+   │  JSON File   │ ────────────► │  JSONObject │
+   └──────────────┘               └──────────────┘
+                                          │
+                                          ▼
+2. 创建 Composition
+   ┌──────────────────────────────────────────────────────┐
+   │  LottieComposition                                   │
+   │  ├─ 解析元数据 (版本、尺寸、帧率)                   │
+   │  ├─ 解析资源 (图片、字体)                           │
+   │  └─ 解析图层 (形状、遮罩、效果)                     │
+   └──────────────────────────────────────────────────────┘
+                                          │
+                                          ▼
+3. 创建 Layer
+   ┌──────────────────────────────────────────────────────┐
+   │  BaseLayer                                           │
+   │  ├─ ShapeLayer (形状图层)                            │
+   │  ├─ ImageLayer (图片图层)                            │
+   │  ├─ TextLayer (文本图层)                             │
+   │  └─ CompositionLayer (合成图层)                      │
+   └──────────────────────────────────────────────────────┘
+                                          │
+                                          ▼
+4. 创建 Animator
+   ┌──────────────────────────────────────────────────────┐
+   │  LottieAnimator                                      │
+   │  ├─ 计算当前帧                                       │
+   │  ├─ 插值动画属性                                     │
+   │  └─ 触发重绘                                         │
+   └──────────────────────────────────────────────────────┘
+                                          │
+                                          ▼
+5. 渲染
+   ┌──────────────────────────────────────────────────────┐
+   │  LottieDrawable                                     │
+   │  ├─ 绘制背景                                         │
+   │  ├─ 绘制图层 (从后往前)                             │
+   │  └─ 应用遮罩和效果                                   │
+   └──────────────────────────────────────────────────────┘
+```
+
+### 35.4 性能优化原理
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         Lottie 性能优化                                      │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+1. 硬件加速
+   ┌──────────────────────────────────────────────────────────────────────┐
+   │  使用 GPU 硬件加速                                                    │
+   │  animationView.setRenderMode(RenderMode.HARDWARE);                   │
+   │                                                                      │
+   │  优势：                                                              │
+   │  - 利用 GPU 渲染                                                    │
+   │  - 减少 CPU 负担                                                    │
+   │  - 提升复杂动画性能                                                 │
+   └──────────────────────────────────────────────────────────────────────┘
+
+2. 缓存机制
+   ┌──────────────────────────────────────────────────────────────────────┐
+   │  缓存策略：                                                          │
+   │  - Composition 缓存：避免重复解析 JSON                              │
+   │  - Bitmap 缓存：图片资源缓存                                        │
+   │  - Path 缓存：矢量路径缓存                                          │
+   └──────────────────────────────────────────────────────────────────────┘
+
+3. 异步加载
+   ┌──────────────────────────────────────────────────────────────────────┐
+   │  主线程        子线程                                                │
+   │    │             │                                                  │
+   │    │   解析 JSON │                                                  │
+   │    │             │                                                  │
+   │    └──── 通知 ───┘                                                  │
+   │                                                                      │
+   │  优势：                                                              │
+   │  - 不阻塞主线程                                                     │
+   │  - 提升启动速度                                                     │
+   └──────────────────────────────────────────────────────────────────────┘
+
+4. 脏区域渲染
+   ┌──────────────────────────────────────────────────────────────────────┐
+   │  只重绘变化的区域                                                    │
+   │  - 减少不必要的绘制                                                 │
+   │  - 提升渲染效率                                                     │
+   └──────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 第 36 章 Lottie 性能优化
+
+### 36.1 文件优化
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         Lottie 文件优化                                      │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+1. 简化 AE 动画
+   - 减少图层数量
+   - 简化路径和形状
+   - 避免复杂的遮罩
+   - 减少关键帧
+
+2. 优化导出设置
+   - 使用最新版 Bodymovin
+   - 选择合适的帧率（通常 30fps 足够）
+   - 压缩图片资源
+   - 移除不必要的属性
+
+3. 文件大小优化
+   - 压缩 JSON（gzip）
+   - 使用网络加载（CDN）
+   - 按需加载大动画
+
+4. 测试工具
+   - LottieFiles 在线预览
+   - Lottie Editor 调试
+   - 使用 LottieTest 测试性能
+```
+
+### 36.2 渲染优化
+
+```java
+// 1. 选择渲染模式
+animationView.setRenderMode(RenderMode.HARDWARE);  // 硬件加速（推荐）
+// animationView.setRenderMode(RenderMode.SOFTWARE);  // 软件渲染
+
+// 2. 启用缓存
+animationView.setCacheComposition(true);  // 缓存 Composition
+animationView.setImageAssetsFolder("images/");  // 图片缓存
+
+// 3. 异步加载
+animationView.setAnimationAsync("animation.json", new LottieListener<LottieComposition>() {
+    @Override
+    public void onResult(LottieComposition composition) {
+        // 加载完成
+        animationView.setComposition(composition);
+        animationView.playAnimation();
+    }
+});
+
+// 4. 预加载动画
+LottieComposition.Factory.fromAsset(context, "animation.json", new LottieListener<LottieComposition>() {
+    @Override
+    public void onResult(LottieComposition composition) {
+        // 预加载完成，存储起来
+        AnimationCache.put("animation", composition);
+    }
+});
+```
+
+### 36.3 内存优化
+
+```java
+// 1. 及时释放资源
+@Override
+protected void onDestroy() {
+    super.onDestroy();
+    if (animationView != null) {
+        animationView.cancelAnimation();
+        animationView.setImageBitmap(null);  // 释放图片资源
+    }
+}
+
+// 2. 后台暂停
+@Override
+protected void onPause() {
+    super.onPause();
+    animationView.pauseAnimation();  // 节省资源
+}
+
+@Override
+protected void onResume() {
+    super.onResume();
+    animationView.resumeAnimation();
+}
+
+// 3. 不可见时暂停
+animationView.setVisibility(View.GONE);
+animationView.pauseAnimation();
+
+// 4. 内存监控
+public void monitorMemory() {
+    long memoryUsage = animationView.getComposition().getDuration();
+    if (memoryUsage > 5 * 1024 * 1024) {  // 5MB
+        Log.w("Lottie", "Animation uses too much memory");
+        animationView.cancelAnimation();
+    }
+}
+```
+
+### 36.4 硬件加速
+
+```java
+// 1. 启用硬件加速
+animationView.setRenderMode(RenderMode.HARDWARE);
+
+// 2. 检查硬件加速是否可用
+if (animationView.isHardwareAccelerated()) {
+    // 使用硬件加速
+} else {
+    // 降级到软件渲染
+    animationView.setRenderMode(RenderMode.SOFTWARE);
+}
+
+// 3. 性能对比
+// 硬件加速：复杂动画性能更好，内存占用稍高
+// 软件渲染：简单动画足够，内存占用低
+```
+
+---
+
+## 第 37 章 Lottie vs PAG
+
+### 37.1 功能对比
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         功能对比表                                           │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌──────────────────┬──────────────────┬──────────────────┐
+│       功能        │      Lottie      │       PAG        │
+├──────────────────┼──────────────────┼──────────────────┤
+│ AE 特效支持       │       60%        │       100%       │
+│ 文件格式          │      JSON        │     Binary       │
+│ 文件大小          │       中          │        小        │
+│ 跨平台            │   Android/iOS    │  Android/iOS     │
+│                   │   Web/RN         │  Web/macOS       │
+│ 图层替换          │       ⚠️         │        ✅        │
+│ 文本编辑          │       ⚠️         │        ✅        │
+│ 图片替换          │       ⚠️         │        ✅        │
+│ 音频支持          │       ❌         │        ✅        │
+│ 3D 图层           │       ❌         │        ✅        │
+│ 滤镜效果          │       ❌         │        ✅        │
+│ 渲染性能          │       中          │        高        │
+│ 生态系统          │       丰富        │       一般       │
+│ 学习曲线          │       低          │        中        │
+└──────────────────┴──────────────────┴──────────────────┘
+```
+
+### 37.2 性能对比
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         性能测试结果                                         │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+测试场景：播放 10 秒动画，60fps
+
+┌──────────────────┬──────────────────┬──────────────────┐
+│       指标        │      Lottie      │       PAG        │
+├──────────────────┼──────────────────┼──────────────────┤
+│ 平均 FPS          │     45 fps       │      60 fps      │
+│ CPU 占用          │      15%         │        5%        │
+│ 内存占用          │      35MB        │       20MB       │
+│ GPU 占用          │      20%         │       10%        │
+│ 首帧渲染          │     150ms        │       50ms       │
+│ 文件大小          │     180KB        │      100KB       │
+└──────────────────┴──────────────────┴──────────────────┘
+```
+
+### 37.3 生态系统对比
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         生态系统对比                                         │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌──────────────────┬──────────────────┬──────────────────┐
+│       资源        │      Lottie      │       PAG        │
+├──────────────────┼──────────────────┼──────────────────┤
+│ 动画资源网站      │  LottieFiles     │   PAGViewer      │
+│ 免费资源          │      大量        │       少量       │
+│ 付费资源          │      丰富        │       一般       │
+│ 在线编辑器        │       ✅         │        ✅        │
+│ 设计师工具        │     成熟         │       发展中     │
+│ 社区活跃度        │       高          │        中        │
+│ 文档完善度        │       高          │        中        │
+│ 第三方库          │      丰富        │       少量       │
+└──────────────────┴──────────────────┴──────────────────┘
+```
+
+### 37.4 选型建议
+
+```
+✅ 选择 Lottie 的场景：
+
+1. Web 平台需求
+   - Lottie Web 支持更成熟
+   - 需要跨 Web 和移动端
+
+2. 社区资源依赖
+   - 需要大量现成的动画资源
+   - 快速原型开发
+
+3. 简单动画
+   - 基础的矢量动画
+   - 不需要复杂特效
+
+4. 团队技能
+   - 设计师熟悉 Lottie 工作流
+   - 不需要学习新工具
+
+✅ 选择 PAG 的场景：
+
+1. 高性能需求
+   - 需要流畅的 60fps
+   - 复杂动画场景
+
+2. 完整 AE 支持
+   - 需要 3D 图层
+   - 复杂滤镜效果
+   - 音频同步
+
+3. 动态内容
+   - 图层替换
+   - 文本编辑
+   - 图片替换
+
+4. 文件大小敏感
+   - 需要小体积文件
+   - 网络传输优化
+```
+
+---
+
+## 第 38 章 Lottie 面试常见问题
+
+### 38.1 Lottie 原理
+
+**Q: Lottie 的核心原理是什么？**
+
+**A:** Lottie 的核心原理：
+
+1. **JSON 解析**：解析 Bodymovin 导出的 JSON 文件
+2. **Composition 构建**：创建动画数据结构
+3. **Layer 树构建**：根据 JSON 创建图层树
+4. **Canvas 渲染**：使用 Canvas API 绘制每一帧
+5. **属性动画**：使用属性动画系统驱动播放
+
+### 38.2 性能问题
+
+**Q: Lottie 性能不如 PAG 的原因？**
+
+**A:**
+
+1. **渲染方式**：Lottie 主要依赖 CPU，PAG 使用 GPU 加速
+2. **文件格式**：JSON 解析比二进制格式慢
+3. **架构设计**：Lottie 设计更注重跨平台一致性
+4. **缓存机制**：PAG 的缓存策略更激进
+5. **内存管理**：PAG 的内存管理更优化
+
+### 38.3 与 PAG 区别
+
+**Q: Lottie 和 PAG 的主要区别？**
+
+**A:**
+
+| 对比项 | Lottie | PAG |
+|--------|--------|-----|
+| AE 支持 | 60% | 100% |
+| 文件格式 | JSON | Binary |
+| 性能 | 中 | 高 |
+| 生态 | 丰富 | 一般 |
+| 跨平台 | 更广 | Android/iOS |
+
+### 38.4 适用场景
+
+**Q: Lottie 的适用场景？**
+
+**A:**
+
+✅ **推荐使用**：
+- Web 平台
+- 简单动画
+- 需要社区资源
+- 跨平台一致性要求高
+
+❌ **不推荐使用**：
+- 复杂 AE 特效
+- 高性能需求
+- 需要 3D 图层
+- 文件大小敏感
+
+### 38.5 最佳实践
+
+**Q: Lottie 的最佳实践？**
+
+**A:**
+
+```java
+// 1. 硬件加速
+animationView.setRenderMode(RenderMode.HARDWARE);
+
+// 2. 启用缓存
+animationView.setCacheComposition(true);
+
+// 3. 异步加载
+animationView.setAnimationAsync("animation.json", listener);
+
+// 4. 生命周期管理
+@Override
+protected void onPause() {
+    animationView.pauseAnimation();
+}
+
+@Override
+protected void onDestroy() {
+    animationView.cancelAnimation();
+}
+
+// 5. 内存优化
+if (!animationView.isShown()) {
+    animationView.pauseAnimation();
+}
+```
+
+最佳实践建议：
+- 使用硬件加速渲染
+- 启用 Composition 缓存
+- 及时暂停和释放资源
+- 简化 AE 动画复杂度
+- 合理控制文件大小
+
