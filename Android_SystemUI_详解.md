@@ -1302,31 +1302,692 @@ SystemUI:
 
 ---
 
-## 10. 面试常见问题
+## 10. 通知与 AOD 深度解析
 
-**Q1: SystemUI 是什么？包含哪些组件？**
+### 10.1 通知系统完整链路
 
-A: SystemUI 是 Android 系统的核心 UI 组件：
-- StatusBar（状态栏）
-- NavigationBar（导航栏）
-- NotificationPanel（通知面板）
-- Keyguard（锁屏）
-- AOD（息屏显示）
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    通知系统完整链路（深度版）                               │
+└─────────────────────────────────────────────────────────────────────────────┘
 
-**Q2: AOD 是如何实现的？**
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  第一步：应用创建通知 (Android SDK)                                        │
+└─────────────────────────────────────────────────────────────────────────────┘
 
-A: 
-1. 硬件：AMOLED 屏幕可单独点亮像素
-2. 软件：DozeMachine 状态机控制
-3. 状态流转：DOZE_INIT → DOZE_AOD → DOZE_REST → EXITED_DOZE
+应用进程:
+│
+├── 1.1 创建 NotificationChannel (Android 8.0+)
+│   NotificationChannel channel = new NotificationChannel(
+│       "channel_id",        // 渠道 ID
+│       "渠道名称",           // 用户可见名称
+│       NotificationManager.IMPORTANCE_HIGH  // 重要性级别
+│   );
+│   channel.setDescription("渠道描述");
+│   channel.enableLights(true);
+│   channel.setLightColor(Color.RED);
+│   channel.enableVibration(true);
+│   channel.setVibrationPattern(new long[]{100, 200, 300, 400});
+│   channel.setShowBadge(true);  // 启动器角标
+│   mNotificationManager.createNotificationChannel(channel);
+│
+├── 1.2 创建 Notification.Builder
+│   Notification.Builder builder = new Notification.Builder(context, channelId)
+│       .setSmallIcon(R.drawable.ic_notification)
+│       .setContentTitle("标题")
+│       .setContentText("内容")
+│       .setLargeIcon(bitmap)
+│       .setContentIntent(pendingIntent)
+│       .setDeleteIntent(deletePendingIntent)
+│       .setAutoCancel(true)
+│       .setOngoing(false)
+│       .setWhen(System.currentTimeMillis())
+│       .setShowWhen(true)
+│       .setCategory(Notification.CATEGORY_MESSAGE)
+│       .setPriority(Notification.PRIORITY_HIGH);
+│
+├── 1.3 创建 RemoteViews（自定义通知布局）
+│   RemoteViews contentView = new RemoteViews(pkgName, R.layout.notification);
+│   contentView.setTextViewText(R.id.title, "标题");
+│   contentView.setImageViewResource(R.id.icon, R.drawable.icon);
+│   contentView.setOnClickPendingIntent(R.id.button, pendingIntent);
+│   builder.setCustomContentView(contentView);  // 折叠视图
+│   builder.setCustomBigContentView(bigContentView);  // 展开视图
+│
+├── 1.4 添加 Action 按钮
+│   Notification.Action action = new Notification.Action.Builder(
+│       Icon.createWithResource(context, R.drawable.action_icon),
+│       "回复",
+│       replyPendingIntent
+│   )
+│   .addRemoteInput(remoteInput)  // 支持直接输入
+│   .setAllowGeneratedReplies(true)
+│   .build();
+│   builder.addAction(action);
+│
+├── 1.5 设置样式 (Style)
+│   // BigTextStyle
+│   builder.setStyle(new Notification.BigTextStyle()
+│       .bigText("长文本内容...")
+│       .setBigContentTitle("展开标题")
+│       .setSummaryText("摘要"));
+│   
+│   // MessagingStyle
+│   Person user = new Person.Builder().setName("张三").build();
+│   builder.setStyle(new Notification.MessagingStyle(user)
+│       .addMessage("你好", System.currentTimeMillis(), user)
+│       .setConversationTitle("对话标题"));
+│
+└── 1.6 发送通知
+    NotificationManager.notify(id, builder.build());
 
-**Q3: RemoteViews 的原理？**
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  第二步：Framework 层处理 (NotificationManagerService)                      │
+└─────────────────────────────────────────────────────────────────────────────┘
 
-A: 
-1. 跨进程视图机制
-2. 序列化视图操作为 Action 列表
-3. 在 SystemUI 进程反序列化并应用
-4. 只支持有限的 View 类型
+system_server 进程 (NotificationManagerService):
+│
+├── 2.1 接收通知请求
+│   // INotificationManager.Stub.enqueueNotificationWithTag()
+│   public void enqueueNotificationWithTag(String pkg, String opPkg,
+│           String tag, int id, Notification notification, int userId) {
+│       
+│       // 检查调用者权限
+│       checkCallerIsSystemOrSameApp(pkg);
+│       
+│       // 检查通知限制
+│       enforceRateLimitingForNotification(pkg, userId);
+│       
+│       // 检查通知数量限制
+│       enforceNotificationCountLimit(pkg, userId);
+│   }
+│
+├── 2.2 创建 NotificationRecord
+│   final NotificationRecord r = new NotificationRecord(
+│       mContext,
+│       notification,   // 通知对象
+│       pkg,           // 包名
+│       tag,           // 标签
+│       id,            // ID
+│       userId         // 用户 ID
+│   );
+│   
+│   // 提取通知信号（用于排名）
+│   mRankingHelper.extractSignals(r);
+│
+├── 2.3 应用过滤规则
+│   // 检查应用通知权限
+│   if (mPreferencesHelper.isBlocked(pkg, userId)) {
+│       return;  // 应用通知被禁用
+│   }
+│   
+│   // 检查渠道通知权限
+│   if (mPreferencesHelper.isChannelBlocked(pkg, channelId, userId)) {
+│       return;  // 渠道通知被禁用
+│   }
+│   
+│   // 检查勿扰模式
+│   if (mZenModeHelper.shouldIntercept(r)) {
+│       r.setIntercepted(true);  // 被勿扰模式拦截
+│   }
+│
+├── 2.4 保存到 NotificationRecord 列表
+│   // 先移除旧通知（如果存在）
+│   mNotificationList.remove(key);
+│   
+│   // 添加新通知
+│   mNotificationList.add(r);
+│
+├── 2.5 持久化通知（重启后恢复）
+│   mNotificationStore.add(r);
+│
+└── 2.6 通知 SystemUI
+    // 回调所有注册的 NotificationListenerService
+    for (ManagedServiceInfo info : mListeners) {
+        // 通过 Binder IPC 回调
+        info.service.onNotificationPosted(sbn, rankingMap);
+    }
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  第三步：SystemUI 接收通知 (NotificationListenerService)                    │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+SystemUI 进程:
+│
+├── 3.1 NotificationListenerService.onNotificationPosted()
+│   @Override
+│   public void onNotificationPosted(StatusBarNotification sbn, 
+│           RankingMap rankingMap) {
+│       
+│       // 获取通知排名
+│       Ranking ranking = new Ranking();
+│       rankingMap.getRanking(sbn.getKey(), ranking);
+│       
+│       // 转发给 NotificationEntryManager
+│       mEntryManager.addNotification(sbn, ranking);
+│   }
+│
+├── 3.2 NotificationEntryManager.addNotification()
+│   // 创建 NotificationEntry
+│   NotificationEntry entry = new NotificationEntry(sbn);
+│   entry.setRanking(ranking);
+│   
+│   // 添加到通知列表
+│   mNotificationList.add(entry);
+│   
+│   // 通知监听器
+│   for (NotificationListener listener : mListeners) {
+│       listener.onNotificationAdded(entry);
+│   }
+│
+├── 3.3 NotificationRowBinder.bindRow()
+│   // 获取 RemoteViews
+│   RemoteViews contentView = notification.contentView;
+│   RemoteViews bigContentView = notification.bigContentView;
+│   RemoteViews headsUpContentView = notification.headsUpContentView;
+│   
+│   // 应用 RemoteViews 到通知行
+│   row.setContentView(contentView);
+│   row.setBigContentView(bigContentView);
+│   row.setHeadsUpView(headsUpContentView);
+│
+└── 3.4 更新状态栏图标
+    // 添加状态栏图标
+    mStatusBarIconController.addIcon(iconKey, icon);
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  第四步：通知渲染 (RemoteViews 展开与绑定)                                  │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+通知视图渲染:
+│
+├── 4.1 NotificationContentView.setContent()
+│   public void setContent(RemoteViews views) {
+│       // 清空现有内容
+│       removeAllViews();
+│       
+│       // 应用 RemoteViews
+│       View view = views.apply(mContext, this);
+│       addView(view);
+│   }
+│
+├── 4.2 RemoteViews.apply() 实现
+│   public View apply(Context context, ViewGroup parent) {
+│       // 1. 加载布局
+│       View result = inflateView(context, parent);
+│       
+│       // 2. 执行所有 Action
+│       performApply(result, parent);
+│       
+│       return result;
+│   }
+│
+├── 4.3 执行 RemoteViews Action
+│   private void performApply(View v, ViewGroup parent) {
+│       if (mActions != null) {
+│           for (Action action : mActions) {
+│               // 每个 Action 修改 View
+│               action.apply(v, parent, mOnClickHandler);
+│           }
+│       }
+│   }
+│
+└── 4.4 渲染完成，通知视图显示在通知面板
+```
+
+### 10.2 RemoteViews 深度解析
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    RemoteViews 完整原理                                   │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+RemoteViews 的本质：序列化的视图操作
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  1. RemoteViews 数据结构                                                   │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+public class RemoteViews implements Parcelable {
+    // 包名（用于加载资源）
+    private final String mPackage;
+    
+    // 布局 ID
+    private final int mLayoutId;
+    
+    // 操作列表（序列化后跨进程传递）
+    private ArrayList<Action> mActions;
+    
+    // 内存位图缓存
+    private BitmapCache mBitmapCache;
+    
+    // 是否是主题应用
+    private boolean mIsRoot;
+    
+    // 应用的包名（可能与 mPackage 不同）
+    private String mApplicationPackage;
+}
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  2. Action 列表（每个操作都是一个 Action）                                  │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+// Action 基类
+private abstract static class Action implements Parcelable {
+    // 操作 ID（用于反序列化）
+    abstract public int getActionTag();
+    
+    // 应用操作到 View
+    abstract public void apply(View root, ViewGroup rootParent,
+            OnClickHandler handler);
+}
+
+// 具体的 Action 实现：
+├── SetTextAction          // 设置文本
+├── SetTextColorAction     // 设置文字颜色
+├── SetImageResourceAction // 设置图片资源
+├── SetImageBitmapAction   // 设置 Bitmap
+├── SetOnClickPendingIntentAction  // 设置点击事件
+├── SetViewVisibilityAction  // 设置可见性
+├── SetViewPaddingAction   // 设置内边距
+├── SetProgressBarAction   // 设置进度条
+├── SetChronometerAction   // 设置计时器
+└── AddViewAction          // 添加子 View
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  3. RemoteViews 创建与操作（应用进程）                                      │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+// 创建 RemoteViews
+RemoteViews views = new RemoteViews(context.getPackageName(), R.layout.notification);
+
+// 每个 setXXX 方法都会创建一个 Action 并添加到 mActions 列表
+views.setTextViewText(R.id.title, "标题");
+// 内部实现：
+// mActions.add(new SetTextAction(R.id.title, "标题"));
+
+views.setImageViewResource(R.id.icon, R.drawable.icon);
+// 内部实现：
+// mActions.add(new SetImageResourceAction(R.id.icon, R.drawable.icon));
+
+views.setOnClickPendingIntent(R.id.button, pendingIntent);
+// 内部实现：
+// mActions.add(new SetOnClickPendingIntentAction(R.id.button, pendingIntent));
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  4. RemoteViews 序列化（跨进程传递）                                        │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+// NotificationManager.notify() 时，Notification 中的 RemoteViews 会被序列化
+
+@Override
+public void writeToParcel(Parcel dest, int flags) {
+    // 1. 写入包名
+    dest.writeString(mPackage);
+    
+    // 2. 写入布局 ID
+    dest.writeInt(mLayoutId);
+    
+    // 3. 写入 Action 数量
+    dest.writeInt(mActions.size());
+    
+    // 4. 序列化每个 Action
+    for (Action action : mActions) {
+        dest.writeInt(action.getActionTag());  // Action 类型
+        action.writeToParcel(dest, flags);     // Action 数据
+    }
+    
+    // 5. 写入位图缓存
+    mBitmapCache.writeToParcel(dest, flags);
+}
+
+// Binder IPC 传递序列化后的 Parcel
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  5. RemoteViews 反序列化（SystemUI 进程）                                   │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+// NotificationListenerService 接收到通知后，RemoteViews 被反序列化
+
+public static RemoteViews createFromParcel(Parcel parcel) {
+    // 1. 读取包名
+    String packageName = parcel.readString();
+    
+    // 2. 读取布局 ID
+    int layoutId = parcel.readInt();
+    
+    // 3. 创建 RemoteViews
+    RemoteViews views = new RemoteViews(packageName, layoutId);
+    
+    // 4. 读取 Action 数量
+    int actionCount = parcel.readInt();
+    
+    // 5. 反序列化每个 Action
+    for (int i = 0; i < actionCount; i++) {
+        int actionTag = parcel.readInt();
+        Action action = createActionFromTag(actionTag);
+        action.readFromParcel(parcel);
+        views.mActions.add(action);
+    }
+    
+    return views;
+}
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  6. RemoteViews 应用（展开为 View）                                        │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+// SystemUI 调用 apply() 方法将 RemoteViews 展开为真正的 View
+
+public View apply(Context context, ViewGroup parent) {
+    // 1. 使用 LayoutInflater 加载布局
+    View result = inflateView(context, parent);
+    
+    // 2. 执行所有 Action，修改 View 属性
+    performApply(result, parent);
+    
+    return result;
+}
+
+private View inflateView(Context context, ViewGroup parent) {
+    // 使用 RemoteViews 的布局 ID 加载布局
+    // 注意：使用的是 SystemUI 的 Context，但资源来自应用
+    LayoutInflater inflater = LayoutInflater.from(context);
+    return inflater.inflate(mLayoutId, parent, false);
+}
+
+private void performApply(View v, ViewGroup parent) {
+    if (mActions != null) {
+        for (Action action : mActions) {
+            // 执行每个 Action
+            action.apply(v, parent, mOnClickHandler);
+        }
+    }
+}
+
+// SetTextAction 的 apply 实现
+private class SetTextAction extends Action {
+    int mViewId;
+    CharSequence mText;
+    
+    @Override
+    public void apply(View root, ViewGroup rootParent, OnClickHandler handler) {
+        TextView textView = root.findViewById(mViewId);
+        if (textView != null) {
+            textView.setText(mText);
+        }
+    }
+}
+
+// SetOnClickPendingIntentAction 的 apply 实现
+private class SetOnClickPendingIntentAction extends Action {
+    int mViewId;
+    PendingIntent mPendingIntent;
+    
+    @Override
+    public void apply(View root, ViewGroup rootParent, OnClickHandler handler) {
+        View target = root.findViewById(mViewId);
+        if (target != null && mPendingIntent != null) {
+            target.setOnClickListener(v -> {
+                try {
+                    mPendingIntent.send();
+                } catch (PendingIntent.CanceledException e) {
+                    // 处理取消异常
+                }
+            });
+        }
+    }
+}
+```
+
+### 10.3 AOD 状态机深度解析
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    AOD DozeMachine 状态机                                  │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+DozeMachine 是 AOD 的核心，管理设备的 Doze 状态
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  状态定义                                                                  │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+public enum State {
+    // 初始状态
+    DOZE_INIT,              // 初始化状态
+    
+    // Doze 状态（屏幕关闭）
+    DOZE,                   // 深度睡眠，屏幕完全关闭
+    DOZE_AOD,              // AOD 模式，屏幕部分点亮
+    DOZE_AOD_PAUSING,      // AOD 暂停中
+    DOZE_AOD_PAUSED,       // AOD 已暂停
+    DOZE_SUSPEND,          // 挂起状态
+    
+    // 浅睡眠状态（屏幕微亮）
+    DOZE_REQUEST_PULSE,    // 请求脉冲
+    DOZE_PULSE_START,      // 脉冲开始
+    DOZE_PULSE_DOZE,       // 脉冲 Doze
+    DOZE_PULSE_DOZE_AOD,   // 脉冲 AOD
+    DOZE_PULSE_DONE,       // 脉冲完成
+    DOZE_REST,             // 浅睡眠休息
+    
+    // 退出状态
+    EXITED_DOZE,           // 已退出 Doze
+}
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  状态转换图                                                                │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+                          ┌──────────────┐
+                          │  DOZE_INIT   │
+                          └──────┬───────┘
+                                 │
+                                 ▼
+         ┌───────────────────────┴───────────────────────┐
+         │                                               │
+         ▼                                               ▼
+  ┌──────────────┐                              ┌──────────────┐
+  │     DOZE     │◀─────────────────────────────│   DOZE_AOD   │
+  │  (深度睡眠)  │                              │  (AOD模式)   │
+  └──────┬───────┘                              └──────┬───────┘
+         │                                             │
+         │                                             │
+         │    ┌────────────────────────────────────────┤
+         │    │                                        │
+         │    ▼                                        ▼
+         │  ┌──────────────┐                    ┌──────────────┐
+         │  │DOZE_REQUEST_ │                    │  DOZE_REST   │
+         │  │    PULSE     │                    │  (浅睡眠)    │
+         │  └──────┬───────┘                    └──────┬───────┘
+         │         │                                   │
+         │         ▼                                   │
+         │  ┌──────────────┐                          │
+         │  │DOZE_PULSE_   │                          │
+         │  │    START     │                          │
+         │  └──────┬───────┘                          │
+         │         │                                   │
+         │         ▼                                   │
+         │  ┌──────────────┐                          │
+         └─▶│DOZE_PULSE_   │◀─────────────────────────┘
+            │    DONE      │
+            └──────┬───────┘
+                   │
+                   ▼
+          ┌──────────────┐
+          │ EXITED_DOZE  │
+          │  (退出Doze)  │
+          └──────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  状态转换触发条件                                                           │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+进入 DOZE_AOD:
+├── 屏幕关闭超时
+├── 用户触发 AOD（设置已开启）
+├── 传感器检测到设备静止
+└── 充电时
+
+从 DOZE_AOD 进入 DOZE_REST (脉冲):
+├── 通知到达
+├── 定时更新（每分钟）
+├── 传感器事件
+├── 电池状态变化
+└── 时间变化
+
+从 DOZE_AOD 进入 DOZE (深度睡眠):
+├── AOD 超时（设备长时间静止）
+├── 低电量
+├── 口袋模式检测
+└── 用户关闭 AOD
+
+退出 Doze (EXITED_DOZE):
+├── 用户触控屏幕
+├── 按下电源键
+├── 来电
+├── 闹钟响铃
+└── 拿起设备（传感器检测）
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  脉冲 (Pulse) 机制                                                         │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+脉冲是 AOD 的短暂唤醒，用于更新显示内容
+
+脉冲原因 (PulseReason):
+├── PULSE_REASON_NOTIFICATION  - 新通知到达
+├── PULSE_REASON_SENSOR        - 传感器触发
+├── PULSE_REASON_TAP           - 用户点击
+├── PULSE_REASON_LONG_TAP      - 用户长按
+├── PULSE_REASON_WAKE_DISPLAY  - 唤醒显示
+└── PULSE_REASON_TIMER         - 定时器
+
+脉冲流程:
+1. 触发脉冲请求
+   └── transitionTo(DOZE_REQUEST_PULSE)
+
+2. 开始脉冲
+   └── transitionTo(DOZE_PULSE_START)
+
+3. 显示脉冲内容
+   ├── 通知脉冲：显示通知内容
+   ├── 时间脉冲：更新时钟
+   └── 传感器脉冲：显示唤醒动画
+
+4. 脉冲完成
+   └── transitionTo(DOZE_PULSE_DONE)
+
+5. 返回 AOD 或 Doze
+   └── transitionTo(DOZE_AOD) 或 transitionTo(DOZE)
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  AOD 防烧屏 (Burn-in Protection)                                           │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+AMOLED 屏幕长时间显示同一图像会导致烧屏，AOD 使用以下策略防止烧屏:
+
+1. 位置偏移
+   - AOD 内容定期微移位置
+   - 偏移范围：±10 像素
+   - 偏移间隔：每分钟
+
+2. 亮度降低
+   - AOD 亮度远低于正常亮度
+   - 根据环境光调整
+
+3. 内容轮换
+   - 时钟位置变化
+   - 通知图标位置变化
+
+4. 定时关闭
+   - 长时间静止后关闭 AOD
+   - 设备放入口袋后关闭
+```
+
+### 10.4 面试常见问题
+
+**Q1: 通知从 App 发送到 SystemUI 显示的完整流程？**
+
+**A:**
+
+```
+1. App 创建 Notification
+   └── Notification.Builder.build()
+
+2. App 调用 NotificationManager.notify()
+   └── Binder IPC 调用 NMS
+
+3. NMS 处理通知
+   ├── 创建 NotificationRecord
+   ├── 应用过滤和排名
+   ├── 持久化通知
+   └── 回调 NotificationListenerService
+
+4. SystemUI 接收通知
+   ├── NotificationListenerService.onNotificationPosted()
+   ├── NotificationEntryManager 创建 NotificationEntry
+   └── 提取 RemoteViews
+
+5. SystemUI 渲染通知
+   ├── RemoteViews.apply() 展开为 View
+   ├── 添加到 NotificationStackScrollLayout
+   └── 更新状态栏图标
+```
+
+**Q2: RemoteViews 为什么不能使用自定义 View？**
+
+**A:**
+
+```
+原因:
+1. 安全性：RemoteViews 跨进程传递，使用自定义 View 可能带来安全风险
+2. 兼容性：不同应用的 View 实现可能不同
+3. 性能：跨进程加载自定义 View 开销大
+4. 序列化：自定义 View 可能包含无法序列化的状态
+
+支持的 View 类型：
+- 布局容器：FrameLayout, LinearLayout, RelativeLayout, GridLayout
+- 基础视图：TextView, ImageView, Button, ProgressBar
+- 特殊视图：Chronometer, ViewFlipper
+```
+
+**Q3: AOD 是如何实现低功耗的？**
+
+**A:**
+
+```
+硬件层面:
+1. AMOLED 屏幕可单独点亮像素
+2. Display HAL 支持 AOD 模式
+3. 低刷新率（1fps）
+
+软件层面:
+1. DozeMachine 状态机控制
+2. 定时脉冲更新（减少唤醒次数）
+3. 防烧屏机制（位置偏移）
+4. 传感器辅助（口袋模式检测）
+```
+
+**Q4: 通知渠道 (NotificationChannel) 的作用？**
+
+**A:**
+
+```
+作用:
+1. 分类管理：将通知按类型分组
+2. 用户控制：用户可独立控制每类通知
+3. 重要性级别：决定通知的显示方式
+4. 统一管理：同一渠道的通知统一配置
+
+属性:
+- ID：唯一标识
+- 名称：用户可见
+- 重要性：IMPORTANCE_NONE 到 IMPORTANCE_MAX
+- 声音、振动、灯光
+- 是否显示角标
+```
 
 ---
 
