@@ -1284,11 +1284,125 @@ SystemUI:
 
 ---
 
-## 8. 通知模板
+## 8. 通知渲染流程
 
-### 8.1 模板类型
+### 8.1 渲染架构
 
 ```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                       通知渲染架构                                         │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                      NotificationPanelView (通知面板)                      │
+│                                                                          │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │                NotificationStackScrollLayout                         │   │
+│  │                    (通知滚动列表)                                      │   │
+│  │                                                                   │   │
+│  │  ┌─────────────────────────────────────────────────────────────┐  │   │
+│  │  │              ExpandableNotificationRow (1)                  │  │   │
+│  │  │  ┌───────────────────────────────────────────────────────┐ │  │   │
+│  │  │  │              NotificationContentView                    │ │  │   │
+│  │  │  │  ┌─────────────────────────────────────────────────┐ │ │  │   │
+│  │  │  │  │  RemoteViews.apply() → View Hierarchy        │ │ │  │   │
+│  │  │  │  │                                                 │ │  │   │
+│  │  │  │  │  ┌─────┐ ┌─────────────────────────────────┐ │ │  │   │
+│  │  │  │  │  │Icon │ │Title: 新消息                   │ │ │  │   │
+│  │  │  │  │  └─────┘ │Content: 你有新的消息            │ │ │  │   │
+│  │  │  │  │          │Time: 10:30                      │ │ │  │   │
+│  │  │  │  │          └─────────────────────────────────┘ │ │  │   │
+│  │  │  │  └─────────────────────────────────────────────────┘ │ │  │   │
+│  │  │  └───────────────────────────────────────────────────────┘ │  │   │
+│  │  └─────────────────────────────────────────────────────────────┘  │   │
+│  │                                                                   │   │
+│  │  ┌─────────────────────────────────────────────────────────────┐  │   │
+│  │  │              ExpandableNotificationRow (2)                  │  │   │
+│  │  │              (另一条通知...)                                 │  │   │
+│  │  └─────────────────────────────────────────────────────────────┘  │   │
+│  │                                                                   │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 8.2 渲染流程详解
+
+```java
+/**
+ * 通知渲染流程
+ */
+
+// 1. 接收通知
+NotificationListenerService.onNotificationPosted(sbn, rankingMap):
+│
+├── 提取 StatusBarNotification
+│   ├── Notification notification = sbn.getNotification()
+│   └── String key = sbn.getKey()
+│
+└── 通知 NotificationEntryManager
+    └── onNotificationPosted(sbn, rankingMap)
+
+// 2. 创建通知条目
+NotificationEntryManager.onNotificationPosted(sbn, rankingMap):
+│
+├── 创建 NotificationEntry
+│   └── entry = new NotificationEntry(sbn)
+│
+├── 应用排名
+│   └── mRankingManager.extractSignals(entry)
+│
+├── 添加到列表
+│   └── mNotificationList.add(entry)
+│
+└── 触发更新
+    └── mCallback.onNotificationAdded(entry)
+
+// 3. 创建通知视图
+NotificationRowBinderImpl.bindRow(entry, row):
+│
+├── 获取 RemoteViews
+│   ├── RemoteViews contentView = notification.contentView
+│   ├── RemoteViews bigContentView = notification.bigContentView
+│   └── RemoteViews headsUpContentView = notification.headsUpContentView
+│
+├── 应用 RemoteViews
+│   ├── row.setContentView(contentView)
+│   ├── row.setBigContentView(bigContentView)
+│   └── row.setHeadsUpView(headsUpContentView)
+│
+├── 设置展开状态
+│   └── row.setExpanded(isExpanded)
+│
+└── 添加到列表
+    └── mStackScrollLayout.addNotificationRow(row)
+
+// 4. 渲染通知内容
+NotificationContentView.setContent(RemoteViews views):
+│
+├── 清空现有视图
+│   └── removeAllViews()
+│
+├── 应用 RemoteViews
+│   └── View view = views.apply(mContext, this)
+│
+├── 添加到容器
+│   └── addView(view)
+│
+└── 触发布局
+    └── requestLayout()
+```
+
+---
+
+## 9. 通知模板系统
+
+### 9.1 通知模板类型
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                       通知模板类型                                         │
+└─────────────────────────────────────────────────────────────────────────────┘
+
 ┌──────────────────┬──────────────────────────────────────────────────────────┐
 │      模板        │                       说明                              │
 ├──────────────────┼──────────────────────────────────────────────────────────┤
@@ -1297,12 +1411,424 @@ SystemUI:
 │  InboxStyle      │  收件箱通知，显示多行消息列表                            │
 │  MessagingStyle  │  消息通知，显示对话内容                                  │
 │  MediaStyle      │  媒体通知，显示播放控制                                  │
+│  DecoratedCustom │  自定义通知，带系统装饰                                  │
+│  CallStyle       │  来电通知，显示通话控制                                  │
 └──────────────────┴──────────────────────────────────────────────────────────┘
+
+模板布局结构:
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  BigTextStyle (长文本)                                                      │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │  ┌─────┐ Title                                                      │   │
+│  │  │Icon │ Content...                                                │   │
+│  │  └─────┘ [展开后显示完整长文本内容...]                               │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                                                          │
+│  BigPictureStyle (大图片)                                                 │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │  ┌─────┐ Title                                                      │   │
+│  │  │Icon │ Content                                                    │   │
+│  │  └─────┘                                                            │   │
+│  │  ┌─────────────────────────────────────────────────────────────┐   │   │
+│  │  │                    [大图片]                                    │   │   │
+│  │  └─────────────────────────────────────────────────────────────┘   │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                                                          │
+│  MessagingStyle (消息)                                                    │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │  ┌─────┐ 对话标题                                                   │   │
+│  │  │Icon │                                                            │   │
+│  │  └─────┘                                                            │   │
+│  │  User1: 消息1                                                       │   │
+│  │  User2: 消息2                                                       │   │
+│  │  User1: 消息3                                                       │   │
+│  │  [输入框] [发送按钮]                                                │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                                                          │
+│  MediaStyle (媒体)                                                        │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │  ┌────────┐ 歌曲标题                                                │   │
+│  │  │ 专辑封面│ 歌手名                                                  │   │
+│  │  │        │ 专辑名                                                  │   │
+│  │  └────────┘                                                         │   │
+│  │  [上一曲] [播放/暂停] [下一曲]                                      │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                                                          │
+│  CallStyle (来电)                                                         │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │  ┌────────┐ 来电                                                    │   │
+│  │  │ 头像   │ 张三                                                    │   │
+│  │  │        │ +86 138****1234                                         │   │
+│  │  └────────┘                                                         │   │
+│  │  [挂断]                    [接听]                                   │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 9.2 模板使用示例
+
+```java
+/**
+ * 通知模板使用示例
+ */
+
+// 1. BigTextStyle - 长文本
+NotificationCompat.Builder builder = new NotificationCompat.Builder(context, channelId)
+    .setSmallIcon(R.drawable.icon)
+    .setContentTitle("新消息")
+    .setContentText("内容预览")
+    .setStyle(new NotificationCompat.BigTextStyle()
+        .bigText("这是一段很长的文本内容，在折叠状态下只显示预览，" +
+                "展开后显示完整内容...")
+        .setBigContentTitle("展开标题")
+        .setSummaryText("摘要"));
+
+// 2. BigPictureStyle - 大图片
+NotificationCompat.Builder builder = new NotificationCompat.Builder(context, channelId)
+    .setSmallIcon(R.drawable.icon)
+    .setContentTitle("图片分享")
+    .setContentText("点击查看大图")
+    .setStyle(new NotificationCompat.BigPictureStyle()
+        .bigPicture(bitmap)
+        .bigLargeIcon(null)  // 展开时隐藏大图标
+        .setBigContentTitle("展开标题")
+        .setSummaryText("图片描述"));
+
+// 3. InboxStyle - 收件箱
+NotificationCompat.Builder builder = new NotificationCompat.Builder(context, channelId)
+    .setSmallIcon(R.drawable.icon)
+    .setContentTitle("新邮件")
+    .setContentText("3 封未读邮件")
+    .setStyle(new NotificationCompat.InboxStyle()
+        .setBigContentTitle("收件箱")
+        .setSummaryText("3 封未读")
+        .addLine("邮件1: 标题...")
+        .addLine("邮件2: 标题...")
+        .addLine("邮件3: 标题..."));
+
+// 4. MessagingStyle - 消息对话
+Person user1 = new Person.Builder()
+    .setName("张三")
+    .setIcon(iconBitmap)
+    .build();
+    
+Person user2 = new Person.Builder()
+    .setName("李四")
+    .build();
+
+NotificationCompat.MessagingStyle style = new NotificationCompat.MessagingStyle("我")
+    .addMessage(new NotificationCompat.MessagingStyle.Message(
+        "你好", System.currentTimeMillis(), user1))
+    .addMessage(new NotificationCompat.MessagingStyle.Message(
+        "在吗？", System.currentTimeMillis() + 1000, user2))
+    .addMessage(new NotificationCompat.MessagingStyle.Message(
+        "在的", System.currentTimeMillis() + 2000, user1));
+
+NotificationCompat.Builder builder = new NotificationCompat.Builder(context, channelId)
+    .setSmallIcon(R.drawable.icon)
+    .setStyle(style);
+
+// 5. MediaStyle - 媒体控制
+NotificationCompat.Builder builder = new NotificationCompat.Builder(context, channelId)
+    .setSmallIcon(R.drawable.icon)
+    .setContentTitle("正在播放")
+    .setContentText("歌曲名 - 歌手")
+    .setStyle(new androidx.media.app.NotificationCompat.MediaStyle()
+        .setMediaSession(mediaSession.getSessionToken())
+        .setShowActionsInCompactView(0, 1, 2))  // 显示哪些按钮
+    .addAction(R.drawable.prev, "上一曲", prevPendingIntent)
+    .addAction(R.drawable.pause, "暂停", pausePendingIntent)
+    .addAction(R.drawable.next, "下一曲", nextPendingIntent);
+
+// 6. CallStyle - 来电通知 (Android 11+)
+Person caller = new Person.Builder()
+    .setName("张三")
+    .setIcon(iconBitmap)
+    .setImportant(true)
+    .build();
+
+NotificationCompat.CallStyle style = NotificationCompat.CallStyle.forIncomingCall(
+    caller,
+    declinePendingIntent,
+    answerPendingIntent
+);
+
+NotificationCompat.Builder builder = new NotificationCompat.Builder(context, channelId)
+    .setSmallIcon(R.drawable.icon)
+    .setContentTitle("来电")
+    .setContentText("张三")
+    .setStyle(style)
+    .setFullScreenIntent(fullScreenPendingIntent, true);  // 全屏显示
+```
+
+### 9.3 模板底层实现
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    通知模板底层实现                                        │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+模板的本质：预定义的 RemoteViews 布局
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  1. 模板生成 RemoteViews                                                  │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+// Notification.Builder.build() 时，Style 会生成 RemoteViews
+
+public Notification build() {
+    // ...
+    
+    // 如果设置了 Style，让 Style 填充 RemoteViews
+    if (mStyle != null) {
+        mStyle.addExtras(mExtras);
+        mStyle.populateContentView(this);  // 填充折叠视图
+        mStyle.populateBigContentView(this);  // 填充展开视图
+        mStyle.populateHeadsUpContentView(this);  // 填充悬浮视图
+    }
+    
+    // ...
+}
+
+// BigTextStyle 的实现
+public class BigTextStyle extends Style {
+    @Override
+    public void populateBigContentView(Builder builder) {
+        // 创建展开视图的 RemoteViews
+        RemoteViews bigContentView = new RemoteViews(
+            builder.mContext.getPackageName(),
+            R.layout.notification_template_big_text
+        );
+        
+        // 填充内容
+        bigContentView.setTextViewText(R.id.title, mBigContentTitle);
+        bigContentView.setTextViewText(R.id.big_text, mBigText);
+        bigContentView.setTextViewText(R.id.text, mSummaryText);
+        
+        // 设置到 Notification
+        builder.setCustomBigContentView(bigContentView);
+    }
+}
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  2. 模板布局文件                                                           │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+// frameworks/base/core/res/res/layout/notification_template_big_text.xml
+
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content">
+    
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+        
+        <!-- 标题 -->
+        <TextView android:id="@+id/title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content" />
+        
+        <!-- 大文本内容 -->
+        <TextView android:id="@+id/big_text"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content" />
+        
+        <!-- 摘要 -->
+        <TextView android:id="@+id/text"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content" />
+    
+    </LinearLayout>
+
+</FrameLayout>
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  3. SystemUI 渲染模板                                                      │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+// SystemUI 收到通知后，使用 RemoteViews.apply() 加载模板布局
+
+ExpandableNotificationRow.bindNotification():
+│
+├── 获取 RemoteViews
+│   RemoteViews bigContentView = notification.bigContentView;
+│
+├── 应用到视图
+│   NotificationContentView contentView = getExpandedView();
+│   contentView.setContent(bigContentView);
+│
+└── RemoteViews.apply()
+    // 加载模板布局
+    View view = inflater.inflate(R.layout.notification_template_big_text, parent, false);
+    
+    // 执行所有 Action
+    for (Action action : mActions) {
+        action.apply(view, parent, handler);
+    }
 ```
 
 ---
 
-## 10. 通知与 AOD 深度解析
+## 10. 面试常见问题
+
+### 10.1 SystemUI 基础
+
+**Q1: SystemUI 是什么？包含哪些组件？**
+
+**A:**
+
+SystemUI 是 Android 系统的核心 UI 组件，运行在 system_server 进程中：
+
+核心组件：
+- StatusBar：状态栏
+- NavigationBar：导航栏
+- NotificationPanel：通知面板
+- Keyguard：锁屏
+- AOD：息屏显示
+- PowerMenu：电源菜单
+- Recents：最近任务
+- VolumeUI：音量条
+
+### 10.2 AOD
+
+**Q2: AOD (Always On Display) 是如何实现的？**
+
+**A:**
+
+```
+AOD 实现机制：
+
+1. 硬件支持
+   - AMOLED 屏幕（可单独点亮像素）
+   - Display HAL 支持 AOD 模式
+
+2. 软件架构
+   - DozeService：管理 Doze 状态
+   - DozeMachine：状态机控制
+   - AODView：AOD 显示内容
+
+3. 状态流转
+   DOZE_INIT → DOZE_AOD → DOZE_REST → EXITED_DOZE
+
+4. 显示内容
+   - 时钟（防烧屏移动）
+   - 通知图标
+   - 通知预览
+
+5. 功耗优化
+   - 低刷新率（1fps）
+   - 部分像素点亮
+   - 定时脉冲更新
+```
+
+### 10.3 通知系统
+
+**Q3: 通知的发送和显示流程？**
+
+**A:**
+
+```
+通知流程：
+
+1. 应用层
+   NotificationManager.notify()
+   ↓
+2. Framework 层 (NMS)
+   - 创建 NotificationRecord
+   - 排名和过滤
+   - 持久化
+   ↓
+3. Binder IPC
+   - 回调 NotificationListenerService
+   ↓
+4. SystemUI 层
+   - NotificationEntryManager 处理
+   - 创建 NotificationEntry
+   - 提取 RemoteViews
+   - 渲染通知视图
+```
+
+**Q4: RemoteViews 的原理？**
+
+**A:**
+
+```
+RemoteViews 原理：
+
+1. 定义
+   - 跨进程视图机制
+   - 序列化视图操作
+
+2. 支持的 View
+   - 基础：TextView, ImageView, Button
+   - 容器：FrameLayout, LinearLayout
+   - 不支持：自定义 View
+
+3. 工作流程
+   应用进程：
+   - 创建 RemoteViews
+   - 调用 setXXX 方法（记录 Action）
+   - 序列化为 Parcel
+   
+   SystemUI 进程：
+   - 反序列化 RemoteViews
+   - 调用 apply() 创建 View
+   - 执行所有 Action
+
+4. Action 列表
+   - SetTextAction
+   - SetImageResourceAction
+   - SetOnClickPendingIntentAction
+   - ...
+```
+
+**Q5: 通知是如何排名的？**
+
+**A:**
+
+```
+通知排名因素：
+
+1. 重要性级别 (IMPORTANCE_HIGH > DEFAULT > LOW)
+2. 通知渠道优先级
+3. 通知类别 (CALL > MESSAGE > OTHER)
+4. 通知时间
+5. 用户设置
+6. 通知频次
+
+排名算法：
+1. 按重要性分组
+2. 同组按类别排序
+3. 同类别按时间排序
+```
+
+**Q6: 通知模板是如何工作的？**
+
+**A:**
+
+```
+通知模板工作原理：
+
+1. 模板本质
+   - 预定义的 RemoteViews 布局
+   - Style 类负责填充内容
+
+2. 使用流程
+   - 创建 Style (BigTextStyle, MessagingStyle 等)
+   - 设置内容
+   - Notification.Builder.build() 时生成 RemoteViews
+
+3. 渲染流程
+   - SystemUI 收到 RemoteViews
+   - RemoteViews.apply() 加载模板布局
+   - 执行 Action 填充内容
+```
+
+---
+
+## 11. 通知与 AOD 深度解析
 
 ### 10.1 通知系统完整链路
 
