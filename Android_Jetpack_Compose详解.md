@@ -1,56 +1,249 @@
 # Android Jetpack Compose 详解
 
-> **Jetpack Compose** 是 Android 的现代声明式 UI 工具包，使用 Kotlin 构建 UI
+> 作者：OpenClaw | 日期：2026-03-11  
+> Android 现代声明式 UI 工具包 | Kotlin 优先，告别 XML
 
 ---
 
-## 目录
+## 📚 目录
 
-1. [Compose 概述](#1-compose-概述)
-2. [基础概念](#2-基础概念)
-3. [Composable 函数](#3-composable-函数)
-4. [State 状态管理](#4-state-状态管理)
-5. [Modifier 修饰符](#5-modifier-修饰符)
-6. [Layout 布局](#6-layout-布局)
-7. [Material Design 组件](#7-material-design-组件)
-8. [列表（LazyColumn/LazyRow）](#8-列表lazycolumnlazyrow)
-9. [动画](#9-动画)
-10. [主题与样式](#10-主题与样式)
-11. [ViewModel 集成](#11-viewmodel-集成)
-12. [协程集成](#12-协程集成)
-13. [Navigation 导航](#13-navigation-导航)
-14. [与传统 View 互操作](#14-与传统-view-互操作)
-15. [手势处理](#15-手势处理)
-16. [Canvas 自定义绘制](#16-canvas-自定义绘制)
-17. [性能优化](#17-性能优化)
-18. [面试常见问题](#18-面试常见问题)
+### 第一篇：Compose 基础
+
+**第 1 章 Compose 概述**
+- 1.1 [什么是 Jetpack Compose？](#11-什么是-jetpack-compose)
+- 1.2 [核心优势](#12-核心优势)
+- 1.3 [与传统 View 对比](#13-与传统-view-对比)
+- 1.4 [开发环境搭建](#14-开发环境搭建)
+
+**第 2 章 Kotlin 基础**
+- 2.1 [Kotlin 语言特性](#21-kotlin-语言特性)
+- 2.2 [高阶函数与 Lambda](#22-高阶函数与-lambda)
+- 2.3 [扩展函数](#23-扩展函数)
+- 2.4 [协程基础](#24-协程基础)
+
+**第 3 章 Composable 函数**
+- 3.1 [Composable 注解](#31-composable-注解)
+- 3.2 [函数规则与约定](#32-函数规则与约定)
+- 3.3 [remember 与记忆化](#33-remember-与记忆化)
+- 3.4 [重组与智能跳过](#34-重组与智能跳过)
+
+**第 4 章 State 状态管理**
+- 4.1 [State 与 MutableState](#41-state-与-mutablestate)
+- 4.2 [状态提升](#42-状态提升)
+- 4.3 [rememberSaveable](#43-remembersaveable)
+- 4.4 [StateFlow 集成](#44-stateflow-集成)
+
+**第 5 章 Modifier 修饰符**
+- 5.1 [Modifier 基础](#51-modifier-基础)
+- 5.2 [常用修饰符](#52-常用修饰符)
+- 5.3 [顺序的重要性](#53-顺序的重要性)
+- 5.4 [自定义 Modifier](#54-自定义-modifier)
+
+**第 6 章 布局组件**
+- 6.1 [Column 纵向布局](#61-column-纵向布局)
+- 6.2 [Row 横向布局](#62-row-横向布局)
+- 6.3 [Box 堆叠布局](#63-box-堆叠布局)
+- 6.4 [ConstraintLayout](#64-constraintlayout)
+- 6.5 [自定义 Layout](#65-自定义-layout)
 
 ---
 
-## 1. Compose 概述
+### 第二篇：Compose 进阶
 
-### 1.1 什么是 Jetpack Compose
+**第 7 章 Material Design 组件**
+- 7.1 [Button 按钮](#71-button-按钮)
+- 7.2 [TextField 输入框](#72-textfield-输入框)
+- 7.3 [Card 卡片](#73-card-卡片)
+- 7.4 [Dialog 对话框](#74-dialog-对话框)
+- 7.5 [其他组件](#75-其他组件)
 
-Jetpack Compose 是 Android 的现代声明式 UI 工具包：
+**第 8 章 列表**
+- 8.1 [LazyColumn](#81-lazycolumn)
+- 8.2 [LazyRow](#82-lazyrow)
+- 8.3 [LazyVerticalGrid](#83-lazyverticalgrid)
+- 8.4 [性能优化](#84-性能优化)
 
-- **声明式 UI**：描述 UI 应该是什么样子，而不是如何构建
-- **Kotlin 优先**：完全使用 Kotlin 编写
-- **无需 XML**：UI 完全用代码描述
-- **状态驱动**：UI 自动响应状态变化
-- **预览支持**：实时预览 UI 组件
+**第 9 章 动画**
+- 9.1 [AnimatedVisibility](#91-animatedvisibility)
+- 9.2 [animate*AsState](#92-animateasstate)
+- 9.3 [Crossfade](#93-crossfade)
+- 9.4 [infiniteTransition](#94-infinitetransition)
+- 9.5 [AnimationSpec](#95-animationspec)
 
-### 1.2 Compose vs 传统 View
+**第 10 章 主题与样式**
+- 10.1 [Material Theme](#101-material-theme)
+- 10.2 [ColorScheme](#102-colorscheme)
+- 10.3 [Typography](#103-typography)
+- 10.4 [Shapes](#104-shapes)
+- 10.5 [暗黑模式](#105-暗黑模式)
 
-| 对比项 | 传统 View | Jetpack Compose |
-|--------|-----------|-----------------|
-| **UI 定义** | XML 布局 | Kotlin 代码 |
-| **范式** | 命令式 | 声明式 |
-| **状态管理** | 手动更新 | 自动响应 |
-| **复用** | 自定义 View | Composable 函数 |
-| **性能** | View 层级开销 | 轻量级组合 |
-| **预览** | 需要运行 | 实时预览 |
+**第 11 章 ViewModel 集成**
+- 11.1 [viewModel() 函数](#111-viewmodel-函数)
+- 11.2 [StateFlow 收集](#112-stateflow-收集)
+- 11.3 [Hilt 集成](#113-hilt-集成)
+- 11.4 [SavedStateHandle](#114-savedstatehandle)
 
-### 1.3 项目配置
+**第 12 章 协程集成**
+- 12.1 [LaunchedEffect](#121-launchedeffect)
+- 12.2 [rememberCoroutineScope](#122-remembercoroutinescope)
+- 12.3 [DisposableEffect](#123-disposableeffect)
+- 12.4 [SideEffect](#124-sideeffect)
+
+---
+
+### 第三篇：Compose 高级
+
+**第 13 章 Navigation 导航**
+- 13.1 [NavHost 基础](#131-navhost-基础)
+- 13.2 [参数传递](#132-参数传递)
+- 13.3 [Bottom Navigation](#133-bottom-navigation)
+- 13.4 [深层链接](#134-深层链接)
+
+**第 14 章 与传统 View 互操作**
+- 14.1 [AndroidView](#141-androidview)
+- 14.2 [ComposeView](#142-composeview)
+- 14.3 [渐进式迁移](#143-渐进式迁移)
+- 14.4 [最佳实践](#144-最佳实践)
+
+**第 15 章 手势处理**
+- 15.1 [点击手势](#151-点击手势)
+- 15.2 [拖动手势](#152-拖动手势)
+- 15.3 [缩放与旋转](#153-缩放与旋转)
+- 15.4 [多点触控](#154-多点触控)
+
+**第 16 章 Canvas 自定义绘制**
+- 16.1 [DrawScope](#161-drawscope)
+- 16.2 [基本图形](#162-基本图形)
+- 16.3 [Path 路径](#163-path-路径)
+- 16.4 [渐变与阴影](#164-渐变与阴影)
+
+**第 17 章 性能优化**
+- 17.1 [稳定性与跳过](#171-稳定性与跳过)
+- 17.2 [重组优化](#172-重组优化)
+- 17.3 [布局优化](#173-布局优化)
+- 17.4 [性能分析工具](#174-性能分析工具)
+
+**第 18 章 面试常见问题**
+- 18.1 [Compose 原理](#181-compose-原理)
+- 18.2 [重组机制](#182-重组机制)
+- 18.3 [与传统 View 对比](#183-与传统-view-对比)
+- 18.4 [性能优化](#184-性能优化)
+- 18.5 [最佳实践](#185-最佳实践)
+
+---
+
+## 第一篇：Compose 基础
+
+---
+
+## 第 1 章 Compose 概述
+
+### 1.1 什么是 Jetpack Compose？
+
+**Jetpack Compose** 是 Android 的现代声明式 UI 工具包，完全使用 Kotlin 构建 UI。
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         Compose 核心特性                                    │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+                         ┌──────────────┐
+                         │   Compose    │
+                         └──────┬───────┘
+                                │
+        ┌───────────────────────┼───────────────────────┐
+        │                       │                       │
+        ▼                       ▼                       ▼
+┌───────────────┐      ┌───────────────┐      ┌───────────────┐
+│  声明式 UI    │      │  Kotlin 优先  │      │  无需 XML     │
+│               │      │               │      │               │
+│ - 描述 UI    │      │ - 简洁语法   │      │ - 代码即 UI  │
+│ - 状态驱动   │      │ - 类型安全   │      │ - 实时预览   │
+│ - 自动更新   │      │ - 空安全     │      │ - 热重载     │
+└───────────────┘      └───────────────┘      └───────────────┘
+```
+
+### 1.2 核心优势
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    Compose vs 传统 View 开发                               │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌──────────────────┬──────────────────┬──────────────────┐
+│       特性        │    Compose      │    传统 View     │
+├──────────────────┼──────────────────┼──────────────────┤
+│  UI 定义方式     │   Kotlin 代码   │   XML 布局      │
+│  编程范式        │   声明式        │   命令式        │
+│  状态管理        │   自动响应      │   手动更新      │
+│  代码量          │   ⭐⭐⭐⭐⭐      │   ⭐⭐⭐         │
+│  可测试性        │   ⭐⭐⭐⭐⭐      │   ⭐⭐⭐         │
+│  学习曲线        │   ⭐⭐⭐⭐        │   ⭐⭐⭐⭐⭐      │
+│  预览功能        │   实时预览      │   需要运行      │
+│  性能            │   智能重组      │   View 开销     │
+│  兼容性          │   Android 5+   │   全版本        │
+└──────────────────┴──────────────────┴──────────────────┘
+```
+
+**Compose 的优势**：
+
+1. **声明式 UI**：描述 UI 是什么，而不是如何构建
+2. **Kotlin 优先**：完全使用 Kotlin，无需 XML
+3. **状态驱动**：UI 自动响应状态变化
+4. **代码简洁**：减少样板代码，提高开发效率
+5. **实时预览**：Android Studio 中实时预览 UI
+6. **智能重组**：只更新变化的部分
+7. **互操作**：与传统 View 无缝协作
+
+### 1.3 与传统 View 对比
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    命令式 vs 声明式                                        │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+【命令式（传统 View）】
+┌───────────────────────────────────────────────────────────────────────────┐
+│  // 找到 View                                                              │
+│  val textView = findViewById<TextView>(R.id.textView)                     │
+│  val button = findViewById<Button>(R.id.button)                           │
+│                                                                            │
+│  // 手动设置属性                                                           │
+│  textView.text = "Hello"                                                   │
+│  textView.setTextColor(Color.RED)                                          │
+│  button.visibility = View.VISIBLE                                          │
+│                                                                            │
+│  // 状态变化时需要手动更新                                                  │
+│  fun updateUI(user: User) {                                                │
+│      textView.text = user.name                                             │
+│      button.isEnabled = user.isActive                                      │
+│  }                                                                         │
+└───────────────────────────────────────────────────────────────────────────┘
+
+【声明式（Compose）】
+┌───────────────────────────────────────────────────────────────────────────┐
+│  @Composable                                                               │
+│  fun UserView(user: User) {                                                │
+│      Column {                                                              │
+│          Text(                                                             │
+│              text = user.name,                                             │
+│              color = Color.Red                                             │
+│          )                                                                 │
+│          Button(                                                           │
+│              enabled = user.isActive,                                      │
+│              onClick = { }                                                 │
+│          ) {                                                               │
+│              Text("Click")                                                 │
+│          }                                                                 │
+│      }                                                                     │
+│  }                                                                         │
+│  // user 变化时，UI 自动更新                                               │
+└───────────────────────────────────────────────────────────────────────────┘
+```
+
+### 1.4 开发环境搭建
+
+#### 项目配置
 
 ```kotlin
 // build.gradle (Module)
@@ -66,17 +259,19 @@ android {
     composeOptions {
         kotlinCompilerExtensionVersion = "1.5.3"
     }
+    kotlinOptions {
+        jvmTarget = "17"
+    }
 }
 
 dependencies {
-    // Compose BOM
+    // Compose BOM（统一版本管理）
     implementation(platform("androidx.compose:compose-bom:2024.02.00"))
     
     // 核心组件
     implementation("androidx.compose.ui:ui")
-    implementation("androidx.compose.ui:ui-graphics")
-    implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
+    implementation("androidx.compose.ui:ui-tooling-preview")
     
     // Activity 集成
     implementation("androidx.activity:activity-compose:1.8.2")
@@ -86,11 +281,10 @@ dependencies {
     
     // 调试工具
     debugImplementation("androidx.compose.ui:ui-tooling")
-    debugImplementation("androidx.compose.ui:ui-test-manifest")
 }
 ```
 
-### 1.4 Hello Compose
+#### Hello Compose
 
 ```kotlin
 // MainActivity.kt
@@ -98,14 +292,13 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            // 设置主题
-            MaterialTheme {
-                // 使用 Surface 作为容器
+            // 设置 Material 主题
+            MyApplicationTheme {
+                // Surface 是容器
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    // 调用自定义 Composable
                     Greeting("Android")
                 }
             }
@@ -126,7 +319,7 @@ fun Greeting(name: String, modifier: Modifier = Modifier) {
 @Preview(showBackground = true)
 @Composable
 fun GreetingPreview() {
-    MaterialTheme {
+    MyApplicationTheme {
         Greeting("Android")
     }
 }
@@ -134,266 +327,372 @@ fun GreetingPreview() {
 
 ---
 
-## 2. 基础概念
+## 第 2 章 Kotlin 基础
 
-### 2.1 声明式 UI
+### 2.1 Kotlin 语言特性
 
-**命令式（传统 View）**：
 ```kotlin
-// 命令式：告诉系统如何做
-val textView = findViewById<TextView>(R.id.textView)
-textView.text = "Hello"
-textView.setTextColor(Color.RED)
-textView.visibility = View.VISIBLE
-```
+/**
+ * Compose 中常用的 Kotlin 特性
+ */
 
-**声明式（Compose）**：
-```kotlin
-// 声明式：描述 UI 是什么
-Text(
-    text = "Hello",
-    color = Color.Red,
-    modifier = Modifier.visible(isVisible)
+// 1. 数据类（不可变）
+data class User(
+    val id: Int,
+    val name: String,
+    val email: String
 )
+
+// 2. 解构声明
+val (id, name, email) = user
+
+// 3. 默认参数
+@Composable
+fun Card(
+    title: String,
+    subtitle: String = "",
+    modifier: Modifier = Modifier
+) { }
+
+// 4. 命名参数
+Card(
+    title = "Hello",
+    modifier = Modifier.padding(16.dp)
+)
+
+// 5. 尾随 Lambda
+// 这两种写法等价
+Button(onClick = { }, content = { Text("Click") })
+Button(onClick = { }) {
+    Text("Click")
+}
+
+// 6. 作用域函数
+Column {
+    // this: ColumnScope
+    Text("Hello")
+}
 ```
 
-### 2.2 组合（Composition）
-
-- **Composition**：Composable 函数执行后生成的 UI 树
-- **Initial Composition**：首次执行创建 Composition
-- **Recomposition**：状态变化后重新执行更新 UI
+### 2.2 高阶函数与 Lambda
 
 ```kotlin
+/**
+ * 高阶函数：接收函数作为参数或返回函数
+ */
+
+// 接收 Lambda 参数
 @Composable
-fun Counter() {
-    // state 会触发 Recomposition
-    var count by remember { mutableStateOf(0) }
-    
+fun List(
+    items: List<String>,
+    itemContent: @Composable (String) -> Unit
+) {
     Column {
-        Text("Count: $count")
-        Button(onClick = { count++ }) {
-            Text("Increment")
+        items.forEach { item ->
+            itemContent(item)
         }
+    }
+}
+
+// 使用
+List(items = listOf("A", "B", "C")) { item ->
+    Text(item)
+}
+
+// 带接收者的 Lambda
+@Composable
+fun ColumnScope.Header(title: String) {
+    // this: ColumnScope
+    Text(title, style = MaterialTheme.typography.headlineMedium)
+}
+```
+
+### 2.3 扩展函数
+
+```kotlin
+/**
+ * 扩展函数：为现有类添加新功能
+ */
+
+// 扩展 Modifier
+fun Modifier.circleCrop(): Modifier = this
+    .clip(CircleShape)
+    .border(2.dp, Color.White, CircleShape)
+
+// 使用
+Image(
+    painter = painterResource(R.drawable.avatar),
+    modifier = Modifier
+        .size(80.dp)
+        .circleCrop()
+)
+
+// 扩展 Composable
+@Composable
+fun String.toAnnotatedString(): AnnotatedString {
+    return buildAnnotatedString {
+        append(this@toAnnotatedString)
     }
 }
 ```
 
-### 2.3 重组（Recomposition）特点
-
-1. **智能重组**：只重组受影响的部分
-2. **可跳过**：如果输入未变化，可跳过重组
-3. **可重启**：Composable 可以重新启动
-4. **乐观执行**：假设重组会成功，失败时回滚
-
-### 2.4 Composable 函数规则
+### 2.4 协程基础
 
 ```kotlin
-// ✅ 正确：Composable 可以调用其他 Composable
-@Composable
-fun ValidComposable() {
-    Text("Hello")
-    AnotherComposable()
+/**
+ * 协程：异步编程
+ */
+
+// 1. 协程构建器
+suspend fun fetchUser(): User {
+    return withContext(Dispatchers.IO) {
+        // 网络请求
+        api.getUser()
+    }
 }
 
-// ✅ 正确：Composable 可以读取状态
+// 2. 在 Composable 中启动协程
 @Composable
-fun ReadState(name: String) {
-    Text("Hello $name")
-}
-
-// ❌ 错误：Composable 不应有返回值（除了 Unit）
-@Composable
-fun WrongReturn(): String {  // 错误！
-    return "Hello"
-}
-
-// ❌ 错误：Composable 不应有副作用
-@Composable
-fun WrongSideEffect() {
-    // 错误！不应直接修改外部状态
-    externalVar = 123
-}
-
-// ✅ 正确：使用副作用 API
-@Composable
-fun CorrectSideEffect() {
+fun DataLoader() {
     LaunchedEffect(Unit) {
-        // 在这里执行副作用
-        saveToDatabase()
+        val user = fetchUser()
+        // 更新状态
+    }
+}
+
+// 3. rememberCoroutineScope
+@Composable
+fun ClickHandler() {
+    val scope = rememberCoroutineScope()
+    
+    Button(onClick = {
+        scope.launch {
+            // 执行协程
+        }
+    }) {
+        Text("Click")
     }
 }
 ```
 
 ---
 
-## 3. Composable 函数
+## 第 3 章 Composable 函数
 
-### 3.1 基本结构
+### 3.1 Composable 注解
 
 ```kotlin
-// @Composable 注解
+/**
+ * @Composable 注解
+ * 
+ * 作用：
+ * 1. 标记函数为可组合函数
+ * 2. 编译器会生成额外代码
+ * 3. 只能在其他 Composable 中调用
+ */
+
+// 基本用法
 @Composable
-fun MyComposable(
-    // 参数（不可变）
+fun SimpleText(text: String) {
+    Text(text)
+}
+
+// 带默认参数
+@Composable
+fun Card(
     title: String,
-    // 可选参数
     modifier: Modifier = Modifier,
-    // 函数类型参数
     onClick: () -> Unit = {}
 ) {
-    // 函数体
-    Text(
-        text = title,
-        modifier = modifier.clickable { onClick() }
-    )
+    Surface(
+        modifier = modifier.clickable(onClick = onClick),
+        elevation = CardDefaults.cardElevation(4.dp)
+    ) {
+        Text(title)
+    }
+}
+
+// 接收 Composable 参数
+@Composable
+fun Container(
+    content: @Composable () -> Unit
+) {
+    Surface {
+        content()
+    }
+}
+
+// 使用
+Container {
+    Text("Hello")
 }
 ```
 
-### 3.2 函数命名约定
+### 3.2 函数规则与约定
 
 ```kotlin
+/**
+ * Composable 函数规则
+ */
+
 // ✅ 正确：名词，表示 UI 组件
 @Composable
 fun UserProfileCard() { }
 
-// ✅ 正确：动词 + 名词，表示动作
 @Composable
-fun DrawDivider() { }
+fun MovieList() { }
+
+// ✅ 正确：小写开头的扩展函数返回 Modifier
+fun Modifier.roundedCorner(radius: Dp): Modifier {
+    return this.clip(RoundedCornerShape(radius))
+}
 
 // ❌ 错误：动词，不表示 UI
 @Composable
-fun LoadData() { }  // 应该用普通函数
+fun LoadData() { }  // 应该是普通函数
 
-// ✅ 正确：小写字母开头表示返回 Modifier
-fun Modifier.roundedCorner() = this.then(
-    Modifier.clip(RoundedCornerShape(8.dp))
-)
+// ❌ 错误：有返回值
+@Composable
+fun WrongReturn(): String {  // Composable 应返回 Unit
+    return "Hello"
+}
+
+// ✅ 正确：返回 Unit（隐式）
+@Composable
+fun CorrectFunction() {
+    // 函数体
+}
 ```
 
-### 3.3 remember 和 rememberSaveable
+### 3.3 remember 与记忆化
 
 ```kotlin
+/**
+ * remember：在重组中保持状态
+ */
+
 @Composable
 fun RememberExample() {
-    // remember：在重组中保持状态
+    // 1. 基础 remember
     var count by remember { mutableStateOf(0) }
     
-    // rememberSaveable：在配置更改（如旋转）后也能保持
-    var savedCount by rememberSaveable { mutableStateOf(0) }
-    
-    // remember 保存复杂对象
-    val dataList = remember {
-        mutableListOf<String>()  // 注意：这里不应该用可变列表
+    // 2. remember 计算值
+    val formattedDate = remember { 
+        SimpleDateFormat("yyyy-MM-dd").format(Date())
     }
     
-    // 正确方式：使用不可变列表 + 重新赋值
-    var items by remember { mutableStateOf(listOf<String>()) }
+    // 3. remember 带依赖
+    val filteredList = remember(items, filter) {
+        items.filter { it.matches(filter) }
+    }
     
-    Column {
-        Text("Count: $count")
-        Button(onClick = { count++ }) {
-            Text("Increment")
+    // 4. rememberSaveable：配置更改后保持
+    var text by rememberSaveable { mutableStateOf("") }
+    
+    // 5. 自定义 Saver
+    data class User(val id: Int, val name: String)
+    
+    val userSaver = Saver<User?, String>(
+        save = { it?.let { "${it.id},${it.name}" } },
+        restore = { 
+            it?.split(",")?.let { (id, name) -> 
+                User(id.toInt(), name) 
+            }
         }
+    )
+    
+    var user by rememberSaveable(stateSaver = userSaver) { 
+        mutableStateOf(null) 
     }
 }
 ```
 
-### 3.4 稳定性（Stability）
+### 3.4 重组与智能跳过
 
 ```kotlin
-// 稳定类型：不可变且可预测
-data class User(
-    val id: Int,
-    val name: String  // String 是稳定的
-)
+/**
+ * 重组（Recomposition）
+ * 
+ * 特点：
+ * 1. 智能跳过：输入未变化时跳过
+ * 2. 可能频繁执行：避免副作用
+ * 3. 可并行执行：不要依赖外部状态
+ * 4. 可能被放弃：乐观执行
+ */
 
-// 不稳定类型：可变或有不可预测的变化
-data class MutableUser(
-    val id: Int,
-    var name: String  // var 使其不稳定
-)
+@Composable
+fun RecompositionExample(name: String) {
+    // ❌ 错误：在 Composable 中执行副作用
+    // loadData()  // 每次重组都会执行
+    
+    // ✅ 正确：使用 LaunchedEffect
+    LaunchedEffect(name) {
+        loadData(name)
+    }
+    
+    // ✅ 正确：使用 remember 缓存计算
+    val processedName = remember(name) {
+        name.uppercase()
+    }
+    
+    Text(processedName)
+}
 
-// 使用 @Immutable 注解标记稳定类型
-@Immutable
+// 稳定性注解
+@Immutable  // 标记为完全不可变
 data class ImmutableUser(
     val id: Int,
     val name: String
 )
 
-// 使用 @Stable 注解标记有条件稳定的类型
-@Stable
-data class StableUser(
-    val id: Int,
-    private var _name: String
-) {
-    val name: String get() = _name
-    
-    fun updateName(newName: String) {
-        _name = newName
-    }
+@Stable  // 标记为可观察的变化
+class StableUser {
+    var name: String by mutableStateOf("")
 }
 ```
 
 ---
 
-## 4. State 状态管理
+## 第 4 章 State 状态管理
 
-### 4.1 State 基础
+### 4.1 State 与 MutableState
 
 ```kotlin
+/**
+ * State：可观察的状态容器
+ */
+
 @Composable
-fun StateBasics() {
-    // mutableStateOf 创建可观察的状态
-    var text by remember { mutableStateOf("") }
-    
-    // 也可以使用 delegate 语法
+fun StateExample() {
+    // 1. 创建状态
+    var count by remember { mutableStateOf(0) }
     val textState = remember { mutableStateOf("") }
     
-    Column {
-        // TextField 会自动更新状态
-        TextField(
-            value = text,
-            onValueChange = { text = it },
-            label = { Text("Enter text") }
-        )
-        
-        // Text 会自动响应状态变化
-        Text("You typed: $text")
+    // 2. 读取状态
+    Text("Count: $count")
+    Text("Text: ${textState.value}")
+    
+    // 3. 修改状态
+    Button(onClick = { count++ }) {
+        Text("Increment")
     }
-}
-```
-
-### 4.2 State 类型
-
-```kotlin
-@Composable
-fun StateTypes() {
-    // 基本类型
-    var intValue by remember { mutableStateOf(0) }
-    var stringValue by remember { mutableStateOf("") }
-    var booleanValue by remember { mutableStateOf(false) }
     
-    // 集合类型
-    var listValue by remember { mutableStateOf(listOf<String>()) }
-    var mapValue by remember { mutableStateOf(mapOf<String, Int>()) }
-    
-    // 自定义对象
-    data class User(val name: String, val age: Int)
-    var userValue by remember { mutableStateOf(User("", 0)) }
-    
-    // 使用 mutableStateListOf
+    // 4. 集合状态
     val items = remember { mutableStateListOf<String>() }
-    items.add("New Item")  // 直接修改
+    items.add("New Item")
     
-    // 使用 mutableStateMapOf
     val map = remember { mutableStateMapOf<String, Int>() }
     map["key"] = 123
 }
 ```
 
-### 4.3 State Hoisting（状态提升）
+### 4.2 状态提升
 
 ```kotlin
+/**
+ * 状态提升：将状态移到调用者
+ */
+
 // ❌ 错误：状态在组件内部
 @Composable
 fun BadCounter() {
@@ -406,15 +705,15 @@ fun BadCounter() {
 // ✅ 正确：状态提升到调用者
 @Composable
 fun GoodCounter(
-    count: Int,
-    onIncrement: () -> Unit
+    count: Int,              // 状态由外部传入
+    onIncrement: () -> Unit  // 事件由外部处理
 ) {
     Button(onClick = onIncrement) {
         Text("Count: $count")
     }
 }
 
-// 使用示例
+// 使用
 @Composable
 fun CounterScreen() {
     var count by remember { mutableStateOf(0) }
@@ -426,168 +725,174 @@ fun CounterScreen() {
 }
 ```
 
-### 4.4 Stateful vs Stateless
+### 4.3 rememberSaveable
 
 ```kotlin
-// Stateful：包含内部状态
-@Composable
-fun StatefulCounter() {
-    var count by remember { mutableStateOf(0) }
-    
-    Column {
-        Text("Count: $count")
-        Button(onClick = { count++ }) {
-            Text("Increment")
-        }
-    }
-}
+/**
+ * rememberSaveable：配置更改后保持状态
+ */
 
-// Stateless：无内部状态，完全由外部控制
 @Composable
-fun StatelessCounter(
-    count: Int,
-    onIncrement: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Column(modifier = modifier) {
-        Text("Count: $count")
-        Button(onClick = onIncrement) {
-            Text("Increment")
-        }
+fun SaveableExample() {
+    // 1. 基础用法
+    var text by rememberSaveable { mutableStateOf("") }
+    
+    // 2. 保存列表
+    var items by rememberSaveable { mutableStateOf(listOf<String>()) }
+    
+    // 3. 自定义 Saver
+    data class User(val id: Int, val name: String)
+    
+    val userSaver = listSaver<User, Any>(
+        save = { listOf(it.id, it.name) },
+        restore = { User(it[0] as Int, it[1] as String) }
+    )
+    
+    var user by rememberSaveable(stateSaver = userSaver) { 
+        mutableStateOf(User(0, "")) 
     }
 }
 ```
 
-### 4.5 状态持久化
+### 4.4 StateFlow 集成
 
 ```kotlin
-@Composable
-fun PersistentState() {
-    // rememberSaveable：配置更改后保持状态
-    var text by rememberSaveable { mutableStateOf("") }
+/**
+ * StateFlow 与 Compose 集成
+ */
+
+// ViewModel
+class UserViewModel : ViewModel() {
+    private val _user = MutableStateFlow(User())
+    val user: StateFlow<User> = _user.asStateFlow()
     
-    // 自定义 Saver
-    data class User(val id: Int, val name: String)
-    
-    val userSaver = Saver<User?, String>(
-        save = { it?.let { "${it.id},${it.name}" } },
-        restore = { 
-            it?.split(",")?.let { parts ->
-                User(parts[0].toInt(), parts[1])
-            }
-        }
-    )
-    
-    var user by rememberSaveable(stateSaver = userSaver) { 
-        mutableStateOf(null) 
+    fun updateName(name: String) {
+        _user.update { it.copy(name = name) }
     }
+}
+
+// Composable
+@Composable
+fun UserScreen(viewModel: UserViewModel = viewModel()) {
+    // 收集 StateFlow
+    val user by viewModel.user.collectAsState()
     
-    // ListSaver
-    val listSaver = listSaver<User?, Any>(
-        save = { listOf(it?.id, it?.name) },
-        restore = { User(it[0] as Int, it[1] as String) }
-    )
+    Column {
+        Text("Name: ${user.name}")
+        Button(onClick = { viewModel.updateName("New Name") }) {
+            Text("Update")
+        }
+    }
 }
 ```
 
 ---
 
-## 5. Modifier 修饰符
+## 第 5 章 Modifier 修饰符
 
 ### 5.1 Modifier 基础
 
 ```kotlin
+/**
+ * Modifier：修饰 Composable 的外观和行为
+ */
+
 @Composable
 fun ModifierBasics() {
     Box(
         modifier = Modifier
-            .size(100.dp)           // 设置大小
-            .background(Color.Blue) // 设置背景
-            .padding(16.dp)         // 设置内边距
-            .border(2.dp, Color.Red) // 设置边框
+            .size(100.dp)           // 大小
+            .padding(16.dp)         // 内边距
+            .background(Color.Blue) // 背景
+            .border(2.dp, Color.Red)// 边框
+            .clickable { }          // 点击
     )
 }
 ```
 
-### 5.2 顺序很重要
-
-```kotlin
-@Composable
-fun ModifierOrder() {
-    // ❌ 错误：padding 在 background 后，背景不会包含 padding 区域
-    Box(
-        modifier = Modifier
-            .background(Color.Blue)
-            .padding(16.dp)
-    )
-    
-    // ✅ 正确：padding 在 background 前，背景包含 padding 区域
-    Box(
-        modifier = Modifier
-            .padding(16.dp)
-            .background(Color.Blue)
-    )
-    
-    // 点击区域也受顺序影响
-    Box(
-        modifier = Modifier
-            .clickable { }      // 整个 Box 可点击
-            .size(100.dp)
-    )
-    
-    Box(
-        modifier = Modifier
-            .size(100.dp)
-            .clickable { }      // 只有 100.dp 区域可点击
-    )
-}
-```
-
-### 5.3 常用 Modifier
+### 5.2 常用修饰符
 
 ```kotlin
 @Composable
 fun CommonModifiers() {
     Column {
-        // 尺寸
-        Box(modifier = Modifier.size(100.dp))
-        Box(modifier = Modifier.width(100.dp).height(50.dp))
-        Box(modifier = Modifier.fillMaxSize())
-        Box(modifier = Modifier.fillMaxWidth())
-        Box(modifier = Modifier.wrapContentSize())
+        // ===== 尺寸 =====
+        Box(Modifier.size(100.dp))
+        Box(Modifier.width(100.dp).height(50.dp))
+        Box(Modifier.fillMaxSize())
+        Box(Modifier.fillMaxWidth())
+        Box(Modifier.wrapContentSize())
         
-        // 内边距
-        Box(modifier = Modifier.padding(16.dp))
-        Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
-        Box(modifier = Modifier.padding(start = 8.dp, top = 4.dp, end = 8.dp, bottom = 4.dp))
+        // ===== 间距 =====
+        Box(Modifier.padding(16.dp))
+        Box(Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
         
-        // 外边距（offset 不影响布局）
-        Box(modifier = Modifier.offset(10.dp, 20.dp))
+        // ===== 背景 =====
+        Box(Modifier.background(Color.Blue))
+        Box(Modifier.background(Color.Blue, RoundedCornerShape(8.dp)))
         
-        // 背景
-        Box(modifier = Modifier.background(Color.Blue))
-        Box(modifier = Modifier.background(Color.Blue, RoundedCornerShape(8.dp)))
+        // ===== 边框 =====
+        Box(Modifier.border(2.dp, Color.Red))
+        Box(Modifier.border(2.dp, Color.Red, RoundedCornerShape(8.dp)))
         
-        // 边框
-        Box(modifier = Modifier.border(2.dp, Color.Red))
-        Box(modifier = Modifier.border(2.dp, Color.Red, RoundedCornerShape(8.dp)))
+        // ===== 裁剪 =====
+        Box(Modifier.clip(RoundedCornerShape(8.dp)))
+        Box(Modifier.clip(CircleShape))
         
-        // 裁剪
-        Box(modifier = Modifier.clip(RoundedCornerShape(8.dp)))
-        Box(modifier = Modifier.clip(CircleShape))
+        // ===== 变换 =====
+        Box(Modifier.alpha(0.5f))
+        Box(Modifier.rotate(45f))
+        Box(Modifier.scale(1.5f))
         
-        // 透明度
-        Box(modifier = Modifier.alpha(0.5f))
-        
-        // 旋转、缩放
-        Box(modifier = Modifier.rotate(45f))
-        Box(modifier = Modifier.scale(1.5f))
-        
-        // 权重（在 Row/Column 中）
+        // ===== 布局 =====
         Row {
-            Box(modifier = Modifier.weight(1f).height(50.dp).background(Color.Red))
-            Box(modifier = Modifier.weight(2f).height(50.dp).background(Color.Blue))
+            Box(Modifier.weight(1f).height(50.dp).background(Color.Red))
+            Box(Modifier.weight(2f).height(50.dp).background(Color.Blue))
         }
+    }
+}
+```
+
+### 5.3 顺序的重要性
+
+```kotlin
+/**
+ * Modifier 顺序影响最终效果
+ */
+
+@Composable
+fun ModifierOrder() {
+    Column {
+        // 背景包含 padding 区域
+        Box(
+            modifier = Modifier
+                .padding(16.dp)
+                .background(Color.Blue)
+                .size(100.dp)
+        )
+        
+        // 背景不包含 padding 区域
+        Box(
+            modifier = Modifier
+                .background(Color.Blue)
+                .padding(16.dp)
+                .size(100.dp)
+        )
+        
+        // 点击区域顺序
+        Box(
+            modifier = Modifier
+                .size(100.dp)
+                .clickable { }  // 只有 100.dp 可点击
+                .background(Color.Red)
+        )
+        
+        Box(
+            modifier = Modifier
+                .clickable { }  // 整个区域可点击
+                .size(100.dp)
+                .background(Color.Red)
+        )
     }
 }
 ```
@@ -595,7 +900,11 @@ fun CommonModifiers() {
 ### 5.4 自定义 Modifier
 
 ```kotlin
-// 扩展函数创建自定义 Modifier
+/**
+ * 自定义 Modifier
+ */
+
+// 使用 composed
 fun Modifier.shimmer(): Modifier = composed {
     var size by remember { mutableStateOf(IntSize.Zero) }
     val transition = rememberInfiniteTransition(label = "shimmer")
@@ -603,8 +912,8 @@ fun Modifier.shimmer(): Modifier = composed {
     val startOffsetX by transition.animateFloat(
         initialValue = -2 * size.width.toFloat(),
         targetValue = 2 * size.width.toFloat(),
-        animationSpec = infiniteRepeatable(animation = tween(1000)),
-        label = "shimmerOffset"
+        animationSpec = infiniteRepeatable(tween(1000)),
+        label = "offset"
     )
     
     background(
@@ -620,44 +929,21 @@ fun Modifier.shimmer(): Modifier = composed {
 // 使用
 @Composable
 fun ShimmerExample() {
-    Box(
-        modifier = Modifier
-            .size(200.dp)
-            .shimmer()
-    )
+    Box(Modifier.size(200.dp).shimmer())
 }
-```
-
-### 5.5 Modifier 链式调用原理
-
-```kotlin
-// Modifier 是一个接口
-interface Modifier {
-    // 组合多个 Modifier
-    infix fun then(other: Modifier): Modifier
-    
-    companion object : Modifier {
-        override fun then(other: Modifier): Modifier = other
-    }
-}
-
-// 链式调用实际上是在组合
-Modifier
-    .size(100.dp)
-    .padding(16.dp)
-    .background(Color.Blue)
-
-// 等价于
-Modifier.size(100.dp) then Modifier.padding(16.dp) then Modifier.background(Color.Blue)
 ```
 
 ---
 
-## 6. Layout 布局
+## 第 6 章 布局组件
 
-### 6.1 Column（垂直布局）
+### 6.1 Column 纵向布局
 
 ```kotlin
+/**
+ * Column：垂直排列子元素
+ */
+
 @Composable
 fun ColumnExample() {
     Column(
@@ -671,21 +957,28 @@ fun ColumnExample() {
     }
 }
 
-// Arrangement 选项
-// - SpaceBetween：两端对齐，中间平分
-// - SpaceEvenly：均匀分布
-// - SpaceAround：每个元素两侧相等间距
-// - Center：居中
-// - Top/Bottom：顶部/底部对齐
+// Arrangement 选项：
+// - Top: 顶部对齐
+// - Center: 居中
+// - Bottom: 底部对齐
+// - SpaceBetween: 两端对齐
+// - SpaceEvenly: 均匀分布
+// - SpaceAround: 环绕分布
 
-// Alignment 选项
-// - Start/CenterHorizontally/End
+// Alignment 选项：
+// - Start: 左对齐
+// - CenterHorizontally: 水平居中
+// - End: 右对齐
 ```
 
-### 6.2 Row（水平布局）
+### 6.2 Row 横向布局
 
 ```kotlin
-@Comotlin
+/**
+ * Row：水平排列子元素
+ */
+
+@Composable
 fun RowExample() {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -699,14 +992,16 @@ fun RowExample() {
 }
 ```
 
-### 6.3 Box（层叠布局）
+### 6.3 Box 堆叠布局
 
 ```kotlin
+/**
+ * Box：层叠子元素
+ */
+
 @Composable
 fun BoxExample() {
-    Box(
-        modifier = Modifier.size(200.dp)
-    ) {
+    Box(modifier = Modifier.size(200.dp)) {
         // 底层
         Box(
             modifier = Modifier
@@ -714,9 +1009,9 @@ fun BoxExample() {
                 .background(Color.Blue)
         )
         
-        // 顶层，居中
+        // 居中
         Text(
-            text = "Overlay",
+            text = "Center",
             modifier = Modifier.align(Alignment.Center)
         )
         
@@ -729,37 +1024,42 @@ fun BoxExample() {
 }
 ```
 
-### 6.4 ConstraintLayout（约束布局）
+### 6.4 ConstraintLayout
 
 ```kotlin
-// 添加依赖：implementation("androidx.constraintlayout:constraintlayout-compose:1.0.1")
+/**
+ * ConstraintLayout：约束布局
+ */
+
+// 添加依赖
+// implementation("androidx.constraintlayout:constraintlayout-compose:1.0.1")
 
 @Composable
 fun ConstraintLayoutExample() {
     ConstraintLayout(modifier = Modifier.fillMaxSize()) {
         // 创建引用
-        val (text1, text2, button) = createRefs()
+        val (title, subtitle, button) = createRefs()
         
         Text(
-            text = "Text 1",
-            modifier = Modifier.constrainAs(text1) {
+            text = "Title",
+            modifier = Modifier.constrainAs(title) {
                 top.linkTo(parent.top, margin = 16.dp)
                 start.linkTo(parent.start, margin = 16.dp)
             }
         )
         
         Text(
-            text = "Text 2",
-            modifier = Modifier.constrainAs(text2) {
-                top.linkTo(text1.bottom, margin = 8.dp)
-                start.linkTo(text1.start)
+            text = "Subtitle",
+            modifier = Modifier.constrainAs(subtitle) {
+                top.linkTo(title.bottom, margin = 8.dp)
+                start.linkTo(title.start)
             }
         )
         
         Button(
             onClick = { },
             modifier = Modifier.constrainAs(button) {
-                top.linkTo(text2.bottom, margin = 16.dp)
+                top.linkTo(subtitle.bottom, margin = 16.dp)
                 start.linkTo(parent.start)
                 end.linkTo(parent.end)
             }
@@ -773,23 +1073,9 @@ fun ConstraintLayoutExample() {
 ### 6.5 自定义 Layout
 
 ```kotlin
-@Composable
-fun CustomLayoutExample() {
-    // 自定义瀑布流布局
-    StaggeredGrid(
-        rows = 3,
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        for (i in 0..10) {
-            Text(
-                text = "Item $i",
-                modifier = Modifier
-                    .background(Color.LightGray)
-                    .padding(8.dp)
-            )
-        }
-    }
-}
+/**
+ * 自定义 Layout
+ */
 
 @Composable
 fun StaggeredGrid(
@@ -797,44 +1083,31 @@ fun StaggeredGrid(
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit
 ) {
-    Layout(
-        content = content,
-        modifier = modifier
-    ) { measurables, constraints ->
-        // 测量所有子元素
-        val placeables = measurables.map { measurable ->
-            measurable.measure(constraints)
-        }
+    Layout(content, modifier) { measurables, constraints ->
+        // 测量子元素
+        val placeables = measurables.map { it.measure(constraints) }
         
-        // 计算每行的宽度
-        val rowWidths = IntArray(rows) { 0 }
-        placeables.forEachIndexed { index, placeable ->
-            val row = index % rows
-            rowWidths[row] += placeable.width
-        }
-        
-        // 计算最大宽度
-        val maxWidth = rowWidths.maxOrNull() ?: constraints.minWidth
-        
-        // 计算高度
+        // 计算行高
         val rowHeights = IntArray(rows) { 0 }
         placeables.forEachIndexed { index, placeable ->
             val row = index % rows
             rowHeights[row] = maxOf(rowHeights[row], placeable.height)
         }
-        val totalHeight = rowHeights.sumOf { it }
+        
+        // 计算总高度
+        val totalHeight = rowHeights.sum()
         
         // 设置布局大小
-        layout(maxWidth, totalHeight) {
+        layout(constraints.maxWidth, totalHeight) {
             // 放置子元素
             val rowX = IntArray(rows) { 0 }
+            val rowY = IntArray(rows) { 0 }
+            
             placeables.forEachIndexed { index, placeable ->
                 val row = index % rows
-                placeable.place(
-                    x = rowX[row],
-                    y = rowHeights.take(row).sum()
-                )
+                placeable.place(rowX[row], rowY[row])
                 rowX[row] += placeable.width
+                rowY[row + 1] = rowY[row] + rowHeights[row]
             }
         }
     }
@@ -843,21 +1116,20 @@ fun StaggeredGrid(
 
 ---
 
-## 7. Material Design 组件
+## 第 7 章 Material Design 组件
 
-### 7.1 Button 系列
+### 7.1 Button 按钮
 
 ```kotlin
+/**
+ * Button 组件
+ */
+
 @Composable
 fun ButtonExamples() {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        // 普通按钮
+        // 填充按钮
         Button(onClick = { }) {
-            Text("Button")
-        }
-        
-        // 填充按钮（默认）
-        FilledButton(onClick = { }) {
             Text("Filled Button")
         }
         
@@ -876,48 +1148,38 @@ fun ButtonExamples() {
             Text("Elevated Button")
         }
         
-        // tonal 按钮
-        FilledTonalButton(onClick = { }) {
-            Text("Tonal Button")
-        }
-        
         // 图标按钮
         IconButton(onClick = { }) {
-            Icon(Icons.Default.Favorite, contentDescription = "Favorite")
-        }
-        
-        // 带图标的按钮
-        Button(onClick = { }) {
-            Icon(
-                imageVector = Icons.Default.Add,
-                contentDescription = null,
-                modifier = Modifier.size(ButtonDefaults.IconSize)
-            )
-            Spacer(Modifier.size(ButtonDefaults.IconSpacing))
-            Text("Add")
+            Icon(Icons.Default.Favorite, "Favorite")
         }
         
         // 悬浮按钮
         FloatingActionButton(onClick = { }) {
-            Icon(Icons.Default.Add, contentDescription = "Add")
+            Icon(Icons.Default.Add, "Add")
         }
         
-        // 扩展悬浮按钮
-        ExtendedFloatingActionButton(
-            onClick = { },
-            icon = { Icon(Icons.Default.Add, contentDescription = null) },
-            text = { Text("Add") }
-        )
+        // 带图标的按钮
+        Button(onClick = { }) {
+            Icon(Icons.Default.Add, null, Modifier.size(18.dp))
+            Spacer(Modifier.width(8.dp))
+            Text("Add")
+        }
     }
 }
 ```
 
-### 7.2 TextField 系列
+### 7.2 TextField 输入框
 
 ```kotlin
+/**
+ * TextField 组件
+ */
+
 @Composable
 fun TextFieldExamples() {
     var text by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var passwordVisible by remember { mutableStateOf(false) }
     
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         // 基础输入框
@@ -927,22 +1189,17 @@ fun TextFieldExamples() {
             label = { Text("Label") }
         )
         
-        // 填充输入框
+        // 描边输入框
         OutlinedTextField(
             value = text,
             onValueChange = { text = it },
             label = { Text("Label") },
             placeholder = { Text("Placeholder") },
             leadingIcon = { Icon(Icons.Default.Person, null) },
-            trailingIcon = { Icon(Icons.Default.Visibility, null) },
-            isError = false,
             singleLine = true
         )
         
         // 密码输入框
-        var password by remember { mutableStateOf("") }
-        var passwordVisible by remember { mutableStateOf(false) }
-        
         OutlinedTextField(
             value = password,
             onValueChange = { password = it },
@@ -954,11 +1211,9 @@ fun TextFieldExamples() {
             trailingIcon = {
                 IconButton(onClick = { passwordVisible = !passwordVisible }) {
                     Icon(
-                        imageVector = if (passwordVisible) 
-                            Icons.Default.Visibility 
-                        else 
-                            Icons.Default.VisibilityOff,
-                        contentDescription = "Toggle password visibility"
+                        if (passwordVisible) Icons.Default.Visibility
+                        else Icons.Default.VisibilityOff,
+                        "Toggle"
                     )
                 }
             }
@@ -967,59 +1222,51 @@ fun TextFieldExamples() {
 }
 ```
 
-### 7.3 Card
+### 7.3 Card 卡片
 
 ```kotlin
+/**
+ * Card 组件
+ */
+
 @Composable
 fun CardExamples() {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         // 基础卡片
         Card {
-            Text("Card content", modifier = Modifier.padding(16.dp))
+            Text("Card content", Modifier.padding(16.dp))
         }
         
         // Elevated 卡片
         ElevatedCard {
-            Text("Elevated card", modifier = Modifier.padding(16.dp))
-        }
-        
-        // Outlined 卡片
-        OutlinedCard {
-            Text("Outlined card", modifier = Modifier.padding(16.dp))
+            Text("Elevated card", Modifier.padding(16.dp))
         }
         
         // 自定义卡片
         Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            shape = RoundedCornerShape(8.dp),
+            modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(
                 containerColor = MaterialTheme.colorScheme.primaryContainer
             ),
-            elevation = CardDefaults.cardElevation(
-                defaultElevation = 8.dp
-            )
+            elevation = CardDefaults.cardElevation(8.dp)
         ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text(
-                    text = "Card Title",
-                    style = MaterialTheme.typography.titleLarge
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = "Card description goes here",
-                    style = MaterialTheme.typography.bodyMedium
-                )
+            Column(Modifier.padding(16.dp)) {
+                Text("Card Title", style = MaterialTheme.typography.titleLarge)
+                Spacer(Modifier.height(8.dp))
+                Text("Card content")
             }
         }
     }
 }
 ```
 
-### 7.4 Dialog
+### 7.4 Dialog 对话框
 
 ```kotlin
+/**
+ * Dialog 组件
+ */
+
 @Composable
 fun DialogExamples() {
     var showDialog by remember { mutableStateOf(false) }
@@ -1029,12 +1276,12 @@ fun DialogExamples() {
             Text("Show Dialog")
         }
         
-        // 基础对话框
+        // AlertDialog
         if (showDialog) {
             AlertDialog(
                 onDismissRequest = { showDialog = false },
                 title = { Text("Dialog Title") },
-                text = { Text("Dialog content goes here") },
+                text = { Text("Dialog content") },
                 confirmButton = {
                     TextButton(onClick = { showDialog = false }) {
                         Text("Confirm")
@@ -1049,119 +1296,61 @@ fun DialogExamples() {
         }
     }
 }
-
-// 自定义 Dialog
-@Composable
-fun CustomDialogExample() {
-    var showCustomDialog by remember { mutableStateOf(false) }
-    
-    if (showCustomDialog) {
-        Dialog(onDismissRequest = { showCustomDialog = false }) {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                shape = RoundedCornerShape(16.dp)
-            ) {
-                Column(
-                    modifier = Modifier.padding(24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text("Custom Dialog")
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text("This is a custom dialog content")
-                    Spacer(modifier = Modifier.height(24.dp))
-                    Button(onClick = { showCustomDialog = false }) {
-                        Text("Close")
-                    }
-                }
-            }
-        }
-    }
-}
 ```
 
-### 7.5 其他常用组件
+### 7.5 其他组件
 
 ```kotlin
 @Composable
 fun OtherComponents() {
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        // Chip
-        AssistChip(
-            onClick = { },
-            label = { Text("Chip") },
-            leadingIcon = {
-                Icon(Icons.Default.Star, null, Modifier.size(16.dp))
-            }
-        )
-        
         // Switch
         var checked by remember { mutableStateOf(false) }
-        Switch(
-            checked = checked,
-            onCheckedChange = { checked = it }
-        )
+        Switch(checked = checked, onCheckedChange = { checked = it })
         
         // Checkbox
         var checkedBox by remember { mutableStateOf(false) }
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Checkbox(
-                checked = checkedBox,
-                onCheckedChange = { checkedBox = it }
-            )
+            Checkbox(checked = checkedBox, onCheckedChange = { checkedBox = it })
             Text("Checkbox")
         }
         
         // RadioButton
-        var selectedOption by remember { mutableStateOf(0) }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            RadioButton(
-                selected = selectedOption == 0,
-                onClick = { selectedOption = 0 }
-            )
+        var selected by remember { mutableStateOf(0) }
+        Row {
+            RadioButton(selected = selected == 0, onClick = { selected = 0 })
             Text("Option 1")
-            Spacer(modifier = Modifier.width(16.dp))
-            RadioButton(
-                selected = selectedOption == 1,
-                onClick = { selectedOption = 1 }
-            )
+            RadioButton(selected = selected == 1, onClick = { selected = 1 })
             Text("Option 2")
         }
         
         // Slider
         var sliderValue by remember { mutableStateOf(0f) }
-        Slider(
-            value = sliderValue,
-            onValueChange = { sliderValue = it },
-            valueRange = 0f..100f
-        )
+        Slider(value = sliderValue, onValueChange = { sliderValue = it })
         
         // Progress
         LinearProgressIndicator(progress = 0.7f)
         CircularProgressIndicator(progress = 0.7f)
         
         // Badge
-        BadgedBox(
-            badge = { Badge { Text("99+") } }
-        ) {
-            Icon(Icons.Default.Mail, contentDescription = "Mail")
+        BadgedBox(badge = { Badge { Text("99+") } }) {
+            Icon(Icons.Default.Mail, "Mail")
         }
-        
-        // Divider
-        HorizontalDivider(thickness = 1.dp, color = Color.Gray)
-        VerticalDivider(thickness = 1.dp, color = Color.Gray)
     }
 }
 ```
 
 ---
 
-## 8. 列表（LazyColumn/LazyRow）
+## 第 8 章 列表
 
 ### 8.1 LazyColumn
 
 ```kotlin
+/**
+ * LazyColumn：高性能垂直列表
+ */
+
 @Composable
 fun LazyColumnExample() {
     val items = (1..100).toList()
@@ -1170,53 +1359,20 @@ fun LazyColumnExample() {
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        // 单个项
+        // 基础用法
         items(items) { item ->
-            Card {
-                Text(
-                    text = "Item $item",
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp)
-                )
-            }
+            Card { Text("Item $item", Modifier.padding(16.dp)) }
         }
         
-        // 带键的项（提高性能）
-        items(
-            items = items,
-            key = { item -> item }
-        ) { item ->
-            Card {
-                Text("Item $item")
-            }
+        // 带 key（提高性能）
+        items(items, key = { it }) { item ->
+            Card { Text("Item $item") }
         }
         
-        // 带类型的项
-        items(
-            items = items,
-            contentType = { item -> if (item % 2 == 0) "even" else "odd" }
-        ) { item ->
-            if (item % 2 == 0) {
-                EvenItem(item)
-            } else {
-                OddItem(item)
-            }
+        // 带 contentType（优化回收）
+        items(items, contentType = { if (it % 2 == 0) "even" else "odd" }) {
+            // ...
         }
-    }
-}
-
-@Composable
-fun EvenItem(item: Int) {
-    Card(colors = CardDefaults.cardColors(containerColor = Color.Blue)) {
-        Text("Even: $item", modifier = Modifier.padding(16.dp))
-    }
-}
-
-@Composable
-fun OddItem(item: Int) {
-    Card(colors = CardDefaults.cardColors(containerColor = Color.Red)) {
-        Text("Odd: $item", modifier = Modifier.padding(16.dp))
     }
 }
 ```
@@ -1233,9 +1389,7 @@ fun LazyRowExample() {
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         items(items) { item ->
-            Card(
-                modifier = Modifier.size(100.dp)
-            ) {
+            Card(Modifier.size(100.dp)) {
                 Box(contentAlignment = Alignment.Center) {
                     Text("Item $item")
                 }
@@ -1253,176 +1407,64 @@ fun LazyGridExample() {
     val items = (1..50).toList()
     
     LazyVerticalGrid(
-        columns = GridCells.Fixed(3),  // 固定 3 列
+        columns = GridCells.Fixed(3),
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         items(items) { item ->
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(1f)
-            ) {
+            Card(Modifier.aspectRatio(1f)) {
                 Box(contentAlignment = Alignment.Center) {
                     Text("Item $item")
                 }
             }
         }
     }
-    
-    // 自适应宽度
-    LazyVerticalGrid(
-        columns = GridCells.Adaptive(minSize = 100.dp)
-    ) {
-        // ...
-    }
 }
 ```
 
-### 8.4 Header 和 Footer
-
-```kotlin
-@Composable
-fun LazyListWithHeader() {
-    LazyColumn {
-        // Header
-        item {
-            Text(
-                text = "Header",
-                style = MaterialTheme.typography.headlineMedium,
-                modifier = Modifier.padding(16.dp)
-            )
-        }
-        
-        // 列表项
-        items((1..20).toList()) { item ->
-            Text("Item $item", modifier = Modifier.padding(16.dp))
-        }
-        
-        // Footer
-        item {
-            Text(
-                text = "Footer",
-                modifier = Modifier.padding(16.dp)
-            )
-        }
-    }
-}
-```
-
-### 8.5 分组列表
-
-```kotlin
-data class Group(
-    val title: String,
-    val items: List<String>
-)
-
-@Composable
-fun GroupedList(groups: List<Group>) {
-    LazyColumn {
-        groups.forEach { group ->
-            // 组标题
-            stickyHeader {
-                Text(
-                    text = group.title,
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(MaterialTheme.colorScheme.primaryContainer)
-                        .padding(8.dp)
-                )
-            }
-            
-            // 组内项
-            items(group.items) { item ->
-                Text(
-                    text = item,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-                )
-            }
-        }
-    }
-}
-```
-
-### 8.6 性能优化
+### 8.4 性能优化
 
 ```kotlin
 @Composable
 fun OptimizedList() {
     // 1. 使用 key 提高重组效率
     LazyColumn {
-        items(
-            items = items,
-            key = { item -> item.id }
-        ) { item ->
+        items(items, key = { it.id }) { item ->
             ItemView(item)
         }
     }
     
     // 2. 使用 contentType 优化回收
     LazyColumn {
-        items(
-            items = mixedItems,
-            contentType = { item -> 
-                when (item) {
-                    is Header -> "header"
-                    is Content -> "content"
-                    is Footer -> "footer"
-                }
-            }
-        ) { item ->
+        items(mixedItems, contentType = { it.type }) { item ->
             when (item) {
                 is Header -> HeaderView(item)
                 is Content -> ContentView(item)
-                is Footer -> FooterView(item)
             }
         }
     }
     
-    // 3. 避免在 items 中创建对象
-    // ❌ 错误
-    LazyColumn {
-        items(items) { item ->
-            val formattedDate = SimpleDateFormat().format(item.date)  // 每次重组都创建
-            Text(formattedDate)
-        }
-    }
-    
-    // ✅ 正确
-    LazyColumn {
-        items(items, key = { it.id }) { item ->
-            ItemView(item, item.formattedDate)  // 预先格式化
-        }
-    }
-    
-    // 4. 使用 derivedStateOf 减少重组
+    // 3. 使用 derivedStateOf 减少重组
     val filteredItems by remember {
-        derivedStateOf {
-            items.filter { it.isVisible }
-        }
+        derivedStateOf { items.filter { it.isVisible } }
     }
     
     LazyColumn {
-        items(filteredItems) { item ->
-            ItemView(item)
-        }
+        items(filteredItems) { ItemView(it) }
     }
 }
 ```
 
 ---
 
-## 9. 动画
+## 第 9 章 动画
 
-### 9.1 简单动画
+### 9.1 AnimatedVisibility
 
 ```kotlin
 @Composable
-fun SimpleAnimations() {
-    // 1. AnimatedVisibility - 可见性动画
+fun AnimatedVisibilityExample() {
     var visible by remember { mutableStateOf(true) }
     
     Column {
@@ -1438,168 +1480,107 @@ fun SimpleAnimations() {
             Text("Hello, Animation!")
         }
     }
-    
-    // 2. animateContentSize - 内容大小变化动画
-    var expanded by remember { mutableStateOf(false) }
-    
-    Column(
-        modifier = Modifier
-            .clickable { expanded = !expanded }
-            .animateContentSize()
-            .background(Color.LightGray)
-            .padding(16.dp)
-    ) {
-        Text(if (expanded) "Expanded content with more text" else "Short")
-    }
-    
-    // 3. Crossfade - 淡入淡出切换
-    var currentState by remember { mutableStateOf("A") }
-    
-    Crossfade(targetState = currentState, label = "crossfade") { state ->
-        Text("State: $state")
-    }
 }
 ```
 
-### 9.2 状态动画
+### 9.2 animate*AsState
 
 ```kotlin
 @Composable
-fun StateAnimations() {
-    // 1. animate*AsState
+fun AnimateAsStateExample() {
     var enabled by remember { mutableStateOf(false) }
     
     val color by animateColorAsState(
         targetValue = if (enabled) Color.Green else Color.Red,
-        animationSpec = tween(durationMillis = 500),
-        label = "color"
+        animationSpec = tween(500)
     )
     
     val size by animateDpAsState(
-        targetValue = if (enabled) 100.dp else 50.dp,
-        label = "size"
+        targetValue = if (enabled) 100.dp else 50.dp
     )
     
     Box(
-        modifier = Modifier
+        Modifier
             .size(size)
             .background(color)
             .clickable { enabled = !enabled }
     )
+}
+```
+
+### 9.3 Crossfade
+
+```kotlin
+@Composable
+fun CrossfadeExample() {
+    var currentState by remember { mutableStateOf("A") }
     
-    // 2. AnimatedContent
-    var count by remember { mutableStateOf(0) }
+    Crossfade(targetState = currentState) { state ->
+        Text("State: $state")
+    }
     
-    AnimatedContent(
-        targetState = count,
-        transitionSpec = {
-            if (targetState > initialState) {
-                slideInVertically { height -> height } + fadeIn() togetherWith
-                    slideOutVertically { height -> -height } + fadeOut()
-            } else {
-                slideInVertically { height -> -height } + fadeIn() togetherWith
-                    slideOutVertically { height -> height } + fadeOut()
-            }
-        },
-        label = "animatedContent"
-    ) { targetCount ->
-        Text(text = "$targetCount", fontSize = 50.sp)
+    Button(onClick = { currentState = if (currentState == "A") "B" else "A" }) {
+        Text("Switch")
     }
 }
 ```
 
-### 9.3 无限动画
+### 9.4 infiniteTransition
 
 ```kotlin
 @Composable
-fun InfiniteAnimations() {
-    // 1. rememberInfiniteTransition
-    val infiniteTransition = rememberInfiniteTransition(label = "infinite")
+fun InfiniteAnimationExample() {
+    val transition = rememberInfiniteTransition()
     
-    val color by infiniteTransition.animateColor(
+    val color by transition.animateColor(
         initialValue = Color.Red,
         targetValue = Color.Blue,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1000, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "color"
+        animationSpec = infiniteRepeatable(tween(1000), RepeatMode.Reverse)
     )
     
-    val scale by infiniteTransition.animateFloat(
+    val scale by transition.animateFloat(
         initialValue = 1f,
         targetValue = 1.5f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1000, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "scale"
+        animationSpec = infiniteRepeatable(tween(1000), RepeatMode.Reverse)
     )
     
-    Box(
-        modifier = Modifier
-            .size(100.dp)
-            .scale(scale)
-            .background(color)
-    )
+    Box(Modifier.size(100.dp).scale(scale).background(color))
 }
 ```
 
-### 9.4 AnimationSpec
+### 9.5 AnimationSpec
 
 ```kotlin
 @Composable
-fun AnimationSpecExamples() {
-    // 1. tween - 时长动画
-    val colorTween by animateColorAsState(
+fun AnimationSpecExample() {
+    // tween：时长动画
+    animateColorAsState(
         targetValue = Color.Green,
-        animationSpec = tween(
-            durationMillis = 1000,
-            delayMillis = 500,
-            easing = FastOutSlowInEasing
-        ),
-        label = "tween"
+        animationSpec = tween(1000, easing = FastOutSlowInEasing)
     )
     
-    // 2. spring - 弹簧动画
-    val sizeSpring by animateDpAsState(
+    // spring：弹簧动画
+    animateDpAsState(
         targetValue = 100.dp,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioHighBouncy,
-            stiffness = Spring.StiffnessLow
-        ),
-        label = "spring"
+        animationSpec = spring(dampingRatio = Spring.DampingRatioHighBouncy)
     )
     
-    // 3. keyframes - 关键帧动画
-    val value by animateFloatAsState(
+    // keyframes：关键帧
+    animateFloatAsState(
         targetValue = 1f,
         animationSpec = keyframes {
             durationMillis = 1000
             0f at 0
             0.5f at 500 with FastOutSlowInEasing
-            0.8f at 800
             1f at 1000
-        },
-        label = "keyframes"
-    )
-    
-    // 4. repeatable - 重复动画
-    val repeatValue by animateFloatAsState(
-        targetValue = 1f,
-        animationSpec = repeatable(
-            iterations = 3,
-            animation = tween(500),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "repeatable"
+        }
     )
 }
 ```
 
 ---
 
-## 10. 主题与样式
+## 第 10 章 主题与样式
 
 ### 10.1 Material Theme
 
@@ -1634,199 +1615,133 @@ fun MyAppTheme(
 }
 ```
 
-### 10.2 Typography
+### 10.2 ColorScheme
 
 ```kotlin
-// 定义字体
-val Typography = Typography(
-    bodyLarge = TextStyle(
-        fontFamily = FontFamily.Default,
-        fontWeight = FontWeight.Normal,
-        fontSize = 16.sp,
-        lineHeight = 24.sp,
-        letterSpacing = 0.5.sp
-    ),
-    titleLarge = TextStyle(
-        fontFamily = FontFamily.Default,
-        fontWeight = FontWeight.Bold,
-        fontSize = 22.sp,
-        lineHeight = 28.sp,
-        letterSpacing = 0.sp
-    ),
-    labelSmall = TextStyle(
-        fontFamily = FontFamily.Default,
-        fontWeight = FontWeight.Medium,
-        fontSize = 11.sp,
-        lineHeight = 16.sp,
-        letterSpacing = 0.5.sp
-    )
-)
-
-// 使用
 @Composable
-fun TypographyExample() {
+fun ColorSchemeExample() {
+    val colors = MaterialTheme.colorScheme
+    
     Column {
-        Text(
-            text = "Title Large",
-            style = MaterialTheme.typography.titleLarge
-        )
-        Text(
-            text = "Body Large",
-            style = MaterialTheme.typography.bodyLarge
-        )
+        Box(Modifier.background(colors.primary))
+        Box(Modifier.background(colors.secondary))
+        Box(Modifier.background(colors.surface))
+        Text("Primary", color = colors.onPrimary)
     }
 }
 ```
 
-### 10.3 Shapes
+### 10.3 Typography
 
 ```kotlin
-// 定义形状
+val Typography = Typography(
+    bodyLarge = TextStyle(
+        fontSize = 16.sp,
+        fontWeight = FontWeight.Normal
+    ),
+    titleLarge = TextStyle(
+        fontSize = 22.sp,
+        fontWeight = FontWeight.Bold
+    )
+)
+
+@Composable
+fun TypographyExample() {
+    Text("Title", style = MaterialTheme.typography.titleLarge)
+    Text("Body", style = MaterialTheme.typography.bodyLarge)
+}
+```
+
+### 10.4 Shapes
+
+```kotlin
 val Shapes = Shapes(
     small = RoundedCornerShape(4.dp),
     medium = RoundedCornerShape(8.dp),
     large = RoundedCornerShape(16.dp)
 )
 
-// 使用
 @Composable
 fun ShapeExample() {
-    Card(
-        shape = MaterialTheme.shapes.medium
-    ) {
-        Text("Card with medium shape")
+    Card(shape = MaterialTheme.shapes.medium) {
+        Text("Card")
     }
 }
 ```
 
-### 10.4 自定义主题
+### 10.5 暗黑模式
 
 ```kotlin
-// 自定义主题值
-data class AppColors(
-    val brand: Color,
-    val accent: Color,
-    val error: Color
-)
-
-private val LocalAppColors = staticCompositionLocalOf {
-    AppColors(
-        brand = Color.Unspecified,
-        accent = Color.Unspecified,
-        error = Color.Unspecified
-    )
-}
-
 @Composable
-fun AppTheme(
-    content: @Composable () -> Unit
-) {
-    val appColors = AppColors(
-        brand = Color(0xFF6200EE),
-        accent = Color(0xFF03DAC5),
-        error = Color(0xFFB00020)
-    )
+fun DarkModeExample() {
+    // 自动检测系统主题
+    val darkTheme = isSystemInDarkTheme()
     
-    CompositionLocalProvider(LocalAppColors provides appColors) {
-        MaterialTheme(
-            content = content
-        )
+    MyAppTheme(darkTheme = darkTheme) {
+        Surface(color = MaterialTheme.colorScheme.background) {
+            Text("Hello")
+        }
     }
-}
-
-// 使用
-@Composable
-fun CustomThemeExample() {
-    val appColors = LocalAppColors.current
-    Box(modifier = Modifier.background(appColors.brand))
 }
 ```
 
 ---
 
-## 11. ViewModel 集成
+## 第 11 章 ViewModel 集成
 
-### 11.1 基础使用
+### 11.1 viewModel() 函数
 
 ```kotlin
-// ViewModel
-class MainViewModel : ViewModel() {
-    private val _count = MutableStateFlow(0)
-    val count: StateFlow<Int> = _count.asStateFlow()
+class UserViewModel : ViewModel() {
+    private val _name = MutableStateFlow("")
+    val name: StateFlow<String> = _name.asStateFlow()
     
-    fun increment() {
-        _count.value++
+    fun updateName(newName: String) {
+        _name.value = newName
     }
 }
 
-// Composable
 @Composable
-fun ViewModelExample() {
-    val viewModel: MainViewModel = viewModel()
-    val count by viewModel.count.collectAsState()
+fun UserScreen(viewModel: UserViewModel = viewModel()) {
+    val name by viewModel.name.collectAsState()
     
     Column {
-        Text("Count: $count")
-        Button(onClick = { viewModel.increment() }) {
-            Text("Increment")
+        Text("Name: $name")
+        Button(onClick = { viewModel.updateName("New Name") }) {
+            Text("Update")
         }
     }
 }
 ```
 
-### 11.2 ViewModel + SavedStateHandle
+### 11.2 StateFlow 收集
 
 ```kotlin
-class SavedStateViewModel(
-    savedStateHandle: SavedStateHandle
-) : ViewModel() {
-    var name by savedStateHandle.saveable { mutableStateOf("") }
-    
-    fun updateName(newName: String) {
-        name = newName
-    }
-}
-
 @Composable
-fun SavedStateExample() {
-    val viewModel: SavedStateViewModel = viewModel()
+fun StateFlowExample(viewModel: MyViewModel = viewModel()) {
+    // collectAsState：收集 Flow 并转为 State
+    val data by viewModel.data.collectAsState()
     
-    Column {
-        TextField(
-            value = viewModel.name,
-            onValueChange = { viewModel.updateName(it) }
-        )
-    }
+    // collectAsStateWithLifecycle：生命周期感知
+    val data2 by viewModel.data.collectAsStateWithLifecycle()
+    
+    Text(data)
 }
 ```
 
-### 11.3 Hilt + ViewModel
+### 11.3 Hilt 集成
 
 ```kotlin
-// 添加依赖
-// implementation("androidx.hilt:hilt-navigation-compose:1.1.0")
-
 @HiltViewModel
 class HiltViewModel @Inject constructor(
     private val repository: UserRepository
 ) : ViewModel() {
-    private val _users = MutableStateFlow<List<User>>(emptyList())
-    val users: StateFlow<List<User>> = _users
-    
-    init {
-        loadUsers()
-    }
-    
-    private fun loadUsers() {
-        viewModelScope.launch {
-            _users.value = repository.getUsers()
-        }
-    }
+    val users = repository.getUsers()
+        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 }
 
 @Composable
-fun HiltExample() {
-    val viewModel: HiltViewModel = hiltViewModel()
+fun HiltExample(viewModel: HiltViewModel = hiltViewModel()) {
     val users by viewModel.users.collectAsState()
     
     LazyColumn {
@@ -1837,35 +1752,37 @@ fun HiltExample() {
 }
 ```
 
+### 11.4 SavedStateHandle
+
+```kotlin
+class SavedStateViewModel(
+    savedStateHandle: SavedStateHandle
+) : ViewModel() {
+    var name by savedStateHandle.saveable { mutableStateOf("") }
+}
+
+@Composable
+fun SavedStateExample(viewModel: SavedStateViewModel = viewModel()) {
+    TextField(
+        value = viewModel.name,
+        onValueChange = { viewModel.name = it }
+    )
+}
+```
+
 ---
 
-## 12. 协程集成
+## 第 12 章 协程集成
 
 ### 12.1 LaunchedEffect
 
 ```kotlin
 @Composable
-fun LaunchedEffectExample() {
-    var data by remember { mutableStateOf("") }
-    
-    // 当 key 变化时执行
-    LaunchedEffect(key1 = "load") {
-        // 协程作用域
-        data = withContext(Dispatchers.IO) {
-            fetchDataFromNetwork()
-        }
-    }
-    
-    Text(data)
-}
-
-// 带参数的 LaunchedEffect
-@Composable
-fun LaunchedEffectWithKey(userId: String) {
+fun LaunchedEffectExample(userId: String) {
     var user by remember { mutableStateOf<User?>(null) }
     
     // userId 变化时重新执行
-    LaunchedEffect(key1 = userId) {
+    LaunchedEffect(userId) {
         user = fetchUser(userId)
     }
     
@@ -1881,113 +1798,83 @@ fun CoroutineScopeExample() {
     val scope = rememberCoroutineScope()
     var data by remember { mutableStateOf("") }
     
-    Column {
-        Text(data)
-        Button(
-            onClick = {
-                // 在事件处理器中使用
-                scope.launch {
-                    data = withContext(Dispatchers.IO) {
-                        fetchData()
-                    }
-                }
-            }
-        ) {
-            Text("Load Data")
+    Button(onClick = {
+        scope.launch {
+            data = fetchData()
+        }
+    }) {
+        Text("Load")
+    }
+}
+```
+
+### 12.3 DisposableEffect
+
+```kotlin
+@Composable
+fun DisposableEffectExample() {
+    DisposableEffect(Unit) {
+        // 注册监听
+        val listener = MyListener()
+        registerListener(listener)
+        
+        onDispose {
+            // 清理资源
+            unregisterListener(listener)
         }
     }
 }
 ```
 
-### 12.3 rememberAsyncImagePainter（Coil）
+### 12.4 SideEffect
 
 ```kotlin
-// 添加依赖
-// implementation("io.coil-kt:coil-compose:2.5.0")
-
 @Composable
-fun AsyncImageExample() {
-    AsyncImage(
-        model = "https://example.com/image.jpg",
-        contentDescription = null,
-        modifier = Modifier.size(200.dp),
-        contentScale = ContentScale.Crop
-    )
+fun SideEffectExample() {
+    var count by remember { mutableStateOf(0) }
     
-    // 带状态的图片
-    AsyncImage(
-        model = "https://example.com/image.jpg",
-        contentDescription = null,
-        modifier = Modifier.size(200.dp),
-        placeholder = painterResource(R.drawable.placeholder),
-        error = painterResource(R.drawable.error),
-        onSuccess = { },
-        onError = { }
-    )
+    // 在成功重组后执行
+    SideEffect {
+        // 更新非 Compose 状态
+        analytics.track("count_changed", count)
+    }
+    
+    Button(onClick = { count++ }) {
+        Text("Count: $count")
+    }
 }
 ```
 
 ---
 
-## 13. Navigation 导航
+## 第 13 章 Navigation 导航
 
-### 13.1 基础导航
+### 13.1 NavHost 基础
 
 ```kotlin
-// 添加依赖
-// implementation("androidx.navigation:navigation-compose:2.7.6")
-
 @Composable
 fun NavigationExample() {
     val navController = rememberNavController()
     
-    NavHost(
-        navController = navController,
-        startDestination = "home"
-    ) {
+    NavHost(navController, startDestination = "home") {
         composable("home") {
-            HomeScreen(
-                onNavigate = { navController.navigate("detail") }
-            )
+            HomeScreen(onNavigate = { navController.navigate("detail") })
         }
-        
         composable("detail") {
-            DetailScreen(
-                onBack = { navController.popBackStack() }
-            )
-        }
-    }
-}
-
-@Composable
-fun HomeScreen(onNavigate: () -> Unit) {
-    Column {
-        Text("Home Screen")
-        Button(onClick = onNavigate) {
-            Text("Go to Detail")
-        }
-    }
-}
-
-@Composable
-fun DetailScreen(onBack: () -> Unit) {
-    Column {
-        Text("Detail Screen")
-        Button(onClick = onBack) {
-            Text("Back")
+            DetailScreen(onBack = { navController.popBackStack() })
         }
     }
 }
 ```
 
-### 13.2 带参数导航
+### 13.2 参数传递
 
 ```kotlin
 @Composable
 fun NavigationWithArgs() {
     val navController = rememberNavController()
     
-    NavHost(navController, startDestination = "home") {
+    NavHost(navController, "home") {
         composable("home") {
             HomeScreen { userId ->
                 navController.navigate("detail/$userId")
@@ -1996,22 +1883,17 @@ fun NavigationWithArgs() {
         
         // 必填参数
         composable(
-            route = "detail/{userId}",
+            "detail/{userId}",
             arguments = listOf(navArgument("userId") { type = NavType.StringType })
         ) { backStackEntry ->
             val userId = backStackEntry.arguments?.getString("userId")
-            DetailScreen(userId = userId ?: "")
+            DetailScreen(userId ?: "")
         }
         
         // 可选参数
         composable(
-            route = "profile?userId={userId}",
-            arguments = listOf(
-                navArgument("userId") {
-                    type = NavType.StringType
-                    defaultValue = ""
-                }
-            )
+            "profile?userId={userId}",
+            arguments = listOf(navArgument("userId") { defaultValue = "" })
         ) { backStackEntry ->
             val userId = backStackEntry.arguments?.getString("userId")
             ProfileScreen(userId)
@@ -2035,7 +1917,7 @@ fun BottomNavigationExample() {
                 
                 items.forEach { item ->
                     NavigationBarItem(
-                        icon = { Icon(item.icon, contentDescription = null) },
+                        icon = { Icon(item.icon, null) },
                         label = { Text(item.label) },
                         selected = currentRoute == item.route,
                         onClick = {
@@ -2052,11 +1934,7 @@ fun BottomNavigationExample() {
             }
         }
     ) { padding ->
-        NavHost(
-            navController = navController,
-            startDestination = "home",
-            modifier = Modifier.padding(padding)
-        ) {
+        NavHost(navController, "home", Modifier.padding(padding)) {
             composable("home") { HomeScreen() }
             composable("search") { SearchScreen() }
             composable("profile") { ProfileScreen() }
@@ -2065,11 +1943,36 @@ fun BottomNavigationExample() {
 }
 ```
 
+### 13.4 深层链接
+
+```kotlin
+@Composable
+fun DeepLinkExample() {
+    val navController = rememberNavController()
+    
+    NavHost(navController, "home") {
+        composable(
+            "detail/{userId}",
+            arguments = listOf(navArgument("userId") { type = NavType.StringType }),
+            deepLinks = listOf(
+                navDeepLink {
+                    uriPattern = "https://example.com/user/{userId}"
+                    action = Intent.ACTION_VIEW
+                }
+            )
+        ) { backStackEntry ->
+            val userId = backStackEntry.arguments?.getString("userId")
+            DetailScreen(userId)
+        }
+    }
+}
+```
+
 ---
 
-## 14. 与传统 View 互操作
+## 第 14 章 与传统 View 互操作
 
-### 14.1 在 Compose 中使用 View
+### 14.1 AndroidView
 
 ```kotlin
 @Composable
@@ -2086,23 +1989,10 @@ fun AndroidViewExample() {
             webView.loadUrl("https://example.com/new")
         }
     )
-    
-    // 嵌入 MapView
-    AndroidView(
-        modifier = Modifier.fillMaxSize(),
-        factory = { context ->
-            MapView(context).apply {
-                onCreate(null)
-                getMapAsync { map ->
-                    // 配置地图
-                }
-            }
-        }
-    )
 }
 ```
 
-### 14.2 在 View 中使用 Compose
+### 14.2 ComposeView
 
 ```xml
 <!-- XML 布局 -->
@@ -2117,80 +2007,76 @@ fun AndroidViewExample() {
 val composeView = findViewById<ComposeView>(R.id.composeView)
 composeView.setContent {
     MaterialTheme {
-        Text("Hello from Compose in View!")
+        Text("Hello from Compose!")
     }
 }
 ```
 
-### 14.3 互操作最佳实践
+### 14.3 渐进式迁移
 
 ```kotlin
-// 1. 渐进式迁移
 class MixedActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        
         setContentView(R.layout.activity_mixed)
         
         // 部分 View 使用 Compose
         val composeView = findViewById<ComposeView>(R.id.composeView)
         composeView.setContent {
-            // Compose 内容
+            MyComposableContent()
         }
     }
 }
+```
 
-// 2. 共享 ViewModel
-class SharedViewModel : ViewModel() {
-    val data = MutableStateFlow("")
-}
+### 14.4 最佳实践
 
-// 在 View 中
-val viewModel by viewModels<SharedViewModel>()
+```
+互操作最佳实践：
 
-// 在 Compose 中
-val viewModel: SharedViewModel = viewModel()
+1. 优先使用 Compose
+   - 新代码使用 Compose
+   - 旧代码逐步迁移
+
+2. 共享 ViewModel
+   - View 和 Compose 共享 ViewModel
+   - 使用 StateFlow/LiveData
+
+3. 避免过度混合
+   - 一个屏幕尽量统一
+   - 减少边界转换
+
+4. 性能考虑
+   - AndroidView 有额外开销
+   - 频繁更新考虑纯 Compose
 ```
 
 ---
 
-## 15. 手势处理
+## 第 15 章 手势处理
 
 ### 15.1 点击手势
 
 ```kotlin
 @Composable
 fun ClickGestures() {
-    // 1. clickable
+    // clickable
     Box(
-        modifier = Modifier
+        Modifier
             .size(100.dp)
             .clickable { }
             .background(Color.Blue)
     )
     
-    // 2. combinedClickable
-    var clickCount by remember { mutableStateOf(0) }
+    // combinedClickable
     Box(
-        modifier = Modifier
-            .size(100.dp)
+        Modifier
             .combinedClickable(
-                onClick = { clickCount++ },
-                onDoubleClick = { clickCount += 10 },
-                onLongClick = { clickCount = 0 }
+                onClick = { },
+                onDoubleClick = { },
+                onLongClick = { }
             )
             .background(Color.Green)
-    )
-    
-    // 3. 点击指示
-    Box(
-        modifier = Modifier
-            .size(100.dp)
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = rememberRipple(bounded = true)
-            ) { }
-            .background(Color.Red)
     )
 }
 ```
@@ -2199,12 +2085,12 @@ fun ClickGestures() {
 
 ```kotlin
 @Composable
-fun DragGestures() {
+fun DragGesture() {
     var offsetX by remember { mutableStateOf(0f) }
     var offsetY by remember { mutableStateOf(0f) }
     
     Box(
-        modifier = Modifier
+        Modifier
             .offset { IntOffset(offsetX.roundToInt(), offsetY.roundToInt()) }
             .size(100.dp)
             .background(Color.Blue)
@@ -2219,17 +2105,17 @@ fun DragGestures() {
 }
 ```
 
-### 15.3 缩放和旋转
+### 15.3 缩放与旋转
 
 ```kotlin
 @Composable
-fun TransformGestures() {
+fun TransformGesture() {
     var scale by remember { mutableStateOf(1f) }
     var rotation by remember { mutableStateOf(0f) }
     var offset by remember { mutableStateOf(Offset.Zero) }
     
     Box(
-        modifier = Modifier
+        Modifier
             .size(200.dp)
             .graphicsLayer {
                 scaleX = scale
@@ -2250,88 +2136,128 @@ fun TransformGestures() {
 }
 ```
 
+### 15.4 多点触控
+
+```kotlin
+@Composable
+fun MultiTouchExample() {
+    var touchCount by remember { mutableStateOf(0) }
+    
+    Box(
+        Modifier
+            .fillMaxSize()
+            .pointerInput(Unit) {
+                awaitEachGesture {
+                    awaitFirstDown()
+                    touchCount = 1
+                    
+                    do {
+                        val event = awaitPointerEvent()
+                        touchCount = event.changes.size
+                    } while (event.changes.any { it.pressed })
+                    
+                    touchCount = 0
+                }
+            }
+    ) {
+        Text("Touches: $touchCount")
+    }
+}
+```
+
 ---
 
-## 16. Canvas 自定义绘制
+## 第 16 章 Canvas 自定义绘制
 
-### 16.1 基础 Canvas
+### 16.1 DrawScope
 
 ```kotlin
 @Composable
 fun CanvasExample() {
-    Canvas(modifier = Modifier.size(200.dp)) {
-        // 绘制圆
-        drawCircle(
-            color = Color.Red,
-            radius = 100f,
-            center = center
-        )
-        
-        // 绘制矩形
-        drawRect(
-            color = Color.Blue,
-            topLeft = Offset(0f, 0f),
-            size = Size(100f, 100f)
-        )
-        
-        // 绘制线
-        drawLine(
-            color = Color.Green,
-            start = Offset(0f, 0f),
-            end = Offset(size.width, size.height),
-            strokeWidth = 4f
-        )
-        
-        // 绘制路径
-        val path = Path().apply {
-            moveTo(0f, 0f)
-            lineTo(size.width / 2, size.height / 2)
-            lineTo(size.width, 0f)
-            close()
-        }
-        drawPath(path, Color.Yellow)
+    Canvas(Modifier.size(200.dp)) {
+        // drawCircle, drawRect, drawLine, drawPath...
+        drawCircle(Color.Red, radius = 100f, center = center)
     }
 }
 ```
 
-### 16.2 复杂绘制
+### 16.2 基本图形
 
 ```kotlin
 @Composable
-fun ComplexCanvas() {
-    Canvas(modifier = Modifier.fillMaxSize()) {
-        // 绘制渐变背景
+fun BasicShapes() {
+    Canvas(Modifier.fillMaxSize()) {
+        // 圆
+        drawCircle(Color.Red, radius = 50f)
+        
+        // 矩形
+        drawRect(Color.Blue, topLeft = Offset(100f, 100f), size = Size(100f, 100f))
+        
+        // 线
+        drawLine(Color.Green, Offset(0f, 0f), Offset(200f, 200f), strokeWidth = 4f)
+        
+        // 圆角矩形
+        drawRoundRect(Color.Yellow, cornerRadius = CornerRadius(10f))
+        
+        // 椭圆
+        drawOval(Color.Cyan, size = Size(100f, 50f))
+        
+        // 弧
+        drawArc(Color.Magenta, 0f, 270f, useCenter = true)
+    }
+}
+```
+
+### 16.3 Path 路径
+
+```kotlin
+@Composable
+fun PathExample() {
+    Canvas(Modifier.size(200.dp)) {
+        val path = Path().apply {
+            moveTo(0f, 0f)
+            lineTo(100f, 100f)
+            quadraticTo(150f, 50f, 200f, 100f)
+            cubicTo(250f, 50f, 300f, 150f, 350f, 100f)
+            close()
+        }
+        
+        drawPath(path, Color.Blue, style = Stroke(4f))
+    }
+}
+```
+
+### 16.4 渐变与阴影
+
+```kotlin
+@Composable
+fun GradientAndShadow() {
+    Canvas(Modifier.size(200.dp)) {
+        // 线性渐变
         drawRect(
-            brush = Brush.verticalGradient(
+            Brush.linearGradient(
                 colors = listOf(Color.Cyan, Color.Blue),
-                startY = 0f,
-                endY = size.height
+                start = Offset.Zero,
+                end = Offset(size.width, size.height)
             )
         )
         
-        // 绘制圆弧
-        drawArc(
-            color = Color.Red,
-            startAngle = 0f,
-            sweepAngle = 270f,
-            useCenter = true,
-            style = Stroke(width = 8f),
-            size = Size(200f, 200f),
-            topLeft = Offset(50f, 50f)
+        // 径向渐变
+        drawCircle(
+            Brush.radialGradient(
+                colors = listOf(Color.Yellow, Color.Red),
+                center = center,
+                radius = 100f
+            )
         )
         
-        // 绘制文字
+        // 阴影
         drawIntoCanvas { canvas ->
             val paint = Paint().apply {
-                color = Color.White
-                textSize = 50f
+                color = Color.Blue
+                asFrameworkPaint().setShadowLayer(10f, 5f, 5f, Color.Black.toArgb())
             }
-            canvas.nativeCanvas.drawText(
-                "Hello Canvas",
-                50f,
-                300f,
-                paint.asFrameworkPaint()
-            )
+            canvas.drawCircle(center, 50f, paint)
         }
     }
 }
@@ -2339,73 +2265,51 @@ fun ComplexCanvas() {
 
 ---
 
-## 17. 性能优化
+## 第 17 章 性能优化
 
-### 17.1 稳定性优化
+### 17.1 稳定性与跳过
 
 ```kotlin
-// 1. 使用 @Immutable 和 @Stable
-@Immutable
-data class User(val id: Int, val name: String)
+// ❌ 不稳定：可变属性
+data class MutableUser(var name: String)
 
+// ✅ 稳定：不可变
+@Immutable
+data class ImmutableUser(val name: String)
+
+// ✅ 使用 @Stable
 @Stable
-class UserViewModel {
-    private val _user = MutableStateFlow(User(0, ""))
-    val user: StateFlow<User> = _user
+class StableUser {
+    var name by mutableStateOf("")
 }
 
-// 2. 避免不稳定的参数
 @Composable
-fun UnstableExample(users: List<User>) {
-    // List 是不稳定的，每次都会重组
-}
-
-// 使用稳定的包装
-@Immutable
-data class UserList(val items: List<User>)
-
-@Composable
-fun StableExample(users: UserList) {
-    // UserList 是稳定的
+fun UserCard(user: ImmutableUser) {
+    // user 未变化时跳过重组
+    Text(user.name)
 }
 ```
 
 ### 17.2 重组优化
 
 ```kotlin
-// 1. 使用 remember 避免重复计算
 @Composable
-fun RememberOptimization() {
-    val expensiveValue = remember {
-        // 只计算一次
-        performExpensiveCalculation()
+fun RecompositionOptimization() {
+    // 1. 使用 remember 缓存
+    val formattedDate = remember(timestamp) {
+        SimpleDateFormat().format(timestamp)
     }
-}
-
-// 2. 使用 derivedStateOf 减少重组
-@Composable
-fun DerivedStateExample() {
-    var searchQuery by remember { mutableStateOf("") }
-    val items = remember { listOf<String>() }
     
+    // 2. 使用 derivedStateOf
     val filteredItems by remember {
-        derivedStateOf {
-            if (searchQuery.isEmpty()) {
-                items
-            } else {
-                items.filter { it.contains(searchQuery, ignoreCase = true) }
-            }
-        }
+        derivedStateOf { items.filter { it.isVisible } }
     }
-}
-
-// 3. 使用 key 优化 LazyColumn
-LazyColumn {
-    items(
-        items = items,
-        key = { it.id }  // 唯一键
-    ) { item ->
-        ItemView(item)
+    
+    // 3. 使用 key 优化 LazyColumn
+    LazyColumn {
+        items(items, key = { it.id }) { item ->
+            ItemView(item)
+        }
     }
 }
 ```
@@ -2413,30 +2317,18 @@ LazyColumn {
 ### 17.3 布局优化
 
 ```kotlin
-// 1. 使用 Modifier.graphicsLayer 进行变换
-Box(
-    modifier = Modifier
-        .graphicsLayer {
-            rotationZ = rotation
-            scaleX = scale
-            scaleY = scale
-        }
-)
+// 1. 使用 graphicsLayer 进行变换
+Box(Modifier.graphicsLayer {
+    rotationZ = rotation
+    scaleX = scale
+})
 
 // 2. 避免过度嵌套
 // ❌ 错误
-Column {
-    Column {
-        Column {
-            Text("Too nested")
-        }
-    }
-}
+Column { Column { Column { Text("") } } }
 
 // ✅ 正确
-Column {
-    Text("Flatter")
-}
+Column { Text("") }
 
 // 3. 使用 BaselineSkip
 Column {
@@ -2448,198 +2340,162 @@ Column {
 
 ### 17.4 性能分析工具
 
-```kotlin
-// 1. Composition Tracing
-// 在 LocalInspectionMode 中启用
+```
+性能分析工具：
 
-// 2. Layout Inspector
-// Android Studio -> View -> Tool Windows -> Layout Inspector
+1. Layout Inspector
+   - Android Studio -> View -> Tool Windows -> Layout Inspector
+   - 查看 Compose 树结构
 
-// 3. Recomposition Count
-// 使用 remember 记录重组次数
-@Composable
-fun RecompositionCounter() {
-    var recompositionCount by remember { mutableStateOf(0) }
-    SideEffect {
-        recompositionCount++
-        Log.d("Recomposition", "Count: $recompositionCount")
-    }
-}
+2. Composition Tracing
+   - 启用 composition tracing
+   - 分析重组次数
+
+3. Profiler
+   - CPU Profiler
+   - Memory Profiler
+
+4. Recomposition Count
+   @Composable
+   fun RecompositionCounter() {
+       var count by remember { mutableStateOf(0) }
+       SideEffect { count++ }
+       Log.d("Recomposition", "Count: $count")
+   }
 ```
 
 ---
 
-## 18. 面试常见问题
+## 第 18 章 面试常见问题
 
-### 18.1 基础概念
+### 18.1 Compose 原理
 
-**Q1: Compose 与传统 View 的区别？**
+**Q: Jetpack Compose 的工作原理？**
 
-A:
-- **范式**：Compose 是声明式，View 是命令式
-- **UI 定义**：Compose 用 Kotlin 代码，View 用 XML
-- **状态管理**：Compose 自动响应状态，View 需要手动更新
-- **性能**：Compose 通过智能重组优化，View 有层级开销
-- **复用**：Compose 使用 Composable 函数，View 使用自定义 View
+**A:**
 
-**Q2: 什么是重组（Recomposition）？**
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                       Compose 执行阶段                                      │
+└─────────────────────────────────────────────────────────────────────────────┘
 
-A:
-重组是指 Composable 函数在状态变化时重新执行的过程。特点：
-- **智能**：只重组受影响的部分
-- **可跳过**：如果输入未变化可跳过
-- **乐观**：假设成功，失败时回滚
-- **可并行**：不同 Composable 可并行重组
+1. Composition（组合）
+   - 执行 Composable 函数
+   - 创建 UI 树（Slot Tree）
+   - 首次组合：Initial Composition
+   - 重新组合：Recomposition
 
-**Q3: remember 和 rememberSaveable 的区别？**
+2. Layout（布局）
+   - 测量子元素
+   - 确定位置和大小
 
-A:
-- `remember`：在重组中保持状态，配置更改（如旋转）后丢失
-- `rememberSaveable`：在重组和配置更改后都保持状态，通过 Bundle 保存
-
-### 18.2 状态管理
-
-**Q4: 什么是状态提升（State Hoisting）？**
-
-A:
-状态提升是将状态从子组件移到父组件的模式：
-- 子组件变成无状态（Stateless）
-- 父组件持有状态和业务逻辑
-- 通过参数传递状态，通过回调传递事件
-- 优点：可测试、可复用、单一数据源
-
-**Q5: State 和 MutableState 的区别？**
-
-A:
-- `State<T>`：只读接口，用于读取状态
-- `MutableState<T>`：可变接口，继承自 State，可以修改值
-- 使用 `by` 代理语法简化访问
-
-### 18.3 性能优化
-
-**Q6: 如何优化 Compose 性能？**
-
-A:
-1. **稳定性**：使用 @Immutable/@Stable 注解
-2. **remember**：缓存计算结果
-3. **derivedStateOf**：减少不必要的重组
-4. **LazyColumn key**：优化列表性能
-5. **避免过度嵌套**：减少层级
-6. **graphicsLayer**：用于变换操作
-
-**Q7: 什么是稳定性（Stability）？**
-
-A:
-稳定性决定了 Compose 是否可以跳过重组：
-- **稳定**：不可变或变化可预测
-- **不稳定**：可变或变化不可预测
-- 使用 @Immutable/@Stable 注解标记稳定类型
-
-### 18.4 高级问题
-
-**Q8: Compose 的执行模型是什么？**
-
-A:
-1. **Composition**：首次执行创建 UI 树
-2. **Layout**：测量和放置元素
-3. **Drawing**：绘制到屏幕
-4. **Recomposition**：状态变化后重新执行
-
-**Q9: Modifier 的执行顺序为什么重要？**
-
-A:
-Modifier 链的顺序会影响最终效果：
-- 后面的 Modifier 作用在前面的结果上
-- 例如：`padding.background` vs `background.padding`
-- `padding.background`：背景包含 padding 区域
-- `background.padding`：背景不包含 padding 区域
-
-**Q10: 如何处理 Compose 中的副作用？**
-
-A:
-使用副作用 API：
-- `LaunchedEffect`：在组合中安全地调用协程
-- `rememberCoroutineScope`：获取协程作用域
-- `DisposableEffect`：需要清理的副作用
-- `SideEffect`：在成功组合后执行
-
-### 18.5 实战问题
-
-**Q11: 如何在 Compose 中实现 MVVM？**
-
-A:
-```kotlin
-@Composable
-fun UserScreen(viewModel: UserViewModel = viewModel()) {
-    val users by viewModel.users.collectAsState()
-    
-    LazyColumn {
-        items(users) { user ->
-            UserItem(user, viewModel::onUserClick)
-        }
-    }
-}
+3. Drawing（绘制）
+   - 将 UI 绘制到屏幕
 ```
 
-**Q12: Compose 中如何处理导航？**
+### 18.2 重组机制
 
-A:
-```kotlin
-@Composable
-fun AppNavigation() {
-    val navController = rememberNavController()
-    
-    NavHost(navController, startDestination = "home") {
-        composable("home") { HomeScreen() }
-        composable("detail/{id}") { DetailScreen() }
-    }
-}
+**Q: 什么是重组（Recomposition）？如何优化？**
+
+**A:**
+
+```
+重组特点：
+1. 智能跳过：输入未变化时跳过
+2. 可能频繁执行：避免副作用
+3. 可并行执行：不要依赖外部状态
+4. 乐观执行：可能被放弃
+
+优化方法：
+1. 使用 remember 缓存计算
+2. 使用 derivedStateOf 减少重组
+3. 使用 @Immutable/@Stable 注解
+4. 状态提升减少重组范围
+5. 使用 key 优化 LazyColumn
 ```
 
-**Q13: LazyColumn 和 RecyclerView 的区别？**
+### 18.3 与传统 View 对比
 
-A:
-- LazyColumn 使用 Composable 作为项
-- RecyclerView 需要 Adapter 和 ViewHolder
-- LazyColumn 自动处理回收
-- LazyColumn 更简洁，代码量更少
+**Q: Compose vs 传统 View？**
 
-**Q14: 如何调试 Compose 重组？**
+**A:**
 
-A:
-1. 使用 Layout Inspector
-2. 启用 Composition Tracing
-3. 使用 Log 记录重组次数
-4. 检查稳定性警告
+| 对比项 | Compose | 传统 View |
+|-------|---------|-----------|
+| 范式 | 声明式 | 命令式 |
+| UI 定义 | Kotlin | XML |
+| 状态管理 | 自动响应 | 手动更新 |
+| 代码量 | 少 | 多 |
+| 学习曲线 | 需要学习 | 成熟稳定 |
+| 预览 | 实时预览 | 需要运行 |
+| 性能 | 智能重组 | View 开销 |
 
-**Q15: Compose 中如何处理异步数据？**
+### 18.4 性能优化
 
-A:
-```kotlin
-@Composable
-fun AsyncDataExample(viewModel: MyViewModel = viewModel()) {
-    val data by viewModel.data.collectAsState()
-    
-    when {
-        data.isLoading -> LoadingView()
-        data.error != null -> ErrorView(data.error)
-        else -> DataView(data.value)
-    }
-}
-```
+**Q: Compose 性能优化技巧？**
+
+**A:**
+
+1. **稳定性优化**：使用 @Immutable/@Stable
+2. **重组优化**：remember、derivedStateOf
+3. **列表优化**：key、contentType
+4. **布局优化**：减少嵌套、graphicsLayer
+5. **避免副作用**：使用正确的 Effect API
+
+### 18.5 最佳实践
+
+**Q: Compose 开发最佳实践？**
+
+**A:**
+
+1. **状态管理**：
+   - 状态提升
+   - 单一数据源
+   - 使用 ViewModel
+
+2. **代码组织**：
+   - 小型 Composable 函数
+   - 功能模块化
+   - 复用组件
+
+3. **性能优化**：
+   - 使用 remember
+   - 避免不必要的重组
+   - 使用 key
+
+4. **测试**：
+   - 组件测试
+   - 状态测试
+   - UI 测试
 
 ---
 
 ## 总结
 
-Jetpack Compose 是 Android UI 的未来，掌握 Compose 对于现代 Android 开发至关重要。核心要点：
+### Compose 核心要点
 
-1. **声明式思维**：描述 UI 是什么，而不是如何构建
-2. **状态驱动**：UI 自动响应状态变化
-3. **组合优于继承**：通过组合小函数构建复杂 UI
-4. **性能优化**：理解重组、稳定性、remember
-5. **互操作**：与传统 View 无缝协作
+1. **声明式 UI**：描述 UI 是什么
+2. **Kotlin 优先**：完全使用 Kotlin
+3. **状态驱动**：UI 自动响应状态
+4. **智能重组**：只更新变化部分
+5. **互操作**：与传统 View 协作
+
+### 适用场景
+
+- ✅ 新项目首选
+- ✅ 追求开发效率
+- ✅ 需要实时预览
+- ✅ 复杂 UI 动画
+
+### 学习建议
+
+1. **基础阶段**：Composable、State、Modifier、Layout
+2. **进阶阶段**：动画、主题、ViewModel、Navigation
+3. **高级阶段**：自定义 Layout、Canvas、性能优化
+4. **实战阶段**：完整项目开发
 
 ---
 
-*Generated by OpenClaw | 2026-03-11*
+**文档版本**：v2.0  
+**更新时间**：2026-03-11  
+**适用版本**：Compose BOM 2024.02.00+
