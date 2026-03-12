@@ -3361,14 +3361,14 @@ AMOLED 屏幕长时间显示同一图像会导致烧屏，AOD 使用以下策略
 
 ## 13. Keyguard 锁屏系统
 
-> 本节内容基于 Android 14 源码分析
-> 源码路径：frameworks/base/packages/SystemUI/src/com/android/keyguard/
+> 本节内容基于 **Android 16 (API 36)** 源码分析
+> 源码路径：`frameworks/base/packages/SystemUI/src/com/android/keyguard/`
 
 ### 13.1 Keyguard 概述
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                       Keyguard 锁屏系统概述                                  │
+│                       Keyguard 锁屏系统概述 (Android 16)                     │
 └─────────────────────────────────────────────────────────────────────────────┘
 
 Keyguard 是 Android 系统的锁屏实现，负责：
@@ -3378,49 +3378,140 @@ Keyguard 是 Android 系统的锁屏实现，负责：
 4. 与 SystemUI 的状态同步
 
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                       Keyguard 在系统中的位置                                │
+│                 Android 16 Keyguard 分层架构                                 │
 └─────────────────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                          Framework 层                                        │
+│                          View Layer (视图层)                                │
 │  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │                    KeyguardViewMediator                              │   │
-│  │  - 锁屏状态管理                                                      │   │
-│  │  - 锁屏显示/隐藏控制                                                 │   │
-│  │  - 安全验证调度                                                      │   │
+│  │                    KeyguardSecurityContainer                        │   │
+│  │  ├── PatternKeyguardView    (图案解锁)                              │   │
+│  │  ├── PasswordKeyguardView    (密码解锁)                              │   │
+│  │  ├── PINKeyguardView         (PIN 解锁)                              │   │
+│  │  ├── KeyguardSimPinView      (SIM PIN)                               │   │
+│  │  └── KeyguardSimPukView      (SIM PUK)                               │   │
 │  └─────────────────────────────────────────────────────────────────────┘   │
-│                                    │                                      │
-│                                    ▼                                      │
 │  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │                    KeyguardUpdateMonitor                             │   │
-│  │  - 状态变化监听                                                      │   │
-│  │  - 时间/电池/SIM 状态更新                                            │   │
-│  │  - 安全状态回调                                                      │   │
+│  │                    KeyguardStatusView (状态视图)                      │   │
+│  │  ├── 时钟显示 (KeyguardClockSwitch)                                  │   │
+│  │  ├── 日期显示                                                        │   │
+│  │  ├── 电量显示                                                        │   │
+│  │  └── 运营商信息 (CarrierText)                                        │   │
 │  └─────────────────────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                          SystemUI 层                                        │
+│                      Controller Layer (控制器层)                            │
 │  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │                    KeyguardService                                   │   │
-│  │  ┌─────────────────────────────────────────────────────────────┐   │   │
-│  │  │                  KeyguardHostView                           │   │   │
-│  │  │  ┌─────────────────────────────────────────────────────┐   │   │   │
-│  │  │  │              KeyguardSecurityContainer              │   │   │   │
-│  │  │  │  ┌─────────────────────────────────────────────┐   │   │   │   │
-│  │  │  │  │  PatternKeyguardView   (图案解锁)           │   │   │   │   │
-│  │  │  │  │  PasswordKeyguardView   (密码解锁)           │   │   │   │   │
-│  │  │  │  │  PINKeyguardView        (PIN 解锁)           │   │   │   │   │
-│  │  │  │  │  BiometricKeyguardView  (生物识别)           │   │   │   │   │
-│  │  │  │  └─────────────────────────────────────────────┘   │   │   │   │
-│  │  │  └─────────────────────────────────────────────────────┘   │   │   │
-│  │  └─────────────────────────────────────────────────────────────┘   │   │
+│  │                    KeyguardViewController                           │   │
+│  │  - 视图生命周期管理                                                  │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │                    KeyguardSecurityContainerController               │   │
+│  │  - 安全模式切换                                                      │   │
+│  │  - 验证流程控制                                                      │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │                    *ViewController (各视图控制器)                     │   │
+│  │  - PatternKeyguardViewController                                    │   │
+│  │  - PasswordKeyguardViewController                                   │   │
+│  │  - PinViewController                                                │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        Model Layer (模型层)                                  │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │                    KeyguardUpdateMonitor (核心)                      │   │
+│  │  - 系统状态监控 (SIM/电池/时间/安全)                                 │   │
+│  │  - 状态变化通知                                                      │   │
+│  │  - 回调管理 (KeyguardUpdateMonitorCallback)                         │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │                    KeyguardSecurityModel                            │   │
+│  │  - 安全模式定义 (None/PIN/Pattern/Password)                         │   │
+│  │  - 安全级别判断                                                      │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                      Domain Layer (业务逻辑层) [Android 16 新增]            │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │                    domain/interactor/                                │   │
+│  │  - KeyguardKeyboardInteractor (键盘显示逻辑)                        │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                      DI Layer (依赖注入层) [Dagger]                         │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │                    dagger/                                           │   │
+│  │  - KeyguardBouncerComponent                                         │   │
+│  │  - KeyguardBouncerModule                                            │   │
+│  │  - KeyguardStatusViewComponent                                      │   │
+│  │  - KeyguardDisplayModule                                            │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                      Logging Layer (日志层) [Android 16 新增]               │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │                    logging/                                          │   │
+│  │  - KeyguardLogger (核心日志)                                        │   │
+│  │  - BiometricUnlockLogger (生物识别日志)                             │   │
+│  │  - KeyguardTransitionAnimationLogger (转场动画日志)                  │   │
 │  └─────────────────────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 13.2 Keyguard 启动流程
+### 13.2 Keyguard 源码目录结构 (Android 16)
+
+```
+frameworks/base/packages/SystemUI/src/com/android/keyguard/
+├── KeyguardUpdateMonitor.java          # 核心状态监控器
+├── KeyguardUpdateMonitorCallback.java  # 状态变化回调
+├── KeyguardViewController.java         # 视图控制器接口
+├── KeyguardSecurityModel.java          # 安全模式模型
+├── KeyguardSecurityCallback.java       # 安全验证回调
+├── KeyguardDisplayManager.java         # 显示管理器
+│
+├── security/                           # 安全验证视图
+│   ├── KeyguardSecurityContainer.java
+│   ├── KeyguardSecurityContainerController.java
+│   ├── KeyguardSecurityView.java
+│   ├── KeyguardSecurityViewFlipper.java
+│   └── KeyguardSecurityViewTransition.kt
+│
+├── PinShapeAdapter.kt                  # PIN 形状适配器
+├── PinShapeHintingView.java            # PIN 提示视图
+├── NumPadKey.java                      # 数字键盘按键
+├── NumPadButton.java                   # 数字按钮
+├── NumPadAnimator.java                 # 按键动画
+│
+├── dagger/                             # Dagger 依赖注入
+│   ├── KeyguardBouncerComponent.java
+│   ├── KeyguardBouncerModule.java
+│   ├── KeyguardBouncerScope.java
+│   └── KeyguardDisplayModule.kt
+│
+├── domain/interactor/                  # 业务逻辑层 [新增]
+│   └── KeyguardKeyboardInteractor.kt
+│
+├── logging/                            # 日志模块 [新增]
+│   ├── KeyguardLogger.kt
+│   ├── BiometricUnlockLogger.kt
+│   └── KeyguardTransitionAnimationLogger.kt
+│
+└── mediator/                           # 协调器
+    └── ScreenOnCoordinator.kt
+```
+
+### 13.3 Keyguard 启动流程
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -4404,6 +4495,9 @@ Keyguard 启动流程：
 
 ---
 
-**文档版本**：v2.0
+**文档版本**：v3.0
 **更新时间**：2026-03-12
-**参考源码**：Android 14 (API 34)
+**参考源码**：Android 16 (API 36)
+
+> 本文档基于 Android 16 (API 36) 源码分析
+> 源码地址：https://android.googlesource.com/platform/frameworks/base/+/refs/heads/main/packages/SystemUI/
