@@ -635,3 +635,785 @@ public final class DexPathList {
 │                                                                             │
 │ 解决方案：                                                                   │
 │ 1. DexClassLoader - 独立的 ClassLoader，加载插件 APK                       │
+│ 2. 插桩到 PathClassLoader - 将插件 DEX 插入到宿主的 dexElements            │
+│ 3. 自定义 ClassLoader - 重写 loadClass，改变委派逻辑                       │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 2.3 DexClassLoader 与 PathClassLoader
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│              DexClassLoader vs PathClassLoader                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+PathClassLoader：
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 用途：加载已安装应用的 DEX 文件                                             │
+│                                                                             │
+│ 路径：/data/app/com.example-1/base.apk                                     │
+│                                                                             │
+│ 特点：                                                                      │
+│ • optimizedDirectory 已废弃（API 26+）                                     │
+│ • 只能加载已安装的 APK                                                     │
+│ • 系统自动创建，应用启动时使用                                              │
+│                                                                             │
+│ 源码：                                                                      │
+│ public class PathClassLoader extends BaseDexClassLoader {                  │
+│     public PathClassLoader(String dexPath, ClassLoader parent) {           │
+│         super(dexPath, null, null, parent);                                │
+│     }                                                                       │
+│ }                                                                           │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+DexClassLoader：
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 用途：加载未安装的 DEX/APK 文件（插件化核心）                                │
+│                                                                             │
+│ 路径：任意路径（/sdcard/plugin.apk）                                        │
+│                                                                             │
+│ 特点：                                                                      │
+│ • 可以加载外部 DEX/APK 文件                                                │
+│ • 支持优化目录（API 26 前必需）                                             │
+│ • 插件化框架核心                                                            │
+│                                                                             │
+│ 源码：                                                                      │
+│ public class DexClassLoader extends BaseDexClassLoader {                   │
+│     public DexClassLoader(String dexPath, String optimizedDirectory,       │
+│             String librarySearchPath, ClassLoader parent) {                │
+│         super(dexPath, optimizedDirectory, librarySearchPath, parent);     │
+│     }                                                                       │
+│ }                                                                           │
+│                                                                             │
+│ 参数说明：                                                                   │
+│ • dexPath           - DEX/APK 文件路径                                     │
+│ • optimizedDirectory - DEX 优化目录（API 26+ 已废弃）                       │
+│ • librarySearchPath - Native 库搜索路径                                    │
+│ • parent            - 父 ClassLoader                                       │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+插件化中使用 DexClassLoader：
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ // 创建插件 ClassLoader                                                     │
+│ String pluginApkPath = "/sdcard/plugin.apk";                               │
+│ String optimizedDir = context.getCodeCacheDir().getAbsolutePath();         │
+│ String nativeLibDir = getPluginNativeLibDir(pluginApkPath);                │
+│ ClassLoader parent = context.getClassLoader();                             │
+│                                                                             │
+│ DexClassLoader pluginClassLoader = new DexClassLoader(                     │
+│     pluginApkPath,   // 插件 APK 路径                                      │
+│     optimizedDir,    // 优化目录                                           │
+│     nativeLibDir,    // Native 库目录                                      │
+│     parent           // 父 ClassLoader（宿主的 ClassLoader）               │
+│ );                                                                          │
+│                                                                             │
+│ // 加载插件类                                                               │
+│ Class<?> pluginClass = pluginClassLoader.loadClass("com.plugin.Plugin");   │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 2.4 类加载流程
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    类加载完整流程                                           │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+ClassLoader.loadClass() 流程：
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                                                                             │
+│   loadClass("com.example.Plugin")                                          │
+│               │                                                             │
+│               ▼                                                             │
+│   ┌─────────────────────────────────────────────────────────────────────┐  │
+│   │  1. findLoadedClass(name)                                           │  │
+│   │     └─► 检查是否已加载                                               │  │
+│   │         • 已加载 → 返回 Class 对象                                   │  │
+│   │         • 未加载 → 继续                                              │  │
+│   └─────────────────────────────────────────────────────────────────────┘  │
+│               │                                                             │
+│               ▼                                                             │
+│   ┌─────────────────────────────────────────────────────────────────────┐  │
+│   │  2. parent.loadClass(name)                                          │  │
+│   │     └─► 委派给父加载器                                               │  │
+│   │         • 找到 → 返回 Class 对象                                     │  │
+│   │         • 未找到 → 继续                                              │  │
+│   └─────────────────────────────────────────────────────────────────────┘  │
+│               │                                                             │
+│               ▼                                                             │
+│   ┌─────────────────────────────────────────────────────────────────────┐  │
+│   │  3. findClass(name)                                                 │  │
+│   │     └─► 自己查找类                                                   │  │
+│   │         • BaseDexClassLoader.findClass()                            │  │
+│   │         • DexPathList.findClass()                                   │  │
+│   │         • 遍历 dexElements 查找                                      │  │
+│   └─────────────────────────────────────────────────────────────────────┘  │
+│               │                                                             │
+│               ▼                                                             │
+│   ┌─────────────────────────────────────────────────────────────────────┐  │
+│   │  4. defineClass()                                                   │  │
+│   │     └─► 定义类                                                       │  │
+│   │         • DexFile.defineClass()                                     │  │
+│   │         • native defineClassNative()                                │  │
+│   │         • 返回 Class 对象                                            │  │
+│   └─────────────────────────────────────────────────────────────────────┘  │
+│               │                                                             │
+│               ▼                                                             │
+│   ┌─────────────────────────────────────────────────────────────────────┐  │
+│   │  5. resolveClass() (可选)                                           │  │
+│   │     └─► 解析类                                                       │  │
+│   │         • 解析父类、接口                                              │  │
+│   │         • 验证类                                                      │  │
+│   └─────────────────────────────────────────────────────────────────────┘  │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+源码分析：
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ // ClassLoader.java                                                        │
+│ protected Class<?> loadClass(String name, boolean resolve) {               │
+│     // 1. 检查是否已加载                                                   │
+│     Class<?> c = findLoadedClass(name);                                    │
+│     if (c == null) {                                                       │
+│         try {                                                               │
+│             if (parent != null) {                                          │
+│                 // 2. 委派给父加载器                                        │
+│                 c = parent.loadClass(name, false);                         │
+│             } else {                                                        │
+│                 c = findBootstrapClassOrNull(name);                        │
+│             }                                                               │
+│         } catch (ClassNotFoundException e) {                               │
+│             // 父加载器找不到，自己加载                                     │
+│         }                                                                   │
+│                                                                             │
+│         if (c == null) {                                                   │
+│             // 3. 自己查找                                                  │
+│             c = findClass(name);                                           │
+│         }                                                                   │
+│     }                                                                       │
+│     if (resolve) {                                                          │
+│         resolveClass(c);                                                   │
+│     }                                                                       │
+│     return c;                                                               │
+│ }                                                                           │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 第 3 章 资源加载
+
+### 3.1 Android 资源编译
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    Android 资源编译流程                                     │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+资源编译：
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                                                                             │
+│   res/                                                                      │
+│   ├── layout/main.xml                                                      │
+│   ├── drawable/icon.png                                                    │
+│   ├── values/strings.xml                                                   │
+│   └── ...                                                                  │
+│                                                                             │
+│                    │                                                        │
+│                    ▼ AAPT2 编译                                             │
+│                    │                                                        │
+│   ┌─────────────────────────────────────────────────────────────────────┐  │
+│   │                        *.flat (中间文件)                             │  │
+│   │   layout_main.xml.flat                                               │  │
+│   │   drawable_icon.png.flat                                             │  │
+│   │   values_strings.arsc.flat                                           │  │
+│   └─────────────────────────────────────────────────────────────────────┘  │
+│                    │                                                        │
+│                    ▼ AAPT2 链接                                             │
+│                    │                                                        │
+│   ┌─────────────────────────────────────────────────────────────────────┐  │
+│   │                        APK 输出                                      │  │
+│   │   ├── resources.arsc (资源索引表)                                    │  │
+│   │   ├── res/layout/main.xml (编译后的 XML)                            │  │
+│   │   ├── res/drawable/icon.png                                         │  │
+│   │   └── AndroidManifest.xml                                           │  │
+│   └─────────────────────────────────────────────────────────────────────┘  │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+resources.arsc 结构：
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                                                                             │
+│   ┌─────────────────────────────────────────────────────────────────────┐  │
+│   │                    resources.arsc                                    │  │
+│   ├─────────────────────────────────────────────────────────────────────┤  │
+│   │  ResTable_header                                                      │  │
+│   │  ├── 资源类型数量                                                     │  │
+│   │  └── 包数量                                                           │  │
+│   ├─────────────────────────────────────────────────────────────────────┤  │
+│   │  ResStringPool (字符串池)                                            │  │
+│   │  ├── 资源名称字符串                                                   │  │
+│   │  └── 资源值字符串                                                     │  │
+│   ├─────────────────────────────────────────────────────────────────────┤  │
+│   │  ResTable_package                                                     │  │
+│   │  ├── package id (0x7f)                                               │  │
+│   │  ├── ResTable_typeSpec (类型规格)                                    │  │
+│   │  │   ├── layout                                                      │  │
+│   │  │   ├── drawable                                                    │  │
+│   │  │   ├── string                                                      │  │
+│   │  │   └── ...                                                         │  │
+│   │  └── ResTable_type (类型配置)                                        │  │
+│   │       ├── hdpi                                                       │  │
+│   │       ├── mdpi                                                       │  │
+│   │       └── xhdpi                                                      │  │
+│   └─────────────────────────────────────────────────────────────────────┘  │
+│                                                                             │
+│   资源 ID 格式：0xPPTTNNNN                                                  │
+│   • PP - Package ID (0x7f 应用，0x01 系统)                                 │
+│   • TT - Type ID (layout=1, string=2, ...)                                 │
+│   • NNNN - Entry ID (资源序号)                                              │
+│                                                                             │
+│   示例：0x7f010001                                                          │
+│   • 0x7f - 应用包                                                           │
+│   • 01 - layout 类型                                                       │
+│   • 0001 - 第一个布局                                                      │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 3.2 Resources 与 AssetManager
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    Resources 与 AssetManager                                │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+Resources 创建过程：
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                                                                             │
+│   ContextImpl.getResources()                                                │
+│               │                                                             │
+│               ▼                                                             │
+│   ┌─────────────────────────────────────────────────────────────────────┐  │
+│   │  new Resources()                                                     │  │
+│   │  ├── AssetManager assets = new AssetManager()                       │  │
+│   │  ├── assets.addAssetPath(apkPath)  // 添加 APK 路径                  │  │
+│   │  ├── DisplayMetrics metrics = getDisplayMetrics()                   │  │
+│   │  └── Configuration config = getConfiguration()                      │  │
+│   └─────────────────────────────────────────────────────────────────────┘  │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+AssetManager 核心方法：
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                                                                             │
+│   // 添加资源路径（关键方法，插件化核心）                                    │
+│   private int addAssetPath(String path)                                    │
+│                                                                             │
+│   // 打开资源                                                               │
+│   public InputStream open(String fileName)                                 │
+│   public InputStream open(String fileName, int accessMode)                 │
+│                                                                             │
+│   // 列出资源                                                               │
+│   public String[] list(String path)                                        │
+│                                                                             │
+│   // 获取资源值                                                             │
+│   public int getResourceIdentifier(String name, String defType, String defPackage)│
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+插件化加载资源的关键：
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                                                                             │
+│   // 反射调用 addAssetPath 加载插件资源                                     │
+│   AssetManager assets = AssetManager.class.newInstance();                  │
+│   Method addAssetPath = AssetManager.class.getDeclaredMethod(              │
+│       "addAssetPath", String.class);                                       │
+│   addAssetPath.setAccessible(true);                                        │
+│   addAssetPath.invoke(assets, pluginApkPath);                              │
+│                                                                             │
+│   // 创建插件的 Resources                                                   │
+│   Resources pluginResources = new Resources(                               │
+│       assets,                                                               │
+│       hostResources.getDisplayMetrics(),                                   │
+│       hostResources.getConfiguration()                                     │
+│   );                                                                        │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 3.3 插件资源加载方案
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    插件资源加载方案                                          │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+方案一：独立 Resources（推荐）
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                                                                             │
+│   宿主 Resources                    插件 Resources                          │
+│   ┌─────────────────┐              ┌─────────────────┐                     │
+│   │ AssetManager    │              │ AssetManager    │                     │
+│   │ (host.apk)      │              │ (plugin.apk)    │                     │
+│   │                 │              │                 │                     │
+│   │ 0x7fxxxxxx      │              │ 0x7fxxxxxx      │                     │
+│   └─────────────────┘              └─────────────────┘                     │
+│                                                                             │
+│   特点：                                                                    │
+│   • 宿主和插件资源独立                                                      │
+│   • ID 不会冲突                                                            │
+│   • 需要手动切换 Resources                                                 │
+│                                                                             │
+│   代码实现：                                                                 │
+│   public class PluginResources {                                           │
+│       private Resources mHostResources;                                    │
+│       private Resources mPluginResources;                                  │
+│                                                                             │
+│       public Resources getPluginResources(String pluginApkPath) {          │
+│           AssetManager assets = AssetManager.class.newInstance();          │
+│           Method addAssetPath = AssetManager.class.getDeclaredMethod(      │
+│               "addAssetPath", String.class);                               │
+│           addAssetPath.invoke(assets, pluginApkPath);                      │
+│           return new Resources(assets, mHostResources.getDisplayMetrics(), │
+│               mHostResources.getConfiguration());                          │
+│       }                                                                     │
+│   }                                                                         │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+方案二：合并 Resources
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                                                                             │
+│   合并后的 Resources                                                        │
+│   ┌─────────────────────────────────────────────────────────────────────┐  │
+│   │ AssetManager                                                        │  │
+│   │ (host.apk + plugin.apk)                                             │  │
+│   │                                                                      │  │
+│   │ 0x7fxxxxxx (宿主)                                                   │  │
+│   │ 0x7fxxxxxx (插件) ← 冲突风险！                                       │  │
+│   └─────────────────────────────────────────────────────────────────────┘  │
+│                                                                             │
+│   特点：                                                                    │
+│   • 宿主和插件共享一个 Resources                                           │
+│   • ID 可能冲突                                                            │
+│   • 使用方便                                                               │
+│                                                                             │
+│   代码实现：                                                                 │
+│   public void mergeResources(String pluginApkPath) {                       │
+│       AssetManager assets = getAssets(); // 获取宿主 AssetManager          │
+│       Method addAssetPath = AssetManager.class.getDeclaredMethod(          │
+│           "addAssetPath", String.class);                                   │
+│       addAssetPath.invoke(assets, pluginApkPath);                          │
+│   }                                                                         │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+方案三：自定义 Context（最佳）
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                                                                             │
+│   public class PluginContext extends ContextWrapper {                      │
+│       private Resources mPluginResources;                                  │
+│       private ClassLoader mPluginClassLoader;                              │
+│                                                                             │
+│       public PluginContext(Context base, Resources resources,              │
+│               ClassLoader classLoader) {                                   │
+│           super(base);                                                     │
+│           mPluginResources = resources;                                    │
+│           mPluginClassLoader = classLoader;                                │
+│       }                                                                     │
+│                                                                             │
+│       @Override                                                             │
+│       public Resources getResources() {                                    │
+│           return mPluginResources;                                         │
+│       }                                                                     │
+│                                                                             │
+│       @Override                                                             │
+│       public ClassLoader getClassLoader() {                                │
+│           return mPluginClassLoader;                                       │
+│       }                                                                     │
+│                                                                             │
+│       @Override                                                             │
+│       public AssetManager getAssets() {                                    │
+│           return mPluginResources.getAssets();                             │
+│       }                                                                     │
+│   }                                                                         │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 3.4 资源冲突解决
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    资源冲突解决方案                                          │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+问题：宿主和插件的资源 ID 都是 0x7f 开头，可能冲突
+
+解决方案：
+
+1. 修改 aapt2 的 package-id（推荐）
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ // 插件的 build.gradle                                                      │
+│ android {                                                                   │
+│     aaptOptions {                                                          │
+│         additionalParameters "--package-id", "0x80"                       │
+│     }                                                                       │
+│ }                                                                           │
+│                                                                             │
+│ // 插件资源 ID 变为 0x80xxxxxx，不会与宿主 0x7fxxxxxx 冲突                  │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+2. public.xml 固定资源 ID
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ // res/values/public.xml                                                   │
+│ <?xml version="1.0" encoding="utf-8"?>                                     │
+│ <resources>                                                                 │
+│     <public type="layout" name="main" id="0x80010001" />                   │
+│     <public type="string" name="app_name" id="0x80020001" />               │
+│ </resources>                                                               │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+3. 资源前缀命名
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ // 宿主资源：host_main_layout                                               │
+│ // 插件资源：plugin_main_layout                                             │
+│                                                                             │
+│ // 避免同名资源冲突                                                          │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+4. 独立 Resources（最安全）
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ // 每个插件使用独立的 Resources                                             │
+│ // 不共享 AssetManager                                                      │
+│ // 完全避免冲突                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 第 4 章 四大组件插件化
+
+### 4.1 Activity 插件化
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    Activity 插件化方案                                       │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+核心问题：插件 Activity 未在 AndroidManifest.xml 中注册，无法直接启动
+
+解决方案：
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                                                                             │
+│ 方案一：占坑 Activity（VirtualAPK/RePlugin）                               │
+│ ────────────────────────────────────────────────────────────────────────── │
+│                                                                             │
+│   AndroidManifest.xml:                                                     │
+│   ┌─────────────────────────────────────────────────────────────────────┐  │
+│   │ <activity                                                            │  │
+│   │     android:name=".StubActivity0"                                   │  │
+│   │     android:exported="false" />                                     │  │
+│   │ <activity                                                            │  │
+│   │     android:name=".StubActivity1"                                   │  │
+│   │     android:exported="false" />                                     │  │
+│   │ ...                                                                   │  │
+│   └─────────────────────────────────────────────────────────────────────┘  │
+│                                                                             │
+│   启动流程：                                                                 │
+│   1. 启动时替换 Intent                                                      │
+│      PluginActivity → StubActivity0                                       │
+│   2. AMS 验证通过，创建 StubActivity0                                      │
+│   3. Hook ActivityThread，替换回 PluginActivity                            │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+方案二：代理 Activity（Shadow）
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                                                                             │
+│   ProxyActivity (已注册)                                                   │
+│        │                                                                    │
+│        │ 委托                                                               │
+│        ▼                                                                    │
+│   PluginActivity (未注册)                                                  │
+│                                                                             │
+│   生命周期转发：                                                             │
+│   ProxyActivity.onCreate() → PluginActivity.onCreate()                    │
+│   ProxyActivity.onStart()  → PluginActivity.onStart()                     │
+│   ProxyActivity.onResume() → PluginActivity.onResume()                    │
+│   ...                                                                       │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 4.2 Service 插件化
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    Service 插件化方案                                        │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+方案一：代理 Service
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                                                                             │
+│   ProxyService (已注册)                                                    │
+│        │                                                                    │
+│        │ 动态代理                                                           │
+│        ▼                                                                    │
+│   PluginService (未注册)                                                   │
+│                                                                             │
+│   实现：                                                                    │
+│   public class ProxyService extends Service {                              │
+│       private Service mPluginService;                                      │
+│                                                                             │
+│       @Override                                                             │
+│       public void onCreate() {                                             │
+│           // 加载插件 Service                                               │
+│           String className = getIntent().getStringExtra("pluginService");  │
+│           mPluginService = loadPluginService(className);                   │
+│           mPluginService.onCreate();                                       │
+│       }                                                                     │
+│                                                                             │
+│       @Override                                                             │
+│       public IBinder onBind(Intent intent) {                               │
+│           return mPluginService.onBind(intent);                            │
+│       }                                                                     │
+│   }                                                                         │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+方案二：动态代理
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                                                                             │
+│   // Hook IActivityManager，拦截 Service 操作                               │
+│   Object amProxy = Proxy.newProxyInstance(                                 │
+│       IActivityManager.class.getClassLoader(),                             │
+│       new Class<?>[] { IActivityManager.class },                           │
+│       new InvocationHandler() {                                            │
+│           @Override                                                         │
+│           public Object invoke(Object proxy, Method method, Object[] args) │
+│                   throws Throwable {                                        │
+│               if ("startService".equals(method.getName())) {               │
+│                   // 替换为代理 Service                                      │
+│                   replaceWithProxyService(args);                           │
+│               }                                                             │
+│               return method.invoke(mOriginal, args);                       │
+│           }                                                                 │
+│       }                                                                     │
+│   );                                                                        │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 4.3 BroadcastReceiver 插件化
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    BroadcastReceiver 插件化                                  │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+方案：动态注册
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                                                                             │
+│   静态广播问题：插件 APK 的静态广播无法接收                                  │
+│                                                                             │
+│   解决方案：解析插件 AndroidManifest.xml，动态注册广播                       │
+│                                                                             │
+│   // 解析插件的 Receiver                                                    │
+│   public void registerPluginReceivers(String pluginApkPath) {              │
+│       // 解析 AndroidManifest.xml                                          │
+│       List<ReceiverInfo> receivers = parseReceivers(pluginApkPath);        │
+│                                                                             │
+│       for (ReceiverInfo info : receivers) {                                │
+│           // 加载插件 BroadcastReceiver                                    │
+│           Class<?> clazz = mPluginClassLoader.loadClass(info.className);   │
+│           BroadcastReceiver receiver = (BroadcastReceiver) clazz.newInstance();│
+│                                                                             │
+│           // 动态注册                                                       │
+│           IntentFilter filter = new IntentFilter();                        │
+│           for (String action : info.actions) {                             │
+│               filter.addAction(action);                                    │
+│           }                                                                 │
+│           mContext.registerReceiver(receiver, filter);                     │
+│       }                                                                     │
+│   }                                                                         │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 4.4 ContentProvider 插件化
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    ContentProvider 插件化                                    │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+方案：代理 Provider
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                                                                             │
+│   ProxyProvider (已注册)                                                   │
+│        │                                                                    │
+│        │ 转发                                                               │
+│        ▼                                                                    │
+│   PluginProvider (未注册)                                                  │
+│                                                                             │
+│   实现：                                                                    │
+│   public class ProxyProvider extends ContentProvider {                     │
+│       private ContentProvider mPluginProvider;                             │
+│                                                                             │
+│       @Override                                                             │
+│       public boolean onCreate() {                                          │
+│           // 加载插件 Provider                                              │
+│           String authority = getCallingAuthority();                        │
+│           mPluginProvider = loadPluginProvider(authority);                 │
+│           return mPluginProvider.onCreate();                               │
+│       }                                                                     │
+│                                                                             │
+│       @Override                                                             │
+│       public Cursor query(Uri uri, String[] projection, ...) {             │
+│           return mPluginProvider.query(uri, projection, ...);              │
+│       }                                                                     │
+│   }                                                                         │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 第 5 章 Activity 插件化详解
+
+### 5.1 Activity 启动流程
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    Activity 启动流程 (Android 16)                           │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                                                                             │
+│   App 进程                              System Server 进程                  │
+│   ┌─────────────────┐                  ┌─────────────────────────────────┐ │
+│   │ Activity.startActivity()           │                                 │ │
+│   │         │                          │                                 │ │
+│   │         ▼                          │                                 │ │
+│   │ Instrumentation.execStartActivity()│                                 │ │
+│   │         │                          │                                 │ │
+│   │         ▼                          │                                 │ │
+│   │ ActivityTaskManager.getService()   │                                 │ │
+│   │         │                          │                                 │ │
+│   │         │ Binder IPC               │                                 │ │
+│   │         └──────────────────────────┼─► ATMS.startActivityAsUser()    │ │
+│   │                                  │ │         │                       │ │
+│   │                                  │ │         ▼                       │ │
+│   │                                  │ │ ActivityStarter.execute()       │ │
+│   │                                  │ │         │                       │ │
+│   │                                  │ │         ▼                       │ │
+│   │                                  │ │ ActivityStack.startActivityLocked()│
+│   │                                  │ │         │                       │ │
+│   │                                  │ │         ▼                       │ │
+│   │                                  │ │ 检查 AndroidManifest.xml        │ │
+│   │                                  │ │ (插件 Activity 不存在！❌)      │ │
+│   │                                  │ │                                 │ │
+│   └──────────────────────────────────┼─┴─────────────────────────────────┘ │
+│                                      │                                      │
+│                                      ▼                                      │
+│   ┌─────────────────────────────────────────────────────────────────────┐  │
+│   │                    Hook 点 1: Instrumentation                        │  │
+│   │                    Hook 点 2: IActivityTaskManager                   │  │
+│   │                    Hook 点 3: ActivityThread                         │  │
+│   └─────────────────────────────────────────────────────────────────────┘  │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 5.2 Hook IActivityManager
+
+```java
+/**
+ * Hook IActivityManager 示例
+ * 
+ * 目的：拦截 Activity 启动，将插件 Activity 替换为占坑 Activity
+ */
+public class IActivityManagerHook {
+    
+    private static final String TAG = "IActivityManagerHook";
+    
+    /**
+     * Hook ActivityTaskManager (Android 10+)
+     */
+    public static void hookActivityTaskManager() throws Exception {
+        // 1. 获取 ActivityTaskManager 类
+        Class<?> atmClass = Class.forName("android.app.ActivityTaskManager");
+        
+        // 2. 获取 IActivityTaskManager 单例
+        Field iAtmSingletonField = atmClass.getDeclaredField("IActivityTaskManagerSingleton");
+        iAtmSingletonField.setAccessible(true);
+        Object iAtmSingleton = iAtmSingletonField.get(null);
+        
+        // 3. 获取 Singleton 的 mInstance
+        Class<?> singletonClass = Class.forName("android.util.Singleton");
+        Field mInstanceField = singletonClass.getDeclaredField("mInstance");
+        mInstanceField.setAccessible(true);
+        Object mInstance = mInstanceField.get(iAtmSingleton);
+        
+        // 4. 创建动态代理
+        Object proxy = Proxy.newProxyInstance(
+                mInstance.getClass().getClassLoader(),
+                new Class<?>[] { Class.forName("android.app.IActivityTaskManager") },
+                new IActivityTaskManagerInvocationHandler(mInstance)
+        );
+        
+        // 5. 替换为代理对象
+        mInstanceField.set(iAtmSingleton, proxy);
+    }
+    
+    /**
+     * InvocationHandler 处理器
+     */
+    static class IActivityTaskManagerInvocationHandler implements InvocationHandler {
+        private Object mOriginal;
+        
+        public IActivityTaskManagerInvocationHandler(Object original) {
+            mOriginal = original;
+        }
+        
+        @Override
+        public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
+            // 拦截 startActivity 方法
+            if ("startActivity".equals(method.getName())) {
+                // 替换 Intent 中的插件 Activity 为占坑 Activity
+                Intent intent = (Intent) args[2];
+                ComponentName component = intent.getComponent();
+                
+                if (isPluginActivity(component)) {
+                    // 保存原始的插件 Activity 信息
+                    intent.putExtra("plugin_activity", component.getClassName());
+                    
+                    // 替换为占坑 Activity
+                    intent.setComponent(new ComponentName(
+                            "com.example.host",
+                            "com.example.host.StubActivity"
+                    ));
+                }
+            }
+            
+            return method.invoke(mOriginal, args);
+        }
+    }
+}
+```
+
+### 5.3 占坑 Activity 方案
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    占坑 Activity 方案详解                                    │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+1. AndroidManifest.xml 声明占坑 Activity
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ <application>                                                              │
+│     <!-- 标准模式占坑 -->                                                   │
+│     <activity android:name=".stub.StubActivity0" android:exported="false" />│
+│     <activity android:name=".stub
