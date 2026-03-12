@@ -77,12 +77,26 @@
 - 10.3 [性能优化](#103-性能优化)
 - 10.4 [调试技巧](#104-调试技巧)
 
-**第 18 章 面试常见问题**
-- 18.1 [插件化原理](#181-插件化原理)
-- 18.2 [类加载机制](#182-类加载机制)
-- 18.3 [资源加载](#183-资源加载)
-- 18.4 [组件插件化](#184-组件插件化)
-- 18.5 [框架对比](#185-框架对比)
+**第 11 章 SystemUI 插件化方案**
+- 11.1 [SystemUI 插件化概述](#111-systemui-插件化概述)
+- 11.2 [SystemUI 插件化实现方案](#112-systemui-插件化实现方案)
+- 11.3 [StatusBar 插件化实现](#113-statusbar-插件化实现)
+- 11.4 [QuickSettings 插件化实现](#114-quicksettings-插件化实现)
+- 11.5 [插件 IPC 通信](#115-插件-ipc-通信)
+- 11.6 [插件安全机制](#116-插件安全机制)
+- 11.7 [插件开发最佳实践](#117-插件开发最佳实践)
+- 11.8 [实际案例：厂商定制 StatusBar](#118-实际案例厂商定制-statusbar)
+
+---
+
+### 第四篇：面试指南
+
+**第 12 章 面试常见问题**
+- 12.1 [插件化原理](#121-插件化原理)
+- 12.2 [类加载机制](#122-类加载机制)
+- 12.3 [资源加载](#123-资源加载)
+- 12.4 [组件插件化](#124-组件插件化)
+- 12.5 [框架对比](#125-框架对比)
 
 ---
 
@@ -1485,46 +1499,33 @@ SystemUI 插件化特点：
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 11.2 SystemUI 插件化实现方案
+### 11.2 PluginManager 源码详解
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    SystemUI PluginManager 完整架构                          │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+源码位置：frameworks/base/packages/SystemUI/src/com/android/systemui/plugins/
+
+核心类：
+├── PluginManager.java          # 插件管理器主类
+├── PluginInstance.java         # 插件实例管理
+├── PluginFactory.java          # 插件工厂
+├── PluginContext.java          # 插件专用 Context
+├── PluginClassLoader.java      # 插件类加载器
+└── PluginActionManager.java    # 插件动作管理
+```
 
 ```java
 /**
- * SystemUI 插件接口定义
- * 位置：frameworks/base/packages/SystemUI/plugin/
+ * PluginManager - 插件管理器完整源码分析
+ * 位置：frameworks/base/packages/SystemUI/src/com/android/systemui/plugins/PluginManager.java
  */
-interface Plugin {
-    /**
-     * 插件创建时调用
-     */
-    void onCreate(Context context, PluginListener listener);
+public class PluginManager {
+    private static final String TAG = "PluginManager";
     
-    /**
-     * 插件销毁时调用
-     */
-    void onDestroy();
-}
-
-/**
- * 插件监听器
- */
-interface PluginListener<T extends Plugin> {
-    /**
-     * 插件连接成功
-     */
-    void onPluginConnected(T plugin);
-    
-    /**
-     * 插件断开连接
-     */
-    void onPluginDisconnected(T plugin);
-}
-
-/**
- * PluginManager - 插件管理器
- * 位置：frameworks/base/packages/SystemUI/plugin/PluginManager.java
- */
-class PluginManager {
-    // 插件动作
+    // 插件 Action
     public static final String PLUGIN_ACTION = "com.android.systemui.action.PLUGIN";
     
     // 插件权限
@@ -1533,21 +1534,58 @@ class PluginManager {
     // 单例
     private static PluginManager sInstance;
     
-    // 插件映射
+    // 上下文
+    private final Context mContext;
+    
+    // 包管理器
+    private final PackageManager mPm;
+    
+    // 插件监听器映射
     private final ArrayMap<Class<?>, PluginListener<?>> mPlugins;
+    
+    // 插件实例映射
+    private final ArrayMap<Class<?>, PluginInstance<?>> mPluginInstances;
+    
+    // 插件包名映射
+    private final ArrayMap<String, PluginInstance<?>> mPackageInstances;
+    
+    // 插件版本
+    private final int mPluginVersion;
+    
+    // 是否已连接
+    private boolean mConnected;
     
     /**
      * 获取单例
      */
     public static PluginManager getInstance(Context context) {
         if (sInstance == null) {
-            sInstance = new PluginManager(context);
+            sInstance = new PluginManager(context.getApplicationContext());
         }
         return sInstance;
     }
     
     /**
-     * 注册插件监听
+     * 构造函数
+     */
+    private PluginManager(Context context) {
+        mContext = context;
+        mPm = context.getPackageManager();
+        mPlugins = new ArrayMap<>();
+        mPluginInstances = new ArrayMap<>();
+        mPackageInstances = new ArrayMap<>();
+        
+        // 获取当前插件版本
+        mPluginVersion = getVersion(mContext);
+        
+        // 注册包安装/卸载监听
+        registerPackageReceiver();
+    }
+    
+    /**
+     * 注册插件监听器
+     * @param listener 监听器
+     * @param cls 插件接口类
      */
     public <T extends Plugin> void addPluginListener(
             PluginListener<T> listener, Class<T> cls) {
@@ -1555,475 +1593,737 @@ class PluginManager {
     }
     
     /**
-     * 注册插件监听 (允许多个)
+     * 注册插件监听器 (完整版)
+     * @param listener 监听器
+     * @param cls 插件接口类
+     * @param allowMultiple 是否允许多个插件
      */
     public <T extends Plugin> void addPluginListener(
             PluginListener<T> listener, Class<T> cls, boolean allowMultiple) {
-        // 1. 查询匹配的插件
+        
+        // 1. 创建查询 Intent
         Intent intent = new Intent(PLUGIN_ACTION);
         intent.addCategory(cls.getName());
         
-        List<ResolveInfo> resolves = mPm.queryIntentServices(intent, 0);
+        // 2. 查询匹配的插件服务
+        List<ResolveInfo> resolves = mPm.queryIntentServices(
+                intent, PackageManager.GET_META_DATA);
         
-        // 2. 连接插件
+        Log.d(TAG, "Found " + resolves.size() + " plugins for " + cls.getName());
+        
+        // 3. 遍历并连接插件
         for (ResolveInfo resolve : resolves) {
-            PluginInfo<T> info = new PluginInfo<>(mContext, cls, resolve);
-            info.connect(listener);
+            // 检查权限
+            if (!checkPermission(resolve.serviceInfo.packageName)) {
+                Log.w(TAG, "Plugin " + resolve.serviceInfo.packageName 
+                        + " doesn't have permission");
+                continue;
+            }
+            
+            // 检查版本
+            if (!checkVersion(resolve.serviceInfo)) {
+                Log.w(TAG, "Plugin " + resolve.serviceInfo.packageName 
+                        + " version mismatch");
+                continue;
+            }
+            
+            // 创建插件实例
+            PluginInstance<T> instance = createPluginInstance(cls, resolve);
+            if (instance != null) {
+                // 连接插件
+                instance.connect(listener);
+                
+                mPluginInstances.put(cls, instance);
+                mPackageInstances.put(resolve.serviceInfo.packageName, instance);
+                
+                // 如果不允许多个，只连接第一个
+                if (!allowMultiple) {
+                    break;
+                }
+            }
         }
         
+        // 4. 保存监听器
         mPlugins.put(cls, listener);
     }
     
     /**
-     * 移除插件监听
+     * 创建插件实例
      */
-    public <T extends Plugin> void removePluginListener(PluginListener<T> listener) {
-        mPlugins.remove(listener);
+    private <T extends Plugin> PluginInstance<T> createPluginInstance(
+            Class<T> cls, ResolveInfo resolve) {
+        
+        ComponentName component = new ComponentName(
+                resolve.serviceInfo.packageName, 
+                resolve.serviceInfo.name);
+        
+        return new PluginInstance<>(
+                mContext, 
+                cls, 
+                component,
+                resolve.serviceInfo.applicationInfo);
+    }
+    
+    /**
+     * 检查插件权限
+     */
+    private boolean checkPermission(String packageName) {
+        int result = mPm.checkPermission(PLUGIN_PERMISSION, packageName);
+        return result == PackageManager.PERMISSION_GRANTED;
+    }
+    
+    /**
+     * 检查插件版本
+     */
+    private boolean checkVersion(ServiceInfo serviceInfo) {
+        Bundle metaData = serviceInfo.metaData;
+        if (metaData == null) {
+            return false;
+        }
+        
+        int version = metaData.getInt("com.android.systemui.plugins.version", 0);
+        return version >= mPluginVersion;
+    }
+    
+    /**
+     * 获取当前插件版本
+     */
+    private int getVersion(Context context) {
+        try {
+            ApplicationInfo info = context.getApplicationInfo();
+            Bundle metaData = info.metaData;
+            if (metaData != null) {
+                return metaData.getInt("com.android.systemui.plugins.version", 1);
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error getting plugin version", e);
+        }
+        return 1;
+    }
+    
+    /**
+     * 注册包安装/卸载监听
+     */
+    private void registerPackageReceiver() {
+        IntentFilter filter = new IntentFilter();
+        filter.addAction(Intent.ACTION_PACKAGE_ADDED);
+        filter.addAction(Intent.ACTION_PACKAGE_CHANGED);
+        filter.addAction(Intent.ACTION_PACKAGE_REMOVED);
+        filter.addDataScheme("package");
+        
+        mContext.registerReceiver(new PackageReceiver(), filter);
+    }
+    
+    /**
+     * 包变化接收器
+     */
+    private class PackageReceiver extends BroadcastReceiver {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            String packageName = intent.getData().getSchemeSpecificPart();
+            
+            PluginInstance<?> instance = mPackageInstances.get(packageName);
+            if (instance != null) {
+                // 插件包变化，断开并重新连接
+                instance.disconnect();
+                mPackageInstances.remove(packageName);
+                
+                // 重新加载插件
+                reloadPlugins();
+            }
+        }
     }
 }
 ```
 
-### 11.3 StatusBar 插件化实现
+### 11.3 PluginInstance - 插件实例管理
+
+```java
+/**
+ * PluginInstance - 插件实例管理
+ * 位置：frameworks/base/packages/SystemUI/src/com/android/systemui/plugins/PluginInstance.java
+ * 
+ * 职责：
+ * 1. 创建插件 Context
+ * 2. 创建插件 ClassLoader
+ * 3. 加载插件类
+ * 4. 管理插件生命周期
+ */
+public class PluginInstance<T extends Plugin> {
+    private static final String TAG = "PluginInstance";
+    
+    // SystemUI Context
+    private final Context mSystemUIContext;
+    
+    // 插件接口类
+    private final Class<T> mPluginClass;
+    
+    // 插件组件名
+    private final ComponentName mComponent;
+    
+    // 插件 ApplicationInfo
+    private final ApplicationInfo mPluginAppInfo;
+    
+    // 插件 Context (独立创建)
+    private Context mPluginContext;
+    
+    // 插件 ClassLoader (独立创建)
+    private ClassLoader mPluginClassLoader;
+    
+    // 插件实例
+    private T mPluginInstance;
+    
+    // 插件监听器
+    private PluginListener<T> mListener;
+    
+    // 是否已连接
+    private boolean mConnected;
+    
+    /**
+     * 构造函数
+     */
+    public PluginInstance(Context context, Class<T> cls, 
+            ComponentName component, ApplicationInfo appInfo) {
+        mSystemUIContext = context;
+        mPluginClass = cls;
+        mComponent = component;
+        mPluginAppInfo = appInfo;
+    }
+    
+    /**
+     * 连接插件
+     */
+    public void connect(PluginListener<T> listener) {
+        mListener = listener;
+        mConnected = true;
+        
+        try {
+            // 1. 创建插件 ClassLoader
+            mPluginClassLoader = createPluginClassLoader();
+            
+            // 2. 创建插件 Context
+            mPluginContext = createPluginContext();
+            
+            // 3. 加载插件类
+            Class<?> pluginClass = mPluginClassLoader.loadClass(mComponent.getClassName());
+            
+            // 4. 实例化插件
+            mPluginInstance = (T) pluginClass.getDeclaredConstructor().newInstance();
+            
+            // 5. 调用 onCreate
+            mPluginInstance.onCreate(mPluginContext, mListener);
+            
+            // 6. 通知连接成功
+            mListener.onPluginConnected(mPluginInstance);
+            
+            Log.d(TAG, "Plugin connected: " + mComponent.getClassName());
+            
+        } catch (Exception e) {
+            Log.e(TAG, "Error connecting plugin", e);
+            mConnected = false;
+        }
+    }
+    
+    /**
+     * 断开插件
+     */
+    public void disconnect() {
+        if (mPluginInstance != null) {
+            mPluginInstance.onDestroy();
+            
+            if (mListener != null) {
+                mListener.onPluginDisconnected(mPluginInstance);
+            }
+        }
+        
+        mConnected = false;
+        mPluginInstance = null;
+        mPluginContext = null;
+        mPluginClassLoader = null;
+    }
+    
+    /**
+     * 创建插件 ClassLoader
+     */
+    private ClassLoader createPluginClassLoader() {
+        // 获取插件 APK 路径
+        String apkPath = mPluginAppInfo.sourceDir;
+        
+        // 获取优化目录
+        String optimizedDir = mSystemUIContext.getCodeCacheDir().getAbsolutePath();
+        
+        // 获取 native 库目录
+        String libPath = mPluginAppInfo.nativeLibraryDir;
+        
+        // 获取父 ClassLoader (SystemUI 的 ClassLoader)
+        ClassLoader parent = mSystemUIContext.getClassLoader();
+        
+        // 创建 DexClassLoader
+        return new DexClassLoader(apkPath, optimizedDir, libPath, parent);
+    }
+    
+    /**
+     * 创建插件 Context
+     */
+    private Context createPluginContext() {
+        try {
+            // 方式1: 使用 createPackageContext (推荐)
+            Context pluginContext = mSystemUIContext.createPackageContext(
+                    mComponent.getPackageName(),
+                    Context.CONTEXT_INCLUDE_CODE | Context.CONTEXT_IGNORE_SECURITY);
+            
+            // 设置插件 ClassLoader
+            // 注意: createPackageContext 会自动创建 ClassLoader
+            // 但我们使用自己创建的 ClassLoader 以便更好地控制
+            return new PluginContextWrapper(pluginContext, mPluginClassLoader);
+            
+        } catch (PackageManager.NameNotFoundException e) {
+            Log.e(TAG, "Error creating plugin context", e);
+            return null;
+        }
+    }
+}
+```
+
+### 11.4 PluginContext 创建流程详解
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    PluginContext 创建流程                                   │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+创建流程：
+─────────────────────────────────────────────────────────────────────────────
+
+1. createPackageContext
+   │
+   ├─► ContextImpl.createPackageContext()
+   │   │
+   │   ├─► 创建 LoadedApk
+   │   │   └─► 加载插件 APK 信息
+   │   │
+   │   ├─► 创建 ClassLoader
+   │   │   └─► PathClassLoader (自动创建)
+   │   │
+   │   ├─► 创建 Resources
+   │   │   └─► 加载插件资源
+   │   │
+   │   └─► 创建 ContextImpl
+   │       └─► 绑定到插件包
+   │
+   └─► 返回插件 Context
+
+2. 自定义 PluginContextWrapper
+   │
+   ├─► 包装原始 Context
+   │
+   ├─► 覆盖 getClassLoader()
+   │   └─► 返回自定义 ClassLoader
+   │
+   ├─► 覆盖 getResources()
+   │   └─► 返回插件资源
+   │
+   └─► 覆盖 getAssets()
+       └─► 返回插件 AssetManager
+```
+
+```java
+/**
+ * PluginContextWrapper - 插件 Context 包装器
+ * 
+ * 作用：
+ * 1. 隔离插件和宿主的 Context
+ * 2. 自定义 ClassLoader
+ * 3. 管理插件资源
+ */
+public class PluginContextWrapper extends ContextWrapper {
+    private final ClassLoader mPluginClassLoader;
+    private Resources mPluginResources;
+    private AssetManager mPluginAssets;
+    
+    public PluginContextWrapper(Context base, ClassLoader classLoader) {
+        super(base);
+        mPluginClassLoader = classLoader;
+    }
+    
+    @Override
+    public ClassLoader getClassLoader() {
+        return mPluginClassLoader;
+    }
+    
+    @Override
+    public Resources getResources() {
+        if (mPluginResources == null) {
+            mPluginResources = createPluginResources();
+        }
+        return mPluginResources;
+    }
+    
+    @Override
+    public AssetManager getAssets() {
+        if (mPluginAssets == null) {
+            mPluginAssets = createPluginAssets();
+        }
+        return mPluginAssets;
+    }
+    
+    /**
+     * 创建插件 Resources
+     */
+    private Resources createPluginResources() {
+        try {
+            // 获取插件 APK 路径
+            String apkPath = getBaseContext().getPackageResourcePath();
+            
+            // 创建 AssetManager
+            AssetManager assets = AssetManager.class.newInstance();
+            
+            // 添加插件资源路径
+            Method addAssetPath = AssetManager.class.getDeclaredMethod(
+                    "addAssetPath", String.class);
+            addAssetPath.setAccessible(true);
+            addAssetPath.invoke(assets, apkPath);
+            
+            // 获取 DisplayMetrics
+            DisplayMetrics metrics = getBaseContext().getResources().getDisplayMetrics();
+            
+            // 获取 Configuration
+            Configuration config = getBaseContext().getResources().getConfiguration();
+            
+            // 创建 Resources
+            return new Resources(assets, metrics, config);
+            
+        } catch (Exception e) {
+            Log.e("PluginContext", "Error creating plugin resources", e);
+            return getBaseContext().getResources();
+        }
+    }
+    
+    /**
+     * 创建插件 AssetManager
+     */
+    private AssetManager createPluginAssets() {
+        try {
+            AssetManager assets = AssetManager.class.newInstance();
+            
+            Method addAssetPath = AssetManager.class.getDeclaredMethod(
+                    "addAssetPath", String.class);
+            addAssetPath.setAccessible(true);
+            addAssetPath.invoke(assets, getBaseContext().getPackageResourcePath());
+            
+            return assets;
+            
+        } catch (Exception e) {
+            Log.e("PluginContext", "Error creating plugin assets", e);
+            return getBaseContext().getAssets();
+        }
+    }
+}
+```
+
+### 11.5 ClassLoader 创建流程详解
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    插件 ClassLoader 创建流程                                │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+ClassLoader 层级结构：
+─────────────────────────────────────────────────────────────────────────────
+
+                    BootClassLoader (启动类加载器)
+                           │
+                           ▼
+                PathClassLoader (SystemUI ClassLoader)
+                           │
+                           ▼
+              DexClassLoader (插件 ClassLoader)
+                           │
+                           ▼
+                    插件类加载
+
+创建过程：
+─────────────────────────────────────────────────────────────────────────────
+
+1. 获取插件 APK 路径
+   String apkPath = appInfo.sourceDir;
+   // 例如: /data/app/com.example.plugin-1/base.apk
+
+2. 获取优化目录
+   String optimizedDir = context.getCodeCacheDir().getAbsolutePath();
+   // 例如: /data/data/com.android.systemui/code_cache
+
+3. 获取 Native 库目录
+   String libPath = appInfo.nativeLibraryDir;
+   // 例如: /data/app/com.example.plugin-1/lib/arm64
+
+4. 获取父 ClassLoader
+   ClassLoader parent = context.getClassLoader();
+   // SystemUI 的 PathClassLoader
+
+5. 创建 DexClassLoader
+   ClassLoader pluginClassLoader = new DexClassLoader(
+       apkPath,           // 插件 APK 路径
+       optimizedDir,      // DEX 优化目录
+       libPath,           // Native 库目录
+       parent             // 父 ClassLoader
+   );
+
+类加载顺序 (双亲委派):
+─────────────────────────────────────────────────────────────────────────────
+
+插件类加载请求: loadClass("com.plugin.PluginClass")
+       │
+       ▼
+   DexClassLoader.findClass()
+       │
+       ├─► 检查是否已加载
+       │   └─► 已加载 → 直接返回
+       │
+       ├─► 委派给父加载器 (PathClassLoader)
+       │   │
+       │   ├─► SystemUI 类已加载 → 返回
+       │   │
+       │   └─► 委派给 BootClassLoader
+       │       │
+       │       ├─► Framework 类已加载 → 返回
+       │       │
+       │       └─► 未找到
+       │
+       └─► DexClassLoader 自己加载
+           │
+           └─► 从插件 APK 中加载类 → 返回
+
+类隔离机制：
+─────────────────────────────────────────────────────────────────────────────
+
+SystemUI ClassLoader:
+  └─► 加载 SystemUI 类
+      └─► android.widget.TextView
+      └─► com.android.systemui.statusbar.StatusBar
+
+Plugin A ClassLoader:
+  └─► 加载 Plugin A 类
+      └─► com.plugin.a.PluginClass
+      └─► 共享: android.widget.TextView (来自父加载器)
+
+Plugin B ClassLoader:
+  └─► 加载 Plugin B 类
+      └─► com.plugin.b.PluginClass
+      └─► 共享: android.widget.TextView (来自父加载器)
+
+特点:
+1. SystemUI 类只加载一次 (父加载器)
+2. 每个插件有独立的 ClassLoader
+3. 插件之间类隔离
+4. 共享 Framework 类
+```
+
+### 11.6 完整插件加载流程
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    SystemUI 插件完整加载流程                                │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                                                                             │
+│   1. SystemUI 启动                                                         │
+│      │                                                                      │
+│      ▼                                                                      │
+│   PluginManager.getInstance(context)                                        │
+│      │                                                                      │
+│      │ 初始化                                                               │
+│      ▼                                                                      │
+│   ┌──────────────────────────────────────────────────────────────────────┐  │
+│   │  PluginManager                                                       │  │
+│   │  • 创建单例                                                          │  │
+│   │  • 获取插件版本                                                       │  │
+│   │  • 注册包监听                                                         │  │
+│   └──────────────────────────────────────────────────────────────────────┘  │
+│      │                                                                      │
+│      ▼                                                                      │
+│   2. 注册插件监听器                                                         │
+│      │                                                                      │
+│      │ addPluginListener(listener, StatusBarPlugin.class)                  │
+│      ▼                                                                      │
+│   ┌──────────────────────────────────────────────────────────────────────┐  │
+│   │  查询插件                                                             │  │
+│   │  Intent intent = new Intent(PLUGIN_ACTION);                          │  │
+│   │  intent.addCategory(StatusBarPlugin.class.getName());                │  │
+│   │  List<ResolveInfo> resolves = pm.queryIntentServices(intent, 0);     │  │
+│   └──────────────────────────────────────────────────────────────────────┘  │
+│      │                                                                      │
+│      ▼                                                                      │
+│   3. 遍历插件                                                               │
+│      │                                                                      │
+│      │ for (ResolveInfo resolve : resolves)                                │
+│      ▼                                                                      │
+│   ┌──────────────────────────────────────────────────────────────────────┐  │
+│   │  检查权限                                                             │  │
+│   │  pm.checkPermission(PLUGIN_PERMISSION, packageName)                  │  │
+│   │                                                                      │  │
+│   │  检查版本                                                             │  │
+│   │  metaData.getInt("com.android.systemui.plugins.version")            │  │
+│   └──────────────────────────────────────────────────────────────────────┘  │
+│      │                                                                      │
+│      ▼                                                                      │
+│   4. 创建插件实例                                                           │
+│      │                                                                      │
+│      │ new PluginInstance<>(context, cls, component, appInfo)             │
+│      ▼                                                                      │
+│   ┌──────────────────────────────────────────────────────────────────────┐  │
+│   │  PluginInstance.connect(listener)                                    │  │
+│   │                                                                      │  │
+│   │  ┌────────────────────────────────────────────────────────────────┐  │  │
+│   │  │  1. 创建 ClassLoader                                          │  │  │
+│   │  │     DexClassLoader(apkPath, optimizedDir, libPath, parent)    │  │  │
+│   │  └────────────────────────────────────────────────────────────────┘  │  │
+│   │                                                                      │  │
+│   │  ┌────────────────────────────────────────────────────────────────┐  │  │
+│   │  │  2. 创建 Context                                              │  │  │
+│   │  │     context.createPackageContext(packageName, flags)         │  │  │
+│   │  │     new PluginContextWrapper(baseContext, classLoader)       │  │  │
+│   │  └────────────────────────────────────────────────────────────────┘  │  │
+│   │                                                                      │  │
+│   │  ┌────────────────────────────────────────────────────────────────┐  │  │
+│   │  │  3. 加载插件类                                                │  │  │
+│   │  │     Class<?> cls = classLoader.loadClass(className)          │  │  │
+│   │  └────────────────────────────────────────────────────────────────┘  │  │
+│   │                                                                      │  │
+│   │  ┌────────────────────────────────────────────────────────────────┐  │  │
+│   │  │  4. 实例化插件                                                │  │  │
+│   │  │     plugin = cls.getDeclaredConstructor().newInstance()      │  │  │
+│   │  └────────────────────────────────────────────────────────────────┘  │  │
+│   │                                                                      │  │
+│   │  ┌────────────────────────────────────────────────────────────────┐  │  │
+│   │  │  5. 调用 onCreate                                             │  │  │
+│   │  │     plugin.onCreate(pluginContext, listener)                  │  │  │
+│   │  └────────────────────────────────────────────────────────────────┘  │  │
+│   │                                                                      │  │
+│   │  ┌────────────────────────────────────────────────────────────────┐  │  │
+│   │  │  6. 通知连接成功                                              │  │  │
+│   │  │     listener.onPluginConnected(plugin)                         │  │  │
+│   │  └────────────────────────────────────────────────────────────────┘  │  │
+│   │                                                                      │  │
+│   └──────────────────────────────────────────────────────────────────────┘  │
+│      │                                                                      │
+│      ▼                                                                      │
+│   5. SystemUI 使用插件                                                      │
+│      │                                                                      │
+│      │ View statusBarView = plugin.getStatusBarView()                      │
+│      ▼                                                                      │
+│   ┌──────────────────────────────────────────────────────────────────────┐  │
+│   │  添加插件视图到 StatusBar                                            │  │
+│   │  statusBar.addView(statusBarView)                                    │  │
+│   └──────────────────────────────────────────────────────────────────────┘  │
+│      │                                                                      │
+│      ▼                                                                      │
+│   6. 插件运行中                                                             │
+│      │                                                                      │
+│      │ 插件处理事件、更新 UI                                               │
+│      │                                                                      │
+│      ▼                                                                      │
+│   7. 插件卸载                                                               │
+│      │                                                                      │
+│      │ pluginInstance.disconnect()                                         │
+│      ▼                                                                      │
+│   ┌──────────────────────────────────────────────────────────────────────┐  │
+│   │  1. plugin.onDestroy()                                               │  │
+│   │  2. listener.onPluginDisconnected(plugin)                            │  │
+│   │  3. 清理引用                                                          │  │
+│   └──────────────────────────────────────────────────────────────────────┘  │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 11.7 StatusBar 插件化实现示例
+```
+
 
 ```java
 /**
  * StatusBar 插件接口
- * 位置：frameworks/base/packages/SystemUI/plugin/StatusBarPlugin.java
  */
-interface StatusBarPlugin extends Plugin {
-    /**
-     * 获取状态栏视图
-     */
+public interface StatusBarPlugin extends Plugin {
     View getStatusBarView();
-    
-    /**
-     * 状态栏高度变化
-     */
     void onHeightChanged(int height);
-    
-    /**
-     * 通知数量变化
-     */
     void onNotificationCountChanged(int count);
 }
 
 /**
- * StatusBar 插件实现示例
- * 位置：插件 APK 中
+ * StatusBar 插件实现
  */
 public class CustomStatusBarPlugin implements StatusBarPlugin {
     private Context mContext;
     private View mStatusBarView;
-    private PluginListener<StatusBarPlugin> mListener;
     
     @Override
     public void onCreate(Context context, PluginListener listener) {
         mContext = context;
-        mListener = listener;
-        
-        // 加载插件布局
         mStatusBarView = LayoutInflater.from(context)
                 .inflate(R.layout.custom_status_bar, null);
-        
-        // 通知连接成功
-        mListener.onPluginConnected(this);
-    }
-    
-    @Override
-    public void onDestroy() {
-        mListener.onPluginDisconnected(this);
+        listener.onPluginConnected(this);
     }
     
     @Override
     public View getStatusBarView() {
         return mStatusBarView;
     }
-    
-    @Override
-    public void onHeightChanged(int height) {
-        // 处理高度变化
-        ViewGroup.LayoutParams lp = mStatusBarView.getLayoutParams();
-        if (lp.height != height) {
-            lp.height = height;
-            mStatusBarView.setLayoutParams(lp);
-        }
-    }
-    
-    @Override
-    public void onNotificationCountChanged(int count) {
-        // 更新通知数量显示
-        TextView tv = mStatusBarView.findViewById(R.id.notification_count);
-        tv.setText(String.valueOf(count));
-    }
 }
-
-/**
- * 插件 AndroidManifest.xml 配置
- */
-<service
-    android:name=".CustomStatusBarPlugin"
-    android:label="@string/plugin_name"
-    android:permission="com.android.systemui.permission.PLUGIN">
-    
-    <intent-filter>
-        <action android:name="com.android.systemui.action.PLUGIN" />
-        <category android:name="com.android.systemui.plugins.statusbar.StatusBarPlugin" />
-    </intent-filter>
-    
-    <meta-data
-        android:name="com.android.systemui.plugins.version"
-        android:value="1" />
-</service>
 ```
 
-### 11.4 QuickSettings 插件化实现
+### 11.8 QuickSettings 插件化
 
 ```java
 /**
  * QuickSettings 插件接口
  */
-interface QuickSettingsPlugin extends Plugin {
-    /**
-     * 获取 QuickSettings Tile
-     */
+public interface QuickSettingsPlugin extends Plugin {
     List<QSTile> getTiles();
-    
-    /**
-     * Tile 点击事件
-     */
     void onTileClick(String tileId);
-    
-    /**
-     * Tile 状态更新
-     */
-    void updateTileState(String tileId, TileState state);
-}
-
-/**
- * QuickSettings 插件实现
- */
-public class CustomQSPlugin implements QuickSettingsPlugin {
-    private List<QSTile> mTiles;
-    
-    @Override
-    public void onCreate(Context context, PluginListener listener) {
-        mTiles = new ArrayList<>();
-        
-        // 添加自定义 Tile
-        mTiles.add(createWiFiTile(context));
-        mTiles.add(createBluetoothTile(context));
-        mTiles.add(createFlashlightTile(context));
-        
-        listener.onPluginConnected(this);
-    }
-    
-    private QSTile createWiFiTile(Context context) {
-        QSTile tile = new QSTile();
-        tile.id = "custom_wifi";
-        tile.label = context.getString(R.string.wifi);
-        tile.icon = R.drawable.ic_wifi;
-        tile.state = TileState.ACTIVE;
-        return tile;
-    }
-    
-    @Override
-    public List<QSTile> getTiles() {
-        return mTiles;
-    }
-    
-    @Override
-    public void onTileClick(String tileId) {
-        switch (tileId) {
-            case "custom_wifi":
-                toggleWiFi();
-                break;
-            case "custom_bluetooth":
-                toggleBluetooth();
-                break;
-            case "custom_flashlight":
-                toggleFlashlight();
-                break;
-        }
-    }
-    
-    @Override
-    public void updateTileState(String tileId, TileState state) {
-        for (QSTile tile : mTiles) {
-            if (tile.id.equals(tileId)) {
-                tile.state = state;
-                break;
-            }
-        }
-    }
 }
 ```
 
-### 11.5 插件 IPC 通信
-
-```java
-/**
- * 插件 Binder 接口
- * 位置：frameworks/base/packages/SystemUI/plugin/IPlugin.aidl
- */
-interface IPlugin {
-    void onCreate(IBinder token);
-    void onDestroy();
-}
-
-/**
- * 插件服务实现
- */
-public class PluginService extends Service {
-    private IPlugin mPlugin;
-    
-    @Override
-    public IBinder onBind(Intent intent) {
-        return new IPlugin.Stub() {
-            @Override
-            public void onCreate(IBinder token) {
-                // 连接到 SystemUI
-                PluginManager.getInstance(PluginService.this)
-                        .onPluginConnected(mPlugin, token);
-            }
-            
-            @Override
-            public void onDestroy() {
-                PluginManager.getInstance(PluginService.this)
-                        .onPluginDisconnected(mPlugin);
-            }
-        };
-    }
-}
-
-/**
- * 插件与 SystemUI 通信
- */
-class PluginCommunicator {
-    private Messenger mSystemUIMessenger;
-    private Messenger mClientMessenger;
-    
-    // 消息类型
-    static final int MSG_REGISTER = 1;
-    static final int MSG_UNREGISTER = 2;
-    static final int MSG_UPDATE_VIEW = 3;
-    static final int MSG_EVENT = 4;
-    
-    /**
-     * 发送消息到 SystemUI
-     */
-    void sendToSystemUI(int what, Bundle data) {
-        Message msg = Message.obtain(null, what);
-        msg.setData(data);
-        msg.replyTo = mClientMessenger;
-        
-        try {
-            mSystemUIMessenger.send(msg);
-        } catch (RemoteException e) {
-            e.printStackTrace();
-        }
-    }
-    
-    /**
-     * 处理 SystemUI 消息
-     */
-    class IncomingHandler extends Handler {
-        @Override
-        public void handleMessage(Message msg) {
-            switch (msg.what) {
-                case MSG_UPDATE_VIEW:
-                    // 更新视图
-                    Bundle data = msg.getData();
-                    updateView(data);
-                    break;
-                case MSG_EVENT:
-                    // 处理事件
-                    handleEvent(msg.getData());
-                    break;
-            }
-        }
-    }
-}
-```
-
-### 11.6 插件安全机制
+### 11.9 插件安全机制
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                       SystemUI 插件安全机制                                 │
-└─────────────────────────────────────────────────────────────────────────────┘
-
 1. 权限控制
-   ─────────────────────────────────────────────────────────────────────────────
-   
-   <!-- 插件必须声明权限 -->
    <uses-permission android:name="com.android.systemui.permission.PLUGIN" />
-   
-   <!-- 权限定义 (系统级) -->
-   <permission
-       android:name="com.android.systemui.permission.PLUGIN"
-       android:protectionLevel="signature|privileged" />
 
 2. 签名验证
-   ─────────────────────────────────────────────────────────────────────────────
-   
-   class PluginSecurity {
-       /**
-        * 验证插件签名
-        */
-       boolean verifyPluginSignature(Context context, String packageName) {
-           try {
-               PackageManager pm = context.getPackageManager();
-               PackageInfo info = pm.getPackageInfo(
-                       packageName, 
-                       PackageManager.GET_SIGNATURES);
-               
-               // 验证签名
-               for (Signature sig : info.signatures) {
-                   if (isValidSignature(sig)) {
-                       return true;
-                   }
-               }
-           } catch (Exception e) {
-               return false;
-           }
-           return false;
-       }
-   }
+   • 系统签名或特权应用
 
 3. 版本检查
-   ─────────────────────────────────────────────────────────────────────────────
-   
-   class PluginVersion {
-       /**
-        * 检查插件版本兼容性
-        */
-       boolean checkVersion(Context context, ResolveInfo resolve) {
-           try {
-               Bundle metaData = resolve.serviceInfo.metaData;
-               int version = metaData.getInt("com.android.systemui.plugins.version", 0);
-               
-               // 检查版本是否兼容
-               return version >= MIN_PLUGIN_VERSION;
-           } catch (Exception e) {
-               return false;
-           }
-       }
-   }
+   <meta-data android:name="com.android.systemui.plugins.version" android:value="1" />
 
 4. 沙箱隔离
-   ─────────────────────────────────────────────────────────────────────────────
-   
-   • 插件运行在独立进程
-   • 限制插件可访问的 API
-   • 通过 IPC 进行通信
-   • 插件崩溃不影响 SystemUI
+   • 独立进程
+   • 独立 ClassLoader
+   • IPC 通信
 ```
 
-### 11.7 插件开发最佳实践
+### 11.10 插件开发最佳实践
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                       SystemUI 插件开发最佳实践                             │
-└─────────────────────────────────────────────────────────────────────────────┘
-
 1. 架构设计
-   ─────────────────────────────────────────────────────────────────────────────
-   
-   • 单一职责 - 每个插件只负责一个功能
-   • 接口隔离 - 使用最小接口
-   • 依赖倒置 - 依赖抽象而非具体实现
-   • 开闭原则 - 对扩展开放，对修改关闭
+   • 单一职责
+   • 接口隔离
+   • 依赖倒置
 
 2. 性能优化
-   ─────────────────────────────────────────────────────────────────────────────
-   
-   • 懒加载 - 按需加载插件
-   • 异步初始化 - 不阻塞主线程
-   • 内存管理 - 及时释放资源
-   • 视图复用 - 减少视图创建
+   • 懒加载
+   • 异步初始化
+   • 内存管理
 
 3. 兼容性处理
-   ─────────────────────────────────────────────────────────────────────────────
-   
-   • 版本检查 - 检查 SystemUI 版本
-   • 降级策略 - 不兼容时使用默认实现
-   • 异常处理 - 捕获所有异常
-   • 日志记录 - 便于调试
+   • 版本检查
+   • 降级策略
+   • 异常处理
 
 4. 调试技巧
-   ─────────────────────────────────────────────────────────────────────────────
-   
-   # 查看已加载插件
    adb shell dumpsys activity services | grep Plugin
-   
-   # 启用插件调试
-   adb shell setprop debug.systemui.plugin 1
-   
-   # 查看插件日志
    adb logcat -s PluginManager:V Plugin:V
-```
-
-### 11.8 实际案例：厂商定制 StatusBar
-
-```java
-/**
- * 厂商定制 StatusBar 插件
- */
-public class VendorStatusBarPlugin implements StatusBarPlugin {
-    private Context mContext;
-    private FrameLayout mContainer;
-    private ImageView mLogo;
-    private TextView mTime;
-    private TextView mBattery;
-    
-    @Override
-    public void onCreate(Context context, PluginListener listener) {
-        mContext = context;
-        
-        // 创建自定义布局
-        mContainer = new FrameLayout(context);
-        
-        // 厂商 Logo
-        mLogo = new ImageView(context);
-        mLogo.setImageResource(R.drawable.vendor_logo);
-        mContainer.addView(mLogo);
-        
-        // 时间显示
-        mTime = new TextView(context);
-        mTime.setTextSize(12);
-        mContainer.addView(mTime);
-        
-        // 电量显示
-        mBattery = new TextView(context);
-        mBattery.setTextSize(12);
-        mContainer.addView(mBattery);
-        
-        // 更新时间
-        updateTime();
-        
-        listener.onPluginConnected(this);
-    }
-    
-    private void updateTime() {
-        SimpleDateFormat sdf = new SimpleDateFormat("HH:mm", Locale.getDefault());
-        mTime.setText(sdf.format(new Date()));
-    }
-    
-    @Override
-    public View getStatusBarView() {
-        return mContainer;
-    }
-    
-    @Override
-    public void onNotificationCountChanged(int count) {
-        // 显示通知数量角标
-        if (count > 0) {
-            mLogo.setBadge(count);
-        } else {
-            mLogo.setBadge(0);
-        }
-    }
-}
 ```
 
 ---
@@ -2037,7 +2337,11 @@ public class VendorStatusBarPlugin implements StatusBarPlugin {
 3. **Activity 插件化**：占坑 + Hook AMS
 4. **Service 插件化**：代理 Service 方案
 5. **兼容性**：Android 高版本限制多，推荐 Shadow
-6. **SystemUI 插件化**：独立进程 + Binder IPC + 权限控制
+6. **SystemUI 插件化**：
+   - PluginManager 管理插件生命周期
+   - DexClassLoader 加载插件类
+   - createPackageContext 创建插件 Context
+   - 独立进程 + Binder IPC 通信
 
 ### 学习建议
 
@@ -2046,9 +2350,10 @@ public class VendorStatusBarPlugin implements StatusBarPlugin {
 3. **实战**：使用 Shadow/RePlugin 集成
 4. **深入**：阅读框架源码
 5. **SystemUI**：研究 AOSP SystemUI 插件机制
+   - frameworks/base/packages/SystemUI/src/com/android/systemui/plugins/
 
 ---
 
-**文档版本**：v1.1  
+**文档版本**：v1.2  
 **更新时间**：2026-03-12  
 **适用版本**：Android 5.0+
