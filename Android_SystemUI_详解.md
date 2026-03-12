@@ -17,6 +17,10 @@
 8. [通知渲染流程](#8-通知渲染流程)
 9. [通知模板系统](#9-通知模板系统)
 10. [面试常见问题](#10-面试常见问题)
+11. [通知系统深度补充](#11-通知系统深度补充)
+12. [AOD 深度补充](#12-aod-深度补充)
+13. [Keyguard 锁屏系统 ⭐](#13-keyguard-锁屏系统-)
+14. [面试常见问题补充](#14-面试常见问题补充)
 
 ---
 
@@ -3289,6 +3293,1022 @@ AMOLED 屏幕长时间显示同一图像会导致烧屏，AOD 使用以下策略
 
 ---
 
+## 13. Keyguard 锁屏系统 ⭐
+
+### 13.1 Keyguard 概述
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                       Keyguard 锁屏系统概述                                  │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+Keyguard 是 Android 系统的锁屏实现，负责：
+1. 设备安全保护（防止未授权访问）
+2. 安全验证（图案/密码/PIN/生物识别）
+3. 锁屏界面显示（时间、通知、快捷设置）
+4. 与 SystemUI 的状态同步
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                       Keyguard 在系统中的位置                                │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                          Framework 层                                        │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │                    KeyguardViewMediator                              │   │
+│  │  - 锁屏状态管理                                                      │   │
+│  │  - 锁屏显示/隐藏控制                                                 │   │
+│  │  - 安全验证调度                                                      │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                    │                                      │
+│                                    ▼                                      │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │                    KeyguardUpdateMonitor                             │   │
+│  │  - 状态变化监听                                                      │   │
+│  │  - 时间/电池/SIM 状态更新                                            │   │
+│  │  - 安全状态回调                                                      │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                          SystemUI 层                                        │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │                    KeyguardService                                   │   │
+│  │  ┌─────────────────────────────────────────────────────────────┐   │   │
+│  │  │                  KeyguardHostView                           │   │   │
+│  │  │  ┌─────────────────────────────────────────────────────┐   │   │   │
+│  │  │  │              KeyguardSecurityContainer              │   │   │   │
+│  │  │  │  ┌─────────────────────────────────────────────┐   │   │   │   │
+│  │  │  │  │  PatternKeyguardView   (图案解锁)           │   │   │   │   │
+│  │  │  │  │  PasswordKeyguardView   (密码解锁)           │   │   │   │   │
+│  │  │  │  │  PINKeyguardView        (PIN 解锁)           │   │   │   │   │
+│  │  │  │  │  BiometricKeyguardView  (生物识别)           │   │   │   │   │
+│  │  │  │  └─────────────────────────────────────────────┘   │   │   │   │
+│  │  │  └─────────────────────────────────────────────────────┘   │   │   │
+│  │  └─────────────────────────────────────────────────────────────┘   │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 13.2 Keyguard 启动流程
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                       Keyguard 启动流程                                      │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+SystemServer 启动:
+│
+├── 1. SystemServer.startOtherServices()
+│   │
+│   ├── WindowManagerService.onDisplayReady()
+│   │   │
+│   │   └── mPolicy.onDisplayReady()
+│   │       │
+│   │       └── PhoneWindowManager.onDisplayReady()
+│   │           │
+│   │           └── KeyguardViewMediator.onSystemReady()
+│   │
+│   └── KeyguardViewMediator 开始工作
+│
+├── 2. KeyguardViewMediator.onSystemReady()
+│   │
+│   ├── 读取锁屏配置
+│   │   mLockPatternUtils.isSecure()  // 是否设置安全锁
+│   │
+│   ├── 读取设备策略
+│   │   mDevicePolicyManager.getPasswordQuality()
+│   │
+│   └── 通知状态变化
+│       mUpdateMonitor.registerCallback(mCallback)
+│
+├── 3. SystemUI KeyguardService 绑定
+│   │
+│   ├── KeyguardService.bindService()
+│   │   Intent intent = new Intent(KeyguardService.ACTION_BIND_SERVICE);
+│   │   mContext.bindService(intent, mConnection, Context.BIND_AUTO_CREATE);
+│   │
+│   └── KeyguardService.onCreate()
+│       ├── 创建 KeyguardViewMediator
+│       └── 初始化 KeyguardUpdateMonitor
+│
+└── 4. Keyguard 界面创建
+    │
+    ├── KeyguardBouncer.show()
+    │   ├── inflateView()  // 加载锁屏视图
+    │   └── showPrimaryBouncer()  // 显示安全验证
+    │
+    └── KeyguardHostView.onFinishInflate()
+        ├── 初始化状态栏
+        ├── 初始化时钟
+        └── 初始化安全容器
+```
+
+### 13.3 KeyguardViewMediator 源码分析
+
+```java
+/**
+ * KeyguardViewMediator - 锁屏中介器
+ * 位置：frameworks/base/packages/SystemUI/src/com/android/keyguard/
+ */
+
+public class KeyguardViewMediator extends SystemUI {
+
+    // 锁屏状态
+    private boolean mShowing;
+    private boolean mOccluded;      // 被其他应用遮挡
+    private boolean mSecure;        // 是否需要安全验证
+    private boolean mScreenOn;      // 屏幕是否开启
+
+    // 核心组件
+    private KeyguardUpdateMonitor mUpdateMonitor;
+    private KeyguardBouncer mBouncer;
+    private KeyguardLifecyclesObserver mLifecyclesObserver;
+
+    // 状态回调
+    private final KeyguardUpdateMonitorCallback mCallback =
+        new KeyguardUpdateMonitorCallback() {
+
+        @Override
+        public void onScreenTurnedOff() {
+            mScreenOn = false;
+            // 屏幕关闭时显示锁屏
+            if (shouldShowLockScreen()) {
+                showLocked(null);
+            }
+        }
+
+        @Override
+        public void onScreenTurnedOn() {
+            mScreenOn = true;
+            notifyScreenOnChanged();
+        }
+
+        @Override
+        public void onUserSwitchComplete(int userId) {
+            // 用户切换时重置锁屏
+            resetStateLocked();
+        }
+
+        @Override
+        public void onKeyguardVisibilityChanged(boolean showing) {
+            if (showing) {
+                // 锁屏显示时播放动画
+                mBouncer.show(false /* resetSecuritySelection */);
+            }
+        }
+
+        @Override
+        public void onTrustGranted(boolean newlyAcquired) {
+            // 信任授权（如可信设备）
+            if (newlyAcquired && mShowing) {
+                dismissKeyguard();
+            }
+        }
+    };
+
+    /**
+     * 显示锁屏
+     */
+    public void showLocked(Bundle options) {
+        synchronized (this) {
+            // 1. 检查是否需要显示
+            if (!mSystemReady || mShowing) {
+                return;
+            }
+
+            // 2. 设置显示状态
+            mShowing = true;
+
+            // 3. 更新状态
+            mUpdateMonitor.reportKeyguardShowing(true);
+
+            // 4. 显示 Bouncer
+            mHandler.post(() -> {
+                playSounds(true);  // 播放锁屏音效
+                mBouncer.show(true /* resetSecuritySelection */);
+            });
+
+            // 5. 通知状态变化
+            notifyKeyguardStateChanged();
+        }
+    }
+
+    /**
+     * 隐藏锁屏（解锁成功后）
+     */
+    public void hideLocked() {
+        synchronized (this) {
+            // 1. 检查是否可以隐藏
+            if (!mShowing) {
+                return;
+            }
+
+            // 2. 验证是否允许解锁
+            if (!mUpdateMonitor.canDismissKeyguard()) {
+                return;
+            }
+
+            // 3. 设置隐藏状态
+            mShowing = false;
+
+            // 4. 隐藏 Bouncer
+            mHandler.post(() -> {
+                playSounds(false);  // 播放解锁音效
+                mBouncer.hide();
+            });
+
+            // 5. 通知状态变化
+            notifyKeyguardStateChanged();
+        }
+    }
+
+    /**
+     * 尝试解锁
+     */
+    public void dismissKeyguard() {
+        synchronized (this) {
+            // 1. 检查是否允许解锁
+            if (!mSecure) {
+                // 无安全锁，直接解锁
+                hideLocked();
+                return;
+            }
+
+            // 2. 检查信任状态
+            if (mUpdateMonitor.getUserTrustIsManaged()) {
+                // 信任设备，直接解锁
+                hideLocked();
+                return;
+            }
+
+            // 3. 需要安全验证
+            mBouncer.show(true /* resetSecuritySelection */);
+        }
+    }
+
+    /**
+     * 验证成功回调
+     */
+    public void onPasswordChecked(boolean success, int timeoutMs) {
+        if (success) {
+            // 验证成功，隐藏锁屏
+            hideLocked();
+        } else {
+            // 验证失败，显示错误提示
+            mBouncer.showTimeout();
+
+            // 延迟后允许重试
+            mHandler.postDelayed(() -> {
+                mBouncer.reset();
+            }, timeoutMs);
+        }
+    }
+}
+```
+
+### 13.4 KeyguardUpdateMonitor 状态管理
+
+```java
+/**
+ * KeyguardUpdateMonitor - 锁屏状态监听器
+ * 位置：frameworks/base/packages/SystemUI/src/com/android/keyguard/
+ */
+
+public class KeyguardUpdateMonitor {
+
+    // 状态标志
+    private boolean mDeviceInteractive;     // 设备是否可交互
+    private boolean mScreenOn;              // 屏幕是否开启
+    private boolean mKeyguardShowing;       // 锁屏是否显示
+    private boolean mBouncerShowing;        // 安全验证是否显示
+
+    // 安全状态
+    private int mFailedPasswordAttempts;    // 密码尝试失败次数
+    private boolean mStrongAuthRequired;    // 是否需要强认证
+    private boolean mTrustManaged;          // 是否信任设备
+
+    // 回调列表
+    private final ArrayList<KeyguardUpdateMonitorCallback> mCallbacks =
+        new ArrayList<>();
+
+    /**
+     * 注册回调
+     */
+    public void registerCallback(KeyguardUpdateMonitorCallback callback) {
+        synchronized (mCallbacks) {
+            mCallbacks.add(callback);
+        }
+    }
+
+    /**
+     * 报告锁屏显示状态
+     */
+    public void reportKeyguardShowing(boolean showing) {
+        if (mKeyguardShowing != showing) {
+            mKeyguardShowing = showing;
+            notifyKeyguardVisibilityChanged();
+        }
+    }
+
+    /**
+     * 报告安全验证结果
+     */
+    public void reportSuccessfulAuthentication() {
+        // 1. 重置失败计数
+        mFailedPasswordAttempts = 0;
+
+        // 2. 清除强认证要求
+        mStrongAuthRequired = false;
+
+        // 3. 通知回调
+        for (KeyguardUpdateMonitorCallback callback : mCallbacks) {
+            callback.onStrongAuthStateChanged(false);
+        }
+    }
+
+    /**
+     * 报告安全验证失败
+     */
+    public void reportFailedAuthentication() {
+        // 1. 增加失败计数
+        mFailedPasswordAttempts++;
+
+        // 2. 检查是否需要锁定
+        int maxAttempts = getMaxFailedPasswordAttempts();
+        if (mFailedPasswordAttempts >= maxAttempts) {
+            // 达到最大尝试次数，锁定设备
+            lockDevice();
+        }
+
+        // 3. 通知回调
+        for (KeyguardUpdateMonitorCallback callback : mCallbacks) {
+            callback.onFailedAuthenticationAttempt();
+        }
+    }
+
+    /**
+     * 检查是否可以解锁
+     */
+    public boolean canDismissKeyguard() {
+        // 1. 无安全锁
+        if (!isSecure()) {
+            return true;
+        }
+
+        // 2. 信任设备
+        if (mTrustManaged) {
+            return true;
+        }
+
+        // 3. 生物识别已验证
+        if (mBiometricAuthenticated) {
+            return true;
+        }
+
+        return false;
+    }
+
+    // 内部监听器
+    private final BroadcastReceiver mBroadcastReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            String action = intent.getAction();
+
+            if (Intent.ACTION_TIME_TICK.equals(action)) {
+                // 时间变化
+                handleTimeTick();
+            } else if (Intent.ACTION_BATTERY_CHANGED.equals(action)) {
+                // 电池状态变化
+                handleBatteryUpdate(intent);
+            } else if (TelephonyManager.ACTION_SIM_CARD_STATE_CHANGED.equals(action)) {
+                // SIM 卡状态变化
+                handleSimStateChange(intent);
+            }
+        }
+    };
+
+    private void handleTimeTick() {
+        for (KeyguardUpdateMonitorCallback callback : mCallbacks) {
+            callback.onTimeChanged();
+        }
+    }
+}
+```
+
+### 13.5 安全验证机制
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                       安全验证机制                                           │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  安全验证类型                                                                │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌──────────────────┬──────────────────────────────────────────────────────────┐
+│      类型        │                       说明                              │
+├──────────────────┼──────────────────────────────────────────────────────────┤
+│  Pattern         │  图案解锁（3x3 点阵）                                   │
+│  PIN             │  PIN 码解锁（4-16 位数字）                               │
+│  Password        │  密码解锁（4-16 位字符）                                 │
+│  Fingerprint     │  指纹解锁                                               │
+│  Face            │  人脸解锁                                               │
+│  Iris            │  虹膜解锁                                               │
+└──────────────────┴──────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  验证流程图                                                                  │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+用户触发解锁:
+│
+├── 1. 选择验证方式
+│   KeyguardSecurityContainer.showSecurityScreen(mode)
+│   │
+│   ├── Pattern  → PatternKeyguardView
+│   ├── PIN      → PINKeyguardView
+│   ├── Password → PasswordKeyguardView
+│   └── Biometric→ BiometricKeyguardView
+│
+├── 2. 用户输入
+│   ├── 图案：绘制 3x3 点阵
+│   ├── PIN：输入数字
+│   ├── 密码：输入字符
+│   └── 生物识别：扫描指纹/人脸
+│
+├── 3. 验证
+│   KeyguardSecurityView.verifyPassword(password)
+│   │
+│   ├── LockPatternUtils.checkPattern(pattern)
+│   ├── LockPatternUtils.checkPassword(password)
+│   └── BiometricManager.authenticate()
+│
+├── 4. 验证结果
+│   │
+│   ├── 成功
+│   │   ├── mUpdateMonitor.reportSuccessfulAuthentication()
+│   │   └── mMediator.onPasswordChecked(true, 0)
+│   │       └── hideLocked()  // 隐藏锁屏
+│   │
+│   └── 失败
+│       ├── mUpdateMonitor.reportFailedAuthentication()
+│       └── mMediator.onPasswordChecked(false, timeout)
+│           ├── 显示错误提示
+│           └── 延迟后允许重试
+│
+└── 5. 更新统计
+    mLockSettingsService.reportSuccessfulAuthentication()
+```
+
+### 13.6 图案解锁源码分析
+
+```java
+/**
+ * PatternKeyguardView - 图案解锁视图
+ * 位置：frameworks/base/packages/SystemUI/src/com/android/keyguard/
+ */
+
+public class PatternKeyguardView extends KeyguardSecurityView {
+
+    private LockPatternView mLockPatternView;
+    private KeyguardUpdateMonitor mUpdateMonitor;
+    private LockPatternUtils mLockPatternUtils;
+
+    // 图案状态
+    private enum PatternState {
+        STATE_INPUT,       // 输入中
+        STATE_CHECKING,    // 验证中
+        STATE_SUCCESS,     // 验证成功
+        STATE_FAILED,      // 验证失败
+    }
+
+    /**
+     * 图案绘制监听
+     */
+    private LockPatternView.OnPatternListener mPatternListener =
+        new LockPatternView.OnPatternListener() {
+
+        @Override
+        public void onPatternStart() {
+            // 开始绘制图案
+            mLockPatternView.removeCallbacks(mResetPatternRunnable);
+            mLockPatternView.setDisplayMode(DisplayMode.Correct);
+        }
+
+        @Override
+        public void onPatternCleared() {
+            // 图案清除
+            mLockPatternView.removeCallbacks(mResetPatternRunnable);
+        }
+
+        @Override
+        public void onPatternCellAdded(List<Cell> pattern) {
+            // 添加一个点
+            // 播放触觉反馈
+            performHapticFeedback();
+        }
+
+        @Override
+        public void onPatternDetected(List<Cell> pattern) {
+            // 图案绘制完成
+            verifyPattern(pattern);
+        }
+    };
+
+    /**
+     * 验证图案
+     */
+    private void verifyPattern(List<Cell> pattern) {
+        // 1. 显示验证中状态
+        mLockPatternView.setEnabled(false);
+        setState(STATE_CHECKING);
+
+        // 2. 异步验证
+        new AsyncTask<List<Cell>, Void, Boolean>() {
+            @Override
+            protected Boolean doInBackground(List<Cell>... patterns) {
+                return mLockPatternUtils.checkPattern(patterns[0]);
+            }
+
+            @Override
+            protected void onPostExecute(Boolean success) {
+                if (success) {
+                    // 验证成功
+                    setState(STATE_SUCCESS);
+                    mLockPatternView.setDisplayMode(DisplayMode.Correct);
+
+                    // 通知验证成功
+                    mUpdateMonitor.reportSuccessfulAuthentication();
+                    mCallback.reportUnlockAttempt(true, 0);
+
+                    // 解锁
+                    mCallback.dismiss(true, KeyguardUpdateMonitor.getCurrentUser());
+                } else {
+                    // 验证失败
+                    setState(STATE_FAILED);
+                    mLockPatternView.setDisplayMode(DisplayMode.Wrong);
+
+                    // 通知验证失败
+                    mUpdateMonitor.reportFailedAuthentication();
+                    mCallback.reportUnlockAttempt(false, 0);
+
+                    // 显示错误提示
+                    showError(getString(R.string.kg_wrong_pattern));
+
+                    // 延迟后重置
+                    mLockPatternView.postDelayed(mResetPatternRunnable, 2000);
+                }
+            }
+        }.execute(pattern);
+    }
+
+    // 重置图案
+    private final Runnable mResetPatternRunnable = () -> {
+        mLockPatternView.clearPattern();
+        mLockPatternView.setEnabled(true);
+        setState(STATE_INPUT);
+    };
+}
+```
+
+### 13.7 生物识别解锁
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                       生物识别解锁                                           │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  生物识别类型                                                                │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌──────────────────┬──────────────────────────────────────────────────────────┐
+│      类型        │                       说明                              │
+├──────────────────┼──────────────────────────────────────────────────────────┤
+│  Fingerprint     │  指纹识别（Android 6.0+）                                │
+│  Face            │  人脸识别（Android 10+）                                 │
+│  Iris            │  虹膜识别（Android 10+）                                 │
+└──────────────────┴──────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  生物识别架构                                                                │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                          Framework 层                                        │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │                    BiometricManager                                  │   │
+│  │  - 生物识别能力查询                                                  │   │
+│  │  - 认证请求调度                                                      │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                    │                                      │
+│                                    ▼                                      │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │                    BiometricService                                  │   │
+│  │  - 生物识别服务管理                                                  │   │
+│  │  - 认证流程控制                                                      │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                          HAL 层                                             │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │                    Biometric HAL                                     │   │
+│  │  - IBiometricsFingerprint                                           │   │
+│  │  - IFace                                                            │   │
+│  │  - IIris                                                            │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+```java
+/**
+ * BiometricKeyguardView - 生物识别解锁视图
+ * 位置：frameworks/base/packages/SystemUI/src/com/android/keyguard/
+ */
+
+public class BiometricKeyguardView extends KeyguardSecurityView {
+
+    private BiometricManager mBiometricManager;
+    private BiometricPrompt mBiometricPrompt;
+    private KeyguardUpdateMonitor mUpdateMonitor;
+
+    /**
+     * 初始化生物识别
+     */
+    public void initializeBiometric() {
+        // 1. 检查生物识别能力
+        int result = mBiometricManager.canAuthenticate(
+            BiometricManager.Authenticators.BIOMETRIC_STRONG);
+
+        if (result == BiometricManager.BIOMETRIC_SUCCESS) {
+            // 2. 创建 BiometricPrompt
+            mBiometricPrompt = new BiometricPrompt(
+                mContext,
+                ContextCompat.getMainExecutor(mContext),
+                mAuthenticationCallback
+            );
+
+            // 3. 配置提示信息
+            PromptInfo promptInfo = new BiometricPrompt.PromptInfo.Builder()
+                .setTitle("解锁设备")
+                .setSubtitle("使用生物识别解锁")
+                .setNegativeButtonText("使用密码")
+                .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG)
+                .build();
+        }
+    }
+
+    /**
+     * 开始生物识别认证
+     */
+    public void startAuthentication() {
+        if (mBiometricPrompt != null) {
+            mBiometricPrompt.authenticate(promptInfo);
+        }
+    }
+
+    /**
+     * 认证回调
+     */
+    private BiometricPrompt.AuthenticationCallback mAuthenticationCallback =
+        new BiometricPrompt.AuthenticationCallback() {
+
+        @Override
+        public void onAuthenticationSucceeded(BiometricPrompt.AuthenticationResult result) {
+            // 认证成功
+            mUpdateMonitor.reportSuccessfulAuthentication();
+            mCallback.dismiss(true, KeyguardUpdateMonitor.getCurrentUser());
+        }
+
+        @Override
+        public void onAuthenticationFailed() {
+            // 认证失败（可重试）
+            showError("识别失败，请重试");
+        }
+
+        @Override
+        public void onAuthenticationError(int errorCode, CharSequence errString) {
+            // 认证错误
+            switch (errorCode) {
+                case BiometricPrompt.ERROR_LOCKOUT:
+                    // 锁定，需要使用其他方式解锁
+                    mCallback.switchToSecurityView(SECURITY_PASSWORD);
+                    break;
+                case BiometricPrompt.ERROR_CANCELED:
+                    // 取消认证
+                    break;
+                case BiometricPrompt.ERROR_TIMEOUT:
+                    // 超时
+                    showError("认证超时");
+                    break;
+            }
+        }
+    };
+}
+```
+
+### 13.8 锁屏与 SystemUI 交互
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                       锁屏与 SystemUI 交互                                   │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  交互场景                                                                    │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+场景 1: 通知显示在锁屏
+│
+├── 1.1 通知到达
+│   NMS → NotificationListenerService → NotificationEntryManager
+│
+├── 1.2 检查锁屏状态
+│   if (KeyguardUpdateMonitor.isKeyguardShowing()) {
+│       // 在锁屏上显示通知
+│   }
+│
+├── 1.3 通知可见性控制
+│   ├── 公开通知：锁屏上完整显示
+│   ├── 私密通知：锁屏上隐藏内容
+│   └── 隐藏通知：锁屏上不显示
+│
+└── 1.4 锁屏通知渲染
+    KeyguardNotificationView.bindNotification(entry)
+
+场景 2: 锁屏快捷设置
+│
+├── 2.1 下拉状态栏（锁屏状态）
+│   StatusBar.expandNotificationsPanel()
+│
+├── 2.2 检查权限
+│   if (KeyguardUpdateMonitor.canPerformLockScreenActions()) {
+│       // 允许操作快捷设置
+│   }
+│
+└── 2.3 快捷设置操作
+    ├── 开关 Wi-Fi
+    ├── 开关蓝牙
+    ├── 调节亮度
+    └── 切换铃声模式
+
+场景 3: 电源键锁屏
+│
+├── 3.1 按下电源键
+│   PowerManagerService.goToSleep()
+│
+├── 3.2 屏幕关闭
+│   DisplayManagerService.onScreenTurnedOff()
+│
+├── 3.3 显示锁屏
+│   KeyguardViewMediator.showLocked()
+│
+└── 3.4 锁屏状态通知
+    KeyguardUpdateMonitor.reportKeyguardShowing(true)
+
+场景 4: 解锁后恢复
+│
+├── 4.1 验证成功
+│   KeyguardViewMediator.onPasswordChecked(true, 0)
+│
+├── 4.2 隐藏锁屏
+│   KeyguardViewMediator.hideLocked()
+│
+├── 4.3 恢复应用状态
+│   ├── Activity 恢复
+│   ├── 通知可交互
+│   └── 快捷设置完全可用
+│
+└── 4.4 状态同步
+    StatusBar.onKeyguardStateChanged(false)
+```
+
+### 13.9 Keyguard 状态机
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                       Keyguard 状态机                                        │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  状态定义                                                                    │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+enum KeyguardState {
+    STATE_HIDE,              // 隐藏（已解锁）
+    STATE_SHOW,              // 显示锁屏
+    STATE_BOUNCER,           // 显示安全验证
+    STATE_OCCLUDED,          // 被遮挡（如来电）
+    STATE_SLEEP,             // 睡眠状态
+}
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  状态转换图                                                                  │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+                         ┌──────────────┐
+                         │  STATE_SLEEP │
+                         │   (睡眠)     │
+                         └──────┬───────┘
+                                │ 屏幕亮起
+                                ▼
+         ┌──────────────────────┴──────────────────────┐
+         │                                             │
+         ▼                                             ▼
+  ┌──────────────┐                              ┌──────────────┐
+  │  STATE_SHOW  │◀─────────────────────────────│STATE_OCCLUDED│
+  │  (显示锁屏)  │       遮挡结束                │  (被遮挡)    │
+  └──────┬───────┘                              └──────────────┘
+         │                                             ▲
+         │ 需要验证                                    │
+         ▼                                             │
+  ┌──────────────┐                                     │
+  │STATE_BOUNCER │─────────────────────────────────────┘
+  │ (安全验证)   │            来电等遮挡
+  └──────┬───────┘
+         │
+         │ 验证成功
+         ▼
+  ┌──────────────┐
+  │  STATE_HIDE  │
+  │   (已解锁)   │
+  └──────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  状态转换触发条件                                                            │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+STATE_SLEEP → STATE_SHOW:
+├── 屏幕亮起
+├── 电源键按下
+└── 通知唤醒
+
+STATE_SHOW → STATE_BOUNCER:
+├── 用户上滑
+├── 需要安全验证
+└── 生物识别失败
+
+STATE_BOUNCER → STATE_HIDE:
+├── 验证成功
+├── 信任设备
+└── Smart Lock 解锁
+
+STATE_SHOW/STATE_BOUNCER → STATE_OCCLUDED:
+├── 来电
+├── 闹钟响铃
+└── 全屏 Intent
+
+STATE_OCCLUDED → STATE_SHOW:
+├── 来电结束
+├── 闹钟关闭
+└── 全屏 Activity 退出
+
+任何状态 → STATE_SLEEP:
+├── 屏幕超时
+├── 电源键按下
+└── 主动休眠
+```
+
+### 13.10 锁屏安全最佳实践
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                       锁屏安全最佳实践                                       │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+1. 密码强度要求
+├── 图案：至少 4 个点
+├── PIN：至少 4 位数字
+├── 密码：至少 4 位字符
+└── 建议：使用复杂密码
+
+2. 尝试限制
+├── 5 次失败后：延迟 30 秒
+├── 10 次失败后：延迟 60 秒
+├── 30 次失败后：恢复出厂设置警告
+└── 企业策略：可能更严格
+
+3. 强认证要求
+├── 设备重启后
+├── 72 小时未验证
+├── 添加新指纹后
+└── 企业策略触发
+
+4. 通知隐私
+├── 敏感通知隐藏内容
+├── 使用 Visibility 特性
+└── 公开版本显示摘要
+
+5. 生物识别注意事项
+├── 不如密码安全
+├── 可能被强制解锁
+├── 设置备用密码
+└── 定期更新生物数据
+
+6. 设备管理
+├── 启用 Find My Device
+├── 设置远程锁定
+├── 定期备份
+└── 敏感数据加密
+```
+
+---
+
+## 14. 面试常见问题补充
+
+### 14.1 Keyguard 相关问题
+
+**Q1: Keyguard 的启动流程是什么？**
+
+**A:**
+
+```
+Keyguard 启动流程：
+
+1. SystemServer 启动
+   └── WindowManagerService.onDisplayReady()
+       └── PhoneWindowManager.onDisplayReady()
+           └── KeyguardViewMediator.onSystemReady()
+
+2. KeyguardViewMediator 初始化
+   ├── 读取锁屏配置
+   ├── 注册状态监听
+   └── 绑定 KeyguardService
+
+3. SystemUI KeyguardService
+   ├── onCreate() 创建服务
+   ├── 初始化 KeyguardUpdateMonitor
+   └── 创建 KeyguardHostView
+
+4. 显示锁屏
+   └── KeyguardBouncer.show()
+       └── 显示安全验证界面
+```
+
+**Q2: 生物识别解锁的原理？**
+
+**A:**
+
+```
+生物识别解锁原理：
+
+1. 架构层次
+   Framework: BiometricManager/BiometricService
+   Native:    BiometricService
+   HAL:       IBiometricsFingerprint/IFace/IIris
+
+2. 认证流程
+   a. 应用请求认证
+   b. BiometricService 检查能力
+   c. HAL 层进行生物特征比对
+   d. 返回认证结果
+
+3. 安全机制
+   - 生物数据存储在 TEE (可信执行环境)
+   - 原始生物数据不出安全区
+   - 仅存储特征模板
+
+4. 限制
+   - 不如密码安全
+   - 可能被物理强制
+   - 需要备用解锁方式
+```
+
+**Q3: 锁屏上通知的可见性控制？**
+
+**A:**
+
+```
+锁屏通知可见性控制：
+
+1. 通知可见性级别
+   VISIBILITY_PUBLIC:    完全可见
+   VISIBILITY_SECRET:    完全隐藏
+   VISIBILITY_PRIVATE:   显示基本信息
+
+2. 设置方式
+   Notification.Builder.setVisibility(visibility)
+
+3. 锁屏显示逻辑
+   if (isSecure() && !isKeyguardUnlocked()) {
+       switch (visibility) {
+           case SECRET:    // 不显示
+           case PRIVATE:   // 显示 "内容已隐藏"
+           case PUBLIC:    // 完整显示
+       }
+   }
+
+4. 用户控制
+   设置 → 应用 → 通知 → 锁屏通知
+```
+
+---
+
 ## 总结
 
 ### SystemUI 核心要点
@@ -3297,6 +4317,7 @@ AMOLED 屏幕长时间显示同一图像会导致烧屏，AOD 使用以下策略
 2. **AOD**：DozeMachine 状态机 + 低功耗显示
 3. **通知系统**：NMS + RemoteViews + SystemUI 协作
 4. **RemoteViews**：跨进程视图，序列化操作
+5. **Keyguard**：锁屏安全验证 + 生物识别 + 状态管理
 
 ---
 

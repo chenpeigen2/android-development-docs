@@ -1,12 +1,12 @@
 # Android 开发文档集
 
-> 持续更新中... | 最后更新：2026-03-11
+> 持续更新中... | 最后更新：2026-03-12
 
 ## 📚 文档统计
 
-- **总文档数**：29 篇（新增安全详解）
-- **总大小**：约 2.81 MB
-- **总行数**：约 40,000+ 行
+- **总文档数**：31 篇（新增插件化、组件化、SystemUI）
+- **总大小**：约 3.06 MB
+- **总行数**：约 47,000+ 行
 
 ---
 
@@ -26,7 +26,7 @@
 | 8 | [Android_屏幕适配详解.md](./Android_屏幕适配详解.md) | 69KB | 多分辨率适配方案 |
 | 9 | [Android_网络编程详解.md](./Android_网络编程详解.md) | 12KB | HTTP/HTTPS/TCP/UDP 协议详解 |
 
-### 核心机制（8篇）
+### 核心机制（9篇）
 
 | # | 文档名称 | 大小 | 说明 |
 |---|----------|------|------|
@@ -38,42 +38,50 @@
 | 15 | [AndroidX_核心库详解.md](./AndroidX_核心库详解.md) | 89KB | Lifecycle/ViewModel/LiveData/Room |
 | 16 | [Android_架构模式演进详解.md](./Android_架构模式演进详解.md) | 74KB | MVC/MVP/MVVM/MVI 演进 |
 | 17 | [Android_后台任务详解.md](./Android_后台任务详解.md) | 94KB | Service/JobScheduler/WorkManager |
+| 18 | [Android_SystemUI_详解.md](./Android_SystemUI_详解.md) | 230KB | ⭐ StatusBar/NavBar/AOD/通知/Keyguard 源码 |
 
 ### 性能优化（4篇）
 
 | # | 文档名称 | 大小 | 说明 |
 |---|----------|------|------|
-| 18 | [Android_性能优化详解.md](./Android_性能优化详解.md) | 156KB | 启动/UI/内存/电量/网络/APK 优化 |
-| 19 | [Android_内存泄漏与内存优化详解.md](./Android_内存泄漏与内存优化详解.md) | 51KB | 内存泄漏检测 + 优化技巧 |
-| 20 | [Android_ANR详解.md](./Android_ANR详解.md) | 39KB | ANR 原理 + 监控 + 优化 |
-| 21 | [Android_Systrace_性能分析详解.md](./Android_Systrace_性能分析详解.md) | 132KB | Systrace 工具使用 + 分析方法 |
+| 19 | [Android_性能优化详解.md](./Android_性能优化详解.md) | 156KB | 启动/UI/内存/电量/网络/APK 优化 |
+| 20 | [Android_内存泄漏与内存优化详解.md](./Android_内存泄漏与内存优化详解.md) | 51KB | 内存泄漏检测 + 优化技巧 |
+| 21 | [Android_ANR详解.md](./Android_ANR详解.md) | 39KB | ANR 原理 + 监控 + 优化 |
+| 22 | [Android_Systrace_性能分析详解.md](./Android_Systrace_性能分析详解.md) | 132KB | Systrace 工具使用 + 分析方法 |
+
+### 架构进阶（2篇）⭐ NEW!
+
+| # | 文档名称 | 大小 | 说明 |
+|---|----------|------|------|
+| 23 | [Android_插件化详解.md](./Android_插件化详解.md) | 69KB | ⭐ 动态加载/类加载/四大组件插件化（18章 1449行）|
+| 24 | [Android_组件化详解.md](./Android_组件化详解.md) | 46KB | ⭐ 模块解耦/路由/通信（18章 1028行）|
 
 ### 三方库详解（2篇）
 
 | # | 文档名称 | 大小 | 说明 |
 |---|----------|------|------|
-| 22 | [Android_三方库详解.md](./Android_三方库详解.md) | 201KB | Glide/Fresco/MMKV/PAG/Lottie |
-| 23 | [Android_网络请求库详解.md](./Android_网络请求库详解.md) | 84KB | OkHttp/Retrofit 完全指南 |
+| 25 | [Android_三方库详解.md](./Android_三方库详解.md) | 201KB | Glide/Fresco/MMKV/PAG/Lottie |
+| 26 | [Android_网络请求库详解.md](./Android_网络请求库详解.md) | 84KB | OkHttp/Retrofit 完全指南 |
 
 ### 跨平台开发（3篇）⭐ NEW!
 
 | # | 文档名称 | 大小 | 说明 |
 |---|----------|------|------|
-| 24 | [Flutter_完全指南.md](./Flutter_完全指南.md) | 29KB | ⭐ Google 跨平台 UI 框架 |
-| 25 | [React_Native完全指南.md](./React_Native完全指南.md) | 29KB | ⭐ Facebook 跨平台框架 |
-| 26 | [Android_Jetpack_Compose详解.md](./Android_Jetpack_Compose详解.md) | 62KB | ⭐ Android 声明式 UI（18章 2600+行）|
+| 27 | [Flutter_完全指南.md](./Flutter_完全指南.md) | 29KB | ⭐ Google 跨平台 UI 框架 |
+| 28 | [React_Native完全指南.md](./React_Native完全指南.md) | 29KB | ⭐ Facebook 跨平台框架 |
+| 29 | [Android_Jetpack_Compose详解.md](./Android_Jetpack_Compose详解.md) | 62KB | ⭐ Android 声明式 UI（18章 2600+行）|
 
 ### 工具与构建（1篇）
 
 | # | 文档名称 | 大小 | 说明 |
 |---|----------|------|------|
-| 27 | [Android_Gradle与AGP详解.md](./Android_Gradle与AGP详解.md) | 35KB | Gradle 构建流程 + AGP 详解 |
+| 30 | [Android_Gradle与AGP详解.md](./Android_Gradle与AGP详解.md) | 35KB | Gradle 构建流程 + AGP 详解 |
 
 ### 安全与防护（1篇）⭐ NEW!
 
 | # | 文档名称 | 大小 | 说明 |
 |---|----------|------|------|
-| 28 | [Android_安全详解.md](./Android_安全详解.md) | 120KB | ⭐ 混淆/加固/加密/网络安全（18章 3730行）|
+| 31 | [Android_安全详解.md](./Android_安全详解.md) | 120KB | ⭐ 混淆/加固/加密/网络安全（18章 3730行）|
 
 ---
 
@@ -222,17 +230,67 @@
 | 类别 | 文档数 | 总大小 | 说明 |
 |------|--------|--------|------|
 | 基础知识 | 9 篇 | 1.08 MB | View/事件/动画/四大组件 |
-| 核心机制 | 8 篇 | 0.80 MB | Binder/Handler/虚拟机/架构 |
+| 核心机制 | 9 篇 | 1.03 MB | Binder/Handler/虚拟机/SystemUI/Keyguard ⭐ |
 | 性能优化 | 4 篇 | 0.38 MB | 性能/内存/ANR/Systrace |
+| 架构进阶 | 2 篇 | 0.11 MB | 插件化/组件化 ⭐ |
 | 三方库详解 | 2 篇 | 0.28 MB | 图片/网络/存储/动画库 |
 | 跨平台开发 | 3 篇 | 0.12 MB | Flutter/RN/Compose ⭐ |
 | 安全与防护 | 1 篇 | 0.12 MB | 混淆/加固/加密 ⭐ |
 | 工具与构建 | 1 篇 | 0.03 MB | Gradle/AGP |
-| **总计** | **29 篇** | **2.81 MB** | **40,000+ 行** |
+| **总计** | **31 篇** | **3.01 MB** | **45,000+ 行** |
 
 ---
 
 ## 🚀 更新日志
+
+### 2026-03-12 ⭐ SystemUI 增强 + Keyguard 章节
+
+**SystemUI 文档重大更新**:
+- ✅ **Android_SystemUI_详解.md** (184KB → 230KB, +1000行)
+   - 新增第13章：Keyguard 锁屏系统（完整源码分析）
+   - KeyguardService 启动流程
+   - KeyguardViewMediator 源码分析
+   - KeyguardUpdateMonitor 状态管理
+   - 安全验证机制（图案/密码/PIN/生物识别）
+   - 图案解锁源码分析
+   - 生物识别解锁架构
+   - 锁屏与 SystemUI 交互
+   - Keyguard 状态机
+   - 锁屏安全最佳实践
+   - 新增第14章：面试常见问题补充（Keyguard 相关）
+
+**文档总数**：31 篇（不变）
+**总大小**：3.01 MB → **3.06 MB**
+
+---
+
+### 2026-03-12 ⭐ 架构进阶新增
+
+**新增架构进阶（2篇）**：
+
+1. ✅ **Android_插件化详解.md** (69KB, 18章, 1449行)
+   - 第一篇：插件化基础（概述/原理/资源加载/四大组件插件化）
+   - 第二篇：插件化实现（Activity/Service/Receiver/Provider）
+   - 第三篇：主流框架（RePlugin/Shadow/VirtualApp）
+   - 插件化 vs 组件化 vs 热修复对比
+
+2. ✅ **Android_组件化详解.md** (46KB, 18章, 1028行)
+   - 第一篇：组件化基础（概述/架构设计/模块解耦/路由框架）
+   - 第二篇：组件化实现（项目结构/Gradle配置/调试发布）
+   - 第三篇：实战案例（WanAndroid 组件化实践）
+
+3. ✅ **Android_SystemUI_详解.md** (184KB, 11章, 3304行) ⭐
+   - SystemUI 启动流程源码分析
+   - AOD (Always On Display) 详解
+   - 通知系统深度解析
+   - NotificationManagerService 源码分析
+   - RemoteViews 深度解析
+   - 通知渲染流程与模板系统
+
+**文档总数**：29 篇 → **31 篇**
+**总大小**：2.81 MB → **3.01 MB**
+
+---
 
 ### 2026-03-11 ⭐ Android 安全详解新增
 
@@ -308,4 +366,4 @@
 
 ---
 
-*Generated by OpenClaw | 2026-03-11*
+*Generated by OpenClaw | 2026-03-12*
