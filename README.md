@@ -64,7 +64,7 @@
 
 | # | 文档名称 | 大小 | 说明 |
 |---|----------|------|------|
-| 29 | [Android_插件化详解.md](./Android_插件化详解.md) | 69KB | ⭐ 动态加载/类加载/四大组件插件化（18章 1449行）|
+| 29 | [Android_SystemUI_Plugin详解.md](./Android_SystemUI_Plugin详解.md) | 35KB | ⭐ SystemUI 插件化（6章 794行）|
 | 30 | [Android_组件化详解.md](./Android_组件化详解.md) | 46KB | ⭐ 模块解耦/路由/通信（18章 1028行）|
 
 ### 三方库详解（2篇）
