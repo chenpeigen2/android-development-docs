@@ -38,7 +38,7 @@
 | 15 | [AndroidX_核心库详解.md](./AndroidX_核心库详解.md) | 89KB | Lifecycle/ViewModel/LiveData/Room |
 | 16 | [Android_架构模式演进详解.md](./Android_架构模式演进详解.md) | 74KB | MVC/MVP/MVVM/MVI 演进 |
 | 17 | [Android_后台任务详解.md](./Android_后台任务详解.md) | 94KB | Service/JobScheduler/WorkManager |
-| 18 | [Android_SystemUI_详解.md](./Android_SystemUI_详解.md) | 236KB | ⭐ StatusBar/NavBar/AOD/通知/Keyguard 源码 (Android 16) |
+| 18 | [Android_SystemUI_详解.md](./Android_SystemUI_详解.md) | 281KB | ⭐ StatusBar/NavBar/AOD/通知/Keyguard 源码 (Android 16 AOSP) |
 
 ### 性能优化（4篇）
 
