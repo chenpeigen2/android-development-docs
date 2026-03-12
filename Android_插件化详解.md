@@ -1425,6 +1425,609 @@ ActivityThread: 替换回 PluginActivity
 
 ---
 
+## 第 11 章 SystemUI 插件化方案
+
+### 11.1 SystemUI 插件化概述
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                       SystemUI 插件化架构                                   │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+为什么 SystemUI 需要插件化：
+1. 厂商定制 - 不同厂商需要不同的 UI 风格
+2. 快速迭代 - 无需重新编译 SystemUI
+3. 模块解耦 - 功能模块独立开发
+4. 动态下发 - 可通过应用商店更新
+
+SystemUI 插件化特点：
+• 系统级权限 - 需要系统签名或特权
+• 独立进程 - 插件运行在独立进程
+• IPC 通信 - 通过 Binder 与 SystemUI 通信
+• 资源隔离 - 插件资源独立加载
+
+架构图：
+─────────────────────────────────────────────────────────────────────────────
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                                                                             │
+│   ┌─────────────────────────────────────────────────────────────────────┐ │
+│   │                    SystemUI Process                                  │ │
+│   │                                                                      │ │
+│   │   ┌──────────────┐  ┌──────────────┐  ┌──────────────┐            │ │
+│   │   │ PluginManager│  │ StatusBar    │  │ NavigationBar│            │ │
+│   │   │              │  │              │  │              │            │ │
+│   │   │ • 加载插件   │  │ • 状态栏视图 │  │ • 导航栏视图 │            │ │
+│   │   │ • 管理生命周期│ │ • 通知管理   │  │ • 按键处理   │            │ │
+│   │   │ • IPC 通信   │  │ • QuickSettings│ │ • 手势导航   │            │ │
+│   │   └──────┬───────┘  └──────┬───────┘  └──────┬───────┘            │ │
+│   │          │                 │                 │                      │ │
+│   │          │                 │                 │                      │ │
+│   │          └─────────────────┼─────────────────┘                      │ │
+│   │                            │ Binder IPC                            │ │
+│   │                            │                                        │ │
+│   └────────────────────────────┼────────────────────────────────────────┘ │
+│                                │                                          │
+│                                ▼                                          │
+│   ┌───────────────────────────────────────────────────────────────────────┐│
+│   │                    Plugin Process (独立进程)                         ││
+│   │                                                                        ││
+│   │   ┌──────────────┐  ┌──────────────┐  ┌──────────────┐              ││
+│   │   │ Plugin A     │  │ Plugin B     │  │ Plugin C     │              ││
+│   │   │ (时钟插件)   │  │ (天气插件)   │  │ (音乐插件)   │              ││
+│   │   │              │  │              │  │              │              ││
+│   │   │ • 自定义视图 │  │ • 天气数据   │  │ • 播放控制   │              ││
+│   │   │ • 事件处理   │  │ • UI 更新    │  │ • 进度显示   │              ││
+│   │   └──────────────┘  └──────────────┘  └──────────────┘              ││
+│   │                                                                        ││
+│   └────────────────────────────────────────────────────────────────────────┘│
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 11.2 SystemUI 插件化实现方案
+
+```java
+/**
+ * SystemUI 插件接口定义
+ * 位置：frameworks/base/packages/SystemUI/plugin/
+ */
+interface Plugin {
+    /**
+     * 插件创建时调用
+     */
+    void onCreate(Context context, PluginListener listener);
+    
+    /**
+     * 插件销毁时调用
+     */
+    void onDestroy();
+}
+
+/**
+ * 插件监听器
+ */
+interface PluginListener<T extends Plugin> {
+    /**
+     * 插件连接成功
+     */
+    void onPluginConnected(T plugin);
+    
+    /**
+     * 插件断开连接
+     */
+    void onPluginDisconnected(T plugin);
+}
+
+/**
+ * PluginManager - 插件管理器
+ * 位置：frameworks/base/packages/SystemUI/plugin/PluginManager.java
+ */
+class PluginManager {
+    // 插件动作
+    public static final String PLUGIN_ACTION = "com.android.systemui.action.PLUGIN";
+    
+    // 插件权限
+    public static final String PLUGIN_PERMISSION = "com.android.systemui.permission.PLUGIN";
+    
+    // 单例
+    private static PluginManager sInstance;
+    
+    // 插件映射
+    private final ArrayMap<Class<?>, PluginListener<?>> mPlugins;
+    
+    /**
+     * 获取单例
+     */
+    public static PluginManager getInstance(Context context) {
+        if (sInstance == null) {
+            sInstance = new PluginManager(context);
+        }
+        return sInstance;
+    }
+    
+    /**
+     * 注册插件监听
+     */
+    public <T extends Plugin> void addPluginListener(
+            PluginListener<T> listener, Class<T> cls) {
+        addPluginListener(listener, cls, false);
+    }
+    
+    /**
+     * 注册插件监听 (允许多个)
+     */
+    public <T extends Plugin> void addPluginListener(
+            PluginListener<T> listener, Class<T> cls, boolean allowMultiple) {
+        // 1. 查询匹配的插件
+        Intent intent = new Intent(PLUGIN_ACTION);
+        intent.addCategory(cls.getName());
+        
+        List<ResolveInfo> resolves = mPm.queryIntentServices(intent, 0);
+        
+        // 2. 连接插件
+        for (ResolveInfo resolve : resolves) {
+            PluginInfo<T> info = new PluginInfo<>(mContext, cls, resolve);
+            info.connect(listener);
+        }
+        
+        mPlugins.put(cls, listener);
+    }
+    
+    /**
+     * 移除插件监听
+     */
+    public <T extends Plugin> void removePluginListener(PluginListener<T> listener) {
+        mPlugins.remove(listener);
+    }
+}
+```
+
+### 11.3 StatusBar 插件化实现
+
+```java
+/**
+ * StatusBar 插件接口
+ * 位置：frameworks/base/packages/SystemUI/plugin/StatusBarPlugin.java
+ */
+interface StatusBarPlugin extends Plugin {
+    /**
+     * 获取状态栏视图
+     */
+    View getStatusBarView();
+    
+    /**
+     * 状态栏高度变化
+     */
+    void onHeightChanged(int height);
+    
+    /**
+     * 通知数量变化
+     */
+    void onNotificationCountChanged(int count);
+}
+
+/**
+ * StatusBar 插件实现示例
+ * 位置：插件 APK 中
+ */
+public class CustomStatusBarPlugin implements StatusBarPlugin {
+    private Context mContext;
+    private View mStatusBarView;
+    private PluginListener<StatusBarPlugin> mListener;
+    
+    @Override
+    public void onCreate(Context context, PluginListener listener) {
+        mContext = context;
+        mListener = listener;
+        
+        // 加载插件布局
+        mStatusBarView = LayoutInflater.from(context)
+                .inflate(R.layout.custom_status_bar, null);
+        
+        // 通知连接成功
+        mListener.onPluginConnected(this);
+    }
+    
+    @Override
+    public void onDestroy() {
+        mListener.onPluginDisconnected(this);
+    }
+    
+    @Override
+    public View getStatusBarView() {
+        return mStatusBarView;
+    }
+    
+    @Override
+    public void onHeightChanged(int height) {
+        // 处理高度变化
+        ViewGroup.LayoutParams lp = mStatusBarView.getLayoutParams();
+        if (lp.height != height) {
+            lp.height = height;
+            mStatusBarView.setLayoutParams(lp);
+        }
+    }
+    
+    @Override
+    public void onNotificationCountChanged(int count) {
+        // 更新通知数量显示
+        TextView tv = mStatusBarView.findViewById(R.id.notification_count);
+        tv.setText(String.valueOf(count));
+    }
+}
+
+/**
+ * 插件 AndroidManifest.xml 配置
+ */
+<service
+    android:name=".CustomStatusBarPlugin"
+    android:label="@string/plugin_name"
+    android:permission="com.android.systemui.permission.PLUGIN">
+    
+    <intent-filter>
+        <action android:name="com.android.systemui.action.PLUGIN" />
+        <category android:name="com.android.systemui.plugins.statusbar.StatusBarPlugin" />
+    </intent-filter>
+    
+    <meta-data
+        android:name="com.android.systemui.plugins.version"
+        android:value="1" />
+</service>
+```
+
+### 11.4 QuickSettings 插件化实现
+
+```java
+/**
+ * QuickSettings 插件接口
+ */
+interface QuickSettingsPlugin extends Plugin {
+    /**
+     * 获取 QuickSettings Tile
+     */
+    List<QSTile> getTiles();
+    
+    /**
+     * Tile 点击事件
+     */
+    void onTileClick(String tileId);
+    
+    /**
+     * Tile 状态更新
+     */
+    void updateTileState(String tileId, TileState state);
+}
+
+/**
+ * QuickSettings 插件实现
+ */
+public class CustomQSPlugin implements QuickSettingsPlugin {
+    private List<QSTile> mTiles;
+    
+    @Override
+    public void onCreate(Context context, PluginListener listener) {
+        mTiles = new ArrayList<>();
+        
+        // 添加自定义 Tile
+        mTiles.add(createWiFiTile(context));
+        mTiles.add(createBluetoothTile(context));
+        mTiles.add(createFlashlightTile(context));
+        
+        listener.onPluginConnected(this);
+    }
+    
+    private QSTile createWiFiTile(Context context) {
+        QSTile tile = new QSTile();
+        tile.id = "custom_wifi";
+        tile.label = context.getString(R.string.wifi);
+        tile.icon = R.drawable.ic_wifi;
+        tile.state = TileState.ACTIVE;
+        return tile;
+    }
+    
+    @Override
+    public List<QSTile> getTiles() {
+        return mTiles;
+    }
+    
+    @Override
+    public void onTileClick(String tileId) {
+        switch (tileId) {
+            case "custom_wifi":
+                toggleWiFi();
+                break;
+            case "custom_bluetooth":
+                toggleBluetooth();
+                break;
+            case "custom_flashlight":
+                toggleFlashlight();
+                break;
+        }
+    }
+    
+    @Override
+    public void updateTileState(String tileId, TileState state) {
+        for (QSTile tile : mTiles) {
+            if (tile.id.equals(tileId)) {
+                tile.state = state;
+                break;
+            }
+        }
+    }
+}
+```
+
+### 11.5 插件 IPC 通信
+
+```java
+/**
+ * 插件 Binder 接口
+ * 位置：frameworks/base/packages/SystemUI/plugin/IPlugin.aidl
+ */
+interface IPlugin {
+    void onCreate(IBinder token);
+    void onDestroy();
+}
+
+/**
+ * 插件服务实现
+ */
+public class PluginService extends Service {
+    private IPlugin mPlugin;
+    
+    @Override
+    public IBinder onBind(Intent intent) {
+        return new IPlugin.Stub() {
+            @Override
+            public void onCreate(IBinder token) {
+                // 连接到 SystemUI
+                PluginManager.getInstance(PluginService.this)
+                        .onPluginConnected(mPlugin, token);
+            }
+            
+            @Override
+            public void onDestroy() {
+                PluginManager.getInstance(PluginService.this)
+                        .onPluginDisconnected(mPlugin);
+            }
+        };
+    }
+}
+
+/**
+ * 插件与 SystemUI 通信
+ */
+class PluginCommunicator {
+    private Messenger mSystemUIMessenger;
+    private Messenger mClientMessenger;
+    
+    // 消息类型
+    static final int MSG_REGISTER = 1;
+    static final int MSG_UNREGISTER = 2;
+    static final int MSG_UPDATE_VIEW = 3;
+    static final int MSG_EVENT = 4;
+    
+    /**
+     * 发送消息到 SystemUI
+     */
+    void sendToSystemUI(int what, Bundle data) {
+        Message msg = Message.obtain(null, what);
+        msg.setData(data);
+        msg.replyTo = mClientMessenger;
+        
+        try {
+            mSystemUIMessenger.send(msg);
+        } catch (RemoteException e) {
+            e.printStackTrace();
+        }
+    }
+    
+    /**
+     * 处理 SystemUI 消息
+     */
+    class IncomingHandler extends Handler {
+        @Override
+        public void handleMessage(Message msg) {
+            switch (msg.what) {
+                case MSG_UPDATE_VIEW:
+                    // 更新视图
+                    Bundle data = msg.getData();
+                    updateView(data);
+                    break;
+                case MSG_EVENT:
+                    // 处理事件
+                    handleEvent(msg.getData());
+                    break;
+            }
+        }
+    }
+}
+```
+
+### 11.6 插件安全机制
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                       SystemUI 插件安全机制                                 │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+1. 权限控制
+   ─────────────────────────────────────────────────────────────────────────────
+   
+   <!-- 插件必须声明权限 -->
+   <uses-permission android:name="com.android.systemui.permission.PLUGIN" />
+   
+   <!-- 权限定义 (系统级) -->
+   <permission
+       android:name="com.android.systemui.permission.PLUGIN"
+       android:protectionLevel="signature|privileged" />
+
+2. 签名验证
+   ─────────────────────────────────────────────────────────────────────────────
+   
+   class PluginSecurity {
+       /**
+        * 验证插件签名
+        */
+       boolean verifyPluginSignature(Context context, String packageName) {
+           try {
+               PackageManager pm = context.getPackageManager();
+               PackageInfo info = pm.getPackageInfo(
+                       packageName, 
+                       PackageManager.GET_SIGNATURES);
+               
+               // 验证签名
+               for (Signature sig : info.signatures) {
+                   if (isValidSignature(sig)) {
+                       return true;
+                   }
+               }
+           } catch (Exception e) {
+               return false;
+           }
+           return false;
+       }
+   }
+
+3. 版本检查
+   ─────────────────────────────────────────────────────────────────────────────
+   
+   class PluginVersion {
+       /**
+        * 检查插件版本兼容性
+        */
+       boolean checkVersion(Context context, ResolveInfo resolve) {
+           try {
+               Bundle metaData = resolve.serviceInfo.metaData;
+               int version = metaData.getInt("com.android.systemui.plugins.version", 0);
+               
+               // 检查版本是否兼容
+               return version >= MIN_PLUGIN_VERSION;
+           } catch (Exception e) {
+               return false;
+           }
+       }
+   }
+
+4. 沙箱隔离
+   ─────────────────────────────────────────────────────────────────────────────
+   
+   • 插件运行在独立进程
+   • 限制插件可访问的 API
+   • 通过 IPC 进行通信
+   • 插件崩溃不影响 SystemUI
+```
+
+### 11.7 插件开发最佳实践
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                       SystemUI 插件开发最佳实践                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+1. 架构设计
+   ─────────────────────────────────────────────────────────────────────────────
+   
+   • 单一职责 - 每个插件只负责一个功能
+   • 接口隔离 - 使用最小接口
+   • 依赖倒置 - 依赖抽象而非具体实现
+   • 开闭原则 - 对扩展开放，对修改关闭
+
+2. 性能优化
+   ─────────────────────────────────────────────────────────────────────────────
+   
+   • 懒加载 - 按需加载插件
+   • 异步初始化 - 不阻塞主线程
+   • 内存管理 - 及时释放资源
+   • 视图复用 - 减少视图创建
+
+3. 兼容性处理
+   ─────────────────────────────────────────────────────────────────────────────
+   
+   • 版本检查 - 检查 SystemUI 版本
+   • 降级策略 - 不兼容时使用默认实现
+   • 异常处理 - 捕获所有异常
+   • 日志记录 - 便于调试
+
+4. 调试技巧
+   ─────────────────────────────────────────────────────────────────────────────
+   
+   # 查看已加载插件
+   adb shell dumpsys activity services | grep Plugin
+   
+   # 启用插件调试
+   adb shell setprop debug.systemui.plugin 1
+   
+   # 查看插件日志
+   adb logcat -s PluginManager:V Plugin:V
+```
+
+### 11.8 实际案例：厂商定制 StatusBar
+
+```java
+/**
+ * 厂商定制 StatusBar 插件
+ */
+public class VendorStatusBarPlugin implements StatusBarPlugin {
+    private Context mContext;
+    private FrameLayout mContainer;
+    private ImageView mLogo;
+    private TextView mTime;
+    private TextView mBattery;
+    
+    @Override
+    public void onCreate(Context context, PluginListener listener) {
+        mContext = context;
+        
+        // 创建自定义布局
+        mContainer = new FrameLayout(context);
+        
+        // 厂商 Logo
+        mLogo = new ImageView(context);
+        mLogo.setImageResource(R.drawable.vendor_logo);
+        mContainer.addView(mLogo);
+        
+        // 时间显示
+        mTime = new TextView(context);
+        mTime.setTextSize(12);
+        mContainer.addView(mTime);
+        
+        // 电量显示
+        mBattery = new TextView(context);
+        mBattery.setTextSize(12);
+        mContainer.addView(mBattery);
+        
+        // 更新时间
+        updateTime();
+        
+        listener.onPluginConnected(this);
+    }
+    
+    private void updateTime() {
+        SimpleDateFormat sdf = new SimpleDateFormat("HH:mm", Locale.getDefault());
+        mTime.setText(sdf.format(new Date()));
+    }
+    
+    @Override
+    public View getStatusBarView() {
+        return mContainer;
+    }
+    
+    @Override
+    public void onNotificationCountChanged(int count) {
+        // 显示通知数量角标
+        if (count > 0) {
+            mLogo.setBadge(count);
+        } else {
+            mLogo.setBadge(0);
+        }
+    }
+}
+```
+
+---
+
 ## 总结
 
 ### 插件化核心要点
@@ -1434,6 +2037,7 @@ ActivityThread: 替换回 PluginActivity
 3. **Activity 插件化**：占坑 + Hook AMS
 4. **Service 插件化**：代理 Service 方案
 5. **兼容性**：Android 高版本限制多，推荐 Shadow
+6. **SystemUI 插件化**：独立进程 + Binder IPC + 权限控制
 
 ### 学习建议
 
@@ -1441,9 +2045,10 @@ ActivityThread: 替换回 PluginActivity
 2. **进阶**：Activity 启动流程、Hook 技术
 3. **实战**：使用 Shadow/RePlugin 集成
 4. **深入**：阅读框架源码
+5. **SystemUI**：研究 AOSP SystemUI 插件机制
 
 ---
 
-**文档版本**：v1.0  
-**更新时间**：2026-03-11  
+**文档版本**：v1.1  
+**更新时间**：2026-03-12  
 **适用版本**：Android 5.0+
