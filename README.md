@@ -4,9 +4,9 @@
 
 ## 📚 文档统计
 
-- **总文档数**：37 篇（新增 6 篇 Framework 核心文档）
-- **总大小**：约 3.30 MB
-- **总行数**：约 52,500+ 行
+- **总文档数**：38 篇（新增 6 篇 Framework 核心文档 + 1 篇插件化）
+- **总大小**：约 3.33 MB
+- **总行数**：约 53,000+ 行
 
 ---
 
@@ -60,12 +60,13 @@
 | 27 | [Android_ANR详解.md](./Android_ANR详解.md) | 39KB | ANR 原理 + 监控 + 优化 |
 | 28 | [Android_Systrace_性能分析详解.md](./Android_Systrace_性能分析详解.md) | 132KB | Systrace 工具使用 + 分析方法 |
 
-### 架构进阶（2篇）⭐ NEW!
+### 架构进阶（3篇）⭐ NEW!
 
 | # | 文档名称 | 大小 | 说明 |
 |---|----------|------|------|
-| 29 | [Android_SystemUI_Plugin详解.md](./Android_SystemUI_Plugin详解.md) | 35KB | ⭐ SystemUI 插件化（6章 794行）|
-| 30 | [Android_组件化详解.md](./Android_组件化详解.md) | 46KB | ⭐ 模块解耦/路由/通信（18章 1028行）|
+| 29 | [Android_SystemUI_Plugin详解.md](./Android_SystemUI_Plugin详解.md) | 35KB | ⭐ SystemUI 插件化（6章 894行）|
+| 30 | [Android_Plugin详解.md](./Android_Plugin详解.md) | 32KB | ⭐ 普通应用插件化（11章 636行）|
+| 31 | [Android_组件化详解.md](./Android_组件化详解.md) | 46KB | ⭐ 模块解耦/路由/通信（18章 1028行）|
 
 ### 三方库详解（2篇）
 
