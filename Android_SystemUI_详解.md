@@ -1828,7 +1828,779 @@ RemoteViews 原理：
 
 ---
 
-## 11. 通知与 AOD 深度解析
+## 11. 通知系统深度补充
+
+### 11.1 NotificationManagerService 源码分析
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    NotificationManagerService 源码结构                     │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+// 位置：frameworks/base/services/core/java/com/android/server/notification/
+
+NotificationManagerService.java
+├── 内部类
+│   ├── NotificationRecord        // 通知记录
+│   ├── NotificationList          // 通知列表
+│   ├── PostNotificationRunnable  // 发布通知
+│   ├── CancelNotificationRunnable // 取消通知
+│   ├── NotificationRankingUpdate  // 排名更新
+│   └── ManagedServiceInfo         // 托管服务信息
+│
+├── 核心组件
+│   ├── RankingHelper            // 排名助手
+│   ├── ZenModeHelper            // 勿扰模式
+│   ├── NotificationUsageStats   // 使用统计
+│   ├── NotificationHistoryManager // 历史记录
+│   ├── BubbleController         // 气泡控制
+│   └── ConditionalNotificationCenter // 条件通知
+│
+└── Binder 服务
+    ├── INotificationManager.Stub  // 通知管理接口
+    └── NotificationManagerInternal // 内部接口
+```
+
+```java
+/**
+ * NotificationManagerService 核心源码
+ */
+
+public class NotificationManagerService extends SystemService {
+    
+    // 通知列表（按用户分组）
+    private final ArrayMap<Integer, NotificationList> mNotificationLists = new ArrayMap<>();
+    
+    // 排名助手
+    private RankingHelper mRankingHelper;
+    
+    // 勿扰模式
+    private ZenModeHelper mZenModeHelper;
+    
+    // 条件助手
+    private ConditionProviders mConditionProviders;
+    
+    // 通知监听器列表
+    private final ArraySet<ManagedServiceInfo> mListeners = new ArraySet<>();
+    
+    // 通知助手列表
+    private final ArraySet<ManagedServiceInfo> mAssistants = new ArraySet<>();
+    
+    // 通知分组
+    private final ArrayMap<String, NotificationGroup> mNotificationGroups = new ArrayMap<>();
+    
+    @Override
+    public void onStart() {
+        // 1. 发布 Binder 服务
+        publishBinderService(Context.NOTIFICATION_SERVICE, mService);
+        publishLocalService(NotificationManagerInternal.class, mInternalService);
+        
+        // 2. 初始化组件
+        mRankingHelper = new RankingHelper(getContext(), mPm);
+        mZenModeHelper = new ZenModeHelper(getContext(), mHandler);
+        mConditionProviders = new ConditionProviders(getContext(), mUserProfiles);
+        mUsageStats = new NotificationUsageStats(getContext());
+        mHistoryManager = new NotificationHistoryManager(getContext());
+        mBubbleController = new BubbleController(getContext());
+        
+        // 3. 注册监听器
+        mListeners.register(mListener);
+        
+        // 4. 启动线程
+        mHandlerThread.start();
+        mHandler = new WorkerHandler(mHandlerThread.getLooper());
+    }
+    
+    /**
+     * Binder 服务实现
+     */
+    private final INotificationManager.Stub mService = new INotificationManager.Stub() {
+        
+        @Override
+        public void enqueueNotificationWithTag(String pkg, String opPkg,
+                String tag, int id, Notification notification, int userId) {
+            
+            // 检查权限
+            checkCallerIsSystemOrSameApp(pkg);
+            
+            // 检查通知限制
+            checkEnqueueNotificationRateLimit(pkg, userId);
+            
+            // 检查通知数量限制
+            if (isNotificationLimitReached(pkg, userId)) {
+                Slog.w(TAG, "Package " + pkg + " has reached notification limit");
+                return;
+            }
+            
+            // 创建 NotificationRecord
+            final NotificationRecord r = new NotificationRecord(
+                getContext(), notification, pkg, tag, id, userId);
+            
+            // 提取排名信号
+            mRankingHelper.extractSignals(r);
+            
+            // 检查是否被拦截
+            if (isBlocked(r)) {
+                Slog.d(TAG, "Notification blocked: " + r.getKey());
+                return;
+            }
+            
+            // 加入队列
+            mHandler.post(new EnqueueNotificationRunnable(userId, r));
+        }
+        
+        @Override
+        public void cancelNotificationWithTag(String pkg, String tag,
+                int id, int userId) {
+            
+            checkCallerIsSystemOrSameApp(pkg);
+            
+            final String key = Notification.keyFor(pkg, id, tag, userId);
+            mHandler.post(new CancelNotificationRunnable(key, userId));
+        }
+        
+        @Override
+        public void cancelAllNotifications(String pkg, int userId) {
+            checkCallerIsSystemOrSameApp(pkg);
+            mHandler.post(new CancelAllNotificationsRunnable(pkg, userId));
+        }
+        
+        @Override
+        public void setNotificationsEnabledForPackage(String pkg, int uid, 
+                boolean enabled) {
+            checkCallerIsSystem();
+            mPreferencesHelper.setNotificationsEnabledForPackage(pkg, uid, enabled);
+        }
+        
+        @Override
+        public NotificationChannel getNotificationChannel(String pkg, 
+                String channelId) {
+            checkCallerIsSystemOrSameApp(pkg);
+            return mPreferencesHelper.getNotificationChannel(pkg, channelId);
+        }
+        
+        @Override
+        public List<NotificationChannel> getNotificationChannels(String pkg) {
+            checkCallerIsSystemOrSameApp(pkg);
+            return mPreferencesHelper.getNotificationChannels(pkg);
+        }
+        
+        @Override
+        public void createNotificationChannels(String pkg, 
+                ParceledListSlice channels) {
+            checkCallerIsSystemOrSameApp(pkg);
+            mPreferencesHelper.createNotificationChannels(pkg, channels.getList());
+        }
+    };
+    
+    /**
+     * 入队通知 Runnable
+     */
+    private class EnqueueNotificationRunnable implements Runnable {
+        private final int mUserId;
+        private final NotificationRecord mRecord;
+        
+        EnqueueNotificationRunnable(int userId, NotificationRecord record) {
+            mUserId = userId;
+            mRecord = record;
+        }
+        
+        @Override
+        public void run() {
+            final NotificationRecord r = mRecord;
+            final String key = r.getKey();
+            
+            // 1. 获取通知列表
+            NotificationList list = mNotificationLists.get(mUserId);
+            if (list == null) {
+                list = new NotificationList();
+                mNotificationLists.put(mUserId, list);
+            }
+            
+            // 2. 移除旧通知（如果存在）
+            NotificationRecord old = list.get(key);
+            if (old != null) {
+                list.remove(key);
+                mUsageStats.unregisterCancelled(old);
+            }
+            
+            // 3. 验证通知
+            if (!validateNotification(r)) {
+                Slog.e(TAG, "Invalid notification: " + key);
+                return;
+            }
+            
+            // 4. 应用排名
+            mRankingHelper.rank(list, r);
+            
+            // 5. 应用勿扰
+            if (mZenModeHelper.shouldIntercept(r)) {
+                r.setIntercepted(true);
+                mUsageStats.registerBlocked(r);
+            }
+            
+            // 6. 添加到列表
+            list.add(r);
+            
+            // 7. 保存到历史
+            mHistoryManager.addNotification(r);
+            
+            // 8. 更新气泡
+            mBubbleController.updateBubble(r);
+            
+            // 9. 通知监听器
+            notifyPosted(r, old);
+            
+            // 10. 更新状态栏
+            updateStatusBarIcons();
+            
+            // 11. 发送声音和振动
+            if (!r.isIntercepted()) {
+                buzzBeepBlink(r);
+            }
+        }
+    }
+}
+```
+
+### 11.2 通知排名算法
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    通知排名算法                                            │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+排名是多因素综合评估：
+
+┌──────────────────┬──────────────────────────────────────────────────────────┐
+│      因素        │                       权重                              │
+├──────────────────┼──────────────────────────────────────────────────────────┤
+│  重要性级别      │  ★★★★★ (最重要)                                       │
+│  通知渠道        │  ★★★★☆                                                │
+│  通知类别        │  ★★★★☆                                                │
+│  用户亲密度      │  ★★★☆☆                                                │
+│  通知时间        │  ★★★☆☆                                                │
+│  通知频次        │  ★★☆☆☆ (频繁可能降级)                                 │
+│  应用优先级      │  ★★☆☆☆                                                │
+└──────────────────┴──────────────────────────────────────────────────────────┘
+
+排名流程：
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  RankingHelper.rank(NotificationList list, NotificationRecord record)      │
+│                                                                          │
+│  1. 提取信号 (extractSignals)                                            │
+│     ├── 读取 Notification 中的元数据                                     │
+│     ├── 分析 NotificationChannel 设置                                    │
+│     ├── 分析 Notification.Style                                          │
+│     └── 计算用户亲密度                                                    │
+│                                                                          │
+│  2. 计算排名分数                                                          │
+│     score = importanceScore * 100 +                                      │
+│             channelScore * 10 +                                          │
+│             categoryScore * 5 +                                          │
+│             affinityScore * 2 +                                          │
+│             timeScore                                                     │
+│                                                                          │
+│  3. 插入排序                                                              │
+│     for (int i = 0; i < list.size(); i++) {                              │
+│         if (record.getScore() > list.get(i).getScore()) {                │
+│             list.addAt(i, record);                                        │
+│             break;                                                        │
+│         }                                                                 │
+│     }                                                                     │
+│                                                                          │
+│  4. 生成 RankingMap                                                       │
+│     return new RankingMap(list);                                         │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+重要性级别：
+IMPORTANCE_UNSPECIFIED = -1   // 未指定
+IMPORTANCE_NONE = 0          // 不显示
+IMPORTANCE_MIN = 1           // 最小
+IMPORTANCE_LOW = 2           // 低
+IMPORTANCE_DEFAULT = 3       // 默认
+IMPORTANCE_HIGH = 4          // 高
+IMPORTANCE_MAX = 5           // 最大
+
+通知类别优先级：
+CATEGORY_CALL > CATEGORY_MESSAGE > CATEGORY_EVENT > CATEGORY_ALARM > 
+CATEGORY_REMINDER > CATEGORY_SOCIAL > CATEGORY_EMAIL > CATEGORY_PROMO
+```
+
+### 11.3 通知分组机制
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    通知分组机制                                            │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+通知分组允许将多个通知合并为一个组：
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  分组通知示例                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │  微信 (3 条消息)                                                    │   │
+│  │  ┌───────────────────────────────────────────────────────────────┐ │   │
+│  │  │  张三: 你好                                                   │ │   │
+│  │  │  李四: 在吗？                                                 │ │   │
+│  │  │  王五: 明天见                                                 │ │   │
+│  │  └───────────────────────────────────────────────────────────────┘ │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                                                          │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │  邮件 (5 封未读)                                                    │   │
+│  │  ┌───────────────────────────────────────────────────────────────┐ │   │
+│  │  │  邮件1: 标题...                                               │ │   │
+│  │  │  邮件2: 标题...                                               │ │   │
+│  │  │  +3 封未读                                                    │ │   │
+│  │  └───────────────────────────────────────────────────────────────┘ │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+分组实现：
+```java
+// 创建分组通知
+Notification groupSummary = new Notification.Builder(context, channelId)
+    .setSmallIcon(R.drawable.icon)
+    .setContentTitle("微信")
+    .setContentText("3 条消息")
+    .setGroup("wechat_group")  // 分组 key
+    .setGroupSummary(true)      // 标记为组摘要
+    .build();
+
+Notification notification1 = new Notification.Builder(context, channelId)
+    .setSmallIcon(R.drawable.icon)
+    .setContentTitle("张三")
+    .setContentText("你好")
+    .setGroup("wechat_group")  // 相同分组 key
+    .build();
+
+// 发送
+notificationManager.notify(0, groupSummary);
+notificationManager.notify(1, notification1);
+```
+
+分组规则：
+1. 相同 setGroup() 值的通知属于同一组
+2. 组摘要 (setGroupSummary(true)) 显示在组头部
+3. 子通知按时间排序
+4. 用户可以展开组查看所有子通知
+```
+
+### 11.4 通知气泡 (Bubble)
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    通知气泡 (Bubble)                                       │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+气泡是 Android 11 引入的悬浮通知形式：
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  气泡显示效果                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+                    屏幕边缘
+                        │
+        ┌───────────────┼───────────────┐
+        │               │               │
+        │          ┌────┴────┐         │
+        │          │  气泡   │         │  ← 悬浮气泡
+        │          │   👤    │         │
+        │          └────┬────┘         │
+        │               │               │
+        │          点击展开            │
+        │               │               │
+        │               ▼               │
+        │    ┌─────────────────────┐   │
+        │    │  张三               │   │  ← 展开的气泡
+        │    │  你好！             │   │
+        │    │  [输入框]          │   │
+        │    │  [发送]             │   │
+        │    └─────────────────────┘   │
+        │               │               │
+        └───────────────┴───────────────┘
+
+气泡实现：
+```java
+// 创建气泡
+BubbleMetadata bubble = new BubbleMetadata.Builder()
+    .setIntent(bubbleIntent)  // 点击气泡打开的 Intent
+    .setDesiredHeight(600)    // 气泡高度
+    .setIcon(Icon.createWithResource(context, R.drawable.avatar))
+    .build();
+
+Notification notification = new Notification.Builder(context, channelId)
+    .setSmallIcon(R.drawable.icon)
+    .setContentTitle("张三")
+    .setContentText("你好！")
+    .setBubbleMetadata(bubble)  // 设置气泡
+    .build();
+```
+
+气泡规则：
+1. 需要 NotificationChannel 允许气泡
+2. 用户可以在设置中关闭气泡
+3. 气泡可以拖动和展开
+4. 展开时显示 Activity 内容
+```
+
+### 11.5 通知声音和振动
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    通知声音和振动                                          │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+NMS 处理通知声音和振动的流程：
+
+NotificationManagerService.buzzBeepBlink(NotificationRecord record):
+│
+├── 1. 检查是否需要提醒
+│   if (record.isIntercepted() || !record.shouldShowAlert()) {
+│       return;  // 不需要提醒
+│   }
+│
+├── 2. 检查勿扰模式
+│   if (mZenModeHelper.shouldIntercept(record)) {
+│       return;  // 勿扰模式拦截
+│   }
+│
+├── 3. 播放声音
+│   if (record.getSound() != null) {
+│       playSound(record.getSound(), record.getAttributes());
+│   }
+│
+├── 4. 触发振动
+│   if (record.getVibration() != null) {
+│       vibrate(record.getVibration(), record.getAttributes());
+│   }
+│
+├── 5. 闪烁 LED
+│   if (record.getLight() != null) {
+│       blinkLight(record.getLight());
+│   }
+│
+└── 6. 记录统计
+    mUsageStats.registerAlerted(record);
+
+声音配置：
+NotificationChannel channel = new NotificationChannel(id, name, importance);
+channel.setSound(
+    Uri.parse("content://settings/system/notification_sound"),
+    new AudioAttributes.Builder()
+        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+        .setUsage(AudioAttributes.USAGE_NOTIFICATION)
+        .build()
+);
+
+振动配置：
+channel.enableVibration(true);
+channel.setVibrationPattern(new long[]{0, 500, 200, 500});  // 延迟, 振动, 静音, 振动...
+```
+
+---
+
+## 12. AOD 深度补充
+
+### 12.1 AOD 与 PowerManagerService 交互
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    AOD 与 PowerManagerService 交互                         │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                          PowerManagerService                              │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │                    电源状态管理                                      │   │
+│  │                                                                   │   │
+│  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐         │   │
+│  │  │WakeLock管理  │  │屏幕状态管理  │  │Doze模式管理   │         │   │
+│  │  └──────────────┘  └──────────────┘  └──────────────┘         │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                    │                                      │
+│                                    ▼                                      │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │                      DozeService                                    │   │
+│  │  ┌─────────────────────────────────────────────────────────────┐  │   │
+│  │  │                    DozeMachine                               │  │   │
+│  │  │  ┌─────────────────────────────────────────────────────┐   │  │   │
+│  │  │  │              状态机管理                              │   │  │   │
+│  │  │  │  - 状态转换                                        │   │  │   │
+│  │  │  │  - 脉冲控制                                        │   │  │   │
+│  │  │  │  - 传感器事件                                      │   │  │   │
+│  │  │  └─────────────────────────────────────────────────────┘   │  │   │
+│  │  └─────────────────────────────────────────────────────────────┘  │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                    │                                      │
+│                                    ▼                                      │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │                      SystemUI (AOD)                                │   │
+│  │  ┌─────────────────────────────────────────────────────────────┐  │   │
+│  │  │                    AODController                             │  │   │
+│  │  │  - 监听 Doze 状态                                         │  │   │
+│  │  │  - 渲染 AOD 内容                                         │  │   │
+│  │  │  - 处理脉冲事件                                           │  │   │
+│  │  └─────────────────────────────────────────────────────────────┘  │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+交互流程：
+```java
+// PowerManagerService.java
+public class PowerManagerService extends SystemService {
+    
+    // Doze 模式状态
+    private boolean mDozeModeEnabled;
+    
+    /**
+     * 进入 Doze 模式
+     */
+    public void enterDozeMode() {
+        // 1. 设置 Doze 标志
+        mDozeModeEnabled = true;
+        
+        // 2. 降低屏幕亮度
+        mDisplayManager.setDozeMode(true);
+        
+        // 3. 通知 DozeService
+        mDozeService.onEnterDoze();
+        
+        // 4. 释放不必要的 WakeLock
+        releaseWakeLocks();
+    }
+    
+    /**
+     * 退出 Doze 模式
+     */
+    public void exitDozeMode() {
+        // 1. 清除 Doze 标志
+        mDozeModeEnabled = false;
+        
+        // 2. 恢复屏幕亮度
+        mDisplayManager.setDozeMode(false);
+        
+        // 3. 通知 DozeService
+        mDozeService.onExitDoze();
+    }
+    
+    /**
+     * 请求 AOD 脉冲
+     */
+    public void requestDozePulse(int reason) {
+        if (mDozeModeEnabled) {
+            mDozeService.requestPulse(reason);
+        }
+    }
+}
+```
+
+### 12.2 AOD 硬件抽象层 (HAL)
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    AOD 硬件抽象层                                          │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                          Framework 层 (Java)                               │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │                    DisplayManagerService                             │   │
+│  │  - 设置 AOD 模式                                                    │   │
+│  │  - 控制 AOD 参数                                                    │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                          Native 层 (C++)                                   │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │                    DisplayHAL                                       │   │
+│  │  - 实现 AOD 接口                                                    │   │
+│  │  - 控制显示硬件                                                     │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                          HAL 层                                            │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │                    AOD HAL                                          │   │
+│  │  - setAlwaysOnEnabled()     // 启用/禁用 AOD                        │   │
+│  │  - setAodDisplayMode()      // 设置显示模式                         │   │
+│  │  - setAodBrightness()       // 设置亮度                             │   │
+│  │  - setAodPartialUpdate()    // 部分更新                             │   │
+│  │  - setAodIdleTimeout()      // 设置空闲超时                         │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                          Kernel 层                                         │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │                    Display Driver                                   │   │
+│  │  - 控制 AMOLED 显示                                                │   │
+│  │  - 低功耗显示模式                                                   │   │
+│  │  - 部分像素点亮                                                     │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+HAL 接口定义：
+// hardware/interfaces/display/aidl/android/hardware/display/
+interface IDisplay {
+    void setAlwaysOnEnabled(boolean enabled);
+    void setAodDisplayMode(AodDisplayMode mode);
+    void setAodBrightness(int brightness);
+    void setAodPartialUpdate(Rect region);
+}
+
+// AodDisplayMode
+parcelable AodDisplayMode {
+    int width;
+    int height;
+    int refreshRate;  // 1 fps for AOD
+    int pixelFormat;
+    int brightness;
+}
+```
+
+### 12.3 AOD 传感器集成
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    AOD 传感器集成                                          │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+AOD 使用多种传感器来优化显示：
+
+┌──────────────────┬──────────────────────────────────────────────────────────┐
+│      传感器      │                       用途                              │
+├──────────────────┼──────────────────────────────────────────────────────────┤
+│  光线传感器      │  检测环境光，调整 AOD 亮度                              │
+│  距离传感器      │  检测口袋模式，关闭 AOD                                 │
+│  加速度传感器    │  检测设备静止，进入深度睡眠                             │
+│  陀螺仪          │  检测设备运动，唤醒 AOD                                 │
+│  拾起传感器      │  检测设备被拾起，退出 AOD                               │
+│  双击传感器      │  检测双击屏幕，唤醒设备                                 │
+└──────────────────┴──────────────────────────────────────────────────────────┘
+
+传感器监听实现：
+```java
+// DozeSensors.java
+public class DozeSensors {
+    
+    private SensorManager mSensorManager;
+    
+    // 注册传感器
+    public void registerSensors() {
+        // 1. 光线传感器
+        Sensor lightSensor = mSensorManager.getDefaultSensor(Sensor.TYPE_LIGHT);
+        mSensorManager.registerListener(mLightListener, lightSensor, 
+            SensorManager.SENSOR_DELAY_NORMAL);
+        
+        // 2. 距离传感器
+        Sensor proxSensor = mSensorManager.getDefaultSensor(Sensor.TYPE_PROXIMITY);
+        mSensorManager.registerListener(mProxListener, proxSensor,
+            SensorManager.SENSOR_DELAY_NORMAL);
+        
+        // 3. 拾起传感器
+        Sensor pickupSensor = mSensorManager.getDefaultSensor(Sensor.TYPE_PICK_UP_GESTURE);
+        mSensorManager.registerListener(mPickupListener, pickupSensor,
+            SensorManager.SENSOR_DELAY_NORMAL);
+    }
+    
+    // 光线传感器监听
+    private SensorEventListener mLightListener = new SensorEventListener() {
+        @Override
+        public void onSensorChanged(SensorEvent event) {
+            float lux = event.values[0];
+            
+            // 根据环境光调整 AOD 亮度
+            if (lux < 10) {
+                // 暗环境，降低亮度
+                mAODController.setBrightness(LOW_BRIGHTNESS);
+            } else {
+                // 亮环境，提高亮度
+                mAODController.setBrightness(NORMAL_BRIGHTNESS);
+            }
+        }
+    };
+    
+    // 距离传感器监听
+    private SensorEventListener mProxListener = new SensorEventListener() {
+        @Override
+        public void onSensorChanged(SensorEvent event) {
+            float distance = event.values[0];
+            
+            if (distance < 5.0f) {
+                // 设备在口袋中，关闭 AOD
+                mDozeMachine.transitionTo(State.DOZE_SUSPEND);
+            } else {
+                // 设备不在口袋中，恢复 AOD
+                mDozeMachine.transitionTo(State.DOZE_AOD);
+            }
+        }
+    };
+    
+    // 拾起传感器监听
+    private SensorEventListener mPickupListener = new SensorEventListener() {
+        @Override
+        public void onSensorChanged(SensorEvent event) {
+            // 设备被拾起，退出 AOD
+            mDozeMachine.transitionTo(State.EXITED_DOZE);
+        }
+    };
+}
+```
+
+### 12.4 AOD 配置和设置
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    AOD 配置和设置                                          │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+用户可配置的 AOD 选项：
+
+┌──────────────────┬──────────────────────────────────────────────────────────┐
+│      设置项      │                       说明                              │
+├──────────────────┼──────────────────────────────────────────────────────────┤
+│  AOD 开关        │  启用/禁用 AOD 功能                                    │
+│  显示内容        │  时钟、通知图标、通知预览                               │
+│  时钟样式        │  数字时钟、模拟时钟、无时钟                             │
+│  亮度            │  AOD 显示亮度                                          │
+│  始终显示        │  充电时始终显示                                        │
+│  拾起唤醒        │  拾起设备时唤醒                                        │
+│  双击唤醒        │  双击屏幕唤醒                                          │
+└──────────────────┴──────────────────────────────────────────────────────────┘
+
+配置实现：
+```java
+// Settings.Global
+AOD_ENABLED = "aod_enabled"              // AOD 开关
+AOD_CONTENT = "aod_content"              // 显示内容
+AOD_CLOCK_STYLE = "aod_clock_style"      // 时钟样式
+AOD_BRIGHTNESS = "aod_brightness"         // 亮度
+AOD_ALWAYS_ON = "aod_always_on"           // 始终显示
+AOD_PICK_UP_GESTURE = "aod_pick_up"       // 拾起唤醒
+AOD_DOUBLE_TAP_GESTURE = "aod_double_tap" // 双击唤醒
+
+// 读取配置
+public boolean isAODEnabled() {
+    return Settings.Global.getInt(mContext.getContentResolver(), 
+        Settings.Global.AOD_ENABLED, 0) == 1;
+}
+
+public int getAODContent() {
+    return Settings.Global.getInt(mContext.getContentResolver(),
+        Settings.Global.AOD_CONTENT, AOD_CONTENT_CLOCK | AOD_CONTENT_NOTIFICATION);
+}
+```
+```
 
 ### 10.1 通知系统完整链路
 
