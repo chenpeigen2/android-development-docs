@@ -4,9 +4,9 @@
 
 ## 📚 文档统计
 
-- **总文档数**：31 篇（新增插件化、组件化、SystemUI）
-- **总大小**：约 3.07 MB
-- **总行数**：约 47,500+ 行
+- **总文档数**：37 篇（新增 6 篇 Framework 核心文档）
+- **总大小**：约 3.30 MB
+- **总行数**：约 52,500+ 行
 
 ---
 
@@ -26,7 +26,7 @@
 | 8 | [Android_屏幕适配详解.md](./Android_屏幕适配详解.md) | 69KB | 多分辨率适配方案 |
 | 9 | [Android_网络编程详解.md](./Android_网络编程详解.md) | 12KB | HTTP/HTTPS/TCP/UDP 协议详解 |
 
-### 核心机制（9篇）
+### 核心机制（15篇）⭐ Framework 核心文档
 
 | # | 文档名称 | 大小 | 说明 |
 |---|----------|------|------|
@@ -40,48 +40,59 @@
 | 17 | [Android_后台任务详解.md](./Android_后台任务详解.md) | 94KB | Service/JobScheduler/WorkManager |
 | 18 | [Android_SystemUI_详解.md](./Android_SystemUI_详解.md) | 281KB | ⭐ StatusBar/NavBar/AOD/通知/Keyguard 源码 (Android 16 AOSP) |
 
+### Framework 核心（6篇）⭐ 2026-03-12 新增
+
+| # | 文档名称 | 大小 | 说明 |
+|---|----------|------|------|
+| 19 | [Android_AMS_深度解析.md](./framework/Android_AMS_深度解析.md) | 116KB | ⭐ AMS/ATMS/ActivityStack/oom_adj/LaunchMode（10章 47+面试题）|
+| 20 | [Android_WMS_窗口管理.md](./framework/Android_WMS_窗口管理.md) | 42KB | ⭐ WindowToken/WindowState/Surface/Choreographer/VSync（10章）|
+| 21 | [Android_PMS_包管理.md](./framework/Android_PMS_包管理.md) | 11KB | ⭐ APK安装/组件解析/权限管理/签名验证（9章）|
+| 22 | [Android_InputManager_输入系统.md](./framework/Android_InputManager_输入系统.md) | 9KB | ⭐ EventHub/InputChannel/触摸按键事件分发（10章）|
+| 23 | [Android_进程与线程调度.md](./framework/Android_进程与线程调度.md) | 26KB | ⭐ CFS/优先级/Binder线程池/Looper/线程池（9章）|
+| 24 | [Android_系统启动流程.md](./framework/Android_系统启动流程.md) | 26KB | ⭐ Init/Zygote/SystemServer/BootComplete（8章）|
+
 ### 性能优化（4篇）
 
 | # | 文档名称 | 大小 | 说明 |
 |---|----------|------|------|
-| 19 | [Android_性能优化详解.md](./Android_性能优化详解.md) | 156KB | 启动/UI/内存/电量/网络/APK 优化 |
-| 20 | [Android_内存泄漏与内存优化详解.md](./Android_内存泄漏与内存优化详解.md) | 51KB | 内存泄漏检测 + 优化技巧 |
-| 21 | [Android_ANR详解.md](./Android_ANR详解.md) | 39KB | ANR 原理 + 监控 + 优化 |
-| 22 | [Android_Systrace_性能分析详解.md](./Android_Systrace_性能分析详解.md) | 132KB | Systrace 工具使用 + 分析方法 |
+| 25 | [Android_性能优化详解.md](./Android_性能优化详解.md) | 156KB | 启动/UI/内存/电量/网络/APK 优化 |
+| 26 | [Android_内存泄漏与内存优化详解.md](./Android_内存泄漏与内存优化详解.md) | 51KB | 内存泄漏检测 + 优化技巧 |
+| 27 | [Android_ANR详解.md](./Android_ANR详解.md) | 39KB | ANR 原理 + 监控 + 优化 |
+| 28 | [Android_Systrace_性能分析详解.md](./Android_Systrace_性能分析详解.md) | 132KB | Systrace 工具使用 + 分析方法 |
 
 ### 架构进阶（2篇）⭐ NEW!
 
 | # | 文档名称 | 大小 | 说明 |
 |---|----------|------|------|
-| 23 | [Android_插件化详解.md](./Android_插件化详解.md) | 69KB | ⭐ 动态加载/类加载/四大组件插件化（18章 1449行）|
-| 24 | [Android_组件化详解.md](./Android_组件化详解.md) | 46KB | ⭐ 模块解耦/路由/通信（18章 1028行）|
+| 29 | [Android_插件化详解.md](./Android_插件化详解.md) | 69KB | ⭐ 动态加载/类加载/四大组件插件化（18章 1449行）|
+| 30 | [Android_组件化详解.md](./Android_组件化详解.md) | 46KB | ⭐ 模块解耦/路由/通信（18章 1028行）|
 
 ### 三方库详解（2篇）
 
 | # | 文档名称 | 大小 | 说明 |
 |---|----------|------|------|
-| 25 | [Android_三方库详解.md](./Android_三方库详解.md) | 201KB | Glide/Fresco/MMKV/PAG/Lottie |
-| 26 | [Android_网络请求库详解.md](./Android_网络请求库详解.md) | 84KB | OkHttp/Retrofit 完全指南 |
+| 31 | [Android_三方库详解.md](./Android_三方库详解.md) | 201KB | Glide/Fresco/MMKV/PAG/Lottie |
+| 32 | [Android_网络请求库详解.md](./Android_网络请求库详解.md) | 84KB | OkHttp/Retrofit 完全指南 |
 
 ### 跨平台开发（3篇）⭐ NEW!
 
 | # | 文档名称 | 大小 | 说明 |
 |---|----------|------|------|
-| 27 | [Flutter_完全指南.md](./Flutter_完全指南.md) | 29KB | ⭐ Google 跨平台 UI 框架 |
-| 28 | [React_Native完全指南.md](./React_Native完全指南.md) | 29KB | ⭐ Facebook 跨平台框架 |
-| 29 | [Android_Jetpack_Compose详解.md](./Android_Jetpack_Compose详解.md) | 62KB | ⭐ Android 声明式 UI（18章 2600+行）|
+| 33 | [Flutter_完全指南.md](./Flutter_完全指南.md) | 29KB | ⭐ Google 跨平台 UI 框架 |
+| 34 | [React_Native完全指南.md](./React_Native完全指南.md) | 29KB | ⭐ Facebook 跨平台框架 |
+| 35 | [Android_Jetpack_Compose详解.md](./Android_Jetpack_Compose详解.md) | 62KB | ⭐ Android 声明式 UI（18章 2600+行）|
 
 ### 工具与构建（1篇）
 
 | # | 文档名称 | 大小 | 说明 |
 |---|----------|------|------|
-| 30 | [Android_Gradle与AGP详解.md](./Android_Gradle与AGP详解.md) | 35KB | Gradle 构建流程 + AGP 详解 |
+| 36 | [Android_Gradle与AGP详解.md](./Android_Gradle与AGP详解.md) | 35KB | Gradle 构建流程 + AGP 详解 |
 
 ### 安全与防护（1篇）⭐ NEW!
 
 | # | 文档名称 | 大小 | 说明 |
 |---|----------|------|------|
-| 31 | [Android_安全详解.md](./Android_安全详解.md) | 120KB | ⭐ 混淆/加固/加密/网络安全（18章 3730行）|
+| 37 | [Android_安全详解.md](./Android_安全详解.md) | 120KB | ⭐ 混淆/加固/加密/网络安全（18章 3730行）|
 
 ---
 
@@ -231,17 +242,86 @@
 |------|--------|--------|------|
 | 基础知识 | 9 篇 | 1.08 MB | View/事件/动画/四大组件 |
 | 核心机制 | 9 篇 | 1.03 MB | Binder/Handler/虚拟机/SystemUI/Keyguard ⭐ |
+| **Framework 核心** | **6 篇** | **0.23 MB** | **AMS/WMS/PMS/IMS/进程线程/启动流程 ⭐** |
 | 性能优化 | 4 篇 | 0.38 MB | 性能/内存/ANR/Systrace |
 | 架构进阶 | 2 篇 | 0.11 MB | 插件化/组件化 ⭐ |
 | 三方库详解 | 2 篇 | 0.28 MB | 图片/网络/存储/动画库 |
 | 跨平台开发 | 3 篇 | 0.12 MB | Flutter/RN/Compose ⭐ |
 | 安全与防护 | 1 篇 | 0.12 MB | 混淆/加固/加密 ⭐ |
 | 工具与构建 | 1 篇 | 0.03 MB | Gradle/AGP |
-| **总计** | **31 篇** | **3.01 MB** | **45,000+ 行** |
+| **总计** | **37 篇** | **3.30 MB** | **52,500+ 行** |
 
 ---
 
 ## 🚀 更新日志
+
+### 2026-03-12 ⭐ Framework 核心文档新增 (6篇)
+
+**新增 Framework 核心文档（6篇）**：
+
+1. ✅ **Android_AMS_深度解析.md** (116KB, 10章, 47+面试题)
+   - AMS 架构总览与内部架构
+   - AMS 与 ATMS 职责划分 (Android 10+ 重构)
+   - ActivityStack 与 TaskRecord 栈管理
+   - 进程优先级 (oom_adj) 机制 (15级优先级/LMK)
+   - LaunchMode 深度解析 (4种模式/Intent Flags/taskAffinity)
+   - Activity 生命周期调度 (源码分析/状态转换)
+   - 进程启动流程 (Zygote Fork 完整流程)
+   - 源码路径 (AMS/ATMS/客户端源码)
+   - 面试常见问题 (15道高频题)
+
+2. ✅ **Android_WMS_窗口管理.md** (42KB, 10章)
+   - WMS 架构总览 (内部架构/窗口层级结构)
+   - WindowToken 与 WindowState (窗口令牌/状态)
+   - Surface 与 SurfaceFlinger (图形系统架构)
+   - ViewRootImpl 绘制调度 (performTraversals 流程)
+   - Choreographer 编舞者 (VSync 协调机制)
+   - VSync 信号机制 (垂直同步/三缓冲)
+   - 窗口动画系统 (转场动画)
+   - 面试常见问题 (8道高频题)
+
+3. ✅ **Android_PMS_包管理.md** (11KB, 9章)
+   - PMS 架构总览 (核心组件/数据结构)
+   - APK 安装流程 (完整流程/命令)
+   - 组件解析 (AndroidManifest/Intent匹配)
+   - 权限管理机制 (权限类型/权限组/运行时权限)
+   - 应用签名验证 (签名方案/命令)
+   - dex2oat 编译流程 (ART虚拟机)
+   - 面试常见问题 (6道高频题)
+
+4. ✅ **Android_InputManager_输入系统.md** (9KB, 10章)
+   - IMS 架构总览 (核心线程/Native组件)
+   - 输入事件读取 (EventHub/原始事件)
+   - 输入事件分发流程 (分发逻辑/ANR)
+   - InputChannel 与 InputConnection (通信机制)
+   - 触摸事件处理 (MotionEvent/分发流程)
+   - 按键事件处理 (KeyEvent/系统按键)
+   - 输入法交互 (IME架构/通信)
+   - 面试常见问题 (6道高频题)
+
+5. ✅ **Android_进程与线程调度.md** (26KB, 9章)
+   - Linux 进程调度 (CFS)
+   - Android 线程优先级 (nice值/优先级常量)
+   - Binder 线程池 (架构/配置)
+   - Looper/MessageQueue 原理 (源码分析)
+   - HandlerThread/IntentService (使用示例)
+   - 线程池最佳实践 (ThreadPoolExecutor/Coroutines)
+   - 面试常见问题 (6道高频题)
+
+6. ✅ **Android_系统启动流程.md** (26KB, 8章)
+   - 启动流程总览 (Boot ROM → Launcher)
+   - Init 进程启动 (init.rc 配置)
+   - Zygote 进程 fork 机制 (预加载/Socket监听)
+   - SystemServer 启动流程 (服务启动)
+   - 系统服务启动顺序 (Bootstrap/Core/Other)
+   - BootComplete 广播 (发送时机/监听)
+   - 面试常见问题 (6道高频题)
+
+**文档总数**：31 篇 → **37 篇**
+**总大小**：3.07 MB → **3.30 MB**
+**新增章节**：56 章 | **新增面试题**：47+ 道
+
+---
 
 ### 2026-03-12 ⭐ SystemUI 增强 + Keyguard 章节
 
