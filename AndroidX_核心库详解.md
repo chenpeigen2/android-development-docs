@@ -15,10 +15,12 @@
 7. [Navigation](#7-navigation)
 8. [DataStore](#8-datastore)
 9. [Paging](#9-paging)
-10. [核心库对比](#10-核心库对比)
-11. [ConstraintLayout](#11-constraintlayout)
-12. [常见问题](#12-常见问题)
-13. [知识体系总结](#13-知识体系总结)
+10. [ViewPager2](#10-viewpager2)
+11. [Fragment](#11-fragment)
+12. [核心库对比](#12-核心库对比)
+13. [ConstraintLayout](#13-constraintlayout)
+14. [常见问题](#14-常见问题)
+15. [知识体系总结](#15-知识体系总结)
 
 ---
 
@@ -1670,7 +1672,1052 @@ class UserFragment : Fragment() {
 
 ---
 
-## 10. 核心库对比
+## 10. ViewPager2
+
+### 10.1 ViewPager2 是什么
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         ViewPager2 定义                                     │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  定义：
+  ─────────────────────────────────────────────────────────────────────────
+  ViewPager2 是用于水平或垂直滑动切换页面的组件，基于 RecyclerView 实现
+
+  与 ViewPager 的区别：
+  ─────────────────────────────────────────────────────────────────────────
+  ┌──────────────────┬──────────────────┬───────────────────────────────────┐
+  │      特性         │    ViewPager     │         ViewPager2                │
+  ├──────────────────┼──────────────────┼───────────────────────────────────┤
+  │  实现基础         │  自定义 ViewGroup │  RecyclerView                    │
+  ├──────────────────┼──────────────────┼───────────────────────────────────┤
+  │  垂直滑动         │  ❌ 不支持        │  ✅ 支持                          │
+  ├──────────────────┼──────────────────┼───────────────────────────────────┤
+  │  RTL 支持         │  ❌ 不支持        │  ✅ 支持                          │
+  ├──────────────────┼──────────────────┼───────────────────────────────────┤
+  │  notifyDataSetChanged │  ❌ 有问题   │  ✅ 完美支持                      │
+  ├──────────────────┼──────────────────┼───────────────────────────────────┤
+  │  DiffUtil         │  ❌ 不支持        │  ✅ 支持                          │
+  ├──────────────────┼──────────────────┼───────────────────────────────────┤
+  │  FakeDrag         │  ❌ 不支持        │  ✅ 支持（模拟拖拽）              │
+  └──────────────────┴──────────────────┴───────────────────────────────────┘
+
+  核心优势：
+  ─────────────────────────────────────────────────────────────────────────
+  1. 基于 RecyclerView，性能更好
+  2. 支持垂直滑动
+  3. 支持 RTL 布局
+  4. 支持 DiffUtil 高效更新
+  5. 解决 ViewPager 的 notifyDataSetChange 问题
+```
+
+### 10.2 基本使用
+
+```xml
+<!-- ==================== XML 布局 ==================== -->
+<androidx.viewpager2.widget.ViewPager2
+    android:id="@+id/viewPager"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent" />
+```
+
+```kotlin
+// ==================== FragmentStateAdapter ====================
+class ViewPagerAdapter(
+    activity: FragmentActivity
+) : FragmentStateAdapter(activity) {
+    
+    private val fragments = listOf(
+        HomeFragment(),
+        DiscoverFragment(),
+        ProfileFragment()
+    )
+    
+    override fun getItemCount(): Int = fragments.size
+    
+    override fun createFragment(position: Int): Fragment {
+        return fragments[position]
+    }
+}
+
+// ==================== Activity 中使用 ====================
+class MainActivity : AppCompatActivity() {
+    
+    private lateinit var binding: ActivityMainBinding
+    
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        binding = ActivityMainBinding.inflate(layoutInflater)
+        setContentView(binding.root)
+        
+        // 设置 Adapter
+        binding.viewPager.adapter = ViewPagerAdapter(this)
+        
+        // 设置初始页面
+        binding.viewPager.currentItem = 0
+        
+        // 设置离屏页面限制（预加载）
+        binding.viewPager.offscreenPageLimit = 1
+    }
+}
+```
+
+### 10.3 页面切换监听
+
+```kotlin
+// ==================== 页面切换回调 ====================
+binding.viewPager.registerOnPageChangeCallback(object : ViewPager2.OnPageChangeCallback() {
+    
+    override fun onPageSelected(position: Int) {
+        // 页面被选中
+        Log.d("ViewPager", "Selected: $position")
+    }
+    
+    override fun onPageScrolled(
+        position: Int,
+        positionOffset: Float,
+        positionOffsetPixels: Int
+    ) {
+        // 页面滚动中
+        // positionOffset: 0.0 ~ 1.0，表示滚动进度
+    }
+    
+    override fun onPageScrollStateChanged(state: Int) {
+        // 滚动状态变化
+        when (state) {
+            ViewPager2.SCROLL_STATE_IDLE -> { /* 空闲 */ }
+            ViewPager2.SCROLL_STATE_DRAGGING -> { /* 拖拽中 */ }
+            ViewPager2.SCROLL_STATE_SETTLING -> { /* 惯性滚动 */ }
+        }
+    }
+})
+
+// 注意：销毁时注销（避免内存泄漏）
+override fun onDestroy() {
+    super.onDestroy()
+    binding.viewPager.unregisterOnPageChangeCallback(callback)
+}
+```
+
+### 10.4 与 TabLayout 联动
+
+```kotlin
+// ==================== 方式1：TabLayoutMediator ====================
+val tabTitles = listOf("首页", "发现", "我的")
+
+TabLayoutMediator(binding.tabLayout, binding.viewPager) { tab, position ->
+    tab.text = tabTitles[position]
+}.attach()
+
+// ==================== 方式2：带图标的 Tab ====================
+val tabIcons = listOf(
+    R.drawable.ic_home,
+    R.drawable.ic_discover,
+    R.drawable.ic_profile
+)
+
+TabLayoutMediator(binding.tabLayout, binding.viewPager) { tab, position ->
+    tab.text = tabTitles[position]
+    tab.icon = ContextCompat.getDrawable(this, tabIcons[position])
+}.attach()
+
+// ==================== 方式3：自定义 TabView ====================
+TabLayoutMediator(binding.tabLayout, binding.viewPager) { tab, position ->
+    val customView = LayoutInflater.from(this)
+        .inflate(R.layout.custom_tab, null)
+    customView.findViewById<TextView>(R.id.tvTitle).text = tabTitles[position]
+    tab.customView = customView
+}.attach()
+```
+
+### 10.5 垂直滑动
+
+```kotlin
+// ==================== XML 设置 ====================
+<androidx.viewpager2.widget.ViewPager2
+    android:id="@+id/viewPager"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical" />
+
+// ==================== 代码设置 ====================
+binding.viewPager.orientation = ViewPager2.ORIENTATION_VERTICAL  // 垂直
+binding.viewPager.orientation = ViewPager2.ORIENTATION_HORIZONTAL  // 水平（默认）
+```
+
+### 10.6 禁用滑动
+
+```kotlin
+// ==================== 禁用用户滑动 ====================
+binding.viewPager.isUserInputEnabled = false  // 禁用滑动
+binding.viewPager.isUserInputEnabled = true   // 启用滑动
+
+// 使用场景：引导页最后一页禁止返回
+```
+
+### 10.7 动态更新数据
+
+```kotlin
+// ==================== FragmentStateAdapter 动态更新 ====================
+class DynamicPagerAdapter(
+    fragment: Fragment
+) : FragmentStateAdapter(fragment) {
+    
+    private var items: List<PageItem> = emptyList()
+    
+    fun submitList(newItems: List<PageItem>) {
+        val oldList = items
+        items = newItems
+        // 自动使用 DiffUtil
+        notifyItemRangeChanged(0, newItems.size)
+    }
+    
+    override fun getItemCount(): Int = items.size
+    
+    override fun createFragment(position: Int): Fragment {
+        return PageFragment.newInstance(items[position])
+    }
+}
+
+// 注意：ViewPager2 基于 RecyclerView，支持 notifyItemChanged 等
+```
+
+### 10.8 ViewPager2 + Fragment 生命周期
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    ViewPager2 Fragment 生命周期                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  默认行为（offscreenPageLimit = OFFSCREEN_PAGE_LIMIT_DEFAULT = -1）：
+  ─────────────────────────────────────────────────────────────────────────
+  - 只保留当前可见的 Fragment
+  - 滑走后 Fragment 会被销毁
+  - 滑回来会重新创建
+
+  设置 offscreenPageLimit = 1：
+  ─────────────────────────────────────────────────────────────────────────
+  - 当前页 + 左右各 1 页会被保留
+  - 滑走不会销毁（在限制范围内）
+  - 超出范围的 Fragment 会被销毁
+
+  生命周期流程：
+  ─────────────────────────────────────────────────────────────────────────
+  
+  滑入页面：
+  Fragment → onAttach → onCreate → onCreateView → onViewCreated
+          → onStart → onResume
+
+  滑出页面（offscreenPageLimit 外）：
+  Fragment → onPause → onStop → onDestroyView
+
+  注意：FragmentStateAdapter 使用 BEHAVIOR_RESUME_ONLY_CURRENT_FRAGMENT 时：
+  - 只有当前页会执行 onResume
+  - 其他页保持在 onStart 状态
+```
+
+```kotlin
+// ==================== BEHAVIOR_RESUME_ONLY_CURRENT_FRAGMENT ====================
+class ViewPagerAdapter(
+    activity: FragmentActivity
+) : FragmentStateAdapter(activity) {
+    
+    // 默认行为：只有当前页处于 RESUMED 状态
+    // 其他页处于 STARTED 状态（不会 onResume）
+    
+    override fun getItemCount(): Int = 3
+    
+    override fun createFragment(position: Int): Fragment {
+        return when (position) {
+            0 -> HomeFragment()
+            1 -> DiscoverFragment()
+            else -> ProfileFragment()
+        }
+    }
+}
+
+// Fragment 中处理可见性
+class HomeFragment : Fragment() {
+    
+    override fun onResume() {
+        super.onResume()
+        // 页面可见时执行
+        loadData()
+    }
+    
+    override fun onPause() {
+        super.onPause()
+        // 页面不可见时暂停
+        pauseVideo()
+    }
+}
+```
+
+### 10.9 Transformer 动画
+
+```kotlin
+// ==================== 内置 Transformer ====================
+// 页面缩放效果
+binding.viewPager.setPageTransformer(ZoomOutPageTransformer())
+
+// 深度效果
+binding.viewPager.setPageTransformer(DepthPageTransformer())
+
+// ==================== 自定义 Transformer ====================
+class ZoomOutPageTransformer : ViewPager2.PageTransformer {
+    
+    private val minScale = 0.85f
+    private val minAlpha = 0.5f
+    
+    override fun transformPage(page: View, position: Float) {
+        val pageWidth = page.width
+        val pageHeight = page.height
+        
+        when {
+            position < -1 -> {  // [-Infinity,-1)
+                page.alpha = 0f
+            }
+            position <= 1 -> {  // [-1,1]
+                val scaleFactor = max(minScale, 1 - Math.abs(position))
+                val vertMargin = pageHeight * (1 - scaleFactor) / 2
+                val horzMargin = pageWidth * (1 - scaleFactor) / 2
+                
+                page.translationX = if (position < 0) {
+                    horzMargin - vertMargin / 2
+                } else {
+                    horzMargin + vertMargin / 2
+                }
+                
+                page.scaleX = scaleFactor
+                page.scaleY = scaleFactor
+                page.alpha = minAlpha + (scaleFactor - minScale) / (1 - minScale) * (1 - minAlpha)
+            }
+            else -> {  // (1,+Infinity]
+                page.alpha = 0f
+            }
+        }
+    }
+}
+
+// ==================== 3D 翻转效果 ====================
+class CubeTransformer : ViewPager2.PageTransformer {
+    
+    override fun transformPage(page: View, position: Float) {
+        page.cameraDistance = 20000f
+        
+        when {
+            position < -1 -> {
+                page.alpha = 0f
+            }
+            position <= 0 -> {
+                page.alpha = 1f
+                page.pivotX = page.width.toFloat()
+                page.rotationY = 90 * position
+            }
+            position <= 1 -> {
+                page.alpha = 1f
+                page.pivotX = 0f
+                page.rotationY = 90 * position
+            }
+            else -> {
+                page.alpha = 0f
+            }
+        }
+    }
+}
+```
+
+### 10.10 ViewPager2 常见问题
+
+```
+Q1: ViewPager2 中 Fragment 如何刷新数据？
+─────────────────────────────────────────────────────────────────────────
+A: 
+   1. 使用 LiveData/Flow 自动刷新
+   2. Fragment 实现 Lazy 初始化，在 onResume 加载数据
+   3. 使用 FragmentResultListener 传递数据
+
+Q2: 如何实现无限轮播？
+─────────────────────────────────────────────────────────────────────────
+A: 方案：getItemCount 返回 Int.MAX_VALUE，position % realCount 取模
+
+   override fun getItemCount(): Int = Int.MAX_VALUE
+   
+   override fun createFragment(position: Int): Fragment {
+       val realPosition = position % realCount
+       return fragments[realPosition]
+   }
+   
+   // 初始位置设置为中间
+   viewPager.currentItem = Int.MAX_VALUE / 2
+
+Q3: 如何禁止预加载？
+─────────────────────────────────────────────────────────────────────────
+A: ViewPager2 无法完全禁止预加载，最小 offscreenPageLimit = 1
+   但可以使用懒加载 Fragment 来延迟加载数据
+
+Q4: FragmentStateAdapter vs FragmentPagerAdapter？
+─────────────────────────────────────────────────────────────────────────
+A: 
+   - FragmentPagerAdapter（已废弃）：所有 Fragment 保留在内存
+   - FragmentStateAdapter（推荐）：只保留当前页，自动回收
+```
+
+---
+
+## 11. Fragment
+
+### 11.1 Fragment 是什么
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         Fragment 定义                                       │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  定义：
+  ─────────────────────────────────────────────────────────────────────────
+  Fragment 是一种可以嵌入 Activity 中的 UI 片段，拥有自己的布局和生命周期
+
+  核心特点：
+  ─────────────────────────────────────────────────────────────────────────
+  1. 模块化：将 UI 和逻辑拆分为独立模块
+  2. 可复用：同一 Fragment 可用于多个 Activity
+  3. 灵活组合：动态组合多个 Fragment
+  4. 生命周期：与 Activity 生命周期关联
+
+  使用场景：
+  ─────────────────────────────────────────────────────────────────────────
+  - 底部导航栏（多个 Tab）
+  - 主从布局（手机单列，平板双列）
+  - ViewPager 页面
+  - Dialog 弹窗
+```
+
+### 11.2 Fragment 生命周期
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         Fragment 生命周期                                   │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  完整生命周期：
+  ─────────────────────────────────────────────────────────────────────────
+  
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │                                                                         │
+  │  onAttach()           Fragment 与 Activity 关联                         │
+  │       │                                                                 │
+  │       ▼                                                                 │
+  │  onCreate()           Fragment 创建                                     │
+  │       │                                                                 │
+  │       ▼                                                                 │
+  │  onCreateView()       创建 Fragment 视图                                │
+  │       │                                                                 │
+  │       ▼                                                                 │
+  │  onViewCreated()      视图创建完成                                      │
+  │       │                                                                 │
+  │       ▼                                                                 │
+  │  onViewStateRestored() 恢复视图状态                                     │
+  │       │                                                                 │
+  │       ▼                                                                 │
+  │  onStart()            Fragment 可见                                     │
+  │       │                                                                 │
+  │       ▼                                                                 │
+  │  onResume()           Fragment 可见且可交互                             │
+  │       │                                                                 │
+  │       ▼                                                                 │
+  │  onPause()            Fragment 不再可交互                               │
+  │       │                                                                 │
+  │       ▼                                                                 │
+  │  onStop()             Fragment 不再可见                                 │
+  │       │                                                                 │
+  │       ▼                                                                 │
+  │  onDestroyView()      销毁 Fragment 视图                                │
+  │       │                                                                 │
+  │       ▼                                                                 │
+  │  onDestroy()          Fragment 销毁                                     │
+  │       │                                                                 │
+  │       ▼                                                                 │
+  │  onDetach()           Fragment 与 Activity 解除关联                     │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+
+  与 Activity 生命周期的关系：
+  ─────────────────────────────────────────────────────────────────────────
+  
+  Activity              Fragment
+  ─────────────────────────────────────
+  onCreate()      →     onAttach()
+                       → onCreate()
+                       → onCreateView()
+                       → onViewCreated()
+                       → onViewStateRestored()
+  
+  onStart()       →     onStart()
+  
+  onResume()      →     onResume()
+  
+  onPause()       →     onPause()
+  
+  onStop()        →     onStop()
+  
+  onDestroy()     →     onDestroyView()
+                       → onDestroy()
+                       → onDetach()
+
+  Fragment View 生命周期（单独管理）：
+  ─────────────────────────────────────────────────────────────────────────
+  - addToBackStack 后返回：只走 onDestroyView，Fragment 实例保留
+  - 再次显示：重新走 onCreateView → onViewCreated
+  - 这就是 View 的重建，需要注意状态保存和恢复
+```
+
+### 11.3 创建 Fragment
+
+```kotlin
+// ==================== 基本 Fragment ====================
+class HomeFragment : Fragment(R.layout.fragment_home) {
+    
+    private var _binding: FragmentHomeBinding? = null
+    private val binding get() = _binding!!
+    
+    // 方式1：使用 viewBinding delegate（推荐）
+    // class HomeFragment : Fragment() {
+    //     private val binding by viewBinding(FragmentHomeBinding::bind)
+    // }
+    
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+        _binding = FragmentHomeBinding.bind(view)
+        
+        // 初始化视图
+        binding.textView.text = "Hello"
+        
+        // 设置点击事件
+        binding.button.setOnClickListener {
+            // 处理点击
+        }
+    }
+    
+    override fun onDestroyView() {
+        super.onDestroyView()
+        _binding = null  // 避免内存泄漏
+    }
+}
+
+// ==================== 带参数的 Fragment ====================
+class DetailFragment : Fragment(R.layout.fragment_detail) {
+    
+    private val args: DetailFragmentArgs by navArgs()
+    
+    // 或手动获取参数
+    private var itemId: String? = null
+    
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        // 获取参数
+        itemId = arguments?.getString("itemId")
+    }
+    
+    companion object {
+        fun newInstance(itemId: String): DetailFragment {
+            return DetailFragment().apply {
+                arguments = bundleOf("itemId" to itemId)
+            }
+        }
+    }
+}
+```
+
+### 11.4 FragmentManager 和事务
+
+```kotlin
+// ==================== 获取 FragmentManager ====================
+// Activity 中
+val fragmentManager = supportFragmentManager
+
+// Fragment 中获取子 Fragment 的 Manager
+val childFragmentManager = childFragmentManager
+
+// Fragment 中获取 Activity 的 Manager
+val parentFragmentManager = parentFragmentManager
+
+// ==================== FragmentTransaction ====================
+class MainActivity : AppCompatActivity() {
+    
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        
+        // 方式1：使用 supportFragmentManager
+        supportFragmentManager.commit {
+            replace(R.id.container, HomeFragment())
+            addToBackStack("home")
+        }
+        
+        // 方式2：传统方式
+        supportFragmentManager.beginTransaction()
+            .replace(R.id.container, HomeFragment())
+            .addToBackStack("home")
+            .commit()
+    }
+}
+
+// ==================== 常用事务操作 ====================
+// 添加
+supportFragmentManager.commit {
+    add(R.id.container, HomeFragment())
+}
+
+// 替换
+supportFragmentManager.commit {
+    replace(R.id.container, HomeFragment())
+}
+
+// 移除
+supportFragmentManager.commit {
+    remove(homeFragment)
+}
+
+// 隐藏（不销毁视图）
+supportFragmentManager.commit {
+    hide(homeFragment)
+}
+
+// 显示
+supportFragmentManager.commit {
+    show(homeFragment)
+}
+
+// 添加到返回栈
+supportFragmentManager.commit {
+    replace(R.id.container, HomeFragment())
+    addToBackStack(null)  // null 或自定义名称
+}
+
+// ==================== 事务提交方式 ====================
+// commit()：异步提交，在主线程队列中排队
+supportFragmentManager.commit { /* ... */ }
+
+// commitNow()：同步提交，立即执行
+supportFragmentManager.commitNow { /* ... */ }
+
+// commitAllowingStateLoss()：允许状态丢失（Activity 重建后）
+supportFragmentManager.commit(allowStateLoss = true) { /* ... */ }
+
+// ==================== 动画 ====================
+supportFragmentManager.commit {
+    setCustomAnimations(
+        R.anim.slide_in_right,   // enter
+        R.anim.slide_out_left,   // exit
+        R.anim.slide_in_left,    // popEnter
+        R.anim.slide_out_right   // popExit
+    )
+    replace(R.id.container, HomeFragment())
+    addToBackStack(null)
+}
+```
+
+### 11.5 Fragment 返回栈
+
+```kotlin
+// ==================== 返回栈管理 ====================
+// 添加到返回栈
+supportFragmentManager.commit {
+    replace(R.id.container, DetailFragment())
+    addToBackStack("detail")  // 可选名称
+}
+
+// 处理返回键
+override fun onBackPressed() {
+    if (supportFragmentManager.backStackEntryCount > 0) {
+        supportFragmentManager.popBackStack()
+    } else {
+        super.onBackPressed()
+    }
+}
+
+// 使用 OnBackPressedDispatcher（推荐）
+class MainActivity : AppCompatActivity() {
+    
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                if (supportFragmentManager.backStackEntryCount > 0) {
+                    supportFragmentManager.popBackStack()
+                } else {
+                    isEnabled = false
+                    onBackPressedDispatcher.onBackPressed()
+                }
+            }
+        })
+    }
+}
+
+// ==================== popBackStack 操作 ====================
+// 弹出栈顶
+supportFragmentManager.popBackStack()
+
+// 弹出到指定 Tag
+supportFragmentManager.popBackStack("home", 0)  // 弹出到 home（不包含 home）
+supportFragmentManager.popBackStack("home", FragmentManager.POP_BACK_STACK_INCLUSIVE)  // 包含 home
+
+// 弹出到指定 ID
+supportFragmentManager.popBackStack(transactionId, 0)
+
+// 弹出所有
+supportFragmentManager.popBackStack(null, FragmentManager.POP_BACK_STACK_INCLUSIVE)
+
+// ==================== 监听返回栈变化 ====================
+supportFragmentManager.addOnBackStackChangedListener {
+    val count = supportFragmentManager.backStackEntryCount
+    Log.d("BackStack", "Count: $count")
+}
+```
+
+### 11.6 Fragment 通信
+
+```kotlin
+// ==================== 方式1：ViewModel 共享 ====================
+// Activity 和 Fragment 共享 ViewModel
+class SharedViewModel : ViewModel() {
+    private val _selectedItem = MutableStateFlow<Item?>(null)
+    val selectedItem: StateFlow<Item?> = _selectedItem
+    
+    fun selectItem(item: Item) {
+        _selectedItem.value = item
+    }
+}
+
+// Fragment 中
+class ListFragment : Fragment() {
+    // 与 Activity 共享
+    private val viewModel: SharedViewModel by activityViewModels()
+}
+
+class DetailFragment : Fragment() {
+    private val viewModel: SharedViewModel by activityViewModels()
+    
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewModel.selectedItem.collect { item ->
+                // 响应选中变化
+            }
+        }
+    }
+}
+
+// ==================== 方式2：Fragment Result API（推荐）====================
+// 发送方
+button.setOnClickListener {
+    setFragmentResult("requestKey", bundleOf("data" to "value"))
+}
+
+// 接收方
+setFragmentResultListener("requestKey") { requestKey, bundle ->
+    val data = bundle.getString("data")
+}
+
+// Fragment 之间通信
+// Fragment A 发送
+parentFragmentManager.setFragmentResult("userSelected", bundleOf("userId" to "123"))
+
+// Fragment B 接收
+parentFragmentManager.setFragmentResultListener("userSelected", viewLifecycleOwner) { _, bundle ->
+    val userId = bundle.getString("userId")
+}
+
+// ==================== 方式3：接口回调（传统方式）====================
+interface OnItemSelectedListener {
+    fun onItemSelected(item: Item)
+}
+
+class ListFragment : Fragment() {
+    private var listener: OnItemSelectedListener? = null
+    
+    override fun onAttach(context: Context) {
+        super.onAttach(context)
+        listener = context as? OnItemSelectedListener
+    }
+    
+    override fun onDetach() {
+        super.onDetach()
+        listener = null
+    }
+    
+    private fun onItemClick(item: Item) {
+        listener?.onItemSelected(item)
+    }
+}
+
+class MainActivity : AppCompatActivity(), OnItemSelectedListener {
+    override fun onItemSelected(item: Item) {
+        // 处理选中
+    }
+}
+
+// ==================== 方式4：Activity 方法调用 ====================
+// 不推荐，耦合度高
+class MyFragment : Fragment() {
+    private fun doSomething() {
+        (activity as? MainActivity)?.someMethod()
+    }
+}
+```
+
+### 11.7 Fragment 懒加载
+
+```kotlin
+// ==================== 方式1：Fragment.setMaxLifecycle（推荐）====================
+// ViewPager2 + FragmentStateAdapter 自动实现
+// 只有当前可见的 Fragment 会执行 onResume
+
+class LazyFragment : Fragment() {
+    
+    private var isLoaded = false
+    
+    override fun onResume() {
+        super.onResume()
+        if (!isLoaded) {
+            isLoaded = true
+            loadData()
+        }
+    }
+    
+    private fun loadData() {
+        // 只加载一次
+    }
+}
+
+// ==================== 方式2：使用 Lifecycle 观察可见性 ====================
+class LazyFragment : Fragment() {
+    
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+        
+        viewLifecycleOwner.lifecycle.addObserver(object : DefaultLifecycleObserver {
+            override fun onResume(owner: LifecycleOwner) {
+                // 页面可见时加载
+                loadData()
+            }
+            
+            override fun onPause(owner: LifecycleOwner) {
+                // 页面不可见时暂停
+            }
+        })
+    }
+}
+
+// ==================== 方式3：自定义懒加载属性 ====================
+fun Fragment.doWhenResumed(block: () -> Unit) {
+    viewLifecycleOwner.lifecycleScope.launch {
+        viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            block()
+        }
+    }
+}
+
+// 使用
+class MyFragment : Fragment() {
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+        
+        doWhenResumed {
+            // 只有在 RESUMED 状态才执行
+            loadData()
+        }
+    }
+}
+```
+
+### 11.8 DialogFragment
+
+```kotlin
+// ==================== 基本 DialogFragment ====================
+class MyDialogFragment : DialogFragment() {
+    
+    private var _binding: DialogMyBinding? = null
+    private val binding get() = _binding!!
+    
+    override fun onCreateView(
+        inflater: LayoutInflater,
+        container: ViewGroup?,
+        savedInstanceState: Bundle?
+    ): View {
+        _binding = DialogMyBinding.inflate(inflater, container, false)
+        return binding.root
+    }
+    
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+        
+        // 设置对话框样式
+        dialog?.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+        dialog?.window?.setLayout(
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.WRAP_CONTENT
+        )
+        
+        binding.btnCancel.setOnClickListener { dismiss() }
+        binding.btnConfirm.setOnClickListener {
+            // 返回结果
+            setFragmentResult("dialogResult", bundleOf("confirmed" to true))
+            dismiss()
+        }
+    }
+    
+    override fun onDestroyView() {
+        super.onDestroyView()
+        _binding = null
+    }
+}
+
+// 显示对话框
+MyDialogFragment().show(parentFragmentManager, "my_dialog")
+
+// ==================== 全屏 Dialog ====================
+class FullScreenDialog : DialogFragment() {
+    
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setStyle(STYLE_NORMAL, R.style.FullScreenDialog)
+    }
+    
+    override fun onCreateView(...): View {
+        return FragmentFullScreenBinding.inflate(inflater, container, false).root
+    }
+}
+
+// styles.xml
+<style name="FullScreenDialog" parent="Theme.MaterialComponents.Light.Dialog">
+    <item name="android:windowIsFloating">false</item>
+    <item name="android:windowBackground">@android:color/white</item>
+    <item name="android:statusBarColor">@color/status_bar</item>
+</style>
+
+// ==================== 底部弹窗 BottomSheetDialogFragment ====================
+class MyBottomSheet : BottomSheetDialogFragment() {
+    
+    override fun onCreateView(...): View {
+        return BottomSheetMyBinding.inflate(inflater, container, false).root
+    }
+    
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+        
+        // 设置展开高度
+        (view.parent as View).layoutParams.height = ViewGroup.LayoutParams.MATCH_PARENT
+    }
+}
+```
+
+### 11.9 Fragment 状态保存与恢复
+
+```kotlin
+// ==================== 保存状态 ====================
+class MyFragment : Fragment() {
+    
+    private var myData: String? = null
+    
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putString("myData", myData)
+    }
+    
+    override fun onViewStateRestored(savedInstanceState: Bundle?) {
+        super.onViewStateRestored(savedInstanceState)
+        myData = savedInstanceState?.getString("myData")
+    }
+}
+
+// ==================== 使用 SavedStateHandle（推荐）====================
+class MyViewModel(
+    private val savedStateHandle: SavedStateHandle
+) : ViewModel() {
+    
+    var myData: String?
+        get() = savedStateHandle["myData"]
+        set(value) {
+            savedStateHandle["myData"] = value
+        }
+}
+
+// ==================== 配置更改时保留 Fragment ====================
+// 在 Activity 的 onCreate 中检查 savedInstanceState
+override fun onCreate(savedInstanceState: Bundle?) {
+    super.onCreate(savedInstanceState)
+    
+    if (savedInstanceState == null) {
+        // 首次创建
+        supportFragmentManager.commit {
+            replace(R.id.container, HomeFragment())
+        }
+    }
+    // 否则 FragmentManager 会自动恢复 Fragment
+}
+```
+
+### 11.10 Fragment 常见问题
+
+```
+Q1: Fragment 重叠问题？
+─────────────────────────────────────────────────────────────────────────
+A: 原因：Activity 重建时 Fragment 自动恢复，又手动添加了一次
+   解决：
+   1. 在 onCreate 中检查 savedInstanceState
+   2. 或者使用 findFragmentById 检查是否已存在
+
+   override fun onCreate(savedInstanceState: Bundle?) {
+       super.onCreate(savedInstanceState)
+       if (savedInstanceState == null) {
+           supportFragmentManager.commit {
+               replace(R.id.container, HomeFragment())
+           }
+       }
+   }
+
+Q2: IllegalStateException: Can not perform this action after onSaveInstanceState
+─────────────────────────────────────────────────────────────────────────
+A: 原因：在 Activity 状态保存后执行 Fragment 事务
+   解决：
+   1. 使用 commitAllowingStateLoss（可能丢失状态）
+   2. 在生命周期安全的位置执行事务
+   3. 使用 Fragment Result API 替代回调
+
+Q3: Fragment 中使用 requireActivity() 和 getActivity()？
+─────────────────────────────────────────────────────────────────────────
+A:
+   - requireActivity()：返回非空 Activity，如果为空抛异常（推荐）
+   - getActivity()：可能返回 null，需要空检查
+
+Q4: Fragment 如何获取 Context？
+─────────────────────────────────────────────────────────────────────────
+A:
+   - onAttach 之后：requireContext() / requireActivity()
+   - onViewCreated 中：view.context
+   - 推荐使用 requireContext()，会在 Fragment 未附加时抛出明确异常
+
+Q5: ViewPager + Fragment 如何实现懒加载？
+─────────────────────────────────────────────────────────────────────────
+A: ViewPager2 + FragmentStateAdapter 自动处理：
+   - 只有当前页 onResume
+   - 其他页保持在 onStart
+   - 在 onResume 中加载数据即可
+
+Q6: Fragment 之间如何传递复杂对象？
+─────────────────────────────────────────────────────────────────────────
+A:
+   1. 共享 ViewModel（推荐）
+   2. 将对象转为 JSON 字符串传递
+   3. 使用 Navigation Safe Args（支持 Parcelable）
+   4. 使用 Fragment Result API（Bundle 限制）
+```
+
+---
+
+## 12. 核心库对比
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -1696,6 +2743,10 @@ class UserFragment : Fragment() {
   ├─────────────────┼─────────────────┼───────────────────────────────────────┤
   │ Paging          │ 分页加载         │ 自动分页，加载状态管理                 │
   ├─────────────────┼─────────────────┼───────────────────────────────────────┤
+  │ ViewPager2      │ 滑动页面         │ 基于 RecyclerView，支持垂直滑动        │
+  ├─────────────────┼─────────────────┼───────────────────────────────────────┤
+  │ Fragment        │ UI 片段          │ 模块化 UI，生命周期管理                │
+  ├─────────────────┼─────────────────┼───────────────────────────────────────┤
   │ ConstraintLayout│ 布局优化         │ 扁平化布局，减少嵌套层级               │
   └─────────────────┴─────────────────┴───────────────────────────────────────┘
 
@@ -1708,9 +2759,9 @@ class UserFragment : Fragment() {
 
 ---
 
-## 11. ConstraintLayout
+## 13. ConstraintLayout
 
-### 12.1 ConstraintLayout 是什么
+### 13.1 ConstraintLayout 是什么
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -1736,7 +2787,7 @@ class UserFragment : Fragment() {
   - ConstraintLayout：强大约束，扁平化，性能好
 ```
 
-### 12.2 相对定位
+### 13.2 相对定位
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -1800,7 +2851,7 @@ class UserFragment : Fragment() {
 </androidx.constraintlayout.widget.ConstraintLayout>
 ```
 
-### 12.3 居中和偏移
+### 13.3 居中和偏移
 
 ```xml
 <!-- ==================== 居中 ==================== -->
@@ -1837,7 +2888,7 @@ class UserFragment : Fragment() {
 <!-- bias 范围：0.0（最左/最上）到 1.0（最右/最下），默认 0.5（居中）-->
 ```
 
-### 11.4 尺寸约束
+### 13.4 尺寸约束
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -1906,7 +2957,7 @@ class UserFragment : Fragment() {
     app:layout_constraintRight_toRightOf="parent" />
 ```
 
-### 11.5 Chain 链
+### 13.5 Chain 链
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -2005,7 +3056,7 @@ class UserFragment : Fragment() {
   | 作为一个整体，bias 控制位置 |
 ```
 
-### 11.6 Guideline 辅助线
+### 13.6 Guideline 辅助线
 
 ```xml
 <!-- ==================== Guideline ==================== -->
@@ -2047,7 +3098,7 @@ class UserFragment : Fragment() {
 </androidx.constraintlayout.widget.ConstraintLayout>
 ```
 
-### 11.7 Barrier 屏障
+### 13.7 Barrier 屏障
 
 ```xml
 <!-- ==================== Barrier ==================== -->
@@ -2091,7 +3142,7 @@ class UserFragment : Fragment() {
 </androidx.constraintlayout.widget.ConstraintLayout>
 ```
 
-### 11.8 Group 分组
+### 13.8 Group 分组
 
 ```xml
 <!-- ==================== Group ==================== -->
@@ -2117,7 +3168,7 @@ class UserFragment : Fragment() {
 binding.group.visibility = View.GONE  // 同时隐藏 tv1, tv2, tv3
 ```
 
-### 11.9 Flow 流式布局
+### 13.9 Flow 流式布局
 
 ```xml
 <!-- ==================== Flow（ConstraintLayout 2.0+）==================== -->
@@ -2154,7 +3205,7 @@ binding.group.visibility = View.GONE  // 同时隐藏 tv1, tv2, tv3
 -->
 ```
 
-### 12.10 Layer 图层
+### 13.10 Layer 图层
 
 ```xml
 <!-- ==================== Layer ==================== -->
@@ -2176,7 +3227,7 @@ binding.group.visibility = View.GONE  // 同时隐藏 tv1, tv2, tv3
 </androidx.constraintlayout.widget.ConstraintLayout>
 ```
 
-### 12.11 ConstraintLayout 常见问题
+### 13.11 ConstraintLayout 常见问题
 
 ```
 Q1: 为什么设置约束后 View 还是在左上角？
@@ -2203,9 +3254,9 @@ A:
 
 ---
 
-## 12. 常见问题
+## 14. 常见问题
 
-### 12.1 ViewModel 什么时候销毁？
+### 14.1 ViewModel 什么时候销毁？
 
 ```
 ViewModel 在以下情况销毁：
@@ -2217,7 +3268,7 @@ ViewModel 在以下情况销毁：
 - ViewModel.onCleared() 在销毁时调用
 ```
 
-### 12.2 LiveData 和 Flow 怎么选？
+### 14.2 LiveData 和 Flow 怎么选？
 
 ```
 LiveData：
@@ -2231,7 +3282,7 @@ Flow（推荐）：
 - 新项目首选
 ```
 
-### 12.3 Room 能在主线程访问吗？
+### 14.3 Room 能在主线程访问吗？
 
 ```
 默认：不允许在主线程访问（会抛异常）
@@ -2248,7 +3299,7 @@ Room.databaseBuilder(...)
 
 ---
 
-## 13. 知识体系总结
+## 15. 知识体系总结
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
