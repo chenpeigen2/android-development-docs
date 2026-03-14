@@ -6,24 +6,56 @@
 
 ## 目录
 
+### 第一部分：基础概念
 1. [概述](#1-概述)
 2. [为什么选择 Binder](#2-为什么选择-binder)
 3. [Binder 整体架构](#3-binder-整体架构)
 4. [Binder 全局流程图](#4-binder-全局流程图)
+
+### 第二部分：分层详解
 5. [Binder 驱动层](#5-binder-驱动层)
+   - 5.1 [核心数据结构](#51-核心数据结构)
+   - 5.2 [内存映射 (mmap)](#52-内存映射-mmap)
+   - 5.3 [ioctl 命令](#53-ioctl-命令)
 6. [Native 层](#6-native-层)
+   - 6.1 [ProcessState](#61-processstate)
+   - 6.2 [IPCThreadState](#62-ipcthreadstate)
+   - 6.3 [BpBinder 与 BBinder](#63-bpbinder-与-bbinder)
 7. [Framework 层](#7-framework-层)
+   - 7.1 [Binder.java](#71-binderjava)
+   - 7.2 [BinderProxy.java](#72-binderproxyjava)
+
+### 第三部分：AIDL 与线程
 8. [AIDL 详解](#8-aidl-详解)
+   - 8.1 [AIDL 语法](#81-aidl-语法)
+   - 8.2 [AIDL 生成的代码结构](#82-aidl-生成的代码结构)
+   - 8.3 [AIDL 完整示例](#83-aidl-完整示例)
 9. [Binder 线程池](#9-binder-线程池)
-10. [跨进程通信方式对比](#10-跨进程通信方式对比)
-11. [常见问题](#11-常见问题)
-12. [ServiceManager](#12-servicemanager)
-13. [Messenger](#13-messenger)
-14. [ContentProvider](#14-contentprovider)
-15. [文件共享](#15-文件共享)
-16. [Socket IPC](#16-socket-ipc)
-17. [Binder 调试技巧](#17-binder-调试技巧)
-18. [总结](#18-总结)
+10. [Binder 事务生命周期](#19-binder-事务生命周期)
+    - 10.1 [同步事务 vs 异步事务](#191-同步事务-vs-异步事务-oneway)
+
+### 第四部分：高级主题
+11. [Binder 对象传递](#21-binder-对象传递)
+    - 11.1 [文件描述符传递](#211-文件描述符传递)
+12. [Binder 死锁问题](#20-binder-死锁问题)
+13. [ServiceManager 详解](#12-servicemanager)
+
+### 第五部分：其他 IPC 方式
+14. [跨进程通信方式对比](#10-跨进程通信方式对比)
+15. [Messenger](#13-messenger)
+16. [ContentProvider](#14-contentprovider)
+17. [文件共享](#15-文件共享)
+18. [Socket IPC](#16-socket-ipc)
+
+### 第六部分：实践与面试
+19. [Binder 调试技巧](#17-binder-调试技巧)
+20. [Binder 调用链追踪](#22-binder-调用链追踪)
+21. [常见问题](#11-常见问题)
+22. [Binder 高频面试题](#23-binder-高频面试题)
+
+### 第七部分：总结
+23. [Binder 架构图总结](#24-binder-架构图总结)
+24. [知识体系总结](#18-总结)
 
 ---
 
@@ -4355,52 +4387,6 @@
   │  │                                                                   │  │
   │  └───────────────────────────────────────────────────────────────────┘  │
   └─────────────────────────────────────────────────────────────────────────┘
-```
-
----
-
-## 25. 目录更新
-
-```
-## 目录
-
-1. [概述](#1-概述)
-2. [为什么选择 Binder](#2-为什么选择-binder)
-3. [Binder 整体架构](#3-binder-整体架构)
-4. [Binder 全局流程图](#4-binder-全局流程图)
-5. [Binder 驱动层](#5-binder-驱动层)
-   - 5.1 [核心数据结构](#51-核心数据结构)
-   - 5.2 [内存映射 (mmap)](#52-内存映射-mmap)
-   - 5.3 [ioctl 命令](#53-ioctl-命令)
-6. [Native 层](#6-native-层)
-   - 6.1 [ProcessState](#61-processstate)
-   - 6.2 [IPCThreadState](#62-ipcthreadstate)
-   - 6.3 [BpBinder 与 BBinder](#63-bpbinder-与-bbinder)
-7. [Framework 层](#7-framework-层)
-   - 7.1 [Binder.java](#71-binderjava)
-   - 7.2 [BinderProxy.java](#72-binderproxyjava)
-8. [AIDL 详解](#8-aidl-详解)
-   - 8.1 [AIDL 语法](#81-aidl-语法)
-   - 8.2 [AIDL 生成的代码结构](#82-aidl-生成的代码结构)
-   - 8.3 [AIDL 完整示例](#83-aidl-完整示例)
-9. [Binder 线程池](#9-binder-线程池)
-10. [跨进程通信方式对比](#10-跨进程通信方式对比)
-11. [常见问题](#11-常见问题)
-12. [ServiceManager](#12-servicemanager)
-13. [Messenger](#13-messenger)
-14. [ContentProvider](#14-contentprovider)
-15. [文件共享](#15-文件共享)
-16. [Socket IPC](#16-socket-ipc)
-17. [Binder 调试技巧](#17-binder-调试技巧)
-18. [总结](#18-总结)
-19. [Binder 事务生命周期](#19-binder-事务生命周期)
-   - 19.1 [同步事务 vs 异步事务 (oneway)](#191-同步事务-vs-异步事务-oneway)
-20. [Binder 死锁问题](#20-binder-死锁问题)
-21. [Binder 对象传递](#21-binder-对象传递)
-   - 21.1 [文件描述符传递](#211-文件描述符传递)
-22. [Binder 调用链追踪](#22-binder-调用链追踪)
-23. [Binder 高频面试题](#23-binder-高频面试题)
-24. [Binder 架构图总结](#24-binder-架构图总结)
 ```
 
 ---
