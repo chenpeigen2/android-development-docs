@@ -1576,9 +1576,29 @@ public final class DaggerAppComponent {
 }
 
 // ==================== 2. class Module（可实例化）====================
+
+// 情况 2.1：无参 class - Dagger 自动创建实例
+@Module
+class AnalyticsModule {  // 无参
+    
+    @Provides
+    @Singleton
+    fun provideAnalytics(): Analytics {
+        return Analytics()
+    }
+}
+
+// 使用：Dagger 自动创建 AnalyticsModule 实例
+@Component(modules = [AnalyticsModule::class])
+interface AppComponent { }
+
+// ✅ Dagger 会自动 new AnalyticsModule()
+val appComponent = DaggerAppComponent.create()
+
+// 情况 2.2：有参 class - 需要手动传入实例
 @Module
 class DatabaseModule(
-    private val databaseName: String  // 构造参数
+    private val databaseName: String  // 有参
 ) {
     
     @Provides
@@ -1592,21 +1612,60 @@ class DatabaseModule(
     }
 }
 
-// 特点：
-// - 可以有构造参数
-// - 可以有状态
-// - Dagger 会自动创建实例（如果无参）
-// - 有参数时需要手动传入
-
-// 使用方式：
-// 无参：Dagger 自动创建
-@Component(modules = [NetworkModule::class])
+// 使用：必须手动传入 DatabaseModule 实例
+@Component(modules = [DatabaseModule::class])
 interface AppComponent { }
 
-// 有参：手动传入
+// ❌ 这样会报错：Dagger 无法自动创建有参的 Module
+// val appComponent = DaggerAppComponent.create()
+// 错误：DatabaseModule cannot be provided without an @Provides-annotated method.
+
+// ✅ 必须手动传入
 val appComponent = DaggerAppComponent.builder()
     .databaseModule(DatabaseModule("my_database"))
     .build()
+
+// class Module 特点：
+// - 无参：Dagger 自动创建实例
+// - 有参：必须手动传入实例
+// - 可以有状态
+// - 适用于需要运行时配置的场景
+
+// ==================== class Module 无参 vs 有参对比 ====================
+
+// 无参 class Module 生成代码：
+public final class DaggerAppComponent implements AppComponent {
+    private AnalyticsModule analyticsModule;  // Dagger 自动创建
+    
+    private DaggerAppComponent() {
+        this.analyticsModule = new AnalyticsModule();  // 自动 new
+    }
+}
+
+// 有参 class Module 生成代码：
+public final class DaggerAppComponent implements AppComponent {
+    private DatabaseModule databaseModule;  // 需要外部传入
+    
+    private DaggerAppComponent(Builder builder) {
+        this.databaseModule = builder.databaseModule;  // 从 Builder 获取
+    }
+    
+    public static final class Builder {
+        private DatabaseModule databaseModule;
+        
+        public Builder databaseModule(DatabaseModule module) {
+            this.databaseModule = module;
+            return this;
+        }
+        
+        public AppComponent build() {
+            if (databaseModule == null) {
+                throw new IllegalStateException("DatabaseModule must be set");
+            }
+            return new DaggerAppComponent(this);
+        }
+    }
+}
 
 // ==================== 3. abstract class Module（@Binds 专用）====================
 @Module
