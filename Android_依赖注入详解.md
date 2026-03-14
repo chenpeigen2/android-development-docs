@@ -1792,9 +1792,159 @@ annotation class UserSessionScope
   val repo2 = component2.userRepository()  // 实例 B
   
   // repo1 !== repo2，不同 Component 实例
+
+  规则 5：无 @Scope 时的行为
+  ─────────────────────────────────────────────────────────────────────────
+  
+  没有 @Scope 时，依赖是 Unscoped 的，每次请求都会创建新实例：
+  
+  ┌───────────────────┬──────────────────────────┬─────────────────────────┐
+  │      情况          │        行为              │      生成代码            │
+  ├───────────────────┼──────────────────────────┼─────────────────────────┤
+  │  无 @Scope         │  每次创建新实例          │  直接调用 new XXX()      │
+  ├───────────────────┼──────────────────────────┼─────────────────────────┤
+  │  有 @Scope         │  在 Component 内单例     │  DoubleCheck.provider() │
+  ├───────────────────┼──────────────────────────┼─────────────────────────┤
+  │  @Reusable         │  可能复用，不保证单例    │  优化过的 Provider       │
+  └───────────────────┴──────────────────────────┴─────────────────────────┘
 ```
 
-#### 5.3.3 完整 Scope 示例
+#### 5.3.3 无 Scope 行为详解
+
+```kotlin
+// ==================== 无 Scope：每次创建新实例 ====================
+
+// 没有 @Scope 注解
+class UserRepository @Inject constructor(
+    private val api: UserApi
+)
+
+@Singleton
+@Component(modules = [NetworkModule::class])
+interface AppComponent {
+    fun userRepository(): UserRepository
+}
+
+// 使用
+val repo1 = appComponent.userRepository()  // 新实例 A
+val repo2 = appComponent.userRepository()  // 新实例 B
+// repo1 !== repo2，每次都是新实例！
+
+// ==================== 生成的代码对比 ====================
+
+// 无 Scope 生成的代码：
+public final class DaggerAppComponent implements AppComponent {
+    
+    // 没有 Provider 缓存！
+    
+    @Override
+    public UserRepository userRepository() {
+        // 每次直接创建新实例
+        return new UserRepository(userApiProvider.get());
+    }
+}
+
+// 有 Scope 生成的代码：
+public final class DaggerAppComponent implements AppComponent {
+    
+    // 有缓存！用 DoubleCheck 包装
+    private Provider<UserRepository> userRepositoryProvider;
+    
+    private void initialize() {
+        this.userRepositoryProvider = DoubleCheck.provider(
+            UserRepository_Factory.create(userApiProvider)
+        );
+    }
+    
+    @Override
+    public UserRepository userRepository() {
+        // 返回缓存的实例
+        return userRepositoryProvider.get();
+    }
+}
+
+// ==================== @Reusable：可能复用 ====================
+
+// @Reusable：不保证单例，但可能复用实例
+@Reusable
+class Logger @Inject constructor() {
+    fun log(message: String) { ... }
+}
+
+// 特点：
+// 1. 不需要 @Scope
+// 2. Dagger 可能复用实例（取决于内部优化）
+// 3. 不保证单例，但会尽量优化
+// 4. 适用于：创建成本低，但不需要严格单例的对象
+
+// ==================== 什么时候不需要 Scope ====================
+
+// 1. Adapter、ViewHolder（每次都需要新实例）
+class UserAdapter @Inject constructor() : RecyclerView.Adapter<>() { }
+
+// 2. 一次性的请求对象
+class ApiRequest @Inject constructor() { }
+
+// 3. 事件处理器
+class ClickHandler @Inject constructor() { }
+
+// 4. Presenter（每个 View 一个）
+class LoginPresenter @Inject constructor() { }
+
+// ==================== 什么时候需要 Scope ====================
+
+// 1. 全局共享的资源
+@Singleton
+class Database @Inject constructor() { }
+
+// 2. 网络客户端
+@Singleton
+class ApiClient @Inject constructor() { }
+
+// 3. Repository（需要保持状态）
+@Singleton
+class UserRepository @Inject constructor() { }
+
+// 4. ViewModel（Activity 级别共享）
+@ActivityScope
+class OrderViewModel @Inject constructor() { }
+
+// ==================== Scope 匹配规则 ====================
+
+// 规则1：无 Scope 的依赖可以注入到任何 Scope 的 Component
+class UserRepository @Inject constructor()  // 无 Scope
+
+@Singleton
+@Component
+interface AppComponent {
+    fun userRepository(): UserRepository  // ✅ 可以
+}
+
+@ActivityScope
+@Subcomponent
+interface ActivityComponent {
+    fun userRepository(): UserRepository  // ✅ 可以
+}
+
+// 规则2：有 Scope 的依赖只能注入到相同 Scope 的 Component
+@Singleton
+class UserRepository @Inject constructor()  // 有 @Singleton
+
+@Singleton
+@Component
+interface AppComponent {
+    fun userRepository(): UserRepository  // ✅ Scope 匹配
+}
+
+@ActivityScope
+@Subcomponent
+interface ActivityComponent {
+    fun userRepository(): UserRepository  // ❌ 编译错误！
+    // UserRepository is scoped @Singleton but ActivityComponent is @ActivityScope
+}
+```
+
+#### 5.3.4 完整 Scope 示例
 
 ```kotlin
 // ==================== 多层级 Scope 架构 ====================
