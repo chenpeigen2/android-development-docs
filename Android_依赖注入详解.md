@@ -1569,6 +1569,89 @@ object RepositoryModule {
     @Singleton
     fun provideUserRepository(impl: UserRepositoryImpl): UserRepository = impl
 }
+
+// ==================== @Binds 详解 ====================
+/*
+
+@Binds vs @Provides 对比：
+─────────────────────────────────────────────────────────────────────────
+
+@Binds：
+  - 只用于接口 → 实现类的绑定
+  - 必须在抽象 Module 中使用
+  - 方法必须是抽象方法
+  - 参数只能有一个（实现类）
+  - 生成更少的代码，更高效
+
+@Provides：
+  - 可以有任意逻辑
+  - 可以在 object 或 class Module 中使用
+  - 更灵活，可以做任何事
+  - 生成更多代码
+
+选择建议：
+  - 简单的接口绑定 → @Binds
+  - 需要逻辑处理 → @Provides
+
+*/
+
+// ==================== @Binds 多实现绑定 ====================
+
+interface DataSource {
+    fun getData(): String
+}
+
+class LocalDataSource @Inject constructor() : DataSource {
+    override fun getData() = "Local Data"
+}
+
+class RemoteDataSource @Inject constructor() : DataSource {
+    override fun getData() = "Remote Data"
+}
+
+// 使用限定符区分
+@Qualifier
+@Retention(AnnotationRetention.RUNTIME)
+annotation class Local
+
+@Qualifier
+@Retention(AnnotationRetention.RUNTIME)
+annotation class Remote
+
+@Module
+abstract class DataSourceModule {
+    
+    @Binds
+    @Local
+    abstract fun bindLocalDataSource(impl: LocalDataSource): DataSource
+    
+    @Binds
+    @Remote
+    abstract fun bindRemoteDataSource(impl: RemoteDataSource): DataSource
+}
+
+// ==================== 混合使用 @Binds 和 @Provides ====================
+
+@Module
+abstract class MixedModule {
+    
+    // @Binds：简单绑定
+    @Binds
+    @Singleton
+    abstract fun bindUserRepository(impl: UserRepositoryImpl): UserRepository
+    
+    companion object {
+        // @Provides：需要逻辑的绑定
+        @Provides
+        @Singleton
+        @JvmStatic
+        fun provideRetrofit(): Retrofit {
+            return Retrofit.Builder()
+                .baseUrl("https://api.example.com/")
+                .build()
+        }
+    }
+}
 ```
 
 #### 5.2.3 @Component - 连接器
