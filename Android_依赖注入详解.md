@@ -1399,7 +1399,7 @@ fun App() {
 
 ---
 
-## 5. Dagger2 简介
+## 5. Dagger2 详解
 
 ### 5.1 Dagger2 概述
 
@@ -1431,77 +1431,991 @@ fun App() {
   - @Inject：注入点
   - @Scope：作用域
   - @Qualifier：限定符
+  - @Subcomponent：子组件
 ```
 
-### 5.2 Dagger2 基本使用
+### 5.2 核心概念
+
+#### 5.2.1 @Inject - 标记注入点
 
 ```kotlin
-// ==================== @Module ====================
+// ==================== 三种使用场景 ====================
+
+// ① 构造函数注入（推荐）
+class UserRepository @Inject constructor(
+    private val api: UserApi,
+    private val dao: UserDao
+) {
+    fun getUser(id: String): User { ... }
+}
+
+// ② 字段注入（用于无法构造函数注入的场景，如 Activity）
+class MainActivity : AppCompatActivity() {
+    
+    @Inject
+    lateinit var userRepository: UserRepository
+    
+    @Inject
+    lateinit var analytics: AnalyticsService
+    
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        // 需要手动调用注入
+        (application as MyApplication).appComponent.inject(this)
+    }
+}
+
+// ③ 方法注入（用于初始化顺序控制）
+class UserManager @Inject constructor(
+    private val api: UserApi
+) {
+    private lateinit var context: Context
+    
+    @Inject
+    fun init(context: Context) {
+        this.context = context
+        // 在构造后自动调用
+    }
+}
+```
+
+#### 5.2.2 @Module + @Provides - 提供依赖
+
+```kotlin
+// ==================== Module 定义 ====================
 @Module
 object NetworkModule {
     
     @Provides
     @Singleton
     fun provideOkHttpClient(): OkHttpClient {
-        return OkHttpClient.Builder().build()
+        return OkHttpClient.Builder()
+            .addInterceptor(LoggingInterceptor())
+            .connectTimeout(30, TimeUnit.SECONDS)
+            .build()
     }
     
     @Provides
     @Singleton
-    fun provideRetrofit(okHttpClient: OkHttpClient): Retrofit {
+    fun provideRetrofit(client: OkHttpClient): Retrofit {
         return Retrofit.Builder()
             .baseUrl("https://api.example.com/")
-            .client(okHttpClient)
+            .client(client)
+            .addConverterFactory(GsonConverterFactory.create())
             .build()
+    }
+    
+    @Provides
+    fun provideUserApi(retrofit: Retrofit): UserApi {
+        return retrofit.create(UserApi::class.java)
     }
 }
 
-// ==================== @Component ====================
+// ==================== 抽象 Module（使用 @Binds）====================
+@Module
+abstract class RepositoryModule {
+    
+    // @Binds 比 @Provides 更高效，生成更少的代码
+    @Binds
+    @Singleton
+    abstract fun bindUserRepository(impl: UserRepositoryImpl): UserRepository
+}
+
+// 等价的 @Provides 写法
+@Module
+object RepositoryModule {
+    
+    @Provides
+    @Singleton
+    fun provideUserRepository(impl: UserRepositoryImpl): UserRepository = impl
+}
+```
+
+#### 5.2.3 @Component - 连接器
+
+```kotlin
+// ==================== Component 定义 ====================
 @Singleton
-@Component(modules = [NetworkModule::class, DatabaseModule::class])
+@Component(modules = [NetworkModule::class, DatabaseModule::class, RepositoryModule::class])
 interface AppComponent {
     
-    // 注入方法
+    // 注入方法（方法名不重要，参数类型重要）
     fun inject(activity: MainActivity)
     fun inject(fragment: UserFragment)
+    fun inject(service: MyService)
     
-    // 提供依赖
+    // 暴露依赖给子组件或其他调用者
     fun userRepository(): UserRepository
+    fun apiService(): ApiService
+    fun database(): AppDatabase
+    
+    // 子组件工厂
+    fun userComponent(): UserComponent.Factory
+}
+
+// ==================== Component Factory（推荐）====================
+@Singleton
+@Component(modules = [AppModule::class])
+interface AppComponent {
+    
+    fun inject(activity: MainActivity)
+    
+    @Component.Factory
+    interface Factory {
+        fun create(@BindsInstance application: Application): AppComponent
+    }
+}
+
+// 使用
+val appComponent = DaggerAppComponent.factory().create(application)
+
+// ==================== Component Builder（旧方式）====================
+@Singleton
+@Component(modules = [AppModule::class])
+interface AppComponent {
+    
+    @Component.Builder
+    interface Builder {
+        @BindsInstance
+        fun application(application: Application): Builder
+        fun build(): AppComponent
+    }
+}
+
+// 使用
+val appComponent = DaggerAppComponent.builder()
+    .application(application)
+    .build()
+```
+
+### 5.3 自定义 Scope
+
+#### 5.3.1 Scope 定义
+
+```kotlin
+// ==================== 定义自定义 Scope ====================
+
+// 应用级单例（Dagger 内置）
+// @Singleton
+
+// Activity 级别
+@Scope
+@MustBeDocumented
+@Retention(AnnotationRetention.RUNTIME)
+annotation class ActivityScope
+
+// Fragment 级别
+@Scope
+@MustBeDocumented
+@Retention(AnnotationRetention.RUNTIME)
+annotation class FragmentScope
+
+// 用户会话级别
+@Scope
+@MustBeDocumented
+@Retention(AnnotationRetention.RUNTIME)
+annotation class UserSessionScope
+```
+
+#### 5.3.2 Scope 规则
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         Scope 规则                                          │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  规则 1：Scope 必须同时标注在 Component 和依赖上
+  ─────────────────────────────────────────────────────────────────────────
+  // ✅ 正确
+  @Singleton
+  class UserRepository @Inject constructor()
+  
+  @Singleton
+  @Component
+  interface AppComponent { }
+  
+  // ❌ 错误：Component 没有标注
+  @Singleton
+  class UserRepository @Inject constructor()
+  
+  @Component  // 缺少 @Singleton
+  interface AppComponent { }
+
+  规则 2：一个 Component 只能有一个 Scope
+  ─────────────────────────────────────────────────────────────────────────
+  // ❌ 错误
+  @Singleton
+  @ActivityScope  // 编译错误
+  @Component
+  interface AppComponent { }
+
+  规则 3：子组件不能复用父组件的 Scope
+  ─────────────────────────────────────────────────────────────────────────
+  // ❌ 错误
+  @Singleton
+  @Component
+  interface AppComponent { }
+  
+  @Singleton  // 编译错误！不能复用
+  @Subcomponent
+  interface ActivityComponent { }
+
+  规则 4：Scope 的单例是相对于 Component 实例的
+  ─────────────────────────────────────────────────────────────────────────
+  val component1 = DaggerActivityComponent.create()
+  val repo1 = component1.userRepository()  // 实例 A
+  
+  val component2 = DaggerActivityComponent.create()
+  val repo2 = component2.userRepository()  // 实例 B
+  
+  // repo1 !== repo2，不同 Component 实例
+```
+
+#### 5.3.3 完整 Scope 示例
+
+```kotlin
+// ==================== 多层级 Scope 架构 ====================
+
+// AppComponent (@Singleton)
+@Singleton
+@Component(modules = [AppModule::class, NetworkModule::class])
+interface AppComponent {
+    
+    // 暴露全局依赖
+    fun context(): Context
+    fun database(): Database
+    
+    // 子组件工厂
+    fun userSessionComponent(): UserSessionComponent.Factory
+}
+
+@Module(subcomponents = [UserSessionComponent::class])
+object AppModule {
+    
+    @Provides
+    @Singleton
+    fun provideContext(app: Application): Context = app
+}
+
+// UserSessionComponent (@UserSessionScope)
+@UserSessionScope
+@Subcomponent(modules = [UserSessionModule::class])
+interface UserSessionComponent {
+    
+    fun userRepository(): UserRepository
+    fun cartManager(): CartManager
+    
+    // 子组件工厂
+    fun activityComponent(): ActivityComponent.Factory
+    
+    @Subcomponent.Factory
+    interface Factory {
+        fun create(@BindsInstance user: User): UserSessionComponent
+    }
+}
+
+@Module(subcomponents = [ActivityComponent::class])
+object UserSessionModule {
+    
+    @Provides
+    @UserSessionScope
+    fun provideUserRepository(user: User): UserRepository = UserRepository(user)
+}
+
+// ActivityComponent (@ActivityScope)
+@ActivityScope
+@Subcomponent(modules = [ActivityModule::class])
+interface ActivityComponent {
+    
+    fun inject(activity: MainActivity)
+    fun orderManager(): OrderManager
+    
+    @Subcomponent.Factory
+    interface Factory {
+        fun create(@BindsInstance activity: Activity): ActivityComponent
+    }
+}
+
+@Module
+object ActivityModule {
+    
+    @Provides
+    @ActivityScope
+    fun provideOrderManager(cartManager: CartManager): OrderManager = OrderManager(cartManager)
 }
 
 // ==================== 使用 ====================
 class MyApplication : Application() {
     
     lateinit var appComponent: AppComponent
+    var userSessionComponent: UserSessionComponent? = null
     
     override fun onCreate() {
         super.onCreate()
         appComponent = DaggerAppComponent.create()
     }
-}
-
-@Singleton
-class UserRepository @Inject constructor(
-    private val api: UserApi
-) {
-    // ...
+    
+    fun userLogin(user: User) {
+        userSessionComponent = appComponent.userSessionComponent().create(user)
+    }
+    
+    fun userLogout() {
+        userSessionComponent = null
+    }
 }
 
 class MainActivity : AppCompatActivity() {
     
     @Inject
-    lateinit var userRepository: UserRepository
+    lateinit var orderManager: OrderManager  // @ActivityScope
+    
+    @Inject
+    lateinit var userRepository: UserRepository  // @UserSessionScope
+    
+    private var activityComponent: ActivityComponent? = null
     
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
-        // 注入
-        (application as MyApplication).appComponent.inject(this)
+        activityComponent = (application as MyApplication)
+            .userSessionComponent!!
+            .activityComponent()
+            .create(this)
+        
+        activityComponent?.inject(this)
+    }
+    
+    override fun onDestroy() {
+        super.onDestroy()
+        activityComponent = null
     }
 }
 ```
 
-### 5.3 Dagger2 vs Hilt
+### 5.4 @Qualifier 限定符
+
+#### 5.4.1 定义和使用
+
+```kotlin
+// ==================== 定义限定符 ====================
+@Qualifier
+@MustBeDocumented
+@Retention(AnnotationRetention.RUNTIME)
+annotation class IoDispatcher
+
+@Qualifier
+@MustBeDocumented
+@Retention(AnnotationRetention.RUNTIME)
+annotation class MainDispatcher
+
+@Qualifier
+@MustBeDocumented
+@Retention(AnnotationRetention.RUNTIME)
+annotation class ApplicationContext
+
+@Qualifier
+@MustBeDocumented
+@Retention(AnnotationRetention.RUNTIME)
+annotation class ActivityContext
+
+@Qualifier
+@MustBeDocumented
+@Retention(AnnotationRetention.RUNTIME)
+annotation class Internal  // 内部实现
+
+// ==================== 使用限定符 ====================
+@Module
+object CoroutinesModule {
+    
+    @Provides
+    @IoDispatcher
+    fun provideIoDispatcher(): CoroutineDispatcher = Dispatchers.IO
+    
+    @Provides
+    @MainDispatcher
+    fun provideMainDispatcher(): CoroutineDispatcher = Dispatchers.Main
+}
+
+@Module
+object ContextModule {
+    
+    @Provides
+    @ApplicationContext
+    fun provideApplicationContext(app: Application): Context = app
+    
+    @Provides
+    @ActivityContext
+    fun provideActivityContext(activity: Activity): Context = activity
+}
+
+// ==================== 多实现绑定 ====================
+interface DataSource {
+    fun getData(): String
+}
+
+class LocalDataSource @Inject constructor() : DataSource {
+    override fun getData() = "Local Data"
+}
+
+class RemoteDataSource @Inject constructor() : DataSource {
+    override fun getData() = "Remote Data"
+}
+
+@Qualifier
+@Retention(AnnotationRetention.RUNTIME)
+annotation class LocalSource
+
+@Qualifier
+@Retention(AnnotationRetention.RUNTIME)
+annotation class RemoteSource
+
+@Module
+object DataSourceModule {
+    
+    @Provides
+    @LocalSource
+    fun provideLocalDataSource(): DataSource = LocalDataSource()
+    
+    @Provides
+    @RemoteSource
+    fun provideRemoteDataSource(): DataSource = RemoteDataSource()
+}
+
+// ==================== 注入时使用 ====================
+class DataRepository @Inject constructor(
+    @LocalSource private val localSource: DataSource,
+    @RemoteSource private val remoteSource: DataSource,
+    @IoDispatcher private val ioDispatcher: CoroutineDispatcher
+) {
+    // ...
+}
+```
+
+### 5.5 Subcomponent 子组件
+
+#### 5.5.1 Subcomponent 概念
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         Subcomponent vs Component Dependencies              │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  ┌─────────────────────┬────────────────────────┬───────────────────────────┐
+  │        特性          │      Subcomponent      │  Component Dependencies   │
+  ├─────────────────────┼────────────────────────┼───────────────────────────┤
+  │  关系类型            │  父子（继承）           │  依赖（组合）              │
+  ├─────────────────────┼────────────────────────┼───────────────────────────┤
+  │  访问权限            │  子可访问父的所有依赖   │  只能访问父暴露的依赖      │
+  ├─────────────────────┼────────────────────────┼───────────────────────────┤
+  │  生命周期            │  父销毁 → 子销毁        │  相互独立                 │
+  ├─────────────────────┼────────────────────────┼───────────────────────────┤
+  │  创建方式            │  由父组件工厂创建       │  手动传入父组件实例        │
+  ├─────────────────────┼────────────────────────┼───────────────────────────┤
+  │  性能                │  更快（编译时绑定）     │  较慢（运行时查找）        │
+  └─────────────────────┴────────────────────────┴───────────────────────────┘
+```
+
+#### 5.5.2 Subcomponent 示例
+
+```kotlin
+// ==================== 父 Component ====================
+@Singleton
+@Component(modules = [AppModule::class])
+interface AppComponent {
+    
+    // 声明子组件工厂
+    fun activityComponent(): ActivityComponent.Factory
+}
+
+@Module(subcomponents = [ActivityComponent::class])  // 注册子组件
+object AppModule {
+    
+    @Provides
+    @Singleton
+    fun provideDatabase(): Database = Database()
+}
+
+// ==================== 子 Subcomponent ====================
+@ActivityScope
+@Subcomponent(modules = [ActivityModule::class])
+interface ActivityComponent {
+    
+    fun inject(activity: MainActivity)
+    
+    // 声明孙组件工厂
+    fun fragmentComponent(): FragmentComponent.Factory
+    
+    @Subcomponent.Factory
+    interface Factory {
+        fun create(
+            @BindsInstance activity: Activity,
+            module: ActivityModule = ActivityModule()
+        ): ActivityComponent
+    }
+}
+
+// ==================== 孙 Subcomponent ====================
+@FragmentScope
+@Subcomponent(modules = [FragmentModule::class])
+interface FragmentComponent {
+    
+    fun inject(fragment: LoginFragment)
+    
+    @Subcomponent.Factory
+    interface Factory {
+        fun create(): FragmentComponent
+    }
+}
+
+// ==================== 使用 ====================
+class MainActivity : AppCompatActivity() {
+    
+    @Inject
+    lateinit var database: Database  // 来自父组件 @Singleton
+    
+    @Inject
+    lateinit var activityDependency: ActivityDependency  // @ActivityScope
+    
+    private var activityComponent: ActivityComponent? = null
+    
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        
+        // 通过父组件创建子组件
+        activityComponent = (application as MyApplication)
+            .appComponent
+            .activityComponent()
+            .create(this)
+        
+        activityComponent?.inject(this)
+    }
+}
+
+class LoginFragment : Fragment() {
+    
+    @Inject
+    lateinit var fragmentDependency: FragmentDependency  // @FragmentScope
+    
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        // 通过 Activity 组件创建 Fragment 组件
+        (requireActivity() as MainActivity)
+            .activityComponent!!
+            .fragmentComponent()
+            .create()
+            .inject(this)
+    }
+}
+```
+
+### 5.6 Component Dependencies
+
+#### 5.6.1 概念对比
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         Subcomponent vs Dependencies                        │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  Subcomponent（继承）：
+  ─────────────────────────────────────────────────────────────────────────
+         AppComponent (父)
+              │
+              │ 自动继承所有依赖
+              ▼
+         ActivityComponent (子)
+         
+  Component Dependencies（组合）：
+  ─────────────────────────────────────────────────────────────────────────
+         AppComponent
+              │
+              │ 只能访问显式暴露的依赖
+              ▼
+         ActivityComponent
+```
+
+#### 5.6.2 Dependencies 示例
+
+```kotlin
+// ==================== 父 Component ====================
+@Singleton
+@Component(modules = [AppModule::class])
+interface AppComponent {
+    
+    // 必须显式暴露，子组件才能访问
+    fun context(): Context
+    fun database(): Database
+    fun apiService(): ApiService
+    fun userRepository(): UserRepository
+}
+
+// ==================== 子 Component（使用 Dependencies）====================
+@ActivityScope
+@Component(
+    dependencies = [AppComponent::class],  // 声明依赖
+    modules = [ActivityModule::class]
+)
+interface ActivityComponent {
+    
+    fun inject(activity: MainActivity)
+    
+    @Component.Factory
+    interface Factory {
+        fun create(
+            appComponent: AppComponent,  // 手动传入父组件
+            @BindsInstance activity: Activity
+        ): ActivityComponent
+    }
+}
+
+// ==================== 使用 ====================
+class MainActivity : AppCompatActivity() {
+    
+    @Inject
+    lateinit var userRepository: UserRepository  // 来自 AppComponent（必须显式暴露）
+    
+    private var activityComponent: ActivityComponent? = null
+    
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        
+        // 创建子组件，手动传入父组件
+        activityComponent = DaggerActivityComponent
+            .factory()
+            .create(
+                appComponent = (application as MyApplication).appComponent,
+                activity = this
+            )
+        
+        activityComponent?.inject(this)
+    }
+}
+```
+
+#### 5.6.3 选择建议
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         何时使用 Subcomponent vs Dependencies               │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  ✅ 适合使用 Subcomponent：
+  ─────────────────────────────────────────────────────────────────────────
+  - 严格的层级关系：Activity → Fragment → View
+  - 子组件需要大量父组件依赖
+  - 生命周期绑定：父销毁，子必须销毁
+  - 性能敏感：编译时绑定更快
+  - 大型项目：依赖树清晰
+
+  ✅ 适合使用 Component Dependencies：
+  ─────────────────────────────────────────────────────────────────────────
+  - 平行关系：多个独立的模块
+  - 需要控制暴露哪些依赖
+  - 可选依赖：某个模块可能不存在
+  - 需要灵活切换依赖源
+  - 多个父组件
+```
+
+### 5.7 依赖提升
+
+#### 5.7.1 概念
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         依赖提升（Scope 桥接）                               │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  问题：如何将子组件 Scope 的依赖，提升到父组件 Scope？
+  ─────────────────────────────────────────────────────────────────────────
+  
+  @CoordinatorScope（子组件）
+          │
+          │  factory.create().dependency
+          ▼
+  @Singleton Provider（父组件）
+          │
+          │  缓存实例
+          ▼
+  外部使用（@Singleton 级别）
+```
+
+#### 5.7.2 实现示例
+
+```kotlin
+// ==================== 子组件定义 ====================
+@CoordinatorScope
+@Subcomponent(modules = [InternalModule::class])
+interface CoordinatorComponent {
+    
+    @get:Internal
+    val coordinator: Coordinator
+    
+    @Subcomponent.Factory
+    interface Factory {
+        fun create(): CoordinatorComponent
+    }
+}
+
+@Module
+abstract class InternalModule {
+    
+    @Binds
+    @Internal
+    abstract fun bindCoordinator(impl: CoordinatorImpl): Coordinator
+}
+
+// ==================== 父组件模块（提升依赖）====================
+@Module(subcomponents = [CoordinatorComponent::class])
+object CoordinatorModule {
+    
+    @Singleton  // 提升到 Singleton 级别
+    @Provides
+    fun provideCoordinator(factory: CoordinatorComponent.Factory): Coordinator =
+        factory.create().coordinator  // 从子组件获取
+}
+
+// ==================== 使用 ====================
+@Singleton
+@Component(modules = [CoordinatorModule::class])
+interface AppComponent {
+    fun coordinator(): Coordinator  // @Singleton 级别
+}
+```
+
+### 5.8 Dagger2 完整示例
+
+```kotlin
+// ==================== 项目结构 ====================
+// di/
+// ├── scope/
+// │   ├── ActivityScope.kt
+// │   └── UserSessionScope.kt
+// ├── qualifier/
+// │   └── Qualifiers.kt
+// ├── component/
+// │   ├── AppComponent.kt
+// │   ├── UserSessionComponent.kt
+// │   └── ActivityComponent.kt
+// └── module/
+//     ├── AppModule.kt
+//     ├── NetworkModule.kt
+//     └── RepositoryModule.kt
+
+// ==================== Scope 定义 ====================
+@Scope
+@Retention(AnnotationRetention.RUNTIME)
+annotation class ActivityScope
+
+@Scope
+@Retention(AnnotationRetention.RUNTIME)
+annotation class UserSessionScope
+
+// ==================== Qualifier 定义 ====================
+@Qualifier
+@Retention(AnnotationRetention.RUNTIME)
+annotation class IoDispatcher
+
+@Qualifier
+@Retention(AnnotationRetention.RUNTIME)
+annotation class MainDispatcher
+
+@Qualifier
+@Retention(AnnotationRetention.RUNTIME)
+annotation class Internal
+
+// ==================== AppModule ====================
+@Module(subcomponents = [UserSessionComponent::class])
+object AppModule {
+    
+    @Provides
+    @Singleton
+    fun provideContext(app: Application): Context = app.applicationContext
+    
+    @Provides
+    @Singleton
+    fun provideSharedPreferences(@ApplicationContext context: Context): SharedPreferences =
+        context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
+}
+
+// ==================== NetworkModule ====================
+@Module
+object NetworkModule {
+    
+    @Provides
+    @Singleton
+    fun provideOkHttpClient(): OkHttpClient =
+        OkHttpClient.Builder()
+            .connectTimeout(30, TimeUnit.SECONDS)
+            .addInterceptor(HttpLoggingInterceptor().apply {
+                level = HttpLoggingInterceptor.Level.BODY
+            })
+            .build()
+    
+    @Provides
+    @Singleton
+    fun provideRetrofit(client: OkHttpClient): Retrofit =
+        Retrofit.Builder()
+            .baseUrl("https://api.example.com/")
+            .client(client)
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+    
+    @Provides
+    @Singleton
+    fun provideApiService(retrofit: Retrofit): ApiService =
+        retrofit.create(ApiService::class.java)
+}
+
+// ==================== CoroutinesModule ====================
+@Module
+object CoroutinesModule {
+    
+    @Provides
+    @Singleton
+    @IoDispatcher
+    fun provideIoDispatcher(): CoroutineDispatcher = Dispatchers.IO
+    
+    @Provides
+    @Singleton
+    @MainDispatcher
+    fun provideMainDispatcher(): CoroutineDispatcher = Dispatchers.Main
+}
+
+// ==================== RepositoryModule ====================
+@Module
+abstract class RepositoryModule {
+    
+    @Binds
+    @Singleton
+    abstract fun bindUserRepository(impl: UserRepositoryImpl): UserRepository
+}
+
+// ==================== AppComponent ====================
+@Singleton
+@Component(
+    modules = [
+        AppModule::class,
+        NetworkModule::class,
+        CoroutinesModule::class,
+        RepositoryModule::class
+    ]
+)
+interface AppComponent {
+    
+    // 暴露全局依赖
+    fun context(): Context
+    fun apiService(): ApiService
+    fun userRepository(): UserRepository
+    
+    // 子组件工厂
+    fun userSessionComponent(): UserSessionComponent.Factory
+    
+    @Component.Factory
+    interface Factory {
+        fun create(@BindsInstance application: Application): AppComponent
+    }
+}
+
+// ==================== UserSessionComponent ====================
+@UserSessionScope
+@Subcomponent(modules = [UserSessionModule::class])
+interface UserSessionComponent {
+    
+    fun cartManager(): CartManager
+    
+    fun activityComponent(): ActivityComponent.Factory
+    
+    @Subcomponent.Factory
+    interface Factory {
+        fun create(@BindsInstance user: User): UserSessionComponent
+    }
+}
+
+@Module(subcomponents = [ActivityComponent::class])
+object UserSessionModule {
+    
+    @Provides
+    @UserSessionScope
+    fun provideCartManager(user: User): CartManager = CartManager(user)
+}
+
+// ==================== ActivityComponent ====================
+@ActivityScope
+@Subcomponent(modules = [ActivityModule::class])
+interface ActivityComponent {
+    
+    fun inject(activity: MainActivity)
+    fun inject(fragment: CartFragment)
+    
+    @Subcomponent.Factory
+    interface Factory {
+        fun create(@BindsInstance activity: Activity): ActivityComponent
+    }
+}
+
+@Module
+object ActivityModule {
+    
+    @Provides
+    @ActivityScope
+    fun provideOrderManager(cartManager: CartManager): OrderManager = OrderManager(cartManager)
+}
+
+// ==================== Application ====================
+class MyApplication : Application() {
+    
+    lateinit var appComponent: AppComponent
+    var userSessionComponent: UserSessionComponent? = null
+    
+    override fun onCreate() {
+        super.onCreate()
+        appComponent = DaggerAppComponent.factory().create(this)
+    }
+    
+    fun userLogin(user: User) {
+        userSessionComponent = appComponent.userSessionComponent().create(user)
+    }
+    
+    fun userLogout() {
+        userSessionComponent = null
+    }
+}
+
+// ==================== 使用示例 ====================
+class MainActivity : AppCompatActivity() {
+    
+    @Inject
+    lateinit var userRepository: UserRepository  // @Singleton
+    
+    @Inject
+    lateinit var cartManager: CartManager  // @UserSessionScope
+    
+    @Inject
+    lateinit var orderManager: OrderManager  // @ActivityScope
+    
+    private var activityComponent: ActivityComponent? = null
+    
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        
+        activityComponent = (application as MyApplication)
+            .userSessionComponent!!
+            .activityComponent()
+            .create(this)
+        
+        activityComponent?.inject(this)
+        
+        // 所有依赖已注入
+        userRepository.getUser("123")
+    }
+    
+    override fun onDestroy() {
+        super.onDestroy()
+        activityComponent = null
+    }
+}
+```
+
+### 5.9 Dagger2 vs Hilt
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -1514,17 +2428,103 @@ class MainActivity : AppCompatActivity() {
   - 自动处理 Android 组件生命周期
   - 内置常用组件（Activity、Fragment、ViewModel 等）
   - 更少的样板代码
+  - @AndroidEntryPoint 自动注入
 
   Dagger2 优势：
   ─────────────────────────────────────────────────────────────────────────
   - 更灵活，可自定义 Component 层次结构
   - 非 Android 项目可用
   - 更精细的控制
+  - SystemUI 等大型项目常用
+
+  对比表：
+  ─────────────────────────────────────────────────────────────────────────
+  ┌─────────────────────┬────────────────────┬────────────────────────────┐
+  │        特性          │       Hilt         │         Dagger2            │
+  ├─────────────────────┼────────────────────┼────────────────────────────┤
+  │  Component 创建      │  自动              │  手动                      │
+  ├─────────────────────┼────────────────────┼────────────────────────────┤
+  │  Activity 注入       │  @AndroidEntryPoint│  手动调用 inject()         │
+  ├─────────────────────┼────────────────────┼────────────────────────────┤
+  │  ViewModel 支持      │  @HiltViewModel    │  需要手动配置              │
+  ├─────────────────────┼────────────────────┼────────────────────────────┤
+  │  作用域管理          │  内置              │  自定义                    │
+  ├─────────────────────┼────────────────────┼────────────────────────────┤
+  │  学习曲线            │  中等              │  陡峭                      │
+  ├─────────────────────┼────────────────────┼────────────────────────────┤
+  │  非 Android 项目     │  不支持            │  支持                      │
+  └─────────────────────┴────────────────────┴────────────────────────────┘
 
   迁移建议：
   ─────────────────────────────────────────────────────────────────────────
   - 新项目：直接使用 Hilt
   - 现有项目：可以混合使用，逐步迁移
+  - SystemUI 等大型项目：继续使用 Dagger2
+```
+
+### 5.10 常见问题
+
+```
+Q1: @Singleton 真的是单例吗？
+─────────────────────────────────────────────────────────────────────────
+A: 是的，但范围限于 Component 生命周期
+   - SingletonComponent：Application 级单例
+   - ActivityComponent：Activity 级单例
+   - 注意：不同 Component 实例中的 @Singleton 是不同的实例
+
+Q2: Subcomponent 和 Component Dependencies 怎么选？
+─────────────────────────────────────────────────────────────────────────
+A: 
+   - 层级分明、共享大量父依赖：Subcomponent
+   - 平行模块、需要控制暴露：Component Dependencies
+   - 性能敏感：Subcomponent
+
+Q3: 为什么 Scope 必须同时标注在 Component 和依赖上？
+─────────────────────────────────────────────────────────────────────────
+A: 
+   - Component 上的 Scope：表示这个 Component 可以缓存该 Scope 的依赖
+   - 依赖上的 Scope：表示这个依赖应该被缓存
+   - 两者必须匹配，否则编译错误
+
+Q4: 如何在非 Android 组件中使用 Dagger？
+─────────────────────────────────────────────────────────────────────────
+A: 通过 Component 暴露的方法获取依赖
+   val appComponent = (application as MyApplication).appComponent
+   val userRepository = appComponent.userRepository()
+
+Q5: 如何处理循环依赖？
+─────────────────────────────────────────────────────────────────────────
+A: 
+   1. 重新设计架构，避免循环依赖（推荐）
+   2. 使用 Lazy<T> 延迟获取
+   
+   class A @Inject constructor(private val b: Lazy<B>)
+   class B @Inject constructor(private val a: Lazy<A>)
+   
+   // 使用时
+   val bInstance = b.get()
+
+Q6: @Binds 和 @Provides 有什么区别？
+─────────────────────────────────────────────────────────────────────────
+A: 
+   - @Binds：只用于接口绑定，生成更少代码，更高效
+   - @Provides：可以执行任何逻辑，更灵活
+   
+   // @Binds 只能用于抽象方法
+   @Binds
+   abstract fun bindRepository(impl: RepositoryImpl): Repository
+   
+   // @Provides 可以有逻辑
+   @Provides
+   fun provideRepository(impl: RepositoryImpl): Repository = impl
+
+Q7: 如何调试 Dagger 问题？
+─────────────────────────────────────────────────────────────────────────
+A: 
+   1. 查看编译错误信息（Dagger 会给出详细错误）
+   2. 查看 generated 目录下的生成代码
+   3. 使用 kapt.showProcessorStats = true 查看处理时间
+   4. 检查循环依赖、Scope 不匹配等问题
 ```
 
 ---
