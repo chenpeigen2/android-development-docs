@@ -39,7 +39,17 @@
 5. [Dagger2 详解](#5-dagger2-详解)
    - 5.1 [Dagger2 概述](#51-dagger2-概述)
    - 5.2 [核心概念](#52-核心概念)
+     - 5.2.1 [@Inject - 标记注入点](#521-inject---标记注入点)
+     - 5.2.2 [@Module 的三种形式](#522-module-的三种形式)
+     - 5.2.3 [@Module + @Provides - 提供依赖](#523-module--provides---提供依赖)
+     - 5.2.4 [@Binds - 接口绑定](#524-binds---接口绑定)
+     - 5.2.5 [@Component - 连接器](#525-component---连接器)
+     - 5.2.6 [Module 和 Component 类型选择总结](#526-module-和-component-类型选择总结)
    - 5.3 [自定义 Scope](#53-自定义-scope)
+     - 5.3.1 [Scope 定义](#531-scope-定义)
+     - 5.3.2 [Scope 规则](#532-scope-规则)
+     - 5.3.3 [无 Scope 行为详解](#533-无-scope-行为详解)
+     - 5.3.4 [完整 Scope 示例](#534-完整-scope-示例)
    - 5.4 [@Qualifier 限定符](#54-qualifier-限定符)
    - 5.5 [Subcomponent 子组件](#55-subcomponent-子组件)
    - 5.6 [Component Dependencies](#56-component-dependencies)
@@ -1844,7 +1854,7 @@ abstract class MixedModule {
 }
 ```
 
-#### 5.2.3 @Component - 连接器
+#### 5.2.5 @Component - 连接器
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -1959,7 +1969,7 @@ val appComponent = DaggerAppComponent.builder()
     .build()
 ```
 
-#### 5.2.4 Module 和 Component 类型选择总结
+#### 5.2.6 Module 和 Component 类型选择总结
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
