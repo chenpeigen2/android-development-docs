@@ -1519,7 +1519,138 @@ class UserManager @Inject constructor(
 }
 ```
 
-#### 5.2.2 @Module + @Provides - 提供依赖
+#### 5.2.2 @Module 的三种形式
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         @Module 三种形式                                    │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  @Module 可以标注：object、class、abstract class
+  ─────────────────────────────────────────────────────────────────────────
+  
+  object：
+  - 天然单例，Dagger 不需要创建实例
+  - 适合无状态的 Provider
+  - 最常用的形式
+  
+  class：
+  - 可以有构造参数
+  - 可以有状态
+  - Dagger 会自动创建实例（如果无参）
+  
+  abstract class：
+  - 用于 @Binds 方法
+  - @Binds 必须是抽象方法
+  - 不能有 @Provides 方法（除非用 companion object）
+```
+
+```kotlin
+// ==================== 1. object Module（最常用）====================
+@Module
+object NetworkModule {
+    
+    @Provides
+    @Singleton
+    fun provideOkHttpClient(): OkHttpClient {
+        return OkHttpClient.Builder().build()
+    }
+    
+    @Provides
+    fun provideApiService(): ApiService = ApiService()
+}
+
+// 特点：
+// - 天然单例，Dagger 直接使用 NetworkModule.INSTANCE
+// - 适合无状态的 Provider
+// - 最常用的形式
+
+// 生成的代码：
+public final class DaggerAppComponent {
+    private void initialize() {
+        // 直接调用静态方法
+        this.okHttpClientProvider = DoubleCheck.provider(
+            NetworkModule_ProvideOkHttpClientFactory.create(NetworkModule.INSTANCE)
+        );
+    }
+}
+
+// ==================== 2. class Module（可实例化）====================
+@Module
+class DatabaseModule(
+    private val databaseName: String  // 构造参数
+) {
+    
+    @Provides
+    @Singleton
+    fun provideDatabase(context: Context): Database {
+        return Room.databaseBuilder(
+            context,
+            Database::class.java,
+            databaseName  // 使用构造参数
+        ).build()
+    }
+}
+
+// 特点：
+// - 可以有构造参数
+// - 可以有状态
+// - Dagger 会自动创建实例（如果无参）
+// - 有参数时需要手动传入
+
+// 使用方式：
+// 无参：Dagger 自动创建
+@Component(modules = [NetworkModule::class])
+interface AppComponent { }
+
+// 有参：手动传入
+val appComponent = DaggerAppComponent.builder()
+    .databaseModule(DatabaseModule("my_database"))
+    .build()
+
+// ==================== 3. abstract class Module（@Binds 专用）====================
+@Module
+abstract class RepositoryModule {
+    
+    // @Binds 必须在抽象类中
+    @Binds
+    @Singleton
+    abstract fun bindUserRepository(impl: UserRepositoryImpl): UserRepository
+    
+    @Binds
+    @Singleton
+    abstract fun bindOrderRepository(impl: OrderRepositoryImpl): OrderRepository
+}
+
+// 特点：
+// - 用于 @Binds 方法
+// - @Binds 必须是抽象方法
+// - 不能直接有 @Provides 方法
+
+// ==================== 4. 混合使用（abstract + companion object）====================
+@Module
+abstract class MixedModule {
+    
+    // @Binds：简单绑定
+    @Binds
+    @Singleton
+    abstract fun bindUserRepository(impl: UserRepositoryImpl): UserRepository
+    
+    companion object {
+        // @Provides：需要逻辑的绑定
+        @Provides
+        @Singleton
+        @JvmStatic
+        fun provideRetrofit(): Retrofit {
+            return Retrofit.Builder()
+                .baseUrl("https://api.example.com/")
+                .build()
+        }
+    }
+}
+```
+
+#### 5.2.3 @Module + @Provides - 提供依赖
 
 ```kotlin
 // ==================== Module 定义 ====================
@@ -1656,8 +1787,31 @@ abstract class MixedModule {
 
 #### 5.2.3 @Component - 连接器
 
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         @Component 类型选择                                 │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  @Component 可以标注：interface、abstract class
+  ─────────────────────────────────────────────────────────────────────────
+  
+  interface（推荐）：
+  - Dagger 生成实现类（DaggerXXX implements XXX）
+  - 只定义契约，不关心实现
+  - 更清晰的 API 设计
+  - 无法实例化，强制使用 Dagger 生成
+  
+  abstract class（不推荐）：
+  - Dagger 生成子类（DaggerXXX extends XXX）
+  - 可行，但没有额外好处
+  
+  普通 class（不支持）：
+  - 编译错误！
+  - Dagger 需要生成子类，普通类无法继承
+```
+
 ```kotlin
-// ==================== Component 定义 ====================
+// ==================== 推荐写法：interface ====================
 @Singleton
 @Component(modules = [NetworkModule::class, DatabaseModule::class, RepositoryModule::class])
 interface AppComponent {
@@ -1674,6 +1828,41 @@ interface AppComponent {
     
     // 子组件工厂
     fun userComponent(): UserComponent.Factory
+}
+
+// 为什么用 interface？
+// 1. Dagger 会生成实现类（DaggerAppComponent）
+// 2. 接口只定义契约，不关心实现
+// 3. 更清晰的 API 设计
+// 4. 无法实例化，强制使用 Dagger 生成
+
+// 生成的代码：
+public final class DaggerAppComponent implements AppComponent {
+    // Dagger 实现 interface 的所有方法
+    @Override
+    public UserRepository userRepository() {
+        return userRepositoryProvider.get();
+    }
+}
+
+// ==================== 不推荐：abstract class ====================
+@Singleton
+@Component(modules = [NetworkModule::class])
+abstract class AppComponent {
+    
+    abstract fun inject(activity: MainActivity)
+    abstract fun userRepository(): UserRepository
+}
+
+// 可行，但没有额外好处
+
+// ==================== ❌ 错误：普通类 ====================
+@Singleton
+@Component(modules = [NetworkModule::class])
+class AppComponent {
+    // 编译错误！
+    // Dagger 需要生成子类，普通类无法继承（如果是 final）
+    // 即使不是 final，也不推荐
 }
 
 // ==================== Component Factory（推荐）====================
@@ -1709,6 +1898,37 @@ interface AppComponent {
 val appComponent = DaggerAppComponent.builder()
     .application(application)
     .build()
+```
+
+#### 5.2.4 Module 和 Component 类型选择总结
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         Module 和 Component 类型选择                        │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  @Module 选择：
+  ┌─────────────────────┬──────────────────────────────────────────────────┐
+  │      类型            │                  适用场景                          │
+  ├─────────────────────┼──────────────────────────────────────────────────┤
+  │  object             │  只有 @Provides，无状态（最常用）                  │
+  ├─────────────────────┼──────────────────────────────────────────────────┤
+  │  abstract class     │  只有 @Binds 方法                                 │
+  ├─────────────────────┼──────────────────────────────────────────────────┤
+  │  abstract class +   │  混合 @Binds 和 @Provides                         │
+  │  companion object   │                                                  │
+  ├─────────────────────┼──────────────────────────────────────────────────┤
+  │  class              │  需要构造参数或状态                               │
+  └─────────────────────┴──────────────────────────────────────────────────┘
+
+  @Component 选择：
+  ┌─────────────────────┬──────────────────────────────────────────────────┐
+  │      类型            │                  适用场景                          │
+  ├─────────────────────┼──────────────────────────────────────────────────┤
+  │  interface          │  推荐，Dagger 生成实现类                          │
+  ├─────────────────────┼──────────────────────────────────────────────────┤
+  │  abstract class     │  不推荐，无额外好处                               │
+  └─────────────────────┴──────────────────────────────────────────────────┘
 ```
 
 ### 5.3 自定义 Scope
