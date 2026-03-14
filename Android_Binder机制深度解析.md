@@ -3138,4 +3138,1272 @@
 
 ---
 
+## 19. Binder 事务生命周期
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         Binder 事务完整生命周期                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  事务状态流转：
+  ─────────────────────────────────────────────────────────────────────────────
+
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │                                                                         │
+  │   Client                                                Server          │
+  │     │                                                     │             │
+  │     │  1. 创建事务                                         │             │
+  │     │  binder_transaction_data                            │             │
+  │     │     │                                               │             │
+  │     │     ▼                                               │             │
+  │     │  2. 写入命令 (BC_TRANSACTION)                        │             │
+  │     │     │                                               │             │
+  │     │     ▼                                               │             │
+  │     │  3. ioctl(BINDER_WRITE_READ)                        │             │
+  │     │     │                                               │             │
+  │     │     │  ══════════════════════════════════════════►  │             │
+  │     │     │            Binder 驱动                         │             │
+  │     │     │  - 分配 binder_buffer                          │             │
+  │     │     │  - copy_from_user (一次拷贝)                   │             │
+  │     │     │  - 添加到目标进程 todo 队列                    │             │
+  │     │     │  - wake_up_interruptible                       │             │
+  │     │     │                                               │             │
+  │     │     │            4. BR_TRANSACTION ◄─────────────────│             │
+  │     │     │            5. executeCommand()                 │             │
+  │     │     │            6. onTransact() 执行业务            │             │
+  │     │     │            7. 写入回复                         │             │
+  │     │     │            8. BC_REPLY                         │             │
+  │     │     │  ══════════════════════════════════════════►  │             │
+  │     │     │            Binder 驱动                         │             │
+  │     │     │  - 释放 buffer                                │             │
+  │     │     │  - 唤醒等待线程                               │             │
+  │     │     │                                               │             │
+  │     │  9. BR_REPLY ◄──────────────────────────────────────│             │
+  │     │     │                                               │             │
+  │     │     ▼                                               │             │
+  │     │  10. 解析返回值                                     │             │
+  │     │     │                                               │             │
+  │     │     ▼                                               │             │
+  │     │  11. 事务完成                                       │             │
+  │     │                                                     │             │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+
+
+  事务核心数据结构：
+  ─────────────────────────────────────────────────────────────────────────────
+
+  struct binder_transaction {
+      int debug_id;                        // 调试 ID
+      
+      // 发送方信息
+      struct binder_thread *from;          // 发送线程
+      pid_t sender_euid;                   // 发送方 UID (内核填充)
+      pid_t sender_pid;                    // 发送方 PID (内核填充)
+      
+      // 接收方信息
+      struct binder_proc *to_proc;         // 目标进程
+      struct binder_thread *to_thread;     // 目标线程
+      
+      // 事务链
+      struct binder_transaction *from_parent;  // 父事务 (嵌套调用)
+      struct binder_transaction *to_parent;    // 目标父事务
+      
+      // 数据
+      struct binder_buffer *buffer;        // 数据缓冲区
+      unsigned int code;                   // 方法代码
+      unsigned int flags;                  // 标志位
+      
+      // 状态
+      unsigned need_reply:1;               // 是否需要回复
+      unsigned is_nested:1;                // 是否嵌套事务
+  };
+
+
+  事务状态枚举：
+  ─────────────────────────────────────────────────────────────────────────────
+
+  enum transaction_state {
+      TRANSACTION_STATE_NONE = 0,
+      TRANSACTION_STATE_PENDING,      // 等待处理
+      TRANSACTION_STATE_IN_PROGRESS,  // 正在处理
+      TRANSACTION_STATE_COMPLETE,     // 已完成
+      TRANSACTION_STATE_ERROR,        // 错误
+  };
+```
+
+### 19.1 同步事务 vs 异步事务 (oneway)
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    同步事务 vs 异步事务 (oneway)                            │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  同步事务 (默认)：
+  ─────────────────────────────────────────────────────────────────────────────
+
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │                                                                         │
+  │   Client                                                Server          │
+  │     │                                                     │             │
+  │     │  transact()                                         │             │
+  │     │     │                                               │             │
+  │     │     │  ──── BC_TRANSACTION ────►                    │             │
+  │     │     │                                               │             │
+  │     │     │  阻塞等待                                     │             │
+  │     │     │  ──────────────────────────────────────►      │             │
+  │     │     │                     执行                      │             │
+  │     │     │  ◄─── BR_REPLY ────                           │             │
+  │     │     │                                               │             │
+  │     │     ▼                                               │             │
+  │     │  返回结果                                           │             │
+  │     │                                                     │             │
+  │                                                                         │
+  │  特点：                                                                 │
+  │  - 客户端阻塞等待服务端返回                                              │
+  │  - 可以获取返回值                                                       │
+  │  - 可以抛出异常                                                         │
+  │  - 适用于需要返回值的场景                                                │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+
+
+  异步事务 (oneway)：
+  ─────────────────────────────────────────────────────────────────────────────
+
+  // AIDL 定义
+  oneway interface IMyService {
+      void notifyEvent(int event);
+      void sendData(in byte[] data);
+  }
+
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │                                                                         │
+  │   Client                                                Server          │
+  │     │                                                     │             │
+  │     │  transact()                                         │             │
+  │     │     │                                               │             │
+  │     │     │  ──── BC_TRANSACTION (TF_ONE_WAY) ────►       │             │
+  │     │     │                                               │             │
+  │     │     ▼                                               │             │
+  │     │  立即返回 (不等待)                                   │             │
+  │     │                                                     │             │
+  │     │                                                     │             │
+  │     │                                  ─────────────────► │             │
+  │     │                                        异步执行      │             │
+  │     │                                                     │             │
+  │                                                                         │
+  │  特点：                                                                 │
+  │  - 客户端立即返回，不阻塞                                                │
+  │  - 不能获取返回值                                                       │
+  │  - 不能抛出异常                                                         │
+  │  - 适用于通知、事件等不需要返回的场景                                     │
+  │  - 注意：多个 oneway 调用会排队执行                                      │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+
+
+  源码分析：
+  ─────────────────────────────────────────────────────────────────────────────
+
+  // IPCThreadState.cpp
+  
+  status_t IPCThreadState::transact(int32_t handle,
+                                     uint32_t code,
+                                     const Parcel& data,
+                                     Parcel* reply,
+                                     uint32_t flags)
+  {
+      // 检查是否是 oneway
+      if (flags & TF_ONE_WAY) {
+          // oneway：不需要等待回复
+          err = writeTransactionData(BC_TRANSACTION, flags, 
+                                     handle, code, data, NULL);
+          // ★ 立即返回 ★
+          return err;
+      } else {
+          // 同步：需要等待回复
+          err = writeTransactionData(BC_TRANSACTION, flags,
+                                     handle, code, data, reply);
+          // ★ 阻塞等待回复 ★
+          err = waitForResponse(reply);
+          return err;
+      }
+  }
+
+
+  oneway 使用场景：
+  ─────────────────────────────────────────────────────────────────────────────
+
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │                                                                         │
+  │  ✅ 适合 oneway：                                                        │
+  │  ─────────────────────────────────────────────────────────────────────  │
+  │  - 事件通知 (notifyEvent)                                               │
+  │  - 日志上报 (logEvent)                                                  │
+  │  - 状态更新 (updateStatus)                                              │
+  │  - 不需要返回值的操作                                                    │
+  │                                                                         │
+  │  ❌ 不适合 oneway：                                                      │
+  │  ─────────────────────────────────────────────────────────────────────  │
+  │  - 需要返回值的操作 (getData)                                            │
+  │  - 需要知道执行结果的操作                                                │
+  │  - 需要处理异常的操作                                                    │
+  │  - 有顺序依赖的操作                                                     │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 20. Binder 死锁问题
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         Binder 死锁问题详解                                 │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  死锁场景 1：嵌套 Binder 调用
+  ─────────────────────────────────────────────────────────────────────────────
+
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │                                                                         │
+  │   进程 A (Client)                进程 B (Server)                进程 C   │
+  │       │                              │                            │     │
+  │       │  1. 调用 B 的方法             │                            │     │
+  │       │  ────────────────────────►   │                            │     │
+  │       │                              │                            │     │
+  │       │  等待 B 返回...              │  2. 在方法中调用 C          │     │
+  │       │                              │  ──────────────────────────►│     │
+  │       │                              │                            │     │
+  │       │                              │  等待 C 返回...            │     │
+  │       │                              │                            │     │
+  │       │                              │                            │     │
+  │       │  3. 如果 C 需要调用 A...     │                            │     │
+  │       │  ◄───────────────────────────────────────────────────────│     │
+  │       │                              │                            │     │
+  │       │  但 A 的 Binder 线程         │                            │     │
+  │       │  正在等待 B 返回！           │                            │     │
+  │       │                              │                            │     │
+  │       │  ★★★ 死锁！★★★             │                            │     │
+  │       │                              │                            │     │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+
+
+  死锁场景 2：同一进程内嵌套调用
+  ─────────────────────────────────────────────────────────────────────────────
+
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │                                                                         │
+  │   进程 A (只有 1 个 Binder 线程)                                         │
+  │  ┌───────────────────────────────────────────────────────────────────┐  │
+  │  │                                                                   │  │
+  │  │  Thread 1 (Binder 线程)                                           │  │
+  │  │  ┌─────────────────────────────────────────────────────────────┐  │  │
+  │  │  │ 1. 收到进程 B 的调用请求                                      │  │  │
+  │  │  │ 2. 在处理过程中，需要调用进程 B 的方法                         │  │  │
+  │  │  │ 3. 等待进程 B 返回...                                         │  │  │
+  │  │  │                                                               │  │  │
+  │  │  │ 问题：进程 B 的回复需要通过 Binder 线程处理                    │  │  │
+  │  │  │       但唯一的 Binder 线程正在等待！                          │  │  │
+  │  │  │                                                               │  │  │
+  │  │  │ ★★★ 死锁！★★★                                               │  │  │
+  │  │  └─────────────────────────────────────────────────────────────┘  │  │
+  │  │                                                                   │  │
+  │  └───────────────────────────────────────────────────────────────────┘  │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+
+
+  死锁代码示例：
+  ─────────────────────────────────────────────────────────────────────────────
+
+  // ❌ 危险：可能导致死锁
+  public class MyService extends Service {
+      
+      private IRemoteService mRemoteService;
+      
+      private final IMyService.Stub mBinder = new IMyService.Stub() {
+          
+          @Override
+          public void processData(String data) {
+              // 在 Binder 方法中调用另一个远程服务
+              try {
+                  // ★ 如果 mRemoteService 需要回调这里，就会死锁 ★
+                  String result = mRemoteService.process(data);
+                  // 处理结果...
+              } catch (RemoteException e) {
+                  e.printStackTrace();
+              }
+          }
+      };
+  }
+
+
+  解决方案 1：使用异步调用
+  ─────────────────────────────────────────────────────────────────────────────
+
+  // ✅ 正确：使用异步方式
+  public class MyService extends Service {
+      
+      private final IMyService.Stub mBinder = new IMyService.Stub() {
+          
+          @Override
+          public void processData(String data) {
+              // 在新线程中执行耗时操作
+              new Thread(() -> {
+                  try {
+                      String result = mRemoteService.process(data);
+                      // 处理结果...
+                  } catch (RemoteException e) {
+                      e.printStackTrace();
+                  }
+              }).start();
+          }
+      };
+  }
+
+
+  解决方案 2：使用 oneway
+  ─────────────────────────────────────────────────────────────────────────────
+
+  // AIDL 定义
+  oneway interface IMyService {
+      void processData(String data);
+  }
+
+
+  解决方案 3：增加 Binder 线程数
+  ─────────────────────────────────────────────────────────────────────────────
+
+  // 在 Application 中
+  public class MyApplication extends Application {
+      @Override
+      protected void attachBaseContext(Context base) {
+          super.attachBaseContext(base);
+          // 增加最大线程数
+          try {
+              IBinder binder = ServiceManager.getService("activity");
+              // 通过反射或其他方式设置
+          } catch (Exception e) {
+              e.printStackTrace();
+          }
+      }
+  }
+
+
+  解决方案 4：避免嵌套调用
+  ─────────────────────────────────────────────────────────────────────────────
+
+  // ✅ 最佳实践：重新设计架构，避免嵌套 Binder 调用
+  // 使用回调或事件总线代替
+
+
+  死锁排查方法：
+  ─────────────────────────────────────────────────────────────────────────────
+
+  1. 使用 ANR traces 文件
+     ─────────────────────────────────────────────────────────────────────────
+     adb pull /data/anr/traces.txt
+     
+     查找 "Binder" 相关的线程堆栈
+
+  2. 使用 Debugger
+     ─────────────────────────────────────────────────────────────────────────
+     在 Binder 调用处打断点
+     观察线程状态
+
+  3. 添加日志
+     ─────────────────────────────────────────────────────────────────────────
+     在 Binder 方法入口/出口添加日志
+     追踪调用链
+
+  4. 使用 StrictMode
+     ─────────────────────────────────────────────────────────────────────────
+     StrictMode.setThreadPolicy(
+         new StrictMode.ThreadPolicy.Builder()
+             .detectCustomSlowCalls()
+             .penaltyLog()
+             .build()
+     );
+```
+
+---
+
+## 21. Binder 对象传递
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         Binder 对象传递详解                                 │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  IBinder 跨进程传递原理：
+  ─────────────────────────────────────────────────────────────────────────────
+
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │                                                                         │
+  │   进程 A (Server)                      进程 B (Client)                  │
+  │  ┌─────────────────┐                  ┌─────────────────┐               │
+  │  │                 │                  │                 │               │
+  │  │  binder_node    │                  │  binder_ref     │               │
+  │  │  (Binder 实体)   │                  │  (Binder 引用)  │               │
+  │  │       │         │                  │       │         │               │
+  │  │       │         │                  │       │         │               │
+  │  │  BBinder        │                  │  BpBinder       │               │
+  │  │  (Native 层)    │                  │  (Native 层)    │               │
+  │  │       │         │                  │       │         │               │
+  │  │       │         │                  │       │         │               │
+  │  │  Binder         │                  │  BinderProxy    │               │
+  │  │  (Java 层)      │                  │  (Java 层)      │               │
+  │  │                 │                  │                 │               │
+  │  └─────────────────┘                  └─────────────────┘               │
+  │                                                                         │
+  │  传递过程：                                                             │
+  │  1. 进程 A 将 Binder 写入 Parcel                                       │
+  │  2. Binder 驱动检测到 Binder 对象                                      │
+  │  3. 在目标进程创建 binder_ref                                          │
+  │  4. 目标进程收到 BpBinder/BinderProxy                                  │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+
+
+  Parcel 写入/读取 IBinder：
+  ─────────────────────────────────────────────────────────────────────────────
+
+  // Java 层
+  // 写入
+  Parcel parcel = Parcel.obtain();
+  parcel.writeStrongBinder(binder);
+  
+  // 读取
+  IBinder binder = parcel.readStrongBinder();
+
+
+  // Native 层
+  // 写入
+  Parcel parcel;
+  parcel.writeStrongBinder(binder);
+  
+  // 读取
+  sp<IBinder> binder = parcel.readStrongBinder();
+
+
+  源码分析：
+  ─────────────────────────────────────────────────────────────────────────────
+
+  // Parcel.cpp
+  
+  status_t Parcel::writeStrongBinder(const sp<IBinder>& val)
+  {
+      return flatten_binder(ProcessState::self(), val, this);
+  }
+  
+  status_t flatten_binder(const sp<ProcessState>& proc,
+                           const sp<IBinder>& binder,
+                           Parcel* out)
+  {
+      flat_binder_object obj;
+      
+      if (binder == NULL) {
+          obj.type = BINDER_TYPE_BINDER;
+          obj.binder = 0;
+          obj.cookie = 0;
+      } else if (binder->localBinder()) {
+          // ★ 本地 Binder (BBinder) ★
+          obj.type = BINDER_TYPE_BINDER;
+          obj.binder = reinterpret_cast<uintptr_t>(binder->getWeakRefs());
+          obj.cookie = reinterpret_cast<uintptr_t>(binder.get());
+      } else {
+          // ★ 远程 Binder (BpBinder) ★
+          obj.type = BINDER_TYPE_HANDLE;
+          obj.handle = binder->getExtension();
+      }
+      
+      return out->writeObject(obj, false);
+  }
+
+
+  sp<IBinder> Parcel::readStrongBinder() const
+  {
+      sp<IBinder> ret;
+      unflatten_binder(ProcessState::self(), *this, &ret);
+      return ret;
+  }
+  
+  status_t unflatten_binder(const sp<ProcessState>& proc,
+                             const Parcel& in,
+                             sp<IBinder>* out)
+  {
+      const flat_binder_object* flat = in.readObject(false);
+      
+      if (flat) {
+          switch (flat->type) {
+              case BINDER_TYPE_BINDER:
+                  // ★ 本地 Binder ★
+                  *out = reinterpret_cast<IBinder*>(flat->cookie);
+                  return NO_ERROR;
+                  
+              case BINDER_TYPE_HANDLE:
+                  // ★ 远程 Binder：创建 BpBinder ★
+                  *out = proc->getStrongProxyForHandle(flat->handle);
+                  return NO_ERROR;
+          }
+      }
+      
+      return BAD_TYPE;
+  }
+```
+
+### 21.1 文件描述符传递
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         文件描述符传递详解                                  │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  原理：
+  ─────────────────────────────────────────────────────────────────────────────
+
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │                                                                         │
+  │   进程 A                                进程 B                           │
+  │  ┌─────────────────┐                  ┌─────────────────┐               │
+  │  │                 │                  │                 │               │
+  │  │  fd = 10        │                  │  fd = 25        │               │
+  │  │  (指向文件 X)    │  ════════════════│  (指向同一文件 X)│               │
+  │  │                 │  Binder 传递 FD   │                 │               │
+  │  │                 │                  │                 │               │
+  │  └─────────────────┘                  └─────────────────┘               │
+  │                                                                         │
+  │  传递过程：                                                             │
+  │  1. 进程 A 将 fd 写入 Parcel                                           │
+  │  2. Binder 驱动在目标进程分配新的 fd                                    │
+  │  3. 新 fd 指向同一个 file 对象                                          │
+  │  4. 进程 B 收到新的 fd                                                  │
+  │                                                                         │
+  │  ★ 注意：两个进程中的 fd 编号不同，但指向同一个文件 ★                    │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+
+
+  代码示例：
+  ─────────────────────────────────────────────────────────────────────────────
+
+  // 发送方
+  public void sendFileDescriptor(ParcelFileDescriptor pfd) {
+      Parcel parcel = Parcel.obtain();
+      parcel.writeFileDescriptor(pfd.getFileDescriptor());
+      // 发送 parcel...
+  }
+
+
+  // 接收方
+  public ParcelFileDescriptor receiveFileDescriptor(Parcel parcel) {
+      ParcelFileDescriptor pfd = ParcelFileDescriptor.Creat(parcel.readFileDescriptor());
+      return pfd;
+  }
+
+
+  Native 层：
+  ─────────────────────────────────────────────────────────────────────────────
+
+  // 发送
+  int fd = open("/data/data/com.example/shared_file", O_RDWR);
+  Parcel parcel;
+  parcel.writeFileDescriptor(fd);
+
+  // 接收
+  int new_fd = parcel.readFileDescriptor();
+  // new_fd 与发送方的 fd 不同，但指向同一个文件
+
+
+  使用场景：
+  ─────────────────────────────────────────────────────────────────────────────
+
+  1. 共享内存 (MemoryFile)
+     ─────────────────────────────────────────────────────────────────────────
+     // 创建共享内存
+     MemoryFile memoryFile = new MemoryFile("shared", 1024);
+     
+     // 获取文件描述符
+     Method method = MemoryFile.class.getDeclaredMethod("getFileDescriptor");
+     FileDescriptor fd = (FileDescriptor) method.invoke(memoryFile);
+     
+     // 传递给其他进程
+     ParcelFileDescriptor pfd = ParcelFileDescriptor.dup(fd);
+
+  2. Socket 传递
+     ─────────────────────────────────────────────────────────────────────────
+     // 传递 LocalSocket 的文件描述符
+
+  3. 硬件设备访问
+     ─────────────────────────────────────────────────────────────────────────
+     // 传递设备文件描述符
+
+
+  注意事项：
+  ─────────────────────────────────────────────────────────────────────────────
+
+  1. 文件描述符在目标进程中是新的编号
+  2. 发送后，发送方仍持有原始 fd
+  3. 需要正确关闭 fd，避免泄漏
+  4. 需要处理权限问题
+```
+
+---
+
+## 22. Binder 调用链追踪
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         Binder 调用链追踪                                   │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  1. 使用 Systrace
+  ─────────────────────────────────────────────────────────────────────────────
+
+  // 采集 Systrace
+  // 执行 Binder 调用
+  $ python $ANDROID_SDK/platform-tools/systrace/systrace.py \
+      --app=com.example \
+      binder_driver \
+      binder_lock \
+      freq \
+      sched \
+      -o trace.html
+
+
+  2. 使用 Perfetto
+  ─────────────────────────────────────────────────────────────────────────────
+
+  // 采集 trace
+  $ adb shell perfetto \
+      -c - --txt \
+      -o /data/misc/perfetto-traces/trace \
+      <<EOF
+  
+  buffers: {
+      size_kb: 102400
+      fill_policy: RING_BUFFER
+  }
+  
+  data_sources: {
+      config {
+          name: "android.binder"
+          target_buffer: 0
+      }
+  }
+  
+  duration_ms: 10000
+  EOF
+  
+  // 拉取 trace 文件
+  $ adb pull /data/misc/perfetto-traces/trace
+  
+  // 在 https://ui.perfetto.dev/ 打开分析
+
+
+  3. 添加日志追踪
+  ─────────────────────────────────────────────────────────────────────────────
+
+  // 自定义 Binder 追踪类
+  public class BinderTrace {
+      
+      private static final String TAG = "BinderTrace";
+      
+      public static void logBinderCall(String method, long startTime) {
+          long duration = System.currentTimeMillis() - startTime;
+          Log.d(TAG, String.format("[%s] duration=%dms, thread=%s",
+                  method, duration, Thread.currentThread().getName()));
+      }
+      
+      public static void logBinderCall(String method, String target, 
+                                        long startTime, boolean success) {
+          long duration = System.currentTimeMillis() - startTime;
+          Log.d(TAG, String.format("[%s] target=%s, duration=%dms, success=%b, thread=%s",
+                  method, target, duration, success, 
+                  Thread.currentThread().getName()));
+      }
+  }
+  
+  // 使用
+  public int getData(int id) throws RemoteException {
+      long startTime = System.currentTimeMillis();
+      try {
+          int result = mRemote.getData(id);
+          BinderTrace.logBinderCall("getData", "RemoteService", startTime, true);
+          return result;
+      } catch (RemoteException e) {
+          BinderTrace.logBinderCall("getData", "RemoteService", startTime, false);
+          throw e;
+      }
+  }
+
+
+  4. 使用 AOP 追踪
+  ─────────────────────────────────────────────────────────────────────────────
+
+  // 使用 AspectJ 追踪 Binder 调用
+  @Aspect
+  public class BinderTraceAspect {
+      
+      private static final String TAG = "BinderTrace";
+      
+      @Around("execution(* android.os.IBinder.transact(..))")
+      public Object traceBinderCall(ProceedingJoinPoint joinPoint) throws Throwable {
+          long startTime = System.currentTimeMillis();
+          Object result = null;
+          Throwable error = null;
+          
+          try {
+              result = joinPoint.proceed();
+          } catch (Throwable t) {
+              error = t;
+              throw t;
+          } finally {
+              long duration = System.currentTimeMillis() - startTime;
+              Object[] args = joinPoint.getArgs();
+              int code = (int) args[0];
+              
+              Log.d(TAG, String.format(
+                  "transact: code=%d, duration=%dms, error=%s",
+                  code, duration, error != null ? error.getMessage() : "none"));
+          }
+          
+          return result;
+      }
+  }
+
+
+  5. 使用 Debug.startMethodTracing
+  ─────────────────────────────────────────────────────────────────────────────
+
+  // 开始追踪
+  Debug.startMethodTracing("binder_trace");
+  
+  // 执行 Binder 调用
+  service.getData(1);
+  
+  // 停止追踪
+  Debug.stopMethodTracing();
+  
+  // 分析 trace 文件
+  // 使用 Android Studio 的 CPU Profiler 打开
+  // 文件位置: /sdcard/Android/data/com.example/files/binder_trace.trace
+
+
+  6. Binder 调用耗时统计
+  ─────────────────────────────────────────────────────────────────────────────
+
+  public class BinderCallMonitor {
+      
+      private static final ConcurrentHashMap<String, CallStats> sStats = 
+          new ConcurrentHashMap<>();
+      
+      public static class CallStats {
+          public long totalCount;
+          public long totalTime;
+          public long maxTime;
+          public long errorCount;
+      }
+      
+      public static void recordCall(String method, long duration, boolean error) {
+          CallStats stats = sStats.computeIfAbsent(method, k -> new CallStats());
+          
+          synchronized (stats) {
+              stats.totalCount++;
+              stats.totalTime += duration;
+              stats.maxTime = Math.max(stats.maxTime, duration);
+              if (error) {
+                  stats.errorCount++;
+              }
+          }
+      }
+      
+      public static void printStats() {
+          for (Map.Entry<String, CallStats> entry : sStats.entrySet()) {
+              CallStats stats = entry.getValue();
+              Log.d("BinderMonitor", String.format(
+                  "%s: count=%d, avg=%dms, max=%dms, errors=%d",
+                  entry.getKey(),
+                  stats.totalCount,
+                  stats.totalTime / stats.totalCount,
+                  stats.maxTime,
+                  stats.errorCount
+              ));
+          }
+      }
+  }
+```
+
+---
+
+## 23. Binder 高频面试题
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         Binder 高频面试题                                   │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  Q1: Binder 为什么只需要一次内存拷贝？
+  ─────────────────────────────────────────────────────────────────────────────
+
+  A: 
+  1. 发送方通过 copy_from_user() 将数据拷贝到内核缓冲区
+  2. 接收方通过 mmap 将内核缓冲区映射到用户空间
+  3. 接收方直接读取映射的内存，无需再次拷贝
+  
+  对比传统 IPC：
+  - Socket/管道: 需要 2 次拷贝（用户→内核→用户）
+  - 共享内存: 0 次拷贝，但需要复杂的同步机制
+
+
+  Q2: Binder 如何保证安全性？
+  ─────────────────────────────────────────────────────────────────────────────
+
+  A:
+  1. 内核级 UID/PID 验证
+     - Binder 驱动在内核中自动填充发送方的 UID/PID
+     - 无法在用户空间伪造
+  
+  2. SELinux 策略
+     - 可以限制哪些进程可以访问哪些服务
+  
+  3. 权限检查
+     - 服务端可以检查调用方的 UID/GID
+     - 可以通过 checkCallingPermission() 检查权限
+
+
+  Q3: Binder 传输数据大小限制是多少？为什么？
+  ─────────────────────────────────────────────────────────────────────────────
+
+  A:
+  - 普通应用: 约 1M - 8K (实际可用约 1M)
+  - ServiceManager: 128K
+  
+  原因:
+  1. Binder 使用 mmap 映射内存，需要预留空间
+  2. 减去 8K 是因为需要 2 个 guard page（保护页）
+  3. 异步事务占用一半空间（约 512K）
+
+
+  Q4: Binder 线程池有多少个线程？如何工作的？
+  ─────────────────────────────────────────────────────────────────────────────
+
+  A:
+  - 默认最大 16 个线程（1 主线程 + 15 工作线程）
+  - 主线程: BC_ENTER_LOOPER
+  - 工作线程: BC_REGISTER_LOOPER
+  - 由 BR_SPAWN_LOOPER 触发创建新线程
+  - 线程阻塞在 ioctl() 等待事务
+
+
+  Q5: AIDL 生成的 Stub 和 Proxy 分别是什么？
+  ─────────────────────────────────────────────────────────────────────────────
+
+  A:
+  - Stub: 服务端实现，继承自 Binder，处理 onTransact()
+  - Proxy: 客户端代理，持有 BinderProxy，调用 transact()
+  - asInterface(): 判断是否同进程，同进程返回 Stub，跨进程返回 Proxy
+
+
+  Q6: oneway 关键字的作用是什么？
+  ─────────────────────────────────────────────────────────────────────────────
+
+  A:
+  1. 异步调用，客户端立即返回
+  2. 不阻塞等待服务端返回
+  3. 不能有返回值
+  4. 多个 oneway 调用会排队执行
+  5. 适用于通知、日志上报等不需要返回的场景
+
+
+  Q7: 如何避免 Binder 死锁？
+  ─────────────────────────────────────────────────────────────────────────────
+
+  A:
+  1. 避免嵌套 Binder 调用
+  2. 在新线程中执行耗时操作
+  3. 使用 oneway 异步调用
+  4. 增加 Binder 线程数（不推荐）
+  5. 使用回调代替同步返回
+
+
+  Q8: ServiceManager 的作用是什么？
+  ─────────────────────────────────────────────────────────────────────────────
+
+  A:
+  1. 系统服务的注册中心（类似 DNS）
+  2. 管理所有系统服务的 Binder 引用
+  3. 提供 addService() 注册服务
+  4. 提供 getService() 查询服务
+  5. handle = 0 是 ServiceManager 的固定句柄
+
+
+  Q9: Binder 与其他 IPC 方式的对比？
+  ─────────────────────────────────────────────────────────────────────────────
+
+  A:
+  ┌──────────────┬─────────┬─────────┬─────────┬─────────┐
+  │     方式     │  拷贝   │  安全性  │  易用性  │  性能   │
+  ├──────────────┼─────────┼─────────┼─────────┼─────────┤
+  │ Binder       │   1次   │   高    │   高    │   高    │
+  │ Socket       │   2次   │   中    │   中    │   中    │
+  │ 共享内存     │   0次   │   低    │   低    │   最高  │
+  │ 管道         │   2次   │   中    │   中    │   中    │
+  └──────────────┴─────────┴─────────┴─────────┴─────────┘
+
+
+  Q10: Intent 传参为什么有限制？如何解决？
+  ─────────────────────────────────────────────────────────────────────────────
+
+  A:
+  限制原因:
+  - Intent 通过 Binder 传递
+  - Binder 缓冲区大小限制约 1M
+  - 系统还要预留一部分空间
+  
+  解决方案:
+  1. 使用文件共享
+  2. 使用 ContentProvider + Uri
+  3. 使用 EventBus / LiveData
+  4. 使用单例模式共享数据
+  5. 使用 EventBus
+
+
+  Q11: 解释 BBinder 和 BpBinder 的区别？
+  ─────────────────────────────────────────────────────────────────────────────
+
+  A:
+  BBinder (Binder 本地对象):
+  - 服务端持有
+  - 继承自 IBinder
+  - 实现 onTransact() 处理请求
+  - 对应内核中的 binder_node
+  
+  BpBinder (Binder 代理对象):
+  - 客户端持有
+  - 持有 handle (句柄)
+  - 调用 transact() 发送请求
+  - 对应内核中的 binder_ref
+
+
+  Q12: Parcel 是什么？为什么用 Parcel 而不是 Serializable？
+  ─────────────────────────────────────────────────────────────────────────────
+
+  A:
+  Parcel:
+  - Android 专用序列化容器
+  - 基于 ByteBuffer 实现
+  - 读写效率高
+  - 用于 Binder IPC
+  
+  对比 Serializable:
+  - Serializable 使用反射，效率低
+  - Serializable 产生大量临时对象
+  - Parcel 是 Android 优化的，效率高 10 倍以上
+  - Parcel 不能用于持久化存储（版本兼容问题）
+
+
+  Q13: Binder 驱动在内核中做了什么？
+  ─────────────────────────────────────────────────────────────────────────────
+
+  A:
+  1. 打开 /dev/binder 设备
+  2. mmap 内存映射
+  3. 处理 ioctl 命令 (BINDER_WRITE_READ)
+  4. 管理 binder_proc、binder_thread、binder_node、binder_ref
+  5. 实现 copy_from_user 一次拷贝
+  6. 在目标进程的 todo 队列中添加事务
+  7. 唤醒目标进程
+
+
+  Q14: 如何监听 Binder 服务端死亡？
+  ─────────────────────────────────────────────────────────────────────────────
+
+  A:
+  // 使用 DeathRecipient
+  IBinder.DeathRecipient deathRecipient = new IBinder.DeathRecipient() {
+      @Override
+      public void binderDied() {
+          // 服务端死亡回调
+          // 注意：在 Binder 线程中执行
+      }
+  };
+  
+  // 注册监听
+  binder.linkToDeath(deathRecipient, 0);
+  
+  // 解除监听
+  binder.unlinkToDeath(deathRecipient, 0);
+
+
+  Q15: AIDL 支持哪些数据类型？
+  ─────────────────────────────────────────────────────────────────────────────
+
+  A:
+  1. Java 基本类型: byte, short, int, long, float, double, boolean, char
+  2. String 和 CharSequence
+  3. List (元素必须是支持的类型)
+  4. Map (键值必须是支持的类型)
+  5. Parcelable 实现类
+  6. 其他 AIDL 接口
+
+
+  Q16: Binder 通信是全双工还是半双工？
+  ─────────────────────────────────────────────────────────────────────────────
+
+  A:
+  - Binder 是半双工通信
+  - 一次事务中，只能单向传递
+  - 需要双向通信时，需要两次事务
+  - 或者使用两个 Binder（各自作为 Client 和 Server）
+
+
+  Q17: 解释 TransactionTooLargeException 如何避免？
+  ─────────────────────────────────────────────────────────────────────────────
+
+  A:
+  原因:
+  - Intent 传递数据超过 Binder 缓冲区限制
+  
+  避免:
+  1. 不要传递大图片、大文件
+  2. 只传递必要的数据
+  3. 使用 Parcelable 代替 Serializable
+  4. 大数据使用文件或 ContentProvider
+  5. 图片使用 Uri 而不是 Bitmap
+
+
+  Q18: Binder 如何实现跨进程传递文件描述符？
+  ─────────────────────────────────────────────────────────────────────────────
+
+  A:
+  1. 使用 Parcel.writeFileDescriptor() 写入
+  2. Binder 驱动检测到文件描述符类型
+  3. 在目标进程中分配新的 fd
+  4. 新 fd 指向同一个 file 对象
+  5. 使用 Parcel.readFileDescriptor() 读取
+  
+  应用场景:
+  - 共享内存 (MemoryFile)
+  - Socket 传递
+  - 硬件设备访问
+
+
+  Q19: 什么是 Binder 线程池耗尽？如何避免？
+  ─────────────────────────────────────────────────────────────────────────────
+
+  A:
+  原因:
+  - 16 个 Binder 线程都被阻塞
+  - 无法处理新的 Binder 请求
+  
+  避免方法:
+  1. 不要在 Binder 方法中执行耗时操作
+  2. 耗时操作放到新线程中
+  3. 使用异步方式 (oneway 或 callback)
+  4. 合理设计 API，避免嵌套调用
+
+
+  Q20: 简述 Binder 通信的完整流程？
+  ─────────────────────────────────────────────────────────────────────────────
+
+  A:
+  Client 端:
+  1. 调用 Proxy 方法
+  2. Parcel 写入参数
+  3. BinderProxy.transact()
+  4. JNI 调用 Native 层
+  5. BpBinder.transact()
+  6. IPCThreadState.transact()
+  7. writeTransactionData()
+  8. ioctl(BINDER_WRITE_READ)
+  
+  内核层:
+  9. binder_ioctl()
+  10. binder_transaction()
+  11. copy_from_user()
+  12. 添加到目标进程 todo 队列
+  13. wake_up_interruptible()
+  
+  Server 端:
+  14. IPCThreadState 阻塞返回
+  15. executeCommand()
+  16. BBinder.transact()
+  17. JNI 回调 Java
+  18. Binder.execTransact()
+  19. Stub.onTransact()
+  20. 执行实际方法
+  21. 写入返回值
+  
+  返回:
+  22. 同样流程返回给 Client
+
+
+  面试高频知识点总结：
+  ─────────────────────────────────────────────────────────────────────────────
+
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │                                                                         │
+  │  必须掌握：                                                             │
+  │  ─────────────────────────────────────────────────────────────────────  │
+  │  1. Binder 是什么，为什么选择 Binder                                    │
+  │  2. 一次内存拷贝原理 (mmap)                                             │
+  │  3. Binder 缓冲区大小限制 (1M - 8K)                                     │
+  │  4. AIDL 使用 (Stub/Proxy/asInterface)                                  │
+  │  5. Binder 线程池 (16 个线程)                                           │
+  │  6. oneway 关键字                                                       │
+  │  7. Binder 死锁问题                                                     │
+  │                                                                         │
+  │  进阶掌握：                                                             │
+  │  ─────────────────────────────────────────────────────────────────────  │
+  │  1. Binder 驱动核心数据结构                                             │
+  │  2. ServiceManager 原理                                                 │
+  │  3. Binder 对象传递 (IBinder, 文件描述符)                               │
+  │  4. Binder 调用链追踪                                                   │
+  │  5. TransactionTooLargeException 处理                                   │
+  │  6. Binder 与其他 IPC 方式对比                                          │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 24. Binder 架构图总结
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         Binder 完整架构图                                   │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │                          应用层 (Application)                            │
+  │  ┌───────────────────────────────────────────────────────────────────┐  │
+  │  │                                                                   │  │
+  │  │   Activity              Service              ContentProvider      │  │
+  │  │       │                    │                        │              │  │
+  │  │       └────────────────────┼────────────────────────┘              │  │
+  │  │                            │                                       │  │
+  │  │                            ▼                                       │  │
+  │  │                    ┌───────────────┐                               │  │
+  │  │                    │    AIDL 接口   │                               │  │
+  │  │                    │  (Stub/Proxy) │                               │  │
+  │  │                    └───────────────┘                               │  │
+  │  │                                                                   │  │
+  │  └───────────────────────────────────────────────────────────────────┘  │
+  └─────────────────────────────────────────────────────────────────────────┘
+                                      │
+                                      ▼
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │                       Framework 层 (Java)                                │
+  │  ┌───────────────────────────────────────────────────────────────────┐  │
+  │  │                                                                   │  │
+  │  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐            │  │
+  │  │  │  IBinder     │  │  Binder      │  │ BinderProxy  │            │  │
+  │  │  │  (接口)      │  │  (服务端)    │  │  (客户端)    │            │  │
+  │  │  └──────────────┘  └──────────────┘  └──────────────┘            │  │
+  │  │         │                  │                  │                   │  │
+  │  │         └──────────────────┼──────────────────┘                   │  │
+  │  │                            │                                       │  │
+  │  │                            ▼                                       │  │
+  │  │                   ┌─────────────────┐                              │  │
+  │  │                   │  Parcel (序列化) │                              │  │
+  │  │                   └─────────────────┘                              │  │
+  │  │                                                                   │  │
+  │  └───────────────────────────────────────────────────────────────────┘  │
+  └─────────────────────────────────────────────────────────────────────────┘
+                                      │
+                                      ▼ (JNI)
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │                       Native 层 (C++)                                    │
+  │  ┌───────────────────────────────────────────────────────────────────┐  │
+  │  │                                                                   │  │
+  │  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐            │  │
+  │  │  │  BBinder     │  │  BpBinder    │  │ IPCThreadState│            │  │
+  │  │  │  (服务端)    │  │  (客户端)    │  │  (线程状态)   │            │  │
+  │  │  └──────────────┘  └──────────────┘  └──────────────┘            │  │
+  │  │         │                  │                  │                   │  │
+  │  │         └──────────────────┼──────────────────┘                   │  │
+  │  │                            │                                       │  │
+  │  │                            ▼                                       │  │
+  │  │                   ┌─────────────────┐                              │  │
+  │  │                   │  ProcessState   │                              │  │
+  │  │                   │  (进程状态)     │                              │  │
+  │  │                   └─────────────────┘                              │  │
+  │  │                                                                   │  │
+  │  └───────────────────────────────────────────────────────────────────┘  │
+  └─────────────────────────────────────────────────────────────────────────┘
+                                      │
+                                      ▼ (ioctl)
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │                       内核层 (Kernel)                                     │
+  │  ┌───────────────────────────────────────────────────────────────────┐  │
+  │  │                                                                   │  │
+  │  │                    ┌─────────────────────┐                        │  │
+  │  │                    │    Binder 驱动      │                        │  │
+  │  │                    │   /dev/binder      │                        │  │
+  │  │                    │                    │                        │  │
+  │  │                    │  - binder_proc     │  (进程上下文)           │  │
+  │  │                    │  - binder_thread   │  (线程上下文)           │  │
+  │  │                    │  - binder_node     │  (Binder 实体)          │  │
+  │  │                    │  - binder_ref      │  (Binder 引用)          │  │
+  │  │                    │  - binder_buffer   │  (内存缓冲区)           │  │
+  │  │                    │                    │                        │  │
+  │  │                    └─────────────────────┘                        │  │
+  │  │                                                                   │  │
+  │  └───────────────────────────────────────────────────────────────────┘  │
+  └─────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 25. 目录更新
+
+```
+## 目录
+
+1. [概述](#1-概述)
+2. [为什么选择 Binder](#2-为什么选择-binder)
+3. [Binder 整体架构](#3-binder-整体架构)
+4. [Binder 全局流程图](#4-binder-全局流程图)
+5. [Binder 驱动层](#5-binder-驱动层)
+   - 5.1 [核心数据结构](#51-核心数据结构)
+   - 5.2 [内存映射 (mmap)](#52-内存映射-mmap)
+   - 5.3 [ioctl 命令](#53-ioctl-命令)
+6. [Native 层](#6-native-层)
+   - 6.1 [ProcessState](#61-processstate)
+   - 6.2 [IPCThreadState](#62-ipcthreadstate)
+   - 6.3 [BpBinder 与 BBinder](#63-bpbinder-与-bbinder)
+7. [Framework 层](#7-framework-层)
+   - 7.1 [Binder.java](#71-binderjava)
+   - 7.2 [BinderProxy.java](#72-binderproxyjava)
+8. [AIDL 详解](#8-aidl-详解)
+   - 8.1 [AIDL 语法](#81-aidl-语法)
+   - 8.2 [AIDL 生成的代码结构](#82-aidl-生成的代码结构)
+   - 8.3 [AIDL 完整示例](#83-aidl-完整示例)
+9. [Binder 线程池](#9-binder-线程池)
+10. [跨进程通信方式对比](#10-跨进程通信方式对比)
+11. [常见问题](#11-常见问题)
+12. [ServiceManager](#12-servicemanager)
+13. [Messenger](#13-messenger)
+14. [ContentProvider](#14-contentprovider)
+15. [文件共享](#15-文件共享)
+16. [Socket IPC](#16-socket-ipc)
+17. [Binder 调试技巧](#17-binder-调试技巧)
+18. [总结](#18-总结)
+19. [Binder 事务生命周期](#19-binder-事务生命周期)
+   - 19.1 [同步事务 vs 异步事务 (oneway)](#191-同步事务-vs-异步事务-oneway)
+20. [Binder 死锁问题](#20-binder-死锁问题)
+21. [Binder 对象传递](#21-binder-对象传递)
+   - 21.1 [文件描述符传递](#211-文件描述符传递)
+22. [Binder 调用链追踪](#22-binder-调用链追踪)
+23. [Binder 高频面试题](#23-binder-高频面试题)
+24. [Binder 架构图总结](#24-binder-架构图总结)
+```
+
+---
+
 *Generated by OpenClaw*
+
