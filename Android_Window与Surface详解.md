@@ -435,9 +435,42 @@ class FloatingWindowService : Service() {
 │                        SurfaceView 架构                                     │
 └─────────────────────────────────────────────────────────────────────────────┘
 
-SurfaceView 会创建两个 Surface：
-1. 宿主 Activity 的 Surface (SurfaceView 本身只是占位)
-2. SurfaceView 的独立 Surface (真正的绘制表面)
+SurfaceView 的特殊性：涉及 2 个 Surface
+
+1. **宿主 Activity 的 Surface (Surface #1)**
+   - 由 Activity 的 ViewRootImpl 管理
+   - SurfaceView 在这个 Surface 上是透明的（"挖了个洞"）
+   - SurfaceView 本身只是 View 层级中的占位符
+
+2. **SurfaceView 的独立 Surface (Surface #2)**
+   - 由 SurfaceView 内部管理（通过 SurfaceHolder）
+   - 位于宿主 Surface 的"下方"
+   - 这是真正绘制视频/相机/游戏内容的 Surface
+   - 通过 Activity Surface 上的"洞"显示出来
+SurfaceView 的特殊性：涉及 2 个 Surface
+
+1. **宿主 Activity 的 Surface (Surface #1)**
+   - 由 Activity 的 ViewRootImpl 管理
+   - SurfaceView 在这个 Surface 上是透明的（"挖了个洞"）
+   - SurfaceView 本身只是 View 层级中的占位符
+
+2. **SurfaceView 的独立 Surface (Surface #2)**
+   - 由 SurfaceView 内部管理（通过 SurfaceHolder）
+   - 位于宿主 Surface 的"下方"
+   - 这是真正绘制视频/相机/游戏内容的 Surface
+   - 通过 Activity Surface 上的"洞"显示出来
+SurfaceView 的特殊性：涉及 2 个 Surface
+
+1. **宿主 Activity 的 Surface (Surface #1)**
+   - 由 Activity 的 ViewRootImpl 管理
+   - SurfaceView 在这个 Surface 上是透明的（"挖了个洞"）
+   - SurfaceView 本身只是 View 层级中的占位符
+
+2. **SurfaceView 的独立 Surface (Surface #2)**
+   - 由 SurfaceView 内部管理（通过 SurfaceHolder）
+   - 位于宿主 Surface 的"下方"
+   - 这是真正绘制视频/相机/游戏内容的 Surface
+   - 通过 Activity Surface 上的"洞"显示出来
 
      ┌─────────────────────────────────────────────────────────────────────┐
      │                        Window (窗口层)                               │
@@ -544,6 +577,238 @@ TextureView 不创建新的 Surface，共享宿主的 Surface。
 | 截图 | ❌ 不支持 | ✅ getBitmap() |
 | 性能 | ⭐⭐⭐⭐⭐ | ⭐⭐⭐ |
 | 适用场景 | 视频、相机、游戏 | 视频滤镜、动画、截图 |
+
+### 5.4 TextureView 应用场景详解
+
+#### 场景1：视频滤镜/特效
+
+```kotlin
+// 需要获取每一帧数据进行处理
+class FilterTextureView(context: Context) : TextureView(context) {
+    
+    private var surfaceTexture: SurfaceTexture? = null
+    
+    fun applyFilter(filter: Filter) {
+        // 获取当前帧
+        val bitmap = this.bitmap
+        
+        // 应用滤镜
+        val filteredBitmap = filter.apply(bitmap)
+        
+        // 显示处理后的图像
+        // ...
+    }
+}
+
+// 应用场景：美颜相机、视频编辑、AR 特效
+```
+
+#### 场景2：视频弹幕
+
+```xml
+<!-- TextureView + 弹幕 View 叠加 -->
+<FrameLayout>
+    <TextureView          <!-- 视频播放 -->
+        android:id="@+id/videoView" />
+        
+    <DanmakuView          <!-- 弹幕层 -->
+        android:id="@+id/danmakuView" />
+</FrameLayout>
+
+<!-- 原因：弹幕需要与视频叠加显示 -->
+<!-- SurfaceView 是独立图层，无法与 View 叠加 -->
+```
+
+#### 场景3：视频小窗动画
+
+```kotlin
+// 小窗视频支持拖动、缩放、淡入淡出
+class MiniVideoPlayer(context: Context) : TextureView(context) {
+    
+    fun animateToMiniWindow() {
+        // 缩小到角落
+        animate()
+            .scaleX(0.3f)
+            .scaleY(0.3f)
+            .translationX(width.toFloat())
+            .translationY(-height.toFloat())
+            .alpha(0.8f)
+            .setDuration(300)
+            .start()
+    }
+    
+    fun expandToFullScreen() {
+        animate()
+            .scaleX(1f)
+            .scaleY(1f)
+            .translationX(0f)
+            .translationY(0f)
+            .alpha(1f)
+            .setDuration(300)
+            .start()
+    }
+}
+
+// 应用场景：直播小窗、画中画、悬浮视频
+```
+
+#### 场景4：视频截图
+
+```kotlin
+// 直播截图、视频封面生成
+class VideoThumbnailGenerator(private val textureView: TextureView) {
+    
+    fun generateThumbnail(): Bitmap? {
+        return textureView.bitmap  // 直接获取当前帧
+    }
+    
+    fun saveThumbnailToFile(path: String): Boolean {
+        val bitmap = textureView.bitmap ?: return false
+        FileOutputStream(path).use { out ->
+            bitmap.compress(Bitmap.CompressFormat.JPEG, 90, out)
+        }
+        return true
+    }
+}
+
+// 应用场景：视频封面、直播截图、分享图片
+```
+
+#### 场景5：直播推流
+
+```kotlin
+// 需要获取帧数据进行编码推流
+class LiveStreamView(context: Context) : TextureView(context) {
+    
+    private lateinit var encoder: VideoEncoder
+    
+    fun startStreaming(rtmpUrl: String) {
+        // 从 SurfaceTexture 获取帧数据
+        // 编码后推送到 RTMP 服务器
+        encoder.start(surfaceTexture, rtmpUrl)
+    }
+    
+    // TextureView 的 SurfaceTexture 可以传递给编码器
+    // SurfaceView 的 Surface 无法这样使用
+}
+
+// 应用场景：直播 App、视频通话
+```
+
+#### 场景6：视频转场动画
+
+```kotlin
+// 视频切换时的淡入淡出、滑动等效果
+class VideoTransitionView(context: Context) : TextureView(context) {
+    
+    fun crossFadeTo(newVideo: String) {
+        // 当前视频淡出
+        animate()
+            .alpha(0f)
+            .setDuration(500)
+            .withEndAction {
+                // 切换视频源
+                playVideo(newVideo)
+                
+                // 新视频淡入
+                animate()
+                    .alpha(1f)
+                    .setDuration(500)
+                    .start()
+            }
+            .start()
+    }
+}
+
+// 应用场景：视频播放器、短视频 App
+```
+
+#### 场景7：相机预览 + 滤镜
+
+```kotlin
+// 相机预览需要实时滤镜处理
+class CameraWithFilter(context: Context) : TextureView(context) {
+    
+    private lateinit var camera: Camera
+    private lateinit var filterEngine: FilterEngine
+    
+    fun startCamera() {
+        camera.setPreviewTexture(surfaceTexture)
+        camera.startPreview()
+        
+        // 实时应用滤镜
+        surfaceTexture?.setOnFrameAvailableListener {
+            // 处理每一帧
+            filterEngine.processFrame(bitmap)
+        }
+    }
+}
+
+// 应用场景：美颜相机、AR 应用
+```
+
+#### 场景8：视频画中画 (PIP)
+
+```kotlin
+// 画中画需要透明背景和动画
+class PictureInPictureView(context: Context) : FrameLayout(context) {
+    
+    private val textureView: TextureView
+    
+    fun enterPipMode() {
+        textureView.animate()
+            .scaleX(0.25f)
+            .scaleY(0.25f)
+            .alpha(0.9f)
+            .translationX(pipX)
+            .translationY(pipY)
+            .start()
+    }
+    
+    fun exitPipMode() {
+        textureView.animate()
+            .scaleX(1f)
+            .scaleY(1f)
+            .alpha(1f)
+            .translationX(0f)
+            .translationY(0f)
+            .start()
+    }
+}
+
+// 应用场景：视频通话、直播、会议
+```
+
+### 5.5 场景选择速查表
+
+| 场景 | TextureView | SurfaceView | 原因 |
+|------|:-----------:|:-----------:|------|
+| 普通视频播放 | | ✅ | 性能优先 |
+| 视频滤镜/美颜 | ✅ | | 需要获取帧数据 |
+| 视频弹幕 | ✅ | | 需要与 View 叠加 |
+| 小窗动画 | ✅ | | 需要动画/变换 |
+| 视频截图 | ✅ | | 需要获取 Bitmap |
+| 直播推流 | ✅ | | 需要获取帧编码 |
+| 相机预览 | | ✅ | 低延迟优先 |
+| 相机 + 滤镜 | ✅ | | 需要处理帧 |
+| 游戏渲染 | | ✅ | 性能优先 |
+| 画中画 | ✅ | | 需要动画/透明 |
+| 视频转场 | ✅ | | 需要淡入淡出 |
+
+### 5.6 核心差异总结
+
+**选 TextureView 当你需要：**
+- ✅ 动画（平移、缩放、旋转、透明度）
+- ✅ 截图（getBitmap()）
+- ✅ 与 View 叠加（弹幕、按钮）
+- ✅ 获取帧数据（滤镜、推流）
+- ✅ 透明背景
+
+**选 SurfaceView 当你需要：**
+- ✅ 最高性能（视频、相机、游戏）
+- ✅ 子线程渲染
+- ✅ 低延迟
+- ✅ 不需要与 View 交互
 
 ---
 
