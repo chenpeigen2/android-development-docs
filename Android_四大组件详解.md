@@ -966,25 +966,301 @@ public class MainActivity extends AppCompatActivity {
 }
 ```
 
-### 4.4 广播限制
+### 4.4 广播发送方式
+
+```java
+/**
+ * 1. 发送无序广播
+ */
+Intent intent = new Intent("com.example.MY_ACTION");
+intent.putExtra("data", "Hello");
+sendBroadcast(intent);
+
+/**
+ * 2. 发送有序广播
+ */
+Intent intent = new Intent("com.example.ORDERED_ACTION");
+sendOrderedBroadcast(intent, null);
+
+// 接收有序广播
+public class OrderedReceiver extends BroadcastReceiver {
+    @Override
+    public void onReceive(Context context, Intent intent) {
+        // 获取上一个接收者传递的数据
+        String data = getResultData();
+        
+        // 传递给下一个接收者
+        setResultData("Modified: " + data);
+        
+        // 拦截广播（后面的接收者不会收到）
+        // abortBroadcast();
+    }
+}
+
+/**
+ * 3. 发送本地广播
+ */
+LocalBroadcastManager.getInstance(context)
+    .sendBroadcast(new Intent("com.example.LOCAL_ACTION"));
+
+/**
+ * 4. 发送粘性广播（已废弃）
+ */
+// sendStickyBroadcast(intent);  // Android 5.0+ 废弃
+```
+
+### 4.5 广播权限控制
+
+```xml
+<!-- 1. 声明权限 -->
+<permission android:name="com.example.MY_PERMISSION" />
+
+<!-- 2. 发送带权限的广播 -->
+<uses-permission android:name="com.example.MY_PERMISSION" />
+```
+
+```java
+// 发送方：只有声明了权限的应用才能接收
+sendBroadcast(intent, "com.example.MY_PERMISSION");
+
+// 接收方：只有声明了权限的应用才能发送
+registerReceiver(receiver, filter, "com.example.MY_PERMISSION", null);
+```
+
+### 4.6 广播限制
 
 ```
-Android 8.0+ 广播限制：
-─────────────────────────────────────────────────────────────────────────
-静态注册的隐式广播不再生效（大部分）
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         Android 8.0+ 广播限制                               │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+限制原因：
+- 后台应用监听广播会消耗资源
+- 静态注册的广播会在应用未运行时唤醒应用
+
+限制内容：
+- 静态注册的隐式广播不再生效（大部分）
 
 不受限制的广播（可以静态注册）：
-- BOOT_COMPLETED（开机）
-- TIMEZONE_CHANGED（时区变化）
-- LOCALE_CHANGED（语言变化）
-- MY_PACKAGE_REPLACED（应用更新）
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  广播 Action                          │  说明                               │
+├────────────────────────────────────────┼────────────────────────────────────┤
+│  BOOT_COMPLETED                       │  开机完成                           │
+│  LOCKED_BOOT_COMPLETED                │  开机完成且设备已解锁               │
+│  TIMEZONE_CHANGED                     │  时区变化                           │
+│  TIME_SET                             │  时间变化                           │
+│  DATE_CHANGED                         │  日期变化                           │
+│  LOCALE_CHANGED                       │  语言变化                           │
+│  MY_PACKAGE_REPLACED                  │  应用更新（仅自己）                 │
+│  PACKAGE_REPLACED                     │  应用更新（需要权限）               │
+│  PACKAGE_ADDED                        │  应用安装                           │
+│  PACKAGE_REMOVED                      │  应用卸载                           │
+│  ACTION_POWER_CONNECTED               │  连接电源                           │
+│  ACTION_POWER_DISCONNECTED            │  断开电源                           │
+│  BATTERY_LOW                          │  电量低                             │
+│  BATTERY_OKAY                         │  电量恢复                           │
+│  DEVICE_STORAGE_LOW                   │  存储空间低                         │
+│  DEVICE_STORAGE_OK                    │  存储空间恢复                       │
+└─────────────────────────────────────────────────────────────────────────────┘
 
 受限制的广播（需要动态注册）：
 - CONNECTIVITY_ACTION（网络变化）
-- ACTION_POWER_CONNECTED（充电）
+- WIFI_STATE_CHANGED（WiFi 状态）
+- SCREEN_ON / SCREEN_OFF（屏幕开关）
+
+解决方案：
+1. 使用动态注册
+2. 使用 JobScheduler / WorkManager 替代
+3. 使用系统 API 替代（如 ConnectivityManager.registerNetworkCallback）
 ```
 
-### 4.5 BroadcastReceiver 常见问题
+### 4.7 常用系统广播
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         常用系统广播列表                                    │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+系统状态类：
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  Action                               │  说明                               │
+├────────────────────────────────────────┼────────────────────────────────────┤
+│  android.intent.action.BOOT_COMPLETED │  开机完成                           │
+│  android.intent.action.SHUTDOWN       │  关机                               │
+│  android.intent.action.REBOOT         │  重启                               │
+│  android.net.conn.CONNECTIVITY_CHANGE │  网络状态变化                       │
+│  android.net.wifi.WIFI_STATE_CHANGED  │  WiFi 状态变化                      │
+│  android.intent.action.AIRPLANE_MODE  │  飞行模式变化                       │
+│  android.intent.action.BATTERY_CHANGED│  电池状态变化                       │
+│  android.intent.action.BATTERY_LOW    │  电量低                             │
+│  android.intent.action.POWER_CONNECTED│  连接电源                           │
+│  android.intent.action.POWER_DISCONNECTED │  断开电源                       │
+│  android.intent.action.SCREEN_ON      │  屏幕亮起                           │
+│  android.intent.action.SCREEN_OFF     │  屏幕熄灭                           │
+│  android.intent.action.USER_PRESENT   │  用户解锁                           │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+时间日期类：
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  Action                               │  说明                               │
+├────────────────────────────────────────┼────────────────────────────────────┤
+│  android.intent.action.TIME_SET        │  时间设置变化                       │
+│  android.intent.action.DATE_CHANGED    │  日期变化                           │
+│  android.intent.action.TIMEZONE_CHANGED│  时区变化                           │
+│  android.app.action.NEXT_ALARM_CLOCK_CHANGED │  闹钟变化                  │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+应用相关类：
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  Action                               │  说明                               │
+├────────────────────────────────────────┼────────────────────────────────────┤
+│  android.intent.action.PACKAGE_ADDED   │  应用安装                           │
+│  android.intent.action.PACKAGE_REMOVED │  应用卸载                           │
+│  android.intent.action.PACKAGE_REPLACED│  应用更新                           │
+│  android.intent.action.MY_PACKAGE_REPLACED │  自己更新                       │
+│  android.intent.action.PACKAGE_DATA_CLEARED │  应用数据清除                │
+│  android.intent.action.PACKAGE_FIRST_LAUNCH │  首次启动                    │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+媒体相关类：
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  Action                               │  说明                               │
+├────────────────────────────────────────┼────────────────────────────────────┤
+│  android.intent.action.HEADSET_PLUG    │  耳机插拔                           │
+│  android.media.VOLUME_CHANGED_ACTION   │  音量变化                           │
+│  android.intent.action.MEDIA_MOUNTED   │  SD 卡挂载                          │
+│  android.intent.action.MEDIA_UNMOUNTED │  SD 卡卸载                          │
+│  android.intent.action.MEDIA_REMOVED   │  SD 卡移除                          │
+│  android.intent.action.CAMERA_BUTTON   │  相机按键                           │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+语言地区类：
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  Action                               │  说明                               │
+├────────────────────────────────────────┼────────────────────────────────────┤
+│  android.intent.action.LOCALE_CHANGED  │  语言变化                           │
+│  android.intent.action.CONFIGURATION_CHANGED │  配置变化                  │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 4.8 本地广播 LocalBroadcastManager
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         LocalBroadcastManager                               │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+特点：
+- 只在应用内传播，不跨进程
+- 安全性高，其他应用无法发送/接收
+- 效率高，不经过系统 Binder
+- 不受 Android 8.0+ 限制
+- 不会产生 ANR
+
+// 依赖
+implementation 'androidx.localbroadcastmanager:localbroadcastmanager:1.1.0'
+```
+
+```java
+/**
+ * 注册本地广播
+ */
+public class MainActivity extends AppCompatActivity {
+    
+    private LocalBroadcastManager localBroadcastManager;
+    private LocalReceiver localReceiver;
+    
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        
+        localBroadcastManager = LocalBroadcastManager.getInstance(this);
+        
+        // 注册
+        localReceiver = new LocalReceiver();
+        IntentFilter filter = new IntentFilter("com.example.LOCAL_ACTION");
+        localBroadcastManager.registerReceiver(localReceiver, filter);
+    }
+    
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        // 注销
+        localBroadcastManager.unregisterReceiver(localReceiver);
+    }
+    
+    // 发送
+    private void sendLocalBroadcast() {
+        Intent intent = new Intent("com.example.LOCAL_ACTION");
+        intent.putExtra("data", "Hello Local");
+        localBroadcastManager.sendBroadcast(intent);
+    }
+    
+    class LocalReceiver extends BroadcastReceiver {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            String data = intent.getStringExtra("data");
+        }
+    }
+}
+```
+
+```
+推荐替代方案：
+─────────────────────────────────────────────────────────────────────────
+
+1. LiveData / Flow（推荐）
+   - 生命周期感知
+   - 自动取消订阅
+
+2. EventBus / RxBus
+   - 更灵活的事件总线
+   - 支持线程切换
+
+3. 自定义回调接口
+   - 简单直接
+   - 适合简单场景
+```
+
+### 4.9 广播原理
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         广播分发原理                                        │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+发送方                      AMS                        接收方
+   │                         │                           │
+   │  sendBroadcast()        │                           │
+   │────────────────────────►│                           │
+   │                         │                           │
+   │                         │  查找匹配的 Receiver      │
+   │                         │  按优先级排序             │
+   │                         │                           │
+   │                         │  无序广播：并行分发       │
+   │                         │  有序广播：串行分发       │
+   │                         │                           │
+   │                         │  scheduleRegisteredReceiver
+   │                         │──────────────────────────►│
+   │                         │                           │
+   │                         │                   onReceive()
+   │                         │                           │
+   │                         │◄──────────────────────────│
+   │                         │     处理完成              │
+
+关键类：
+- ActivityManagerService (AMS)：管理广播分发
+- BroadcastQueue：管理广播队列
+- BroadcastRecord：广播记录
+- ReceiverList：接收者列表
+- IntentResolver：Intent 匹配
+
+两种 BroadcastQueue：
+- fgQueue：前台广播队列，超时 10 秒
+- bgQueue：后台广播队列，超时 60 秒
+```
+
+### 4.10 BroadcastReceiver 常见问题
 
 ```
 Q1: onReceive() 可以执行耗时操作吗？
@@ -1030,7 +1306,52 @@ A: 会导致内存泄漏，必须在 onDestroy() 中注销
   _id: 123（记录ID）
 ```
 
-### 5.2 ContentProvider 核心方法
+### 5.2 ContentProvider 原理
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         ContentProvider 原理                                │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+客户端进程                          系统进程 (AMS)                     服务端进程
+     │                                   │                                  │
+     │  ContentResolver.query()          │                                  │
+     │         │                         │                                  │
+     │         ▼                         │                                  │
+     │  ApplicationContentResolver       │                                  │
+     │         │                         │                                  │
+     │         │  getContentProvider()   │                                  │
+     │         ├────────────────────────►│                                  │
+     │         │                         │                                  │
+     │         │                         │  查找/启动 Provider 进程         │
+     │         │                         │                                  │
+     │         │                         │  IContentProvider.query()        │
+     │         │                         ├─────────────────────────────────►│
+     │         │                         │                                  │
+     │         │                         │                          ContentProvider.query()
+     │         │                         │                                  │
+     │         │                         │◄─────────────────────────────────┤
+     │         │                         │         返回 Cursor              │
+     │         │                         │                                  │
+     │         │◄────────────────────────│                                  │
+     │         │   返回 Cursor           │                                  │
+     │         │                         │                                  │
+     │         ▼                         │                                  │
+     │  返回给调用者                     │                                  │
+
+关键类：
+- ContentResolver：客户端访问入口
+- IContentProvider：Binder 接口
+- ContentProvider：服务端实现
+- ContentProviderNative：Binder Native 层
+
+特点：
+- 通过 Binder 实现跨进程
+- 数据以 Cursor 形式返回
+- 支持批量操作（applyBatch）
+```
+
+### 5.3 ContentProvider 核心方法
 
 ```
 ┌─────────────────┬─────────────────────────────────────────────────────────┐
@@ -1042,51 +1363,404 @@ A: 会导致内存泄漏，必须在 onDestroy() 中注销
 │ update()         │ 更新数据，返回受影响的行数                               │
 │ delete()         │ 删除数据，返回受影响的行数                               │
 │ getType()        │ 返回 MIME 类型                                          │
+│ call()           │ 自定义方法调用（Android 5.0+）                          │
+│ bulkInsert()     │ 批量插入                                                │
+│ applyBatch()     │ 批量操作                                                │
 └─────────────────┴─────────────────────────────────────────────────────────┘
+
+MIME 类型格式：
+- 单条记录：vnd.android.cursor.item/vnd.com.example.user
+- 多条记录：vnd.android.cursor.dir/vnd.com.example.users
 ```
 
-### 5.3 ContentProvider 使用
+### 5.4 自定义 ContentProvider 完整示例
 
 ```java
 /**
- * 使用 ContentResolver 访问
+ * 自定义 ContentProvider 完整实现
  */
-public void query() {
-    ContentResolver resolver = getContentResolver();
-    Uri uri = Uri.parse("content://com.example.provider/users");
+public class UserProvider extends ContentProvider {
     
-    Cursor cursor = resolver.query(uri, 
-        new String[]{"_id", "name", "age"},
-        null, null, null);
+    private static final String AUTHORITY = "com.example.provider";
+    private static final int USER_DIR = 1;
+    private static final int USER_ITEM = 2;
     
-    if (cursor != null) {
-        while (cursor.moveToNext()) {
-            int id = cursor.getInt(0);
-            String name = cursor.getString(1);
+    private static final UriMatcher uriMatcher = new UriMatcher(UriMatcher.NO_MATCH);
+    
+    static {
+        uriMatcher.addURI(AUTHORITY, "users", USER_DIR);
+        uriMatcher.addURI(AUTHORITY, "users/#", USER_ITEM);
+    }
+    
+    private SQLiteDatabase db;
+    
+    @Override
+    public boolean onCreate() {
+        // 在主线程调用，不能执行耗时操作
+        DbHelper helper = new DbHelper(getContext());
+        db = helper.getWritableDatabase();
+        return true;
+    }
+    
+    @Nullable
+    @Override
+    public Cursor query(@NonNull Uri uri, @Nullable String[] projection,
+                        @Nullable String selection, @Nullable String[] selectionArgs,
+                        @Nullable String sortOrder) {
+        
+        String tableName = getTableName(uri);
+        
+        switch (uriMatcher.match(uri)) {
+            case USER_DIR:
+                return db.query(tableName, projection, selection, 
+                    selectionArgs, null, null, sortOrder);
+            case USER_ITEM:
+                String id = uri.getPathSegments().get(1);
+                return db.query(tableName, projection, "_id = ?", 
+                    new String[]{id}, null, null, sortOrder);
+            default:
+                throw new IllegalArgumentException("Unknown URI: " + uri);
         }
-        cursor.close();
+    }
+    
+    @Nullable
+    @Override
+    public Uri insert(@NonNull Uri uri, @Nullable ContentValues values) {
+        String tableName = getTableName(uri);
+        long id = db.insert(tableName, null, values);
+        
+        if (id > 0) {
+            Uri newUri = ContentUris.withAppendedId(uri, id);
+            // 通知数据变化
+            getContext().getContentResolver().notifyChange(newUri, null);
+            return newUri;
+        }
+        return null;
+    }
+    
+    @Override
+    public int update(@NonNull Uri uri, @Nullable ContentValues values,
+                      @Nullable String selection, @Nullable String[] selectionArgs) {
+        String tableName = getTableName(uri);
+        int count = db.update(tableName, values, selection, selectionArgs);
+        
+        if (count > 0) {
+            getContext().getContentResolver().notifyChange(uri, null);
+        }
+        return count;
+    }
+    
+    @Override
+    public int delete(@NonNull Uri uri, @Nullable String selection,
+                      @Nullable String[] selectionArgs) {
+        String tableName = getTableName(uri);
+        int count = db.delete(tableName, selection, selectionArgs);
+        
+        if (count > 0) {
+            getContext().getContentResolver().notifyChange(uri, null);
+        }
+        return count;
+    }
+    
+    @Nullable
+    @Override
+    public String getType(@NonNull Uri uri) {
+        switch (uriMatcher.match(uri)) {
+            case USER_DIR:
+                return "vnd.android.cursor.dir/vnd.com.example.users";
+            case USER_ITEM:
+                return "vnd.android.cursor.item/vnd.com.example.user";
+            default:
+                throw new IllegalArgumentException("Unknown URI: " + uri);
+        }
+    }
+    
+    private String getTableName(Uri uri) {
+        return "users";
     }
 }
+```
 
+```xml
+<!-- AndroidManifest.xml 注册 -->
+<provider
+    android:name=".UserProvider"
+    android:authorities="com.example.provider"
+    android:exported="true"
+    android:readPermission="com.example.READ_USER"
+    android:writePermission="com.example.WRITE_USER" />
+```
+
+### 5.5 UriMatcher 使用
+
+```java
 /**
- * ContentObserver 监听数据变化
+ * UriMatcher 用于匹配 URI
  */
-public class DataObserver extends ContentObserver {
-    public DataObserver(Handler handler) {
+public class UriMatcherExample {
+    
+    private static final String AUTHORITY = "com.example.provider";
+    
+    private static final int USERS = 1;           // users/
+    private static final int USER_ID = 2;         // users/#
+    private static final int USER_ORDERS = 3;     // users/#/orders
+    private static final int ORDER_ID = 4;        // orders/#
+    
+    private static final UriMatcher matcher = new UriMatcher(UriMatcher.NO_MATCH);
+    
+    static {
+        // # 匹配数字，* 匹配任意字符串
+        matcher.addURI(AUTHORITY, "users", USERS);
+        matcher.addURI(AUTHORITY, "users/#", USER_ID);
+        matcher.addURI(AUTHORITY, "users/#/orders", USER_ORDERS);
+        matcher.addURI(AUTHORITY, "orders/#", ORDER_ID);
+    }
+    
+    public void match(Uri uri) {
+        switch (matcher.match(uri)) {
+            case USERS:
+                // content://com.example.provider/users
+                break;
+            case USER_ID:
+                // content://com.example.provider/users/123
+                long id = ContentUris.parseId(uri);
+                break;
+            case USER_ORDERS:
+                // content://com.example.provider/users/123/orders
+                String userId = uri.getPathSegments().get(1);
+                break;
+            default:
+                throw new IllegalArgumentException("Unknown URI: " + uri);
+        }
+    }
+}
+```
+
+### 5.6 ContentObserver 监听数据变化
+
+```java
+/**
+ * 监听 ContentProvider 数据变化
+ */
+public class UserObserver extends ContentObserver {
+    
+    public UserObserver(Handler handler) {
         super(handler);
     }
     
     @Override
-    public void onChange(boolean selfChange) {
-        // 数据变化了
+    public void onChange(boolean selfChange, @Nullable Uri uri) {
+        super.onChange(selfChange, uri);
+        // 数据变化了，刷新 UI
+        if (uri != null) {
+            long id = ContentUris.parseId(uri);
+            Log.d("Observer", "User " + id + " changed");
+        }
     }
 }
 
 // 注册监听
-resolver.registerContentObserver(uri, true, observer);
+public class MainActivity extends AppCompatActivity {
+    
+    private UserObserver observer;
+    
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        
+        observer = new UserObserver(new Handler(Looper.getMainLooper()));
+        
+        Uri uri = Uri.parse("content://com.example.provider/users");
+        // true 表示监听所有子 URI
+        getContentResolver().registerContentObserver(uri, true, observer);
+    }
+    
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        getContentResolver().unregisterContentObserver(observer);
+    }
+}
 ```
 
-### 5.4 ContentProvider 常见问题
+### 5.7 批量操作
+
+```java
+/**
+ * 批量操作 - 提高性能
+ */
+public void batchInsert(List<User> users) {
+    ContentResolver resolver = getContentResolver();
+    Uri uri = Uri.parse("content://com.example.provider/users");
+    
+    ArrayList<ContentProviderOperation> operations = new ArrayList<>();
+    
+    for (User user : users) {
+        operations.add(ContentProviderOperation.newInsert(uri)
+            .withValue("name", user.name)
+            .withValue("age", user.age)
+            .build());
+    }
+    
+    try {
+        // 批量执行，在一个事务中
+        resolver.applyBatch("com.example.provider", operations);
+    } catch (Exception e) {
+        e.printStackTrace();
+    }
+}
+
+/**
+ * 批量插入 - bulkInsert
+ */
+public int bulkInsert(List<User> users) {
+    Uri uri = Uri.parse("content://com.example.provider/users");
+    
+    ContentValues[] valuesArray = new ContentValues[users.size()];
+    for (int i = 0; i < users.size(); i++) {
+        ContentValues values = new ContentValues();
+        values.put("name", users.get(i).name);
+        values.put("age", users.get(i).age);
+        valuesArray[i] = values;
+    }
+    
+    return getContentResolver().bulkInsert(uri, valuesArray);
+}
+```
+
+### 5.8 ContentProvider 权限控制
+
+```xml
+<!-- 1. 声明权限 -->
+<permission
+    android:name="com.example.READ_USER"
+    android:label="Read User"
+    android:protectionLevel="normal" />
+    
+<permission
+    android:name="com.example.WRITE_USER"
+    android:label="Write User"
+    android:protectionLevel="dangerous" />
+
+<!-- 2. Provider 配置权限 -->
+<provider
+    android:name=".UserProvider"
+    android:authorities="com.example.provider"
+    android:exported="true"
+    android:readPermission="com.example.READ_USER"
+    android:writePermission="com.example.WRITE_USER" />
+
+<!-- 3. 客户端申请权限 -->
+<uses-permission android:name="com.example.READ_USER" />
+<uses-permission android:name="com.example.WRITE_USER" />
+```
+
+```xml
+<!-- URI 权限临时授予 -->
+<provider
+    android:name=".UserProvider"
+    android:authorities="com.example.provider"
+    android:exported="true"
+    android:grantUriPermissions="true">
+    
+    <grant-uri-permission android:pathPattern="/users/.*" />
+</provider>
+
+<!-- 客户端通过 Intent 临时获取权限 -->
+Intent intent = new Intent();
+intent.setData(Uri.parse("content://com.example.provider/users/123"));
+intent.setFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+```
+
+### 5.9 ContentProvider 与 Room
+
+```java
+/**
+ * Room + ContentProvider 结合使用
+ */
+@Database(entities = {User.class}, version = 1)
+public abstract class AppDatabase extends RoomDatabase {
+    public abstract UserDao userDao();
+}
+
+@Dao
+public interface UserDao {
+    @Query("SELECT * FROM users")
+    Cursor getAllUsers();
+    
+    @Insert
+    long insert(User user);
+    
+    @Update
+    int update(User user);
+    
+    @Delete
+    int delete(User user);
+}
+
+// ContentProvider 使用 Room
+public class RoomProvider extends ContentProvider {
+    
+    private AppDatabase database;
+    
+    @Override
+    public boolean onCreate() {
+        database = Room.databaseBuilder(getContext(), 
+            AppDatabase.class, "app.db").build();
+        return true;
+    }
+    
+    @Nullable
+    @Override
+    public Cursor query(@NonNull Uri uri, @Nullable String[] projection,
+                        @Nullable String selection, @Nullable String[] selectionArgs,
+                        @Nullable String sortOrder) {
+        return database.userDao().getAllUsers();
+    }
+}
+```
+
+### 5.10 常用系统 ContentProvider
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         常用系统 ContentProvider                            │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────┬───────────────────────────────────────────────────────┐
+│  Provider           │  URI                                      │  说明     │
+├─────────────────────┼───────────────────────────────────────────────────────┤
+│  Contacts           │  content://contacts/people               │  联系人   │
+│  CallLog            │  content://call_log/calls                │  通话记录 │
+│  MediaStore.Images  │  content://media/external/images/media   │  图片     │
+│  MediaStore.Video   │  content://media/external/video/media    │  视频     │
+│  MediaStore.Audio   │  content://media/external/audio/media    │  音频     │
+│  MediaStore.Files   │  content://media/external/file           │  文件     │
+│  Calendar           │  content://com.android.calendar/events   │  日历     │
+│  Browser            │  content://browser/bookmarks             │  书签     │
+│  Settings           │  content://settings/system               │  系统设置 │
+│  UserDictionary     │  content://user_dictionary/words         │  用户词典 │
+│  Downloads          │  content://downloads/my_downloads        │  下载     │
+└─────────────────────┴───────────────────────────────────────────────────────┘
+
+// 查询联系人示例
+Cursor cursor = getContentResolver().query(
+    ContactsContract.Contacts.CONTENT_URI,
+    new String[]{ContactsContract.Contacts._ID, 
+                 ContactsContract.Contacts.DISPLAY_NAME},
+    null, null, null);
+
+// 查询图片示例
+Cursor cursor = getContentResolver().query(
+    MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+    new String[]{MediaStore.Images.Media._ID,
+                 MediaStore.Images.Media.DISPLAY_NAME,
+                 MediaStore.Images.Media.DATA},
+    null, null, 
+    MediaStore.Images.Media.DATE_ADDED + " DESC");
+```
+
+### 5.11 ContentProvider 常见问题
 
 ```
 Q1: ContentProvider 的方法在哪个线程执行？
@@ -1094,6 +1768,34 @@ A: onCreate() 在主线程，其他方法在调用者线程
 
 Q2: ContentProvider.onCreate() 和 Application.onCreate() 顺序？
 A: ContentProvider.onCreate() 先于 Application.onCreate()
+   顺序：Application 构造函数 → ContentProvider.attachInfo() → 
+         ContentProvider.onCreate() → Application.attachBaseContext() → 
+         Application.onCreate() → Activity.onCreate()
+
+Q3: ContentProvider 如何保证线程安全？
+A: ContentProvider 的方法可能被多线程并发调用，需要自行同步：
+   - 使用 synchronized 关键字
+   - 使用数据库事务
+   - 使用 ReentrantLock
+
+Q4: ContentProvider 和 SQLite 的关系？
+A: ContentProvider 是数据访问层，SQLite 是数据存储层：
+   - ContentProvider 提供统一接口
+   - SQLite 提供数据持久化
+   - 两者可以结合使用（也可以用 Room、文件等）
+
+Q5: 如何跨应用访问 ContentProvider？
+A: 1. Provider 设置 exported="true"
+   2. 客户端申请相应权限
+   3. 使用 ContentResolver 访问
+
+Q6: ContentProvider 返回的 Cursor 需要关闭吗？
+A: 是的，必须调用 cursor.close()，否则会内存泄漏
+   推荐使用 try-with-resources 或在 finally 中关闭
+
+Q7: ContentProvider 和 FileProvider 的区别？
+A: - ContentProvider：通用数据共享
+   - FileProvider：专门用于文件共享，提供安全的 Uri
 ```
 
 ---
