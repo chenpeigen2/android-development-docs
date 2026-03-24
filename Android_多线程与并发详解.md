@@ -16,7 +16,7 @@
 3. [线程同步机制](#3-线程同步机制)
    - 3.1 [synchronized](#31-synchronized)
    - 3.2 [volatile](#32-volatile)
-      - 3.2.1 [volatile 防止指令重排序](#321-volatile-防止指令重排序)
+      - 3.2.1 [volatile 防止指令重排序](#321-volatile-防止指令重排序dcl单例模式)
    - 3.3 [wait/notify/notifyAll](#33-waitnotifynotifyall)
    - 3.4 [Lock 与 ReentrantLock](#34-lock-与-reentrantlock)
    - 3.5 [ReadWriteLock](#35-readwritelock)
@@ -32,7 +32,7 @@
    - 5.1 [AtomicInteger/AtomicLong](#51-atomicintegeratomiclong)
    - 5.2 [AtomicReference](#52-atomicreference)
    - 5.3 [AtomicIntegerFieldUpdater](#53-atomicintegerfieldupdater)
-   - 5.4 [LongAdder（高并发场景）](#54-longadder高并发场景)
+   - 5.4 [LongAdder 高并发场景](#54-longadder高并发场景)
    - 5.5 [CAS 原理](#55-cas-原理)
 6. [并发集合](#6-并发集合)
    - 6.1 [ConcurrentHashMap](#61-concurrenthashmap)
@@ -431,7 +431,7 @@ class VolatileDemo {
   volatile：boolean 标志位、单次读写
   synchronized：复合操作（i++）、需要原子性的代码块
 
-### 3.2.1 volatile 防止指令重排序（DCL 单例模式）
+### 3.2.1 volatile 防止指令重排序 DCL 单例模式
 
 ```java
 /**
