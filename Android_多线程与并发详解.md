@@ -180,23 +180,111 @@ public void method() {
 
 ### 3.2 volatile
 
-volatile 不加锁，只保证可见性和有序性，不保证原子性。
+volatile 是轻量级同步机制，不加锁，只保证可见性和有序性，不保证原子性。
 
 ```java
 private volatile boolean running = true;
 
-// 适用场景：boolean 标志位、单次读写
-// 不适用：i++ 这种复合操作
+public void stop() {
+    running = false;  // 写入对所有线程立即可见
+}
+
+public void run() {
+    while (running) {  // 读取总是最新值
+        // 业务逻辑
+    }
+}
 ```
 
-synchronized vs volatile：
+#### volatile 的内存语义
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         volatile 内存语义                                  │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  写操作：
+  ┌───────────────────┐      ┌───────────────────┐
+  │   写 volatile 变量  │ ───► │  Store 屏障      │
+  └───────────────────┘      └───────────────────┘
+                                     │
+                                     ▼
+                          刷新到主内存
+
+  读操作：
+  ┌───────────────────┐      ┌───────────────────┐
+  │   读 volatile 变量  │ ───► │  Load 屏障      │
+  └───────────────────┘      └───────────────────┘
+                                     │
+                                     ▼
+                          从主内存读取
+
+  ─────────────────────────────────────────────────────────────────────────
+  写屏障：确保写操作之前的所有修改对其他线程可见
+  读屏障：确保读操作之后的所有读取使用最新值
+```
+
+#### synchronized vs volatile 详细对比
 
 | 特性 | synchronized | volatile |
 |------|-------------|----------|
-| 原子性 | 有 | 无 |
-| 可见性 | 有 | 有 |
-| 有序性 | 有 | 有 |
-| 性能 | 较重 | 轻量 |
+| 原子性 | ✓ 保证 | ✗ 不保证 |
+| 可见性 | ✓ 保证 | ✓ 保证 |
+| 有序性 | ✓ 保证 | ✓ 保证 |
+| 锁机制 | 隐式锁（管程） | 无锁 |
+| 阻塞线程 | 会阻塞 | 不会阻塞 |
+| 适用场景 | 复合操作 | 单变量读写 |
+| 性能开销 | 较重 | 轻量 |
+
+#### 为什么有了 synchronized 还需要 volatile？
+
+```java
+// DCL 单例模式示例
+public class Singleton {
+    private static volatile Singleton instance;  // 必须加 volatile！
+    
+    public static Singleton getInstance() {
+        if (instance == null) {  // 第一次检查（无锁）
+            synchronized (Singleton.class) {
+                if (instance == null) {
+                    instance = new Singleton();
+                }
+            }
+        }
+        return instance;
+    }
+}
+```
+
+关键点：第一次检查 `instance == null` 在 synchronized 块之外！
+
+- synchronized 只能保证块内的有序性
+- 第一次检查在块外，不受 synchronized 保护
+- volatile 防止 `instance = new Singleton()` 的指令重排序
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    挲止重排序，线程 B 可能获取到未完全初始化的对象！
+  线程A: instance = new Singleton();
+           ├── 1. 分配内存
+           ├── 2. 初始化字段
+           ├── 3. 将引用指向内存
+           
+  如果 2 和 3 重排序：
+  线程A: 1 → 3 → 2
+  线程B: 检查 instance != null → 使用对象（但字段未初始化！）
+```
+
+#### volatile 适用场景
+
+1. 状态标志位：`volatile boolean running`
+2. 单例双重检查：DCL 模式
+3. 一次性初始化：延迟初始化
+4. 独立观察：一个线程写，多个线程读
+
+不适用场景：
+- `i++` 等复合操作（需要用 AtomicInteger 或 synchronized）
+- 多个变量的原子更新
 
 ### 3.3 wait/notify/notifyAll
 
@@ -485,8 +573,6 @@ CAS（Compare-And-Swap）是硬件级别的原子操作。
 
 Java 的 CAS 由 CPU 的 cmpxchg 指令支持。ABA 问题用 AtomicStampedReference 解决（带版本号）。
 
----
-
 ## 6. 并发集合
 
 ### 6.1 ConcurrentHashMap
@@ -567,8 +653,6 @@ tl.remove();              // 清理，防止内存泄漏
 
 内存泄漏场景：线程池中线程复用，如果不在 finally 中 remove()，value 仍会留在 ThreadLocalMap 中。
 
----
-
 ## 7. 线程池
 
 ### 7.1 ThreadPoolExecutor 核心参数
@@ -630,8 +714,6 @@ Executors.newWorkStealingPool(4);  // ForkJoinPool 实现
 - IO 密集型：线程数 = CPU 核心数 × (1 + 等待时间 / 计算时间)
 
 不要用无界队列 + 固定线程池，推荐用 CallerRunsPolicy 拒绝策略。
-
----
 
 ## 8. Kotlin 协程原理
 
@@ -780,8 +862,6 @@ val channel = Channel<Int>(Channel.BUFFERED)
 channel.send(1)
 val value = channel.receive()
 ```
-
----
 
 ## 9. Android 线程模型
 
