@@ -16,6 +16,7 @@
 3. [线程同步机制](#3-线程同步机制)
    - 3.1 [synchronized](#31-synchronized)
    - 3.2 [volatile](#32-volatile)
+      - 3.2.1 [volatile 防止指令重排序](#321-volatile-防止指令重排序)
    - 3.3 [wait/notify/notifyAll](#33-waitnotifynotifyall)
    - 3.4 [Lock 与 ReentrantLock](#34-lock-与-reentrantlock)
    - 3.5 [ReadWriteLock](#35-readwritelock)
@@ -430,7 +431,7 @@ class VolatileDemo {
   volatile：boolean 标志位、单次读写
   synchronized：复合操作（i++）、需要原子性的代码块
 
-### volatile 防止指令重排序（DCL 单例模式）
+### 3.2.1 volatile 防止指令重排序（DCL 单例模式）
 
 ```java
 /**
@@ -3132,10 +3133,3 @@ Q10: 什么是线程安全？如何实现？
 ---
 
 *文档更新时间: 2026-03-24*
-
-```
-```
-```
-```
-```
-
