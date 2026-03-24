@@ -68,6 +68,13 @@
     - 11.1 [常见性能问题](#111-常见性能问题)
     - 11.2 [并发反模式](#112-并发反模式)
 12. [面试高频问题](#12-面试高频问题)
+13. [Android 并发专题](#13-android-并发专题)
+    - 13.1 [Handler 与线程](#131-handler-与线程)
+    - 13.2 [runOnUiThread vs post vs View.post](#132-runonuithread-vs-post-vs-viewpost)
+    - 13.3 [IntentService vs JobIntentService](#133-intentservice-vs-jobintentservice)
+    - 13.4 [AsyncTask 废弃原因](#134-asyncTask-废弃原因)
+    - 13.5 [WorkManager 并发模型](#135-workmanager-并发模型)
+    - 13.6 [子线程操作 Android UI 的正确方式](#136-子线程操作-android-ui-的正确方式)
 
 ---
 
@@ -2933,6 +2940,478 @@ CPU 缓存行 64 字节，多线程访问同一缓存行的不同变量，一个
 **Q12: Coroutine 的 suspend 原理？**
 
 suspend 函数被编译器转换为状态机，用 Continuation 对象保存状态。挂起点是状态转换点，恢复时从上次挂起点继续执行，不创建新线程。
+
+---
+
+## 13. Android 并发专题
+
+### 13.1 Handler 与线程
+
+Handler 是 Android 消息机制的核心，关联线程的 Looper 和 MessageQueue。
+
+```java
+// 主线程：系统已创建 Looper，直接使用
+class MainActivity extends AppCompatActivity {
+    private Handler handler = new Handler(Looper.getMainLooper());
+
+    public void onClick(View v) {
+        // 1. post(Runnable)
+        handler.post(() -> {
+            // 在主线程执行
+            textView.setText("updated");
+        });
+
+        // 2. sendMessage
+        Message msg = handler.obtainMessage(MSG_WHAT, data);
+        handler.sendMessage(msg);
+
+        // 3. postDelayed 延迟
+        handler.postDelayed(() -> {
+            // 3秒后执行
+        }, 3000);
+
+        // 4. removeCallbacks 取消
+        handler.removeCallbacks(runnable);
+        handler.removeMessages(MSG_WHAT);
+    }
+
+    @Override
+    public boolean handleMessage(Message msg) {
+        switch (msg.what) {
+            case MSG_WHAT:
+                // 处理消息
+                return true;
+        }
+        return false;
+    }
+}
+
+// 子线程创建 Handler（必须先创建 Looper）
+class MyThread extends Thread {
+    private Handler handler;
+
+    @Override
+    public void run() {
+        Looper.prepare();  // 创建 Looper 和 MessageQueue
+
+        handler = new Handler(Looper.myLooper()) {
+            @Override
+            public boolean handleMessage(Message msg) {
+                // 处理消息
+                return true;
+            }
+        };
+
+        Looper.loop();  // 进入消息循环
+    }
+}
+```
+
+#### 子线程创建 Handler 的坑
+
+```java
+// 错误：在没有 Looper 的子线程创建 Handler
+class BadDemo extends Thread {
+    private Handler handler;
+
+    @Override
+    public void run() {
+        // RuntimeException: Can't create handler inside thread that has not called Looper.prepare()
+        handler = new Handler();  // 没有 Looper，崩溃！
+
+        // 正确
+        Looper.prepare();
+        handler = new Handler(Looper.myLooper());
+        Looper.loop();
+    }
+}
+
+// 常见错误：子线程更新 UI
+class BadUIUpdate extends Thread {
+    @Override
+    public void run() {
+        // 崩溃：Only the original thread that created a View hierarchy can touch its views
+        textView.setText("更新UI");  // 在子线程更新 UI！
+    }
+}
+```
+
+### 13.2 runOnUiThread vs post vs View.post
+
+```java
+// Activity 中的方法
+class UiThreadDemo extends AppCompatActivity {
+
+    // 方式1：runOnUiThread
+    // 如果当前是主线程，直接执行；否则切换到主线程执行
+    public void method1() {
+        runOnUiThread(() -> {
+            textView.setText("updated");
+        });
+    }
+
+    // 方式2：Handler.post
+    // 总是切换到关联的 Looper 所在线程
+    public void method2() {
+        Handler handler = new Handler(getMainLooper());
+        handler.post(() -> {
+            textView.setText("updated");
+        });
+    }
+
+    // 方式3：View.post
+    // 当 View 已经 attached 到窗口时，Runnable 在主线程执行
+    // 比 runOnUiThread 更可靠（Activity 未完全创建时也能用）
+    public void method3() {
+        textView.post(() -> {
+            textView.setText("updated");
+        });
+    }
+
+    // View.post 的可靠性演示
+    public void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_main);
+
+        // 此时 View 已 attached，post 肯定在主线程执行
+        textView.post(() -> {
+            // 此时肯定可以获取到宽高
+            int width = textView.getWidth();
+            int height = textView.getHeight();
+        });
+    }
+}
+```
+
+三者对比：
+
+| 方法 | 线程判断 | 可靠性 | 典型场景 |
+|------|---------|--------|---------|
+| runOnUiThread | 检查当前线程 | 一般 | Activity 内通用 |
+| Handler.post | 固定线程 | 高 | 明确知道目标线程 |
+| View.post | View 已 attached | 最高 | onCreate/onResume 中获取 View 尺寸 |
+
+### 13.3 IntentService vs JobIntentService
+
+```java
+// IntentService（已废弃，Android 11+）
+// 特点：串行执行，自销毁，是 Service 在独立线程处理任务
+public class MyIntentService extends IntentService {
+    public MyIntentService() {
+        super("MyIntentService");
+    }
+
+    @Override
+    protected void onHandleIntent(Intent intent) {
+        // 运行在独立工作线程
+        // 所有任务串行执行，一个执行完才执行下一个
+        String data = intent.getStringExtra("data");
+        process(data);
+    }
+}
+
+// 问题：IntentService 是半废弃的
+// Android 11 开始系统不再bind到未声明 exported 的 IntentService
+
+// 推荐：JobIntentService（支持 Android 8.0+）
+public class MyJobIntentService extends JobIntentService {
+
+    public static void enqueueWork(Context context, Intent work) {
+        enqueueWork(context, MyJobIntentService.class, JOB_ID, work);
+    }
+
+    @Override
+    protected void onHandleWork(Intent intent) {
+        // 运行在独立工作线程
+        String data = intent.getStringExtra("data");
+        process(data);
+    }
+
+    @Override
+    public boolean onStopCurrentWork() {
+        // 是否停止当前任务
+        return super.onStopCurrentWork();
+    }
+}
+```
+
+### 13.4 AsyncTask 废弃原因
+
+AsyncTask 在 Android 11 正式废弃，以下是原因：
+
+```java
+// AsyncTask 的问题
+class AsyncTaskDemo extends AsyncTask<Void, Integer, String> {
+
+    // 问题1：生命周期不同步
+    // Activity 销毁后，AsyncTask 仍在运行，可能导致内存泄漏
+    public void badUsage(Activity activity) {
+        new AsyncTask<Void, Void, String>() {
+            @Override
+            protected String doInBackground(Void... voids) {
+                return doNetworkRequest();  // 耗时操作
+            }
+
+            @Override
+            protected void onPostExecute(String result) {
+                // Activity 已销毁，更新已无效
+                // 甚至崩溃：Activity has been destroyed
+                activity.updateUI(result);  // 可能 NPE
+            }
+        }.execute();
+    }
+
+    // 问题2：并行/串行行为不一致
+    // Android 1.6 之前：串行
+    // Android 1.6 - 3.0：并行（SERIAL_EXECUTOR 内部是线程池）
+    // Android 3.0+：默认串行（用 SERIAL_EXECUTOR）
+    // Android 4.1+：如果 TARGETING_HONEYCOMB，则串行
+
+    // 问题3：内存顺序问题
+    // 使用 AsyncTask<Void, Void, String> 时，泛型参数容易混淆
+
+    // 问题4：配置变更时数据丢失
+    // Activity 旋转时重建，AsyncTask 持有旧 Activity 引用
+}
+
+// 正确替代方案
+class CorrectUsage extends AppCompatActivity {
+    private ViewModel viewModel;
+
+    public void correct() {
+        // 方案1：ViewModel + Coroutines（推荐）
+        viewModelScope.launch {
+            String result = repository.fetchData();
+            // ViewModelScope 自动取消
+        }
+
+        // 方案2：LiveData + Coroutines
+        viewModel.data.observe(this, data -> {
+            textView.setText(data);
+        });
+    }
+}
+```
+
+### 13.5 WorkManager 并发模型
+
+WorkManager 是 Android 后台任务推荐方案，支持延迟、周期、约束条件。
+
+```java
+// WorkManager 基本使用
+class WorkManagerDemo {
+
+    public void simpleWork() {
+        OneTimeWorkRequest work = new OneTimeWorkRequestBuilder<MyWorker>()
+            .build();
+
+        WorkManager.getInstance(context).enqueue(work);
+    }
+
+    // 带约束的工作
+    public void constrainedWork() {
+        Constraints constraints = new Constraints.Builder()
+            .setRequiredNetworkType(NetworkType.CONNECTED)  // 网络连接
+            .setRequiresBatteryNotLow(true)                // 电量不低
+            .setRequiresCharging(true)                     // 充电中
+            .build();
+
+        OneTimeWorkRequest work = new OneTimeWorkRequestBuilder<MyWorker>()
+            .setConstraints(constraints)
+            .setInitialDelay(10, TimeUnit.SECONDS)         // 延迟
+            .addTag("myWork")                              // 标签
+            .build();
+
+        WorkManager.getInstance(context).enqueue(work);
+    }
+
+    // PeriodicWorkRequest：周期任务（最小15分钟）
+    public void periodicWork() {
+        PeriodicWorkRequest periodicWork = new PeriodicWorkRequestBuilder<MyWorker>(
+            15, TimeUnit.MINUTES,  // 重复间隔
+            5, TimeUnit.MINUTES     // 弹性间隔
+        ).build();
+
+        WorkManager.getInstance(context)
+            .enqueueUniquePeriodicWork(
+                "periodicSync",
+                ExistingPeriodicWorkPolicy.KEEP,
+                periodicWork
+            );
+    }
+
+    // 观察工作状态
+    public void observeWork() {
+        WorkManager.getInstance(context)
+            .getWorkInfoByIdLiveData(workRequest.getId())
+            .observe(this, workInfo -> {
+                if (workInfo.getState() == WorkInfo.State.SUCCEEDED) {
+                    // 成功
+                } else if (workInfo.getState() == WorkInfo.State.FAILED) {
+                    // 失败
+                }
+            });
+    }
+}
+
+// Worker 实现
+public class MyWorker extends Worker {
+
+    public MyWorker(@NonNull Context context, @NonNull WorkerParameters params) {
+        super(context, params);
+    }
+
+    @NonNull
+    @Override
+    public Result doWork() {
+        try {
+            // 运行在工作线程（不是主线程！）
+            String data = doNetworkRequest();
+            saveToDatabase(data);
+            return Result.success();  // 成功
+        } catch (Exception e) {
+            if (retry()) {
+                return Result.retry();  // 重试
+            }
+            return Result.failure();  // 失败
+        }
+    }
+}
+```
+
+WorkManager 并发特点：
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         WorkManager 特性                                    │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  1. 后台任务保障：
+  ─────────────────────────────────────────────────────────────────────────
+  - 应用退出后任务继续执行（除非被系统杀死）
+  - 设备重启后自动恢复（如果满足条件）
+  - 不保证精确时间（系统会合并优化）
+
+  2. 线程模型：
+  ─────────────────────────────────────────────────────────────────────────
+  - doWork() 运行在独立后台线程
+  - 默认使用 ExecutorService（非主线程）
+  - 支持 ListenableWorker 自定义线程
+
+  3. 约束条件：
+  ─────────────────────────────────────────────────────────────────────────
+  - 网络状态
+  - 电池状态
+  - 存储空间
+  - 设备空闲（Doze）状态
+
+  4. vs 其他方案：
+  ─────────────────────────────────────────────────────────────────────────
+  IntentService：需要 Service，简单但功能有限
+  JobScheduler：API 21+，系统级
+  WorkManager：API 14+，Google 推荐，支持约束、重试、周期
+```
+
+### 13.6 子线程操作 Android UI 的正确方式
+
+```java
+// 原则：所有 UI 操作必须在主线程
+
+// 场景1：网络回调后更新 UI
+public class NetworkCallbackDemo extends AppCompatActivity {
+    private TextView textView;
+
+    public void fetchData() {
+        new Thread(() -> {
+            String result = networkRequest();
+            // 错误：子线程更新 UI
+            // textView.setText(result);  // 崩溃！
+
+            // 正确1：runOnUiThread
+            runOnUiThread(() -> textView.setText(result));
+
+            // 正确2：Handler
+            new Handler(Looper.getMainLooper()).post(() ->
+                textView.setText(result)
+            );
+
+            // 正确3：View.post
+            textView.post(() -> textView.setText(result));
+
+            // 正确4：LiveData/ViewModel（推荐）
+            viewModel.data.observe(this, data ->
+                textView.setText(data)
+            );
+        }).start();
+    }
+}
+
+// 场景2：定时刷新 UI
+public class TimerDemo extends AppCompatActivity {
+    private Handler handler = new Handler(Looper.getMainLooper());
+    private Runnable refreshRunnable;
+
+    public void startTimer() {
+        refreshRunnable = new Runnable() {
+            @Override
+            public void run() {
+                // 更新 UI
+                updateUI();
+                // 继续定时
+                handler.postDelayed(this, 1000);
+            }
+        };
+        handler.post(refreshRunnable);
+    }
+
+    public void stopTimer() {
+        // 停止时必须移除
+        if (refreshRunnable != null) {
+            handler.removeCallbacks(refreshRunnable);
+        }
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        stopTimer();  // Activity 销毁时移除，防止泄漏
+    }
+}
+
+// 场景3：避免内存泄漏
+public class LeakDemo extends AppCompatActivity {
+    private Handler handler = new Handler(Looper.getMainLooper());
+
+    public void delayedAction() {
+        // 错误：Handler 持有 Activity 引用，延迟任务会导致泄漏
+        handler.postDelayed(() -> {
+            // 如果 Activity 已销毁，这里仍会执行
+            // 可能 NPE 或更新已销毁的 UI
+        }, 5000);
+    }
+
+    // 正确：使用弱引用或 Lifecycle-aware 组件
+    public void correctAction() {
+        // 方案1：Lifecycle-aware Handler
+        new Handler(Looper.getMainLooper()).postDelayed(() -> {
+            if (!isFinishing() && !isDestroyed()) {
+                // Activity 仍然存活
+            }
+        }, 5000);
+
+        // 方案2：ViewModel + Coroutines（推荐）
+        viewModelScope.launch {
+            delay(5000);
+            // ViewModelScope 会在 onCleared 时取消
+        }
+
+        // 方案3：LifecycleScope
+        lifecycleScope.launch {
+            delay(5000);
+        }
+    }
+}
+```
 
 ---
 
