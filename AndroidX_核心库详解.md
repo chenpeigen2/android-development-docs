@@ -15,12 +15,13 @@
 7. [Navigation](#7-navigation)
 8. [DataStore](#8-datastore)
 9. [Paging](#9-paging)
-10. [ViewPager2](#10-viewpager2)
-11. [Fragment](#11-fragment)
-12. [核心库对比](#12-核心库对比)
-13. [ConstraintLayout](#13-constraintlayout)
-14. [常见问题](#14-常见问题)
-15. [知识体系总结](#15-知识体系总结)
+10. [RecyclerView](#10-recyclerview)
+11. [ViewPager2](#11-viewpager2)
+12. [Fragment](#12-fragment)
+13. [核心库对比](#13-核心库对比)
+14. [ConstraintLayout](#14-constraintlayout)
+15. [常见问题](#15-常见问题)
+16. [知识体系总结](#16-知识体系总结)
 
 ---
 
