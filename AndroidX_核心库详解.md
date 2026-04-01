@@ -1672,7 +1672,315 @@ class UserFragment : Fragment() {
 
 ---
 
-## 10. ViewPager2
+## 10. RecyclerView
+
+### 10.1 RecyclerView 是什么
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         RecyclerView 定义                                   │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  定义：
+  ─────────────────────────────────────────────────────────────────────────
+  RecyclerView 是用于显示大量数据列表的 UI 组件，提供高效的视图回收和复用机制
+
+  核心特点：
+  ─────────────────────────────────────────────────────────────────────────
+  - ViewHolder 模式：强制复用，避免 findViewById
+  - 四级缓存：mAttachedScrap → mCachedViews → mViewCacheExtension → mRecyclerPool
+  - LayoutManager：解耦布局方式（线性、网格、瀑布流）
+  - ItemDecoration：解耦分割线、间距
+  - ItemAnimator：解耦动画
+
+  与 ListView 对比：
+  ─────────────────────────────────────────────────────────────────────────
+  ┌──────────────────┬──────────────────┬───────────────────────────────────┐
+  │      特性         │    ListView      │         RecyclerView              │
+  ├──────────────────┼──────────────────┼───────────────────────────────────┤
+  │  ViewHolder      │  可选（非强制）   │  强制要求                         │
+  ├──────────────────┼──────────────────┼───────────────────────────────────┤
+  │  缓存机制        │  1级（mActiveViews）│  4级缓存，更精细                  │
+  ├──────────────────┼──────────────────┼───────────────────────────────────┤
+  │  局部刷新        │  麻烦             │  DiffUtil 高效局部刷新            │
+  ├──────────────────┼──────────────────┼───────────────────────────────────┤
+  │  布局管理器      │  单一（垂直列表）  │  Linear/Grid/Staggered/GapHelper  │
+  ├──────────────────┼──────────────────┼───────────────────────────────────┤
+  │  分割线          │  自行绘制          │  ItemDecoration 解耦              │
+  ├──────────────────┼──────────────────┼───────────────────────────────────┤
+  │  动画            │  有限             │  ItemAnimator 完全自定义           │
+  └──────────────────┴──────────────────┴───────────────────────────────────┘
+```
+
+### 10.2 缓存机制详解
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         RecyclerView 缓存层级                                │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  ┌─────────────────┐    屏幕上的 ViewHolder，快速复用（位置不变）
+  │ mAttachedScrap  │    invalidate 后失效
+  └────────┬────────┘
+           │
+           ▼
+  ┌─────────────────┐    滑出屏幕的 ViewHolder，默认 2 个
+  │  mCachedViews   │    可通过 setViewCacheSize 调整
+  └────────┬────────┘
+           │
+           ▼
+  ┌─────────────────┐    自定义缓存扩展（很少用）
+  │ mViewCacheExt    │
+  └────────┬────────┘
+           │
+           ▼
+  ┌─────────────────┐    RecyclerPool，共享池，默认 5 种类型，每种 10 个
+  │  mRecyclerPool  │    用于 RecyclerView 嵌套场景
+  └─────────────────┘
+
+  复用流程：
+  ─────────────────────────────────────────────────────────────────────────
+  1. onBindViewHolder 复用：从 CachedViews 或 Pool 获取
+  2. getViewForPosition -> tryGetViewHolderForPositionByDeadline
+  3. 先查 CachedViews（按 position/id 匹配）
+  4. 再查 Pool（按 viewType 匹配）
+  5. 都没找到 → onCreateViewHolder
+```
+
+```kotlin
+// 自定义 RecyclerPool
+val pool = RecycledViewPool().apply {
+    setMaxRecycledViews(VIEW_TYPE_NORMAL, 10)
+    setMaxRecycledViews(VIEW_TYPE_HEADER, 5)
+}
+recyclerView.setRecycledViewPool(pool)
+
+// 预设置缓存数量（默认2）
+recyclerView.setItemViewCacheSize(20)
+```
+
+### 10.3 LayoutManager 优化
+
+```kotlin
+// 使用 hasStableIds 提供稳定 ID，帮助缓存
+adapter.setHasStableIds(true)
+
+// setHasFixedSize 避免主动请求 Layout（性能提升明显）
+recyclerView.setHasFixedSize(true)
+
+// 预取数量调整（Android 5.0+）
+(recyclerView.layoutManager as LinearLayoutManager).apply {
+    prefetchItemCount = 3  // 默认 2
+}
+
+// 额外布局空间
+layoutManager.extraLayoutSpace = Resources.getSystem().displayMetrics.heightPixels
+```
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    LayoutManager 选择                                        │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  ┌─────────────────┬─────────────────────────────────────────────────────────┐
+  │ 场景            │  推荐                                                   │
+  ├─────────────────┼─────────────────────────────────────────────────────────┤
+  │ 普通列表        │  LinearLayoutManager                                    │
+  │ 网格列表        │  GridLayoutManager（避免嵌套 RecyclerView）              │
+  │ 瀑布流          │  StaggeredGridLayoutManager                              │
+  │ 横向滚动        │  LinearLayoutManager.HORIZONTAL                         │
+  └─────────────────┴─────────────────────────────────────────────────────────┘
+```
+
+### 10.4 Adapter 优化
+
+```kotlin
+// ❌ 错误：每次绑定都创建新对象
+override fun onBindViewHolder(holder: VH, position: Int) {
+    holder.textView.text = items[position].name
+    holder.imageView.setImageBitmap(loadBitmap(items[position].imageRes))
+}
+
+// ✅ 正确：使用 Glide 等图片库，避免创建 Bitmap
+override fun onBindViewHolder(holder: VH, position: Int) {
+    val item = items[position]
+    holder.textView.text = item.name
+    Glide.with(holder.itemView.context)
+        .load(item.imageUrl)
+        .into(holder.imageView)
+}
+```
+
+```kotlin
+// ✅ 使用 DiffUtil 而非 notifyDataSetChanged
+val diffResult = DiffUtil.calculateDiff(MyDiffCallback(oldList, newList))
+diffResult.dispatchUpdatesTo(adapter)
+
+// ✅ 多类型 ViewHolder 优化
+override fun getItemViewType(position: Int): Int {
+    return when {
+        items[position].isHeader -> VIEW_TYPE_HEADER
+        items[position].isFooter -> VIEW_TYPE_FOOTER
+        else -> VIEW_TYPE_NORMAL
+    }
+}
+```
+
+```kotlin
+// ✅ Payload 增量更新（避免完全重绑）
+override fun onBindViewHolder(holder: VH, position: Int, payloads: MutableList<Any>) {
+    if (payloads.isEmpty()) {
+        super.onBindViewHolder(holder, position, payloads)
+    } else {
+        // 只更新变化的部分
+        val payload = payloads[0] as String
+        when (payload) {
+            "NAME_CHANGED" -> holder.updateName(items[position].name)
+            "AVATAR_CHANGED" -> holder.updateAvatar(items[position].avatarUrl)
+        }
+    }
+}
+
+// ✅ 发送 Payload
+adapter.notifyItemChanged(position, "NAME_CHANGED")
+```
+
+### 10.5 刷新优化
+
+```kotlin
+// ❌ 全量刷新（性能差）
+adapter.notifyDataSetChanged()
+
+// ✅ 局部刷新
+adapter.notifyItemChanged(position)
+adapter.notifyItemRangeChanged(positionStart, itemCount)
+adapter.notifyItemInserted(position)
+adapter.notifyItemRemoved(position)
+
+// ✅ 使用 AsyncListDiffer（自动后台线程计算 Diff）
+val differ = AsyncListDiffer(this, DiffCallback())
+differ.submitList(newList)
+```
+
+### 10.6 图片加载与复用
+
+```kotlin
+// Glide 配合 RecyclerView
+Glide.with(context)
+    .load(url)
+    .override(200, 200)  // 指定尺寸避免加载原图
+    .centerCrop()
+    .diskCacheStrategy(DiskCacheStrategy.ALL)
+    .into(holder.imageView)
+
+// ViewHolder 回收时取消旧请求，防止图片错位
+override fun onViewRecycled(holder: VH) {
+    super.onViewRecycled(holder)
+    Glide.with(holder.itemView.context).clear(holder.imageView)
+}
+```
+
+### 10.7 嵌套 RecyclerView 优化
+
+```kotlin
+// 禁止嵌套 RecyclerView 自行滚动
+nestedRecyclerView.isNestedScrollingEnabled = false
+
+// ✅ 使用 SharedViewPool 共享缓存
+val sharedPool = RecycledViewPool()
+horizontalRecyclerView.setRecycledViewPool(sharedPool)
+verticalRecyclerView.setRecycledViewPool(sharedPool)
+```
+
+### 10.8 ItemDecoration 优化
+
+```kotlin
+// ❌ 过度绘制：在 onDraw 中绘制整个区域
+// ✅ 只绘制必要区域
+class DividerDecoration(private val divider: Drawable) : RecyclerView.ItemDecoration() {
+    override fun onDrawOver(c: Canvas, parent: RecyclerView, state: RecyclerView.State) {
+        for (i in 0 until parent.childCount) {
+            val child = parent.getChildAt(i)
+            // 只在必要位置绘制分割线
+        }
+    }
+    
+    override fun getItemOffsets(outRect: Rect, view: View, parent: RecyclerView, state: RecyclerView.State) {
+        outRect.set(0, 0, 0, divider.intrinsicHeight)
+    }
+}
+```
+
+### 10.9 性能检测工具
+
+```bash
+# 开启 RecyclerView 调试日志
+adb shell setprop log.tag.RecyclerView VERBOSE
+
+# Systrace 分析卡顿
+python -m systrace -a com.example.app -o trace.html
+```
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    优化 Checklist                                           │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  基础优化：
+  ─────────────────────────────────────────────────────────────────────────
+  ✅ setHasFixedSize(true) — 避免主动请求 Layout
+  ✅ setHasStableIds(true) — 帮助 DiffUtil 精确匹配
+  ✅ DiffUtil 替代 notifyDataSetChanged
+  ✅ onBindViewHolder 中避免创建对象
+  ✅ 使用 ViewPool 共享缓存
+
+  进阶优化：
+  ─────────────────────────────────────────────────────────────────────────
+  ✅ Payload 增量更新
+  ✅ AsyncListDiffer 后台 Diff
+  ✅ 合理设置缓存池大小
+  ✅ Glide 替代直接加载图片
+  ✅ onViewRecycled 取消旧请求
+  ✅ setNestedScrollingEnabled(false)（嵌套场景）
+```
+
+### 10.10 面试高频追问
+
+```
+Q1: RecyclerView 与 ListView 区别？
+─────────────────────────────────────────────────────────────────────────
+A: 
+   - RecyclerView 强制 ViewHolder，ListView 可选
+   - RecyclerView 4级缓存更精细，ListView 只有 1级
+   - RecyclerView 局部刷新更高效（DiffUtil）
+   - RecyclerView 解耦更好（LayoutManager、ItemDecoration、Animator）
+
+Q2: 为什么 notifyDataSetChanged 性能差？
+─────────────────────────────────────────────────────────────────────────
+A: 触发完整 rebind 和重排，无法利用缓存
+
+Q3: RecyclerView 嵌套 RecyclerView 怎么优化？
+─────────────────────────────────────────────────────────────────────────
+A: 
+   - setNestedScrollingEnabled(false)
+   - 使用 SharedViewPool 共享缓存池
+
+Q4: 滑动了 1000 条数据，缓存机制如何工作？
+─────────────────────────────────────────────────────────────────────────
+A:
+   - 屏幕内 ViewHolder 在 mAttachedScrap
+   - 滑出屏幕的进入 mCachedViews（默认 2 个）
+   - 超过 2 个的进入 mRecyclerPool（按 viewType）
+   - CachedViews 是按 position 匹配的，Pool 是按 viewType 匹配
+
+Q5: 如何实现 DiffUtil 的局部刷新？
+─────────────────────────────────────────────────────────────────────────
+A: 重写 getChangePayload() 返回 payload 对象，onBindViewHolder 接收并只更新变化部分
+```
+
+---
+
+## 11. ViewPager2
 
 ### 10.1 ViewPager2 是什么
 
