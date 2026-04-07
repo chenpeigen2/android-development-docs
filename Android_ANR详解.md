@@ -7,40 +7,47 @@
 ## 目录
 
 1. [概述](#1-概述)
-2. [ANR 原理](#2-anr-原理)
-   - 2.1 [什么是 ANR](#21-什么是-anr)
-   - 2.2 [ANR 触发机制](#22-anr-触发机制)
-   - 2.3 [ANR 超时时间](#23-anr-超时时间)
-3. [ANR 类型](#3-anr-类型)
-   - 3.1 [KeyDispatchTimeout](#31-keydispatchtimeout)
-   - 3.2 [BroadcastTimeout](#32-broadcasttimeout)
-   - 3.3 [ServiceTimeout](#33-servicetimeout)
-   - 3.4 [ContentProviderTimeout](#34-contentprovidertimeout)
-4. [ANR 常见原因](#4-anr-常见原因)
-   - 4.1 [主线程阻塞](#41-主线程阻塞)
-   - 4.2 [CPU 负载过高](#42-cpu-负载过高)
-   - 4.3 [死锁](#43-死锁)
-   - 4.4 [Binder 调用阻塞](#44-binder-调用阻塞)
-   - 4.5 [SP 导致 ANR](#45-sp-导致-anr)
-5. [ANR 分析方法](#5-anr-分析方法)
-   - 5.1 [traces.txt 分析](#51-tracestxt-分析)
-   - 5.2 [ANR traces 位置](#52-anr-traces-位置)
-   - 5.3 [分析流程](#53-分析流程)
-   - 5.4 [ANR Info 关键字段](#54-anr-info-关键字段)
-6. [ANR 监控方案](#6-anr-监控方案)
-   - 6.1 [FileObserver 监控](#61-fileobserver-监控)
-   - 6.2 [WatchDog 机制](#62-watchdog-机制)
-   - 6.3 [ANR-WatchDog 库](#63-anr-watchdog-库)
-   - 6.4 [Matrix ANR 检测](#64-matrix-anr-检测)
-7. [ANR 优化策略](#7-anr-优化策略)
-   - 7.1 [避免主线程耗时操作](#71-避免主线程耗时操作)
-   - 7.2 [优化 BroadcastReceiver](#72-优化-broadcastreceiver)
-   - 7.3 [优化 Service](#73-优化-service)
-   - 7.4 [优化 SP](#74-优化-sp)
-   - 7.5 [优化 Binder 调用](#75-优化-binder-调用)
-8. [StrictMode 严格模式](#8-strictmode-严格模式)
-9. [常见问题](#9-常见问题)
-10. [知识体系总结](#10-知识体系总结)
+2. [深度解析：资深工程师视角](#2-深度解析资深工程师视角)
+   - 2.1 [ANR 的本质——系统的"底线思维"](#21-anr-的本质系统的底线思维)
+   - 2.2 [ANR 的触发阈值与分类](#22-anr-的触发阈值与分类)
+   - 2.3 [ANR 的底层触发原理](#23-anr-的底层触发原理)
+   - 2.4 [复杂 ANR 场景深度剖析](#24-复杂-anr-场景深度剖析)
+   - 2.5 [资深工程师的排查工具链](#25-资深工程师的排查工具链)
+   - 2.6 [架构级的 ANR 防御体系](#26-架构级的-anr-防御体系)
+3. [ANR 原理](#3-anr-原理)
+   - 3.1 [什么是 ANR](#31-什么是-anr)
+   - 3.2 [ANR 触发机制](#32-anr-触发机制)
+   - 3.3 [ANR 超时时间](#33-anr-超时时间)
+4. [ANR 类型](#4-anr-类型)
+   - 4.1 [KeyDispatchTimeout](#41-keydispatchtimeout)
+   - 4.2 [BroadcastTimeout](#42-broadcasttimeout)
+   - 4.3 [ServiceTimeout](#43-servicetimeout)
+   - 4.4 [ContentProviderTimeout](#44-contentprovidertimeout)
+5. [ANR 常见原因](#5-anr-常见原因)
+   - 5.1 [主线程阻塞](#51-主线程阻塞)
+   - 5.2 [CPU 负载过高](#52-cpu-负载过高)
+   - 5.3 [死锁](#53-死锁)
+   - 5.4 [Binder 调用阻塞](#54-binder-调用阻塞)
+   - 5.5 [SP 导致 ANR](#55-sp-导致-anr)
+6. [ANR 分析方法](#6-anr-分析方法)
+   - 6.1 [traces.txt 分析](#61-tracestxt-分析)
+   - 6.2 [ANR traces 位置](#62-anr-traces-位置)
+   - 6.3 [分析流程](#63-分析流程)
+   - 6.4 [ANR Info 关键字段](#64-anr-info-关键字段)
+7. [ANR 监控方案](#7-anr-监控方案)
+   - 7.1 [FileObserver 监控](#71-fileobserver-监控)
+   - 7.2 [WatchDog 机制](#72-watchdog-机制)
+   - 7.3 [ANR-WatchDog 库](#73-anr-watchdog-库)
+   - 7.4 [Matrix ANR 检测](#74-matrix-anr-检测)
+8. [ANR 优化策略](#8-anr-优化策略)
+   - 8.1 [避免主线程耗时操作](#81-避免主线程耗时操作)
+   - 8.2 [优化 BroadcastReceiver](#82-优化-broadcastreceiver)
+   - 8.3 [优化 Service](#83-优化-service)
+   - 8.4 [优化 SP](#84-优化-sp)
+   - 8.5 [优化 Binder 调用](#85-优化-binder-调用)
+9. [StrictMode 严格模式](#9-strictmode-严格模式)
+10. [常见问题](#10-常见问题)
+11. [知识体系总结](#11-知识体系总结)
 
 ---
 
@@ -72,9 +79,210 @@ ANR（Application Not Responding）是 Android 系统的一种保护机制。当
 
 ---
 
-## 2. ANR 原理
+## 2. 深度解析：资深工程师视角
 
-### 2.1 什么是 ANR
+作为一名资深 Android 开发工程师，看待 ANR（Application Not Responding，应用无响应）不能仅仅停留在"主线程做了耗时操作"这个表层概念上。我们需要从系统调度机制、底层触发原理、监控工具链、复杂场景排查以及架构级防御这五个维度进行深度解构。
+
+### 2.1 ANR 的本质——系统的"底线思维"
+
+ANR 本质上不是 Bug，而是 Android 系统的一种自我保护机制。
+
+Android 的设计哲学是：所有的 UI 绘制、用户交互事件（触摸、按键）都必须在主线程（UI 线程）中以极高的优先级实时响应。当系统发现主线程被阻塞，无法在规定时间内处理关键事件时，为了防止系统卡死，它会弹出 ANR 对话框，让用户决定是等待还是强杀。
+
+### 2.2 ANR 的触发阈值与分类
+
+不同类型的消息在主线程 MessageQueue 中的超时阈值不同：
+
+```
+┌──────────────────────────────────┬──────────┬───────────────────────────┬─────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│         触发场景                 │ 超时时间  │       底层分发者           │                                                 核心机制                                             │
+├──────────────────────────────────┼──────────┼───────────────────────────┼─────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ Input 事件 (按键、触摸)         │ 5秒      │ InputDispatcher (Native层)│ 最严格。连续多个事件超时才会触发，单次超时只打印日志（慢分发）。                                       │
+├──────────────────────────────────┼──────────┼───────────────────────────┼─────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ BroadcastReceiver (前台广播)    │ 10秒     │ AMS (Java层)              │ onReceive() 执行超时。后台广播通常是 60 秒（但现在后台广播受限严重）。                                   │
+├──────────────────────────────────┼──────────┼───────────────────────────┼─────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ Service (前台服务)              │ 20秒     │ ActivityManager (Java层)  │ onCreate(), onStart(), onBind() 等生命周期方法执行超时。后台服务 200 秒。                               │
+├──────────────────────────────────┼──────────┼───────────────────────────┼─────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ ContentProvider                 │ 10秒     │ AMS (Java层)              │ publishContentProviders() 或 getContentProviderImpl() 超时。                                          │
+└──────────────────────────────────┴──────────┴───────────────────────────┴─────────────────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+> **资深视角的坑**：很多人以为只有 5 秒和 10 秒。实际上，如果是在 ContentProvider 的 onCreate() 中发生了 ANR，系统抛出的异常信息里往往显示的是 Service 超时（20秒），因为应用启动时绑定 ContentProvider 是在 Application.attachBaseContext() 之后，Application.onCreate() 之前，这个流程被包裹在启动 Activity/Service 的流程中。
+
+### 2.3 ANR 的底层触发原理
+
+ANR 的触发分为"消息超时检测"和"ANR 弹窗决策"两步，且两者是异步的。
+
+#### 2.3.1 超时检测机制：Handler 的 sendMessageDelayed
+
+以 Service 为例，当 AMS 调用应用进程的 Service 生命周期时，会向主线程的 MessageQueue 发送一条延迟消息（例如 SERVICE_TIMEOUT_MSG，20秒）。
+
+```
+正常情况：应用进程在 20 秒内执行完毕，主动向 AMS 发送完成消息，
+        AMS 拿到完成消息后，从 Queue 中移除那条延迟消息。
+
+ANR  情况：20 秒后，那条延迟消息被主线程 Looper 取出执行，
+        触发 AMS.checkTimeOut()。
+```
+
+#### 2.3.2 Input 超时的特殊性（Native 层监控）
+
+从 Android 11 开始，Input ANR 的监控完全下沉到了 Native 层的 InputDispatcher。
+
+它不再依赖 Java 层的 Handler 延迟消息，而是基于时间戳比对。当应用主线程通过 NativeInputEventReceiver 将事件从底层取走后，InputDispatcher 会记录时间。如果在这个连接上长时间没有收到应用的"finished"信号，就会在 Native 层直接 dump traces 并触发 ANR。
+
+#### 2.3.3 ANR 的弹窗决策（为什么有时"暗杀"不弹窗？）
+
+当超时触发后，系统并不会立刻弹窗，而是执行以下逻辑：
+
+```
+1. Dump Traces
+   系统发送 SIGNAL_QUIT (信号 3) 给目标进程，
+   让其在 /data/anr/traces.txt 中写入各线程的调用栈。
+
+2. 等待 Shell 杀死
+   系统启动一个 "ANR Manager" 线程，
+   执行 kill -3 <pid>，并等待一段时间（通常几秒）看进程是否死亡。
+
+3. 状态判断
+   - 如果在等待期间，用户已经切到了后台（进程不可见），
+     系统会直接在后台默默杀死进程，不弹窗。
+   - 如果进程处于前台，且 dump 完成，
+     系统才会向 UI 线程发送一条消息，弹出著名的"应用无响应"对话框。
+```
+
+### 2.4 复杂 ANR 场景深度剖析
+
+在实际大厂应用中，简单的耗时操作早就被规范消灭了，剩下的都是疑难杂症：
+
+#### 2.4.1 锁竞争导致的"假死"（最常见难点）
+
+```
+现象：主线程其实只执行了一行代码 synchronized(obj)，但就是卡住了。
+
+原理：子线程持有锁 obj，且子线程因为某种原因（如死锁、网络阻塞、Binder 调用超时）被挂起。
+     主线程等不到锁，发生 ANR。
+
+排查：在 traces.txt 中，主线程状态必然是 BLOCKED 或 WAITING。
+     此时不能只看主线程，必须全局搜索 holding 或 waiting to lock，
+     找到持有锁的那个"罪魁祸首"线程。
+```
+
+#### 2.4.2 Binder 调用阻塞（跨进程坑）
+
+```
+现象：主线程调用了一个系统服务的方法（如 ContentResolver.query()，
+     PackageManager.getPackageInfo()），或者调用了另一个进程的 AIDL 接口，结果卡住。
+
+原理：客户端主线程通过 Binder 代理对象发请求，会挂起当前线程等待服务端返回。
+     如果服务端（可能是别的 App 或者系统服务）繁忙或死锁，你的主线程就陪葬了。
+
+排查：Traces 中主线程状态通常是 NATIVE 或 BLOCKED，
+     栈帧里会出现 Binder.execTransact 等字样。
+```
+
+#### 2.4.3 内存问题引发的 ANR（隐蔽性极强）
+
+```
+现象：没有耗时操作，没有锁竞争，但在低端机上频繁 ANR。
+
+原理：
+1. GC 频繁：内存抖动或内存泄漏导致频繁 GC，
+   GC 会暂停所有应用线程（包括主线程，特别是 ART 下的 foreground GC），
+   累积超过阈值触发 ANR。
+
+2. Low Memory Killer (LMK)：系统内存极度紧张时，会优先杀后台。
+   但即使不杀前台，系统在分配内存时如果极度艰难，
+   也会导致主线程调度延迟。
+```
+
+#### 2.4.4 死锁
+
+```
+原理：经典的 AB-BA 锁问题。
+     虽然 Java 层有 ThreadMXBean 可以检测死锁，
+     但如果是 Java 锁与 Native 锁（如 pthread_mutex_t）交叉死锁，
+     系统往往无法自动检测，只能靠人肉看 traces。
+```
+
+### 2.5 资深工程师的排查工具链
+
+遇到线上 ANR，别只盯着 traces.txt：
+
+```
+1. Perfetto (取代 Systrace)
+   这是目前排查性能和 ANR 的最强神器。
+   Traces 只是某一瞬间的切片，而 Perfetto 记录了整个系统前几秒的完整时间线。
+   你能清楚看到 CPU 调度情况、主线程到底是在跑 Java 代码、跑 Native 代码、
+   还是在等锁、等 IO。
+
+2. AnrWatchDog (自研监控)
+   系统 ANR 弹窗有延迟且可能被隐藏。
+   我们在应用内起一个子线程，定期向主线程 post 一个空消息，
+   如果超过比如 3 秒没执行，就认为发生了"准 ANR"，
+   主动抓取当前堆栈上报到 APM 平台。
+   这能抓到大量系统没弹窗的"暗卡"。
+
+3. Logcat 全局搜索
+   不要只搜 ANR in。
+   要搜 Input dispatching timed out（Input ANR 前兆）、
+   Slow delivery（慢分发）、Slow operation（慢操作，Android 12+ 增强）。
+
+4. 线上 APM 矩阵
+   结合 Matrix (微信开源) 或 Boom 等工具，
+   监控主线程耗时操作、IO 监控、线程池监控。
+```
+
+### 2.6 架构级的 ANR 防御体系
+
+作为资深开发，不仅要能排查，更要能在架构上避免：
+
+#### 2.6.1 主线程调度隔离
+
+```
+严格规范：主线程绝对禁止网络请求、数据库读写、大文件 IO、
+        SharedPreference apply（改用 MMKV 或异步 commit）、复杂 JSON 解析。
+
+架构解耦：使用协程（Dispatchers.Main）或 RxJava 切换线程，
+        确保链式调用中任何一步都不意外回到主线程做耗时操作。
+```
+
+#### 2.6.2 锁降级与无锁化设计
+
+```
+- 在架构设计中，尽量减少跨线程的共享状态。
+- 如果必须同步，对于读多写少的场景，用 ReadWriteLock 替代 synchronized。
+- 对于高并发计数，使用 AtomicInteger 等 CAS 类。
+```
+
+#### 2.6.3 Binder 调用防御
+
+```
+- 所有跨进程调用（特别是调系统服务），在主线程调用时必须加上超时保护
+  （虽然有些系统 API 无法改，但自己的 AIDL 可以设计异步回调模式）。
+- 对于 ContentProvider 的查询，如果数据量大，
+  必须走异步加载（如 CursorLoader 或分页加载）。
+```
+
+#### 2.6.4 启动阶段专项治理
+
+```
+- 移除 ContentProvider 滥用：
+  很多第三方 SDK（如 Firebase, LeakCanary 旧版）通过注册空 CP 来初始化，
+  这会严重拖慢冷启动，极易在低配机引起 ContentProvider ANR。
+  应改用 AppStartUp 库统一管理初始化。
+
+- 延迟初始化：非必要初始化任务延迟到首页绘制完成后
+  （IdleHandler 或 postDelayed）。
+```
+
+> **总结**：ANR 不是简单的"写错代码"，它是 Android 复杂的进程间通信（Binder）、系统调度机制、内存管理和应用层逻辑相互碰撞的结果。资深工程师面对 ANR，脑海中的第一反应应该是：是 CPU 抢不到？是锁被占用了？是等 Binder 返回？还是 GC 卡住了？借助 Perfetto 这类系统级工具，结合无死角的自研监控，才能真正将 ANR 控制在 P99.9 的指标之内。
+
+---
+
+## 3. ANR 原理
+
+### 3.1 什么是 ANR
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -95,7 +303,7 @@ ANR（Application Not Responding）是 Android 系统的一种保护机制。当
   - 弹出对话框供用户选择
 ```
 
-### 2.2 ANR 触发机制
+### 3.2 ANR 触发机制
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -130,7 +338,7 @@ ANR（Application Not Responding）是 Android 系统的一种保护机制。当
      - 记录 ANR 日志
 ```
 
-### 2.3 ANR 超时时间
+### 3.3 ANR 超时时间
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -176,9 +384,9 @@ ANR（Application Not Responding）是 Android 系统的一种保护机制。当
 
 ---
 
-## 3. ANR 类型
+## 4. ANR 类型
 
-### 3.1 KeyDispatchTimeout
+### 4.1 KeyDispatchTimeout
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -221,7 +429,7 @@ ANR（Application Not Responding）是 Android 系统的一种保护机制。当
   触发 ANR                            View.onTouchEvent
 ```
 
-### 3.2 BroadcastTimeout
+### 4.2 BroadcastTimeout
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -266,7 +474,7 @@ ANR（Application Not Responding）是 Android 系统的一种保护机制。当
   }
 ```
 
-### 3.3 ServiceTimeout
+### 4.3 ServiceTimeout
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -321,7 +529,7 @@ ANR（Application Not Responding）是 Android 系统的一种保护机制。当
   }
 ```
 
-### 3.4 ContentProviderTimeout
+### 4.4 ContentProviderTimeout
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -372,9 +580,9 @@ ANR（Application Not Responding）是 Android 系统的一种保护机制。当
 
 ---
 
-## 4. ANR 常见原因
+## 5. ANR 常见原因
 
-### 4.1 主线程阻塞
+### 5.1 主线程阻塞
 
 ```java
 // 错误示例：主线程执行耗时操作
@@ -439,7 +647,7 @@ lifecycleScope.launch(Dispatchers.IO) {
 }
 ```
 
-### 4.2 CPU 负载过高
+### 5.2 CPU 负载过高
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -472,7 +680,7 @@ lifecycleScope.launch(Dispatchers.IO) {
   }).start();
 ```
 
-### 4.3 死锁
+### 5.3 死锁
 
 ```java
 // 死锁示例
@@ -512,7 +720,7 @@ public class DeadlockExample {
 // 4. 使用无锁数据结构
 ```
 
-### 4.4 Binder 调用阻塞
+### 5.4 Binder 调用阻塞
 
 ```java
 // Binder 调用阻塞示例
@@ -544,7 +752,7 @@ public void onClick(View v) {
 // 3. 在子线程调用
 ```
 
-### 4.5 SP 导致 ANR
+### 5.5 SP 导致 ANR
 
 ```java
 // SharedPreferences 导致 ANR
@@ -576,9 +784,9 @@ MMKV.defaultMMKV().encode("key", "value");
 
 ---
 
-## 5. ANR 分析方法
+## 6. ANR 分析方法
 
-### 5.1 traces.txt 分析
+### 6.1 traces.txt 分析
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -613,7 +821,7 @@ MMKV.defaultMMKV().encode("key", "value");
     at com.android.internal.os.ZygoteInit.main(ZygoteInit.java:950)
 ```
 
-### 5.2 ANR traces 位置
+### 6.2 ANR traces 位置
 
 ```bash
 # Android 10 及以下
@@ -633,7 +841,7 @@ adb bugreport ./bugreport.zip
 adb shell dumpsys dropbox --print 0 app_anr
 ```
 
-### 5.3 分析流程
+### 6.3 分析流程
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -669,7 +877,7 @@ adb shell dumpsys dropbox --print 0 app_anr
   - 分析进程状态
 ```
 
-### 5.4 ANR Info 关键字段
+### 6.4 ANR Info 关键字段
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -699,9 +907,9 @@ adb shell dumpsys dropbox --print 0 app_anr
 
 ---
 
-## 6. ANR 监控方案
+## 7. ANR 监控方案
 
-### 6.1 FileObserver 监控
+### 7.1 FileObserver 监控
 
 ```java
 /**
@@ -727,7 +935,7 @@ public class ANRFileObserver extends FileObserver {
 }
 ```
 
-### 6.2 WatchDog 机制
+### 7.2 WatchDog 机制
 
 ```java
 /**
@@ -785,7 +993,7 @@ public class ANRWatchDog extends Thread {
 }
 ```
 
-### 6.3 ANR-WatchDog 库
+### 7.3 ANR-WatchDog 库
 
 ```gradle
 // 添加依赖
@@ -812,7 +1020,7 @@ public class MyApplication extends Application {
 }
 ```
 
-### 6.4 Matrix ANR 检测
+### 7.4 Matrix ANR 检测
 
 ```gradle
 // 添加 Matrix 依赖
@@ -845,9 +1053,9 @@ public class MyApplication extends Application {
 
 ---
 
-## 7. ANR 优化策略
+## 8. ANR 优化策略
 
-### 7.1 避免主线程耗时操作
+### 8.1 避免主线程耗时操作
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -876,7 +1084,7 @@ public class MyApplication extends Application {
   - 使用 NDK（复杂计算）
 ```
 
-### 7.2 优化 BroadcastReceiver
+### 8.2 优化 BroadcastReceiver
 
 ```java
 // 1. 避免在 onReceive() 中执行耗时操作
@@ -907,7 +1115,7 @@ public class MyReceiver extends BroadcastReceiver {
 // 3. 动态注册替代静态注册（减少进程启动）
 ```
 
-### 7.3 优化 Service
+### 8.3 优化 Service
 
 ```java
 // 1. 使用 JobService 替代普通 Service
@@ -956,7 +1164,7 @@ public class MyForegroundService extends Service {
 }
 ```
 
-### 7.4 优化 SP
+### 8.4 优化 SP
 
 ```java
 // 1. 使用 apply() 替代 commit()
@@ -979,7 +1187,7 @@ kv.encode("key", "value"); // 同步但极快
 String value = kv.decodeString("key", null);
 ```
 
-### 7.5 优化 Binder 调用
+### 8.5 优化 Binder 调用
 
 ```java
 // 1. 缓存结果
@@ -1005,7 +1213,7 @@ new Thread(() -> {
 
 ---
 
-## 8. StrictMode 严格模式
+## 9. StrictMode 严格模式
 
 ```java
 /**
@@ -1038,9 +1246,9 @@ public class MyApplication extends Application {
 
 ---
 
-## 9. 常见问题
+## 10. 常见问题
 
-### 9.1 如何快速定位 ANR？
+### 10.1 如何快速定位 ANR？
 
 ```
 一、获取 ANR 日志
@@ -1107,7 +1315,7 @@ public class MyApplication extends Application {
    - 统计线上 ANR 发生频率
 ```
 
-### 9.2 如何预防 ANR？
+### 10.2 如何预防 ANR？
 
 ```
 1. 严格分离线程职责
@@ -1131,7 +1339,7 @@ public class MyApplication extends Application {
    - 使用缓存策略
 ```
 
-### 9.3 traces.txt 显示 "native" 方法？
+### 10.3 traces.txt 显示 "native" 方法？
 
 ```
 可能是：
@@ -1152,7 +1360,7 @@ public class MyApplication extends Application {
    - 网络请求
 ```
 
-### 9.4 如何设计一个 ANR 监控工具？
+### 10.4 如何设计一个 ANR 监控工具？
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -1280,7 +1488,7 @@ public void uploadANRReport(ANRReport report) {
    - 用户授权后上传
 ```
 
-### 9.5 主线程执行网络请求一定会导致 ANR 吗？
+### 10.5 主线程执行网络请求一定会导致 ANR 吗？
 
 ```
 答案：不一定
@@ -1332,7 +1540,7 @@ lifecycleScope.launch {
 }
 ```
 
-### 9.6 AsyncTask 的缺陷是什么？为什么官方废弃它？
+### 10.6 AsyncTask 的缺陷是什么？为什么官方废弃它？
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -1439,7 +1647,7 @@ private static final int MAXIMUM_POOL_SIZE = CPU_COUNT * 2 + 1;
    WorkManager.getInstance(context).enqueue(workRequest);
 ```
 
-### 9.7 ANR 的日志中 CPU Usage 字段如何分析？
+### 10.7 ANR 的日志中 CPU Usage 字段如何分析？
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -1516,7 +1724,7 @@ CPU usage from 0ms to 12345ms later (2024-01-01 12:34:56.123):
    - 分析 CPU 调度
 ```
 
-### 9.8 Binder 通信超时会导致 ANR 吗？
+### 10.8 Binder 通信超时会导致 ANR 吗？
 
 ```
 答案：会
@@ -1605,7 +1813,7 @@ public void onClick(View v) {
    }
 ```
 
-### 9.9 列表滚动卡顿，如何判断是 ANR 的前兆？
+### 10.9 列表滚动卡顿，如何判断是 ANR 的前兆？
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -1703,7 +1911,7 @@ public void onClick(View v) {
    ).flow
 ```
 
-### 9.10 如何区分 ANR 和主线程卡顿（Jank）？
+### 10.10 如何区分 ANR 和主线程卡顿（Jank）？
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -1802,7 +2010,7 @@ public void onClick(View v) {
 
 ---
 
-## 10. 知识体系总结
+## 11. 知识体系总结
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
