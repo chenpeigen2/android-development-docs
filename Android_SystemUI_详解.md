@@ -38,6 +38,8 @@
   - [6.1 RemoteViews 原理](#61-remoteviews-原理)
   - [6.2 RemoteViews 支持的 View](#62-remoteviews-支持的-view)
   - [6.3 RemoteViews 操作](#63-remoteviews-操作)
+  - [6.4 Actions 机制深度解析](#64-actions-机制深度解析)
+  - [6.5 反射创建与 View 白名单机制](#65-反射创建与-view-白名单机制)
 
 - [第7章 通知渲染流程](#7-通知渲染流程)
   - [7.1 渲染架构](#71-渲染架构)
@@ -2293,6 +2295,486 @@ PendingIntent pendingIntent = PendingIntent.getActivity(context, 0, intent, 0);
 views.setOnClickPendingIntent(R.id.button, pendingIntent);
 ```
 
+### 6.4 Actions 机制深度解析
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    RemoteViews Actions 机制                                 │
+│              每个 setXXX 调用的本质：创建一个 Action 对象                     │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  Action 类继承体系 (AOSP: frameworks/base/core/java/android/widget/)        │
+│                                              RemoteViews.java              │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+                    ┌──────────────────────┐
+                    │  Action (abstract)   │  ← Parcelable 接口
+                    │  getActionTag()      │  ← 用于序列化标识
+                    │  apply(View, ...)    │  ← 执行操作的核心方法
+                    └──────────┬───────────┘
+                               │
+          ┌────────────────────┼────────────────────────┐
+          │                    │                        │
+          ▼                    ▼                        ▼
+┌──────────────────┐ ┌──────────────────┐  ┌──────────────────────┐
+│ ReflectionAction │ │ ViewGroupAction  │  │  特殊 Action          │
+│ (反射调用方法)    │ │ (添加/移除子View) │  │                      │
+└──────────────────┘ └──────────────────┘  ├──────────────────────┤
+                                            │ SetEmptyViewAction   │
+                                            │ SetPendingIntent     │
+                                            │   TemplateAction     │
+                                            │ SetOnClickFillIn     │
+                                            │   IntentAction       │
+                                            │ LayoutParamAction    │
+                                            │ TextViewDrawable     │
+                                            │   Action             │
+                                            │ SetRemoteViews       │
+                                            │   AdapterAction      │
+                                            │ SetTextViewCompound  │
+                                            │   DrawablesAction    │
+                                            └──────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  ReflectionAction —— 最核心的 Action 子类                                   │
+│  几乎所有 setXXX 方法内部都创建 ReflectionAction                            │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+private static final class ReflectionAction extends Action {
+    int viewId;            // 目标 View 的 ID
+    String methodName;     // 要调用的方法名（如 "setText"）
+    int type;              // 参数类型标识
+    Object value;          // 参数值
+
+    // type 取值（定义在 RemoteViews 中）:
+    static final int BOOLEAN       = 1;
+    static final int BYTE          = 2;
+    static final int SHORT         = 3;
+    static final int INT           = 4;
+    static final int LONG          = 5;
+    static final int FLOAT         = 6;
+    static final int DOUBLE        = 7;
+    static final int CHAR          = 8;
+    static final int STRING        = 9;
+    static final int CHAR_SEQUENCE = 10;
+    static final int URI           = 11;
+    static final int BITMAP        = 12;
+    static final int BUNDLE        = 13;
+    static final int INTENT        = 14;
+    static final int COLOR         = 15;
+    static final int ICON          = 16;
+
+    @Override
+    public void apply(View root, ViewGroup rootParent, OnClickHandler handler) {
+        // 1. 通过 viewId 找到目标 View
+        View view = root.findViewById(viewId);
+        if (view == null) return;
+
+        // 2. 通过反射调用方法
+        Class<?> paramType = getParameterType(type);
+        Method method = view.getClass().getMethod(methodName, paramType);
+        method.invoke(view, value);
+    }
+}
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  setXXX 方法 → Action 的映射关系                                            │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+RemoteViews API                          实际创建的 Action
+──────────────────────────────────       ──────────────────────────────
+setTextViewText(id, text)           →    ReflectionAction(id, "setText",
+                                                    CHAR_SEQUENCE, text)
+setTextViewTextSize(id, units, size)→    ReflectionAction(id, "setTextSize",
+                                                    FLOAT, size)
+setTextColor(id, color)             →    ReflectionAction(id, "setTextColor",
+                                                    INT, color)
+setImageViewResource(id, resId)     →    ReflectionAction(id, "setImageResource",
+                                                    INT, resId)
+setImageViewBitmap(id, bitmap)      →    ReflectionAction(id, "setImageBitmap",
+                                                    BITMAP, bitmap)
+setViewVisibility(id, visibility)   →    ReflectionAction(id, "setVisibility",
+                                                    INT, visibility)
+setBoolean(id, methodName, value)   →    ReflectionAction(id, methodName,
+                                                    BOOLEAN, value)
+setInt(id, methodName, value)       →    ReflectionAction(id, methodName,
+                                                    INT, value)
+setLong(id, methodName, value)      →    ReflectionAction(id, methodName,
+                                                    LONG, value)
+setDouble(id, methodName, value)    →    ReflectionAction(id, methodName,
+                                                    DOUBLE, value)
+setCharSequence(id, method, value)  →    ReflectionAction(id, methodName,
+                                                    CHAR_SEQUENCE, value)
+setOnClickPendingIntent(id, pi)     →    SetOnClickPendingIntentAction
+setProgressBar(id, max, prog, ind)  →    SetProgressBarAction
+setViewPadding(id, l, t, r, b)     →    ViewPaddingAction
+addView(id, childRemoteViews)       →    ViewGroupAction (内嵌 RemoteViews)
+removeAllViews(id)                  →    ViewGroupAction (清空子 View)
+setRemoteAdapter(id, intent)        →    SetRemoteViewsAdapterIntent
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  Action 的序列化与反序列化流程                                               │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+序列化 (应用进程 — writeToParcel):
+┌─────────────────────────────────────────────────────────────────┐
+│  Parcel 数据布局:                                                │
+│  ┌──────────┬──────────┬──────────┬──────────────────────────┐ │
+│  │ mPackage │ mLayoutId│ count    │ Action[0]                │ │
+│  │ (String) │ (int)    │ (int)    │ ┌─────────┬────────────┐ │ │
+│  │          │          │          │ │ tag(int)│ data(...)  │ │ │
+│  │          │          │          │ └─────────┴────────────┘ │ │
+│  │          │          │          │ Action[1]                │ │
+│  │          │          │          │ ┌─────────┬────────────┐ │ │
+│  │          │          │          │ │ tag(int)│ data(...)  │ │ │
+│  │          │          │          │ └─────────┴────────────┘ │ │
+│  │          │          │          │ ...                      │ │
+│  └──────────┴──────────┴──────────┴──────────────────────────┘ │
+│                                                                  │
+│  ReflectionAction 序列化:                                        │
+│  ┌──────────┬──────────┬──────────┬──────────┬──────────┐      │
+│  │ TAG(1)   │ viewId   │methodName│ type     │ value    │      │
+│  │ (int)    │ (int)    │ (String) │ (int)    │ (varies) │      │
+│  └──────────┴──────────┴──────────┴──────────┴──────────┘      │
+└─────────────────────────────────────────────────────────────────┘
+
+反序列化 (SystemUI 进程 — CREATOR.createFromParcel):
+┌─────────────────────────────────────────────────────────────────┐
+│  RemoteViews.CREATOR.createFromParcel(parcel):                  │
+│                                                                  │
+│  1. 读取 mPackage, mLayoutId                                    │
+│  2. 创建 RemoteViews 对象                                        │
+│  3. 读取 Action 数量                                             │
+│  4. for 每个 Action:                                             │
+│     ├── parcel.readInt() → actionTag                            │
+│     ├── 根据 actionTag 创建对应 Action 实例                      │
+│     │   (TAG = 1 → ReflectionAction                             │
+│     │    TAG = 2 → SetOnClickPendingIntentAction                │
+│     │    TAG = 3 → ReflectionActionWithoutParams                │
+│     │    TAG = 4 → SetEmptyView  ...等等)                       │
+│     ├── action.readFromParcel(parcel)                           │
+│     └── mActions.add(action)                                    │
+│  5. 返回完整的 RemoteViews                                       │
+└─────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  apply() 时执行所有 Actions                                                  │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+public View apply(Context context, ViewGroup parent, OnClickHandler handler) {
+    // 1. 使用过滤后的 LayoutInflater 加载布局
+    View result = inflateView(context, parent);   // ← 只能创建白名单 View
+
+    // 2. 依次执行所有 Action
+    performApply(result, parent, handler);
+    return result;
+}
+
+private void performApply(View root, ViewGroup rootParent, OnClickHandler handler) {
+    if (mActions != null) {
+        for (int i = 0; i < mActions.size(); i++) {
+            Action a = mActions.get(i);
+            a.apply(root, rootParent, handler);   // ← 每个Action各自apply
+        }
+    }
+}
+
+// 以 ReflectionAction.apply() 为例:
+@Override
+public void apply(View root, ViewGroup rootParent, OnClickHandler handler) {
+    View target = root.findViewById(viewId);
+    if (target == null) return;
+
+    Class<?> argType = PARAM_TYPES[type];          // 根据 type 获取参数类型
+    Method method = target.getClass().getMethod(    // 反射获取方法
+        methodName, argType);
+    method.invoke(target, value);                   // 反射调用
+}
+
+// 关键：method.invoke() 在 SystemUI 进程执行
+// 应用进程只负责"记录操作"，SystemUI 进程负责"执行操作"
+// 这就是 RemoteViews 跨进程的本质
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  为什么用 Action 列表而不是直接序列化 View？                                  │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+方案对比:
+
+方案 A：直接序列化 View 对象                         ❌ 不可行
+├── View 有大量内部状态（Context、Window、Handler...）
+├── 很多字段不可序列化（Canvas、native 指针）
+├── 反序列化后 Context 丢失，View 无法正常工作
+└── 跨进程安全性无法保证
+
+方案 B：序列化布局 ID + 操作列表 (Action)             ✅ 实际方案
+├── 只记录"做什么"，不记录"怎么做"
+├── 在目标进程重新创建 View 并回放操作
+├── Action 是简单的数据类，容易序列化
+└── 目标进程拥有完整 Context，View 可以正常工作
+
+这就是 RemoteViews 的设计哲学：
+  应用进程：录制操作（布局 ID + Action 列表）
+  SystemUI 进程：回放操作（inflate 布局 + 执行 Action）
+```
+
+### 6.5 反射创建与 View 白名单机制
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│              RemoteViews 反射创建与 View 白名单机制                          │
+│         为什么 RemoteViews 只能使用特定 View？如何实现的？                    │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  1. LayoutInflater 的过滤机制                                                │
+│     (AOSP: frameworks/base/core/java/android/widget/RemoteViews.java)       │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+RemoteViews.apply() 加载布局时，不是直接使用普通 LayoutInflater，
+而是通过 RemoteViews.Context 的 inflate() 方法配合过滤机制:
+
+private View inflateView(Context context, ViewGroup parent) {
+    // 使用 RemoteViews 自己的 LayoutInflater
+    LayoutInflater inflater = LayoutInflater.from(context).cloneInContext(context);
+    inflater.setFilter(sLayoutInflaterFilter);   // ← 关键：设置过滤器
+    return inflater.inflate(mLayoutId, parent, false);
+}
+
+// LayoutInflater.Filter 接口
+public interface Filter {
+    boolean onLoadClass(ClassLoader loader, String className);
+    // 返回 true → 允许加载该 View
+    // 返回 false → 拒绝加载，抛出异常
+}
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  2. View 白名单的实现                                                       │
+│     sLayoutInflaterFilter 实际上是一个白名单检查器                            │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+// AOSP 中的白名单定义 (简化展示)
+private static final LayoutInflater.Filter sLayoutInflaterFilter =
+    (loader, className) -> {
+        // 检查类名是否在允许列表中
+        // 白名单在 RemoteViews 初始化时通过静态注册
+        return isAllowedViewClass(className);
+    };
+
+// AOSP 中实际的白名单注册方式:
+// 通过内部数组定义所有允许的 View 类名
+private static final String[] sAllowedViewClasses = {
+    // ──── 布局容器 ────
+    "android.widget.FrameLayout",
+    "android.widget.LinearLayout",
+    "android.widget.RelativeLayout",
+    "android.widget.GridLayout",
+    "android.widget.GridLayout$LayoutParams",
+
+    // ──── 基础视图 ────
+    "android.widget.TextView",
+    "android.widget.ImageView",
+    "android.widget.Button",
+    "android.widget.ImageButton",
+    "android.widget.ProgressBar",
+    "android.widget.Chronometer",
+
+    // ──── 高级视图 ────
+    "android.widget.ViewFlipper",
+    "android.widget.StackView",
+    "android.widget.AdapterViewFlipper",
+    "android.widget.ListView",
+    "android.widget.GridView",
+
+    // ──── 特殊视图 ────
+    "android.widget.AnalogClock",
+    "android.widget.TextClock",
+    "android.view.View",
+    "android.view.ViewGroup",
+    "android.widget.RemoteViews.RemoteView",  // 注解标记
+};
+
+// Android 12+ 还支持通过 @RemoteView 注解自动注册:
+@Target({ElementType.TYPE})
+@Retention(RetentionPolicy.RUNTIME)
+public @interface RemoteView {
+    // 标注了此注解的 View 自动加入白名单
+}
+
+// 例如:
+@RemoteView
+public class TextView extends View { ... }
+
+@RemoteView
+public class ImageView extends View { ... }
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  3. 反射创建 View 的完整流程                                                 │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+LayoutInflater.inflate() 内部创建 View 的过程:
+
+┌──────────────────────────────────────────────────────────────────────────┐
+│  LayoutInflater.createViewFromTag()                                       │
+│                                                                          │
+│  1. 解析 XML 标签名 → className (如 "TextView")                          │
+│                    ↓                                                     │
+│  2. 调用 mFilter.onLoadClass(loader, className)                          │
+│     ├── 返回 true  → 继续创建 View                                      │
+│     └── 返回 false → 抛出 InflateException                              │
+│                    ↓ (白名单通过)                                         │
+│  3. createView(className, ...) → 反射创建                                │
+│     ├── Class<?> clazz = loader.loadClass(fullClassName)                 │
+│     ├── Constructor<?> constructor = clazz.getConstructor(               │
+│     │       Context.class, AttributeSet.class)                           │
+│     └── return constructor.newInstance(context, attrs)                   │
+│                    ↓                                                     │
+│  4. 返回 View 实例                                                        │
+└──────────────────────────────────────────────────────────────────────────┘
+
+实际代码调用链:
+RemoteViews.apply(context, parent)
+    └── inflateView(context, parent)
+        └── LayoutInflater.inflate(layoutId, parent, false)
+            └── rInflateChildren(parser, root, attrs, true)
+                └── createViewFromTag(view, name, context, attrs)
+                    ├── mFilter.onLoadClass(...)     // 白名单检查
+                    └── createView(name, "...")       // 反射创建
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  4. 安全限制的三层防线                                                       │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+防线 1：布局加载时的 View 白名单过滤
+├── LayoutInflater.Filter 拦截非法 View 类
+├── 只允许白名单中的 View 被实例化
+└── 即使 XML 中写了 <com.evil.CustomView> 也会被拒绝
+
+防线 2：ReflectionAction 的方法调用限制
+├── 只能调用预定义的方法名（setText, setVisibility 等）
+├── 不能调用任意方法（方法名来自 API，不是来自 Parcel）
+├── 参数类型由 type 字段限定，不能伪造
+└── 实际上 ReflectionAction 的 methodName 只能是 SDK 中定义的名称
+
+防线 3：资源加载的包名隔离
+├── RemoteViews 中的 mPackage 决定了资源加载的来源
+├── SystemUI 使用应用的 Context 加载布局资源
+├── 但 View 类始终从 Framework (android.widget.*) 加载
+└── 应用的自定义 View 类不会在 SystemUI 进程中加载
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  5. 为什么不支持自定义 View？—— 完整技术分析                                 │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+原因 1: 进程隔离与类加载器不匹配
+├── 自定义 View 的 Class 文件在应用 APK 中
+├── SystemUI 进程的 ClassLoader 无法加载应用的类
+├── 即使加载了，Context、Resources 等依赖不匹配
+└── 这是最根本的技术障碍
+
+原因 2: 安全风险
+├── 自定义 View 可在构造函数/draw 中执行任意代码
+├── SystemUI 以 system uid 运行，权限极高
+├── 恶意应用可通过自定义 View 在 SystemUI 中执行特权操作
+└── 白名单机制确保只有 Google 审核过的 View 可以使用
+
+原因 3: 序列化限制
+├── 自定义 View 可能有复杂的内部状态
+├── 这些状态难以通过 Parcel 传递
+├── 反序列化后状态恢复不完整会导致异常
+└── Action 机制只能操作属性，无法传递 View 的行为逻辑
+
+原因 4: 兼容性与稳定性
+├── 不同应用的 View 实现可能依赖不同的 API 版本
+├── SystemUI 进程中的 View 可能与应用进程的版本不一致
+├── 应用更新后 View 行为变化可能导致 SystemUI 崩溃
+└── 白名单保证 SystemUI 不受第三方应用代码质量影响
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  6. RemoteViews 反射机制的类图                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+                        ┌───────────────────┐
+                        │   RemoteViews     │
+                        │───────────────────│
+                        │ mPackage: String  │
+                        │ mLayoutId: int    │
+                        │ mActions: ArrayList│
+                        │ mBitmapCache      │
+                        │───────────────────│
+                        │ + apply()         │
+                        │ + reapply()       │
+                        │ + setXXX()        │
+                        └───────┬───────────┘
+                                │ 持有
+                                ▼
+                ┌───────────────────────────┐
+                │   Action (abstract)       │
+                │───────────────────────────│
+                │ + getActionTag(): int     │
+                │ + apply(View, ViewGroup,  │
+                │     OnClickHandler)       │
+                │ + writeToParcel()         │
+                └───────┬───────────────────┘
+                        │
+        ┌───────────────┼───────────────────┐
+        │               │                   │
+        ▼               ▼                   ▼
+┌───────────────┐ ┌──────────────┐ ┌────────────────────┐
+│ReflectionAction│ │ViewGroupAction│ │SetOnClickPending  │
+│───────────────│ │──────────────│ │  IntentAction      │
+│viewId: int   │ │mViews:       │ │────────────────────│
+│methodName:   │ │ RemoteViews[]│ │viewId: int         │
+│ String       │ │──────────────│ │pendingIntent:      │
+│type: int     │ │apply() →     │ │ PendingIntent      │
+│value: Object │ │ addView()    │ │────────────────────│
+│───────────────│ │ /removeView()│ │apply() →           │
+│apply() →     │ └──────────────┘ │ setOnClickListener │
+│ 反射调用方法  │                  │  + PendingIntent   │
+└───────────────┘                  └────────────────────┘
+        │
+        │ 反射调用原理:
+        │
+        │ Method m = view.getClass()
+        │     .getMethod(methodName, paramType);
+        │ m.invoke(view, value);
+        │
+        │ 例如: setTextViewText(id, "hello")
+        │   → methodName = "setText"
+        │   → paramType  = CharSequence.class
+        │   → value      = "hello"
+        │
+        │ 最终在 SystemUI 进程执行:
+        │   textView.setText("hello");
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  7. apply() vs reapply() 的区别                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+apply():
+├── 重新 inflate 布局 + 执行所有 Action
+├── 创建全新的 View 树
+├── 开销大，适合首次加载
+└── 返回新创建的 View
+
+reapply():
+├── 不重新 inflate，只执行 Action
+├── 在已有的 View 上重新应用操作
+├── 开销小，适合通知内容更新
+└── 不返回 View（使用已有的）
+
+// SystemUI 中的典型用法:
+// 首次加载通知
+View view = remoteViews.apply(context, parent);
+parent.addView(view);
+
+// 通知内容更新时
+remoteViews.reapply(context, existingView);
+// 不需要 remove → add，直接在原有 View 上刷新
+
+这就是为什么通知更新比首次显示快的原因。
+```
+
 ---
 
 ## 7. SystemUI 与 Framework 协作
@@ -4448,7 +4930,150 @@ AMOLED 屏幕长时间显示同一图像会导致烧屏，AOD 使用以下策略
 - 特殊视图：Chronometer, ViewFlipper
 ```
 
-**Q3: AOD 是如何实现低功耗的？**
+**Q3: 为什么 SystemUI 通知列表使用 NotificationStackScrollLayout（自定义 ViewGroup）而不是 RecyclerView？**
+
+**A:**
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│    通知列表的布局选择：NotificationStackScrollLayout vs RecyclerView        │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+NotificationStackScrollLayout 继承自 FrameLayout，
+不是 RecyclerView，这是经过深思熟虑的设计决策。
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  原因 1：通知数量极少，不需要 ViewHolder 复用                               │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+RecyclerView 的核心优势是 ViewHolder 复用，适合大数据量列表:
+├── RecyclerView 设计目标：成百上千条数据
+├── 通知面板实际数量：通常 5-20 条，极端情况不超过 50 条
+├── ViewHolder 复用在通知场景收益极小
+└── 通知 View 之间差异大（不同模板、不同高度），复用反而增加复杂度
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  原因 2：复杂的堆叠和交互动画，FrameLayout 天然支持                          │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+通知面板有非常特殊的视觉交互:
+
+  ┌─────────────────────┐
+  │ 最新通知 (完全可见)   │  ← y 偏移 = 0
+  ├─────────────────────┤
+  │ 通知 2 (部分可见)    │  ← y 偏移 = -100px，被上面遮挡
+  │  ┌─────────────────┐│
+  │  │ 通知 3 (只露顶) ││  ← y 偏移 = -200px
+  │  │  ┌─────────────┐││
+  │  │  │  通知 4 ... │││
+  │  │  └─────────────┘││
+  │  └─────────────────┘│
+  └─────────────────────┘
+
+这种"堆叠"效果需要:
+├── 每个子 View 可以有任意的 translationY / translationZ
+├── 子 View 之间有重叠（overlap）
+├── 子 View 可以有独立的高度（elevation）阴影
+├── 展开/折叠时子 View 的位移是连续动画
+└── FrameLayout 允许子 View 自由定位和重叠，LinearLayout 不行
+
+RecyclerView 的局限:
+├── RecyclerView 强制线性排列（LinearLayoutManager）
+├── Item 之间不能重叠
+├── 自定义 LayoutController 可以实现，但代价很大
+├── 动画系统（ItemAnimator）不适合通知的堆叠动画
+└── 需要大量 hack 才能达到 NotificationStackScrollLayout 的效果
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  原因 3：每条通知高度不固定且可动态变化                                       │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+通知 View 的高度在运行时频繁变化:
+├── 展开/折叠切换 → 高度突变
+├── 智能回复按钮展开 → 高度增加
+├── 进度条通知 → 高度固定但内容更新
+├── 图片通知 → 大图展开/收起
+└── 通知组展开/折叠 → 子通知动态添加/移除
+
+RecyclerView 的挑战:
+├── 高度变化需要 notifyItemChanged → 触发重新 measure/layout
+├── 动态高度变化会导致其他 Item 抖动
+├── 需要手动管理 span size、view type
+└── 复杂度远超直接使用 FrameLayout + 手动布局
+
+NotificationStackScrollLayout 的方案:
+├── 每条通知是一个独立的 ExpandableNotificationRow (FrameLayout)
+├── 自行管理所有子 View 的 measure/layout
+├── 重写 onMeasure() 和 onLayout() 实现堆叠算法
+├── 高度变化通过 ValueAnimator 平滑过渡
+└── 完全掌控每个子 View 的位置和大小
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  原因 4：复杂的手势交互                                                     │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+通知面板的手势远比普通列表复杂:
+
+├── 单条通知滑动删除（swipe to dismiss）
+├── 下拉展开通知详情
+├── 通知之间的速度追踪和惯性
+├── "锁屏" 和 "通知面板" 的手势冲突处理
+├── 双指操作（展开/折叠通知组）
+├── 触摸事件的精确分发（通知内部按钮 vs 整体滑动）
+└── 长按进入通知设置
+
+RecyclerView 的 ItemTouchHelper 处理不了:
+├── ItemTouchHelper 支持简单的滑动/拖拽
+├── 但通知需要"滑动到一半弹回"（snooze）
+├── 滑动过程中显示底层的 snooze/time 按钮
+├── 这种交互需要完全自定义的触摸事件处理
+└── NotificationStackScrollLayout 直接处理 onTouchEvent
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  原因 5：性能考量                                                           │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+实际性能对比:
+
+RecyclerView:
+├── 每次 scroll → 需要计算 ViewHolder 复用
+├── 滑动时持续 inflate/deatch/recycle
+├── 对 5-20 条通知来说，管理开销 > 收益
+└── Adapter、LayoutController、Recycler 多层抽象有额外开销
+
+NotificationStackScrollLayout:
+├── 所有通知 View 始终在 View 树中
+├── 滑动只是修改 translationY，不需要 inflate/deatch
+├── 直接操作 Canvas 绘制，减少过度绘制
+├── 利用硬件加速的 translationZ 实现阴影
+└── 通知数量少时，直接布局比 ViewHolder 复用更快
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  总结                                                                       │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+                    ┌──────────────────────────────┐
+                    │     RecyclerView 适合:        │
+                    │  ✓ 数据量大 (100+)            │
+                    │  ✓ Item 布局统一              │
+                    │  ✓ 线性排列，无重叠            │
+                    │  ✓ 简单手势                   │
+                    └──────────────────────────────┘
+                                vs
+                    ┌──────────────────────────────┐
+                    │  通知面板实际需求:             │
+                    │  ✗ 数据量小 (5-20)            │
+                    │  ✗ Item 布局差异大            │
+                    │  ✗ 需要堆叠/重叠效果          │
+                    │  ✗ 复杂手势交互               │
+                    └──────────────────────────────┘
+
+结论：NotificationStackScrollLayout (FrameLayout) 是更合适的选择。
+      RecyclerView 在通知面板场景下没有优势，反而增加了复杂度。
+      这也是 SystemUI 团队从 Android 4.x 开始就使用自定义 ViewGroup 的原因。
+```
+
+**Q4: AOD 是如何实现低功耗的？**
 
 **A:**
 
@@ -4465,7 +5090,7 @@ AMOLED 屏幕长时间显示同一图像会导致烧屏，AOD 使用以下策略
 4. 传感器辅助（口袋模式检测）
 ```
 
-**Q4: 通知渠道 (NotificationChannel) 的作用？**
+**Q5: 通知渠道 (NotificationChannel) 的作用？**
 
 **A:**
 
