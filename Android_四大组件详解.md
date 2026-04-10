@@ -26,20 +26,36 @@
    - 4.2 [广播类型](#42-广播类型)
    - 4.3 [广播注册方式](#43-广播注册方式)
    - 4.4 [广播发送方式](#44-广播发送方式)
-   - 4.5 [广播限制](#45-广播限制)
-   - 4.6 [本地广播 LocalBroadcast](#46-本地广播-localbroadcast)
-   - 4.7 [BroadcastReceiver 常见问题](#47-broadcastreceiver-常见问题)
+   - 4.5 [广播权限控制](#45-广播权限控制)
+   - 4.6 [广播限制](#46-广播限制)
+   - 4.7 [常用系统广播](#47-常用系统广播)
+   - 4.8 [本地广播 LocalBroadcastManager](#48-本地广播-localbroadcastmanager)
+   - 4.9 [广播原理](#49-广播原理)
+   - 4.10 [BroadcastReceiver 常见问题](#410-broadcastreceiver-常见问题)
 5. [ContentProvider](#5-contentprovider)
    - 5.1 [ContentProvider 是什么](#51-contentprovider-是什么)
    - 5.2 [ContentProvider 原理](#52-contentprovider-原理)
-   - 5.3 [ContentProvider 使用](#53-contentprovider-使用)
-   - 5.4 [ContentProvider 核心方法](#54-contentprovider-核心方法)
-   - 5.5 [ContentObserver 监听](#55-contentobserver-监听)
-   - 5.6 [ContentProvider 常见问题](#56-contentprovider-常见问题)
+   - 5.3 [ContentProvider 核心方法](#53-contentprovider-核心方法)
+   - 5.4 [自定义 ContentProvider 完整示例](#54-自定义-contentprovider-完整示例)
+   - 5.5 [UriMatcher 使用](#55-urimatcher-使用)
+   - 5.6 [ContentObserver 监听数据变化](#56-contentobserver-监听数据变化)
+   - 5.7 [批量操作](#57-批量操作)
+   - 5.8 [ContentProvider 权限控制](#58-contentprovider-权限控制)
+   - 5.9 [ContentProvider 与 Room](#59-contentprovider-与-room)
+   - 5.10 [常用系统 ContentProvider](#510-常用系统-contentprovider)
+   - 5.11 [ContentProvider 常见问题](#511-contentprovider-常见问题)
 6. [四大组件对比](#6-四大组件对比)
 7. [进程间通信 IPC](#7-进程间通信-ipc)
 8. [常见问题](#8-常见问题)
 9. [知识体系总结](#9-知识体系总结)
+10. [资深工程师深度解析](#10-资深工程师深度解析)
+    - 10.1 [四大组件与进程生命周期](#101-四大组件与进程生命周期)
+    - 10.2 [组件间通信最佳实践](#102-组件间通信最佳实践)
+    - 10.3 [四大组件常见踩坑](#103-四大组件常见踩坑)
+    - 10.4 [组件化架构中的四大组件](#104-组件化架构中的四大组件)
+    - 10.5 [四大组件性能优化](#105-四大组件性能优化)
+    - 10.6 [Android 版本演进对四大组件的影响](#106-android-版本演进对四大组件的影响)
+11. [面试高频题精选](#11-面试高频题精选)
 
 ---
 
@@ -1908,6 +1924,1075 @@ A:
   2. Service：后台任务，启动/绑定模式，前台服务
   3. BroadcastReceiver：消息接收，静态/动态注册
   4. ContentProvider：数据共享，URI 访问，权限控制
+```
+
+---
+
+## 10. 资深工程师深度解析
+
+### 10.1 四大组件与进程生命周期
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    四大组件与进程优先级                                       │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  Android 进程优先级（从高到低）：
+  ─────────────────────────────────────────────────────────────────────────
+
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │                                                                         │
+  │  1. 前台进程（Foreground Process）                                      │
+  │     ──────────────────────────────────────────────────────────────      │
+  │     条件（满足任一）：                                                   │
+  │     • 正在执行 onResume() 的 Activity                                   │
+  │     • 绑定到前台 Activity 的 Service                                    │
+  │     • 正在执行 onCreate/onStartCommand/onDestroy 的 Service             │
+  │     • 调用了 startForeground() 的 Service                               │
+  │     • 正在执行 onReceive() 的 BroadcastReceiver                         │
+  │                                                                         │
+  │  2. 可见进程（Visible Process）                                         │
+  │     ──────────────────────────────────────────────────────────────      │
+  │     条件（满足任一）：                                                   │
+  │     • 执行了 onPause 但未 onStop 的 Activity                           │
+  │     • 绑定到可见 Activity 的 Service                                    │
+  │                                                                         │
+  │  3. 服务进程（Service Process）                                         │
+  │     ──────────────────────────────────────────────────────────────      │
+  │     条件：                                                               │
+  │     • 已启动且正在运行的后台 Service（未调用 startForeground）           │
+  │                                                                         │
+  │  4. 后台进程（Background Process）                                      │
+  │     ──────────────────────────────────────────────────────────────      │
+  │     条件：                                                               │
+  │     • 已 onStop 但未 onDestroy 的 Activity                              │
+  │     • 对用户不可见                                                      │
+  │                                                                         │
+  │  5. 空进程（Empty Process）                                             │
+  │     ──────────────────────────────────────────────────────────────      │
+  │     条件：                                                               │
+  │     • 不包含任何活跃组件的进程                                          │
+  │     • 保留仅为缓存目的                                                  │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+```
+
+```
+组件对进程保活的影响：
+─────────────────────────────────────────────────────────────────────────
+
+  ┌──────────────────────────────────────────────────────────────────────────┐
+  │                                                                          │
+  │  Activity（前台）  ──►  进程提升为前台进程（最高优先级）                  │
+  │  Activity（可见）  ──►  进程为可见进程（第二优先级）                      │
+  │  Activity（后台）  ──►  进程降为后台进程                                  │
+  │                                                                          │
+  │  Service（前台）   ──►  进程提升为前台进程                                │
+  │  Service（后台）   ──►  进程为服务进程                                    │
+  │  Service（绑定到   ──►  进程优先级随绑定者提升                            │
+  │   前台 Activity）                                                        │
+  │                                                                          │
+  │  BroadcastReceiver       ──►  onReceive() 执行期间为前台进程             │
+  │                          ──►  执行完毕后恢复原有优先级                   │
+  │                                                                          │
+  │  ContentProvider         ──►  被访问时提升进程优先级                      │
+  │                          ──►  无访问时不影响优先级                        │
+  │                                                                          │
+  └──────────────────────────────────────────────────────────────────────────┘
+
+  实战经验：
+  ─────────────────────────────────────────────────────────────────────────
+  1. 音乐播放必须使用 ForegroundService，否则切后台很快被杀
+  2. 后台下载任务应使用 WorkManager 而非 Service
+  3. BroadcastReceiver.onReceive() 执行时间短，应尽快启动 Service
+  4. 多进程架构中，每个进程有独立的组件生命周期
+```
+
+### 10.2 组件间通信最佳实践
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    组件间通信方式全景                                        │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  ┌──────────────────────────────────────────────────────────────────────────┐
+  │                                                                          │
+  │  同进程通信：                                                            │
+  │  ──────────────────────────────────────────────────────────────────────  │
+  │                                                                          │
+  │  1. Intent + Bundle（Activity / Service / BroadcastReceiver）            │
+  │     优点：标准方式，系统支持                                             │
+  │     缺点：数据大小限制（约 1MB）                                         │
+  │     场景：简单数据传递                                                   │
+  │                                                                          │
+  │  2. ViewModel + LiveData（Activity / Fragment）                          │
+  │     优点：生命周期感知，自动取消                                         │
+  │     缺点：仅限同一 Activity 内                                           │
+  │     场景：Fragment 间通信                                                │
+  │                                                                          │
+  │  3. 回调接口 / Listener                                                  │
+  │     优点：直接、高效                                                     │
+  │     缺点：需要手动管理生命周期                                           │
+  │     场景：Activity 与 Service 通信                                       │
+  │                                                                          │
+  │  4. Event Bus（应用内事件总线）                                          │
+  │     优点：解耦，一对多                                                   │
+  │     缺点：调试困难，容易内存泄漏                                         │
+  │     场景：全局事件通知                                                   │
+  │                                                                          │
+  └──────────────────────────────────────────────────────────────────────────┘
+
+  ┌──────────────────────────────────────────────────────────────────────────┐
+  │                                                                          │
+  │  跨进程通信：                                                            │
+  │  ──────────────────────────────────────────────────────────────────────  │
+  │                                                                          │
+  │  1. AIDL（最强大）                                                      │
+  │     支持方法调用、回调、复杂数据类型                                     │
+  │     适合：频繁的双向 IPC                                                 │
+  │                                                                          │
+  │  2. Messenger（轻量级）                                                 │
+  │     基于 Message 的串行通信                                              │
+  │     适合：低频、单向通信                                                 │
+  │                                                                          │
+  │  3. ContentProvider（数据共享）                                          │
+  │     标准 CRUD 接口                                                       │
+  │     适合：数据共享场景                                                   │
+  │                                                                          │
+  │  4. BroadcastReceiver（事件通知）                                        │
+  │     一对多通知                                                           │
+  │     适合：系统事件监听                                                   │
+  │                                                                          │
+  └──────────────────────────────────────────────────────────────────────────┘
+```
+
+```java
+/**
+ * AIDL 跨进程通信示例
+ */
+
+// IMyAidlInterface.aidl
+interface IMyAidlInterface {
+    int add(int a, int b);
+    String getMessage();
+    void registerCallback(ICallback callback);
+    void unregisterCallback(ICallback callback);
+}
+
+// ICallback.aidl
+interface ICallback {
+    void onResult(int code, String msg);
+}
+
+// 服务端 Service
+public class AidlService extends Service {
+    private final IMyAidlInterface.Stub binder = new IMyAidlInterface.Stub() {
+        @Override
+        public int add(int a, int b) {
+            return a + b;
+        }
+
+        @Override
+        public String getMessage() {
+            return "Hello from AidlService";
+        }
+
+        @Override
+        public void registerCallback(ICallback callback) {
+            // 注册回调
+        }
+
+        @Override
+        public void unregisterCallback(ICallback callback) {
+            // 注销回调
+        }
+    };
+
+    @Nullable
+    @Override
+    public IBinder onBind(Intent intent) {
+        return binder;
+    }
+}
+
+// 客户端绑定
+public class MainActivity extends AppCompatActivity {
+    private IMyAidlInterface aidlService;
+    
+    private ServiceConnection connection = new ServiceConnection() {
+        @Override
+        public void onServiceConnected(ComponentName name, IBinder service) {
+            aidlService = IMyAidlInterface.Stub.asInterface(service);
+            try {
+                int result = aidlService.add(1, 2);
+                String msg = aidlService.getMessage();
+            } catch (RemoteException e) {
+                e.printStackTrace();
+            }
+        }
+
+        @Override
+        public void onServiceDisconnected(ComponentName name) {
+            aidlService = null;
+        }
+    };
+}
+```
+
+```
+通信方式选择决策树：
+─────────────────────────────────────────────────────────────────────────
+
+                    需要组件间通信
+                         │
+                    是否跨进程？
+                    /          \
+                  是            否
+                  │             │
+                  │        同进程直接通信
+                  │        ┌─────────────────────┐
+                  │        数据简单？             │
+                  │        /       \             │
+                  │      是         否            │
+                  │      │          │            │
+                  │   Intent+     ViewModel     │
+                  │   Bundle      + LiveData    │
+                  │                            │
+              跨进程通信
+              ┌──────────────────────────────┐
+              │ 通信模式？                     │
+              ├──────────┬──────────┬─────────┤
+              │ 方法调用  │ 数据共享  │ 事件通知│
+              │    │     │    │     │    │    │
+              │  AIDL    │Content  │ Broad- │
+              │          │Provider │ cast   │
+              └──────────┴──────────┴─────────┘
+```
+
+### 10.3 四大组件常见踩坑
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    Activity 常见踩坑                                        │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  坑1：onSaveInstanceState 与 FragmentTransaction 冲突
+  ─────────────────────────────────────────────────────────────────────────
+  问题：在 onSaveInstanceState 之后执行 commit() 会抛异常
+  原因：onSaveInstanceState 之后状态已保存，commit 可能丢失
+  解决：使用 commitAllowingStateLoss()（不推荐）
+        或在 onSaveInstanceState 之前完成 commit（推荐）
+
+  坑2：singleTask 启动模式下的意外行为
+  ─────────────────────────────────────────────────────────────────────────
+  问题：singleTask Activity 会清除其上方的 Activity
+  原因：singleTask 默认带有 CLEAR_TOP 效果
+  解决：明确理解 taskAffinity 的作用，必要时配合 FLAG_ACTIVITY_NEW_TASK
+
+  坑3：Activity 重建导致异步回调空指针
+  ─────────────────────────────────────────────────────────────────────────
+  问题：屏幕旋转后异步回调引用了旧的 Activity 实例
+  原因：Activity 重建后引用失效
+  解决：使用 ViewModel 存储数据、弱引用、或在回调前检查 isFinishing()
+
+  坑4：透明 Activity 导致生命周期异常
+  ─────────────────────────────────────────────────────────────────────────
+  问题：透明 Activity 不会触发下方 Activity 的 onStop
+  原因：下方 Activity 仍然部分可见
+  解决：注意 onPause 和 onStop 的区别，在 onPause 中也做必要的资源释放
+```
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    Service 常见踩坑                                         │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  坑1：ForegroundService 未及时显示通知
+  ─────────────────────────────────────────────────────────────────────────
+  问题：Android 8.0+ 调用 startForegroundService() 后 5 秒内
+        未调用 startForeground() 会导致 ANR
+  解决：在 onCreate() 或 onStartCommand() 中立即调用 startForeground()
+
+  坑2：bindService 后忘记 unbindService
+  ─────────────────────────────────────────────────────────────────────────
+  问题：Activity 销毁时未解绑导致 ServiceConnection 泄漏
+  原因：ServiceConnection 保持着 Activity 引用
+  解决：在 onStop() 或 onDestroy() 中调用 unbindService()
+        推荐使用 LifecycleObserver 自动管理
+
+  坑3：后台 Service 被系统杀死
+  ─────────────────────────────────────────────────────────────────────────
+  问题：Android 8.0+ 后台 Service 几分钟后被杀
+  解决：使用 ForegroundService / WorkManager / JobScheduler
+
+  坑4：IntentService 内存泄漏
+  ─────────────────────────────────────────────────────────────────────────
+  问题：IntentService 持有 Context 引用（已废弃）
+  解决：使用 JobIntentService 或 CoroutineWorker 替代
+```
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    BroadcastReceiver 常见踩坑                               │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  坑1：动态注册未注销导致内存泄漏
+  ─────────────────────────────────────────────────────────────────────────
+  问题：Activity 销毁时未调用 unregisterReceiver()
+  解决：
+  - 在 onPause() 或 onDestroy() 中注销
+  - 使用 Lifecycle-aware 方式自动注销
+
+  坑2：静态广播在 Android 8.0+ 不生效
+  ─────────────────────────────────────────────────────────────────────────
+  问题：大部分隐式广播的静态注册不再生效
+  解决：改为动态注册，或使用系统豁免的广播 Action
+
+  坑3：onReceive() 中执行耗时操作 ANR
+  ─────────────────────────────────────────────────────────────────────────
+  问题：onReceive() 在主线程，前台广播 10 秒超时
+  解决：使用 goAsync() 延长到 30 秒，或启动 Service 处理
+
+  坑4：有序广播优先级设置无效
+  ─────────────────────────────────────────────────────────────────────────
+  问题：android:priority 设置了但没生效
+  原因：动态注册和静态注册的优先级范围不同
+        动态注册优先级始终高于静态注册
+  解决：同一注册方式内比较 priority 值（-1000 到 1000）
+```
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    ContentProvider 常见踩坑                                 │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  坑1：ContentProvider.onCreate() 耗时导致启动慢
+  ─────────────────────────────────────────────────────────────────────────
+  问题：onCreate() 在主线程执行，耗时操作会拖慢应用启动
+  原因：ContentProvider.onCreate() 先于 Application.onCreate()
+  解决：onCreate() 只做轻量初始化，耗时操作延迟到首次查询时
+
+  坑2：Cursor 未关闭导致内存泄漏
+  ─────────────────────────────────────────────────────────────────────────
+  问题：query() 返回的 Cursor 用完后忘记 close()
+  解决：使用 try-finally 或 try-with-resources
+
+  坑3：notifyChange 频繁调用导致 UI 卡顿
+  ─────────────────────────────────────────────────────────────────────────
+  问题：批量插入时每条都调用 notifyChange 触发多次刷新
+  解决：批量操作完成后统一调用一次 notifyChange
+
+  坑4：exported=true 未加权限控制
+  ─────────────────────────────────────────────────────────────────────────
+  问题：ContentProvider 对外暴露但无权限保护
+  解决：必须设置 readPermission / writePermission
+        或设置 exported=false（仅内部使用）
+```
+
+### 10.4 组件化架构中的四大组件
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    组件化架构中的组件管理                                    │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │                                                                         │
+  │  传统单体架构：                                                         │
+  │  ─────────────────────────────────────────────────────────────────────── │
+  │                                                                         │
+  │  ┌──────────────────────────────────────────────────────┐              │
+  │  │                    App Module                        │              │
+  │  │                                                      │              │
+  │  │  Activity A  Activity B  Activity C                  │              │
+  │  │  Service X   Receiver Y  Provider Z                  │              │
+  │  │                                                      │              │
+  │  │  直接引用，紧耦合                                    │              │
+  │  └──────────────────────────────────────────────────────┘              │
+  │                                                                         │
+  │  组件化架构：                                                           │
+  │  ─────────────────────────────────────────────────────────────────────── │
+  │                                                                         │
+  │  ┌──────────┐  ┌──────────┐  ┌──────────┐                             │
+  │  │ Module A │  │ Module B │  │ Module C │                             │
+  │  │ (用户)   │  │ (商品)   │  │ (订单)   │                             │
+  │  └────┬─────┘  └────┬─────┘  └────┬─────┘                             │
+  │       │              │              │                                   │
+  │       └──────────────┼──────────────┘                                   │
+  │                      │                                                  │
+  │              ┌───────┴───────┐                                         │
+  │              │    Router     │  ← 路由层（ARouter 等）                 │
+  │              └───────┬───────┘                                         │
+  │                      │                                                  │
+  │              ┌───────┴───────┐                                         │
+  │              │  Common/Base │  ← 公共层                               │
+  │              └───────────────┘                                         │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+```
+
+```
+组件化中四大组件的挑战与解决方案：
+─────────────────────────────────────────────────────────────────────────
+
+  1. Activity 跳转（跨模块）
+  ─────────────────────────────────────────────────────────────────────────
+  问题：模块间无直接依赖，无法直接创建 Intent
+  
+  解决方案：
+  - ARouter：基于注解的路由框架
+    @Route(path = "/user/profile")
+    public class ProfileActivity extends AppCompatActivity { }
+    
+    ARouter.getInstance().build("/user/profile").navigation();
+  
+  - Deep Link：基于 URI 的路由
+    Intent intent = new Intent(Intent.ACTION_VIEW,
+        Uri.parse("myapp://user/profile?id=123"));
+
+  2. Service 跨模块通信
+  ─────────────────────────────────────────────────────────────────────────
+  问题：模块间无法直接获取 Service 实例
+  
+  解决方案：
+  - 接口暴露 + 反射
+  - ARouter 的 IProvider
+  - 统一的 ServiceManager
+
+  3. BroadcastReceiver 跨模块事件
+  ─────────────────────────────────────────────────────────────────────────
+  问题：模块间需要通信但不想互相依赖
+  
+  解决方案：
+  - 全局事件总线（LiveData / Flow / EventBus）
+  - 模块级 LocalBroadcast
+  - 统一的 EventHub
+
+  4. ContentProvider 初始化问题
+  ─────────────────────────────────────────────────────────────────────────
+  问题：多个模块都有 ContentProvider，初始化顺序不可控
+  
+  解决方案：
+  - App Startup：统一初始化入口
+  - 懒加载：首次使用时初始化
+  - 移除自动初始化，改为手动触发
+```
+
+```java
+/**
+ * App Startup 统一初始化
+ */
+// 模块 A 的 Initializer
+public class ModuleAInitializer implements Initializer<Void> {
+    @NonNull
+    @Override
+    public Void create(@NonNull Context context) {
+        // 模块 A 初始化逻辑
+        ModuleA.init(context);
+        return null;
+    }
+
+    @NonNull
+    @Override
+    public List<Class<? extends Initializer<?>>> dependencies() {
+        // 依赖其他 Initializer（控制初始化顺序）
+        return Collections.emptyList();
+    }
+}
+
+// AndroidManifest.xml
+<provider
+    android:name="androidx.startup.InitializationProvider"
+    android:authorities="${applicationId}.androidx-startup"
+    android:exported="false"
+    tools:node="merge">
+    
+    <!-- 启用 ModuleA 的初始化 -->
+    <meta-data
+        android:name="com.example.modulea.ModuleAInitializer"
+        android:value="androidx.startup" />
+</provider>
+```
+
+### 10.5 四大组件性能优化
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    Activity 性能优化                                        │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  优化1：减少 onCreate 耗时
+  ─────────────────────────────────────────────────────────────────────────
+  问题：onCreate 耗时导致启动慢、白屏
+  方案：
+  - 布局优化：减少层级、使用 ViewStub 延迟加载、ConstraintLayout
+  - 异步初始化：非必要初始化延迟到子线程
+  - 闪屏页：使用 windowBackground 避免白屏
+
+  // 优化前
+  protected void onCreate(Bundle savedInstanceState) {
+      super.onCreate(savedInstanceState);
+      setContentView(R.layout.activity_main);  // 复杂布局
+      
+      initSDK();          // 耗时 SDK 初始化
+      initDatabase();     // 数据库初始化
+      loadConfig();       // 网络配置加载
+  }
+
+  // 优化后
+  protected void onCreate(Bundle savedInstanceState) {
+      super.onCreate(savedInstanceState);
+      setContentView(R.layout.activity_main);  // 优化后的布局
+      
+      // 核心初始化（主线程）
+      initCriticalComponents();
+      
+      // 非核心初始化（子线程）
+      Executors.newSingleThreadExecutor().execute(() -> {
+          initSDK();
+          initDatabase();
+          loadConfig();
+      });
+  }
+
+  优化2：避免过度绘制
+  ─────────────────────────────────────────────────────────────────────────
+  - 移除不必要的背景
+  - 使用 clipRect 裁剪绘制区域
+  - 减少布局嵌套层级
+
+  优化3：生命周期方法轻量化
+  ─────────────────────────────────────────────────────────────────────────
+  - onResume/onPause 中避免耗时操作
+  - onStop 中释放资源而非等待 onDestroy
+  - 使用 ViewModel 持有数据，避免重建时重新加载
+```
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    Service 性能优化                                         │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  优化1：合理使用 Service 类型
+  ─────────────────────────────────────────────────────────────────────────
+  ┌─────────────────────────────┬───────────────────────────────────────┐
+  │  场景                        │  推荐方案                              │
+  ├─────────────────────────────┼───────────────────────────────────────┤
+  │  音乐播放、导航              │  ForegroundService                    │
+  │  后台上传下载                │  WorkManager                          │
+  │  定时任务                    │  WorkManager / AlarmManager           │
+  │  简单异步                    │  Coroutines / RxJava                  │
+  │  跨进程方法调用              │  BoundService + AIDL                  │
+  └─────────────────────────────┴───────────────────────────────────────┘
+
+  优化2：ForegroundService 通知优化
+  ─────────────────────────────────────────────────────────────────────────
+  - 使用低优先级通知（NotificationManager.IMPORTANCE_LOW）
+  - 提供用户操作入口（暂停/取消按钮）
+  - 任务完成后立即移除通知
+
+  优化3：避免 Service 泄漏
+  ─────────────────────────────────────────────────────────────────────────
+  - 启动式 Service：任务完成后调用 stopSelf()
+  - 绑定式 Service：注意解绑时机
+  - 使用 LifecycleObserver 自动管理
+```
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    BroadcastReceiver 性能优化                               │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  优化1：减少广播注册数量
+  ─────────────────────────────────────────────────────────────────────────
+  - 只注册真正需要的广播
+  - 使用特定 Action 过滤，避免过于宽泛的 IntentFilter
+  - 及时注销不再需要的广播
+
+  优化2：onReceive() 中避免耗时操作
+  ─────────────────────────────────────────────────────────────────────────
+  - 短操作：直接处理
+  - 中等操作：使用 goAsync()（最多 30 秒）
+  - 长操作：启动 Service 或调度 WorkManager
+
+  // goAsync() 示例
+  public class MyReceiver extends BroadcastReceiver {
+      @Override
+      public void onReceive(Context context, Intent intent) {
+          final PendingResult pendingResult = goAsync();
+          
+          new Thread(() -> {
+              try {
+                  // 执行耗时操作（不超过 30 秒）
+                  processData(intent);
+              } finally {
+                  pendingResult.finish();
+              }
+          }).start();
+      }
+  }
+
+  优化3：本地广播替代全局广播
+  ─────────────────────────────────────────────────────────────────────────
+  - 应用内通信使用 LiveData / Flow 替代广播
+  - 减少跨进程通信开销
+```
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    ContentProvider 性能优化                                 │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  优化1：批量操作代替单条操作
+  ─────────────────────────────────────────────────────────────────────────
+  - 使用 applyBatch() 批量操作（单事务）
+  - 使用 bulkInsert() 批量插入
+  - 减少 Binder 调用次数
+
+  优化2：query 结果集优化
+  ─────────────────────────────────────────────────────────────────────────
+  - 使用 projection 限制查询列
+  - 使用 selection 过滤行
+  - 使用 sortOrder + limit 分页查询
+  - 及时关闭 Cursor
+
+  优化3：notifyChange 优化
+  ─────────────────────────────────────────────────────────────────────────
+  - 批量操作完成后调用一次
+  - 使用 notifyForDescendants 控制通知范围
+  - 避免在循环中反复调用
+
+  优化4：异步查询
+  ─────────────────────────────────────────────────────────────────────────
+  - 使用 CursorLoader（已废弃）或自定义 Loader
+  - 使用 Coroutines 异步查询
+  - 使用 ContentProviderClient 管理连接
+```
+
+### 10.6 Android 版本演进对四大组件的影响
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    Android 版本对四大组件的限制演进                          │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  ┌──────────┬──────────────────────────────────────────────────────────────┐
+  │  版本     │  影响内容                                                   │
+  ├──────────┼──────────────────────────────────────────────────────────────┤
+  │          │  Activity：                                                │
+  │ Android  │  - 多窗口模式支持                                          │
+  │  7.0     │  - 通知栏快捷回复（直接回复 RemoteInput）                   │
+  │ (API 24) │                                                            │
+  │          │  BroadcastReceiver：                                        │
+  │          │  - CONNECTIVITY_ACTION 不再能静态注册                       │
+  ├──────────┼──────────────────────────────────────────────────────────────┤
+  │          │  Activity：                                                │
+  │ Android  │  - 画中画模式（PictureInPicture）                          │
+  │  8.0     │                                                            │
+  │ (API 26) │  Service：                                                 │
+  │          │  - 后台 Service 限制，必须使用 startForegroundService()     │
+  │          │  - 5 秒内必须调用 startForeground()                        │
+  │          │                                                            │
+  │          │  BroadcastReceiver：                                        │
+  │          │  - 静态注册隐式广播大部分失效                               │
+  │          │  - 新增豁免列表                                            │
+  ├──────────┼──────────────────────────────────────────────────────────────┤
+  │          │  Activity：                                                │
+  │ Android  │  - 支持 Bubble（气泡）显示                                 │
+  │  10      │                                                            │
+  │ (API 29) │  Service：                                                 │
+  │          │  - 后台启动 Activity 限制                                  │
+  │          │                                                            │
+  │          │  ContentProvider：                                          │
+  │          │  - 默认 exported=false（之前默认 true）                     │
+  ├──────────┼──────────────────────────────────────────────────────────────┤
+  │          │  Activity：                                                │
+  │ Android  │  - 强制分区存储（Scoped Storage）                          │
+  │  11      │                                                            │
+  │ (API 30) │  Service：                                                 │
+  │          │  - 前台服务类型（foregroundServiceType）必须声明            │
+  │          │  - 后台启动限制更严格                                      │
+  │          │                                                            │
+  │          │  BroadcastReceiver：                                        │
+  │          │  - 自定义广播默认 ordered=true                             │
+  ├──────────┼──────────────────────────────────────────────────────────────┤
+  │          │  Service：                                                 │
+  │ Android  │  - 前台服务类型新增 health、connectedDevice 等              │
+  │  14      │  - 运行时动态注册广播必须指定 EXPORTED 标志                │
+  │ (API 34) │                                                            │
+  │          │  Activity：                                                │
+  │          │  - 隐式 Intent 限制更严格                                  │
+  │          │  - 后台启动 Activity 需要特殊权限                           │
+  └──────────┴──────────────────────────────────────────────────────────────┘
+```
+
+```
+前台服务类型（Android 14+ 必须声明）：
+─────────────────────────────────────────────────────────────────────────
+
+  ┌──────────────────────┬────────────────────────────────────────────────┐
+  │  foregroundServiceType │  说明                                       │
+  ├──────────────────────┼────────────────────────────────────────────────┤
+  │  camera               │  相机                                       │
+  │  connectedDevice      │  连接的设备（蓝牙等）                       │
+  │  dataSync             │  数据同步                                   │
+  │  health               │  健康相关（心率等）                         │
+  │  location             │  位置服务                                   │
+  │  mediaPlayback        │  媒体播放                                   │
+  │  mediaProjection      │  屏幕录制/投影                              │
+  │  microphone           │  麦克风                                     │
+  │  phoneCall            │  电话                                       │
+  │  remoteMessaging      │  远程消息                                   │
+  │  shortService         │  短时任务（系统级）                         │
+  │  specialUse           │  特殊用途                                   │
+  │  systemExempted       │  系统豁免                                   │
+  └──────────────────────┴────────────────────────────────────────────────┘
+
+  <!-- AndroidManifest.xml 声明 -->
+  <service
+      android:name=".MusicService"
+      android:foregroundServiceType="mediaPlayback" />
+
+  // 代码中启动
+  startForeground(notificationId, notification,
+      ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK);
+```
+
+```
+适配建议：
+─────────────────────────────────────────────────────────────────────────
+
+  1. Activity 适配
+     - 支持 ViewModel + SavedStateHandle 应对重建
+     - 处理多窗口/画中画生命周期
+     - 使用 Navigation 组件管理跳转
+
+  2. Service 适配
+     - 后台任务迁移到 WorkManager
+     - 前台服务声明正确的 foregroundServiceType
+     - 注意 Android 12+ 前台服务通知延迟（10 秒）
+
+  3. BroadcastReceiver 适配
+     - 静态广播仅保留系统豁免列表中的
+     - 动态注册注意生命周期管理
+     - 应用内事件使用 Flow/LiveData 替代
+
+  4. ContentProvider 适配
+     - exported 默认 false，按需开放
+     - 分区存储下 MediaStore 使用受限
+     - 考虑 App Startup 替代 ContentProvider 初始化
+```
+
+---
+
+## 11. 面试高频题精选
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    Activity 相关面试题                                      │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  Q1: Activity 的四种启动模式分别在什么场景下使用？
+  ─────────────────────────────────────────────────────────────────────────
+  A:
+  - standard：默认模式，适合大多数普通页面
+  - singleTop：适合消息详情页、通知点击页（避免栈顶重复创建）
+  - singleTask：适合应用主页面（如微信主页，返回时清除上层）
+  - singleInstance：适合系统级独立页面（如闹钟、来电界面）
+
+  Q2: onSaveInstanceState 和 onRestoreInstanceState 的调用时机？
+  ─────────────────────────────────────────────────────────────────────────
+  A:
+  调用时机：
+  - onSaveInstanceState：在 onStop 之前，不一定触发（系统认为需要时才调用）
+  - onRestoreInstanceState：在 onStart 之后、onResume 之前
+  
+  触发条件（onSaveInstanceState）：
+  - 按 Home 键
+  - 启动新 Activity
+  - 屏幕旋转
+  - 切换到其他应用
+  不触发：按 Back 键（用户主动退出）
+
+  注意：
+  - 不要和持久化存储混淆，这只是临时状态保存
+  - Bundle 有大小限制（约 1MB）
+
+  Q3: Activity 启动过程经历了哪些主要步骤？
+  ─────────────────────────────────────────────────────────────────────────
+  A:
+  1. 调用 Activity.startActivity()
+  2. Instrumentation.execStartActivity()
+  3. 通过 Binder 调用 ATMS.startActivityAsUser()
+  4. ATMS 解析 Intent，查找目标 Activity
+  5. 如果目标进程不存在，通过 Socket 通知 Zygote fork 新进程
+  6. 新进程中 ActivityThread.main() 启动
+  7. 通过 ApplicationThread.scheduleLaunchActivity() 回调
+  8. ActivityThread.handleLaunchActivity()
+  9. performLaunchActivity()：创建 Activity 实例，调用 attach()、onCreate()
+  10. handleResumeActivity()：调用 onResume()， DecorView 添加到 WindowManager
+
+  Q4: 如何处理 Activity 重建时的数据恢复？
+  ─────────────────────────────────────────────────────────────────────────
+  A:
+  方案1：onSaveInstanceState + onRestoreInstanceState（适合少量数据）
+  方案2：ViewModel（推荐，适合页面数据）
+         - ViewModel 在配置变更时不会被销毁
+         - 结合 SavedStateHandle 处理进程被杀的情况
+  方案3：持久化存储（数据库/文件，适合大量数据）
+
+  // 推荐方案
+  public class MyViewModel extends ViewModel {
+      private SavedStateHandle savedStateHandle;
+      
+      public MyViewModel(SavedStateHandle savedStateHandle) {
+          this.savedStateHandle = savedStateHandle;
+      }
+      
+      public LiveData<String> getData() {
+          return savedStateHandle.getLiveData("key", "default");
+      }
+  }
+```
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    Service 相关面试题                                       │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  Q5: Service 和 Thread 的区别？什么时候用 Service？
+  ─────────────────────────────────────────────────────────────────────────
+  A:
+  Service：
+  - 运行在主线程（需手动创建子线程）
+  - 有独立生命周期，由 AMS 管理
+  - 系统可感知，可提高进程优先级
+  - 支持跨进程通信
+  
+  Thread：
+  - 运行在子线程
+  - 无独立生命周期，随进程消亡
+  - 系统不可感知
+  - 不支持跨进程
+  
+  使用 Service 的场景：
+  - 需要后台长期运行（音乐播放）
+  - 需要提高进程优先级（防止被杀）
+  - 需要跨进程通信
+  不需要 Service 的场景：
+  - Activity 内的简单异步操作 → Coroutines
+  - 后台一次性任务 → WorkManager
+
+  Q6: Android 8.0+ 后台 Service 限制如何应对？
+  ─────────────────────────────────────────────────────────────────────────
+  A:
+  限制内容：
+  - 后台应用无法自由创建后台 Service
+  - 调用 startForegroundService() 后必须 5 秒内调用 startForeground()
+  
+  应对方案：
+  - 用户可感知任务 → ForegroundService + 通知
+  - 后台一次性任务 → WorkManager
+  - 定时任务 → WorkManager + AlarmManager
+  - 即时任务 → Coroutines / RxJava
+
+  Q7: IntentService 为什么被废弃？用什么替代？
+  ─────────────────────────────────────────────────────────────────────────
+  A:
+  废弃原因：
+  - IntentService 是 Service 的子类，有 Service 的所有限制
+  - Android 8.0+ 后台 Service 限制使其几乎不可用
+  - 串行处理任务的设计不够灵活
+  
+  替代方案：
+  - WorkManager：推荐的替代方案，兼容性好，支持约束条件
+  - CoroutineWorker：Kotlin 协程版本，更简洁
+  - ListenableWorker：需要返回 ListenableFuture 的场景
+
+  class MyWorker(context: Context, params: WorkerParameters) 
+      : CoroutineWorker(context, params) {
+      override suspend fun doWork(): Result {
+          // 执行耗时任务
+          return Result.success()
+      }
+  }
+```
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    BroadcastReceiver 相关面试题                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  Q8: 广播的静态注册和动态注册有什么区别？
+  ─────────────────────────────────────────────────────────────────────────
+  A:
+  ┌─────────────────┬─────────────────────┬─────────────────────┐
+  │  对比项           │  静态注册            │  动态注册            │
+  ├─────────────────┼─────────────────────┼─────────────────────┤
+  │  注册方式         │  AndroidManifest    │  代码中调用 API      │
+  │  生效时机         │  应用安装后          │  registerReceiver 后│
+  │  持续性           │  永久（跨应用重启）  │  随组件生命周期      │
+  │  进程唤醒         │  可以唤醒应用        │  不可以              │
+  │  Android 8.0+    │  大部分隐式广播失效  │  不受影响            │
+  │  性能消耗         │  较高（系统维护）    │  较低                │
+  │  适用场景         │  系统广播（豁免列表）│  应用内通信          │
+  └─────────────────┴─────────────────────┴─────────────────────┘
+
+  Q9: 如何实现有序广播的拦截和数据传递？
+  ─────────────────────────────────────────────────────────────────────────
+  A:
+  发送方：sendOrderedBroadcast(intent, permission)
+  
+  接收方：
+  1. 设置优先级：android:priority="100"（-1000 到 1000）
+  2. 获取前一个接收者的数据：getResultData() / getResultCode()
+  3. 传递给下一个：setResultData() / setResultCode()
+  4. 拦截：abortBroadcast()
+  
+  执行顺序：高优先级先接收，可以修改数据或拦截
+
+  Q10: LocalBroadcastManager 和全局广播的区别？
+  ─────────────────────────────────────────────────────────────────────────
+  A:
+  LocalBroadcastManager：
+  - 只在应用内传播
+  - 不经过 Binder，效率更高
+  - 其他应用无法发送/接收，更安全
+  - 不受 Android 8.0+ 限制
+  
+  全局广播：
+  - 跨应用传播
+  - 经过系统 AMS，有 Binder 开销
+  - 需要权限控制
+  - 受 Android 版本限制
+  
+  注意：LocalBroadcastManager 已废弃，官方推荐使用 LiveData/Flow
+```
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    ContentProvider 相关面试题                               │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  Q11: ContentProvider 是如何实现跨进程共享数据的？
+  ─────────────────────────────────────────────────────────────────────────
+  A:
+  实现原理：
+  1. ContentProvider 基于 Binder 机制实现 IPC
+  2. 客户端通过 ContentResolver 访问（代理模式）
+  3. ContentResolver 通过 AMS 获取 IContentProvider 的 Binder 代理
+  4. 调用 query/insert/update/delete 实际是跨进程 Binder 调用
+  5. 服务端 ContentProvider 处理请求，返回结果
+  
+  数据传输：
+  - Cursor 数据通过 CursorWindow（共享内存）传递
+  - 大数据分页传输，避免 Binder 缓冲区溢出
+  - 支持批量操作减少 IPC 次数
+
+  Q12: ContentProvider 和 SQLite 直接使用哪个好？
+  ─────────────────────────────────────────────────────────────────────────
+  A:
+  ContentProvider 优势：
+  - 标准 CRUD 接口，统一数据访问
+  - 内置跨进程支持
+  - 权限控制机制
+  - 数据变化通知（ContentObserver）
+  - 系统集成（SyncAdapter、Loader 等）
+  
+  SQLite 直接使用优势：
+  - 更简单直接
+  - 无跨进程开销
+  - 更灵活
+  
+  选择建议：
+  - 需要跨进程共享 → ContentProvider
+  - 仅应用内使用 → Room / SQLite
+  - 需要数据变化通知 → ContentProvider + ContentObserver
+
+  Q13: 为什么 ContentProvider.onCreate() 先于 Application.onCreate()？
+  ─────────────────────────────────────────────────────────────────────────
+  A:
+  原因：
+  1. ContentProvider 可能在 Application 初始化前就被其他进程访问
+  2. AMS 在启动应用进程后，会先安装 ContentProvider
+  3. 安装过程中会调用 ContentProvider.attachInfo() → onCreate()
+  4. 所有 Provider 安装完成后，才调用 Application.onCreate()
+  
+  启动顺序：
+  Application 构造函数
+    → ContentProvider.attachInfo()
+    → ContentProvider.onCreate()
+    → Application.onCreate()
+    → Activity/Service onCreate()
+  
+  注意：
+  - ContentProvider.onCreate() 中不要依赖 Application 的初始化
+  - 这也是许多 SDK 使用 ContentProvider 自动初始化的原理
+  - App Startup 可以优化多个 SDK 的初始化顺序
+```
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    综合面试题                                               │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  Q14: 四大组件可以不注册直接使用吗？
+  ─────────────────────────────────────────────────────────────────────────
+  A:
+  - Activity：必须注册，否则抛出 ActivityNotFoundException
+  - Service：必须注册，否则抛出 ServiceNotFoundException
+  - BroadcastReceiver：静态注册必须声明；动态注册不需要
+  - ContentProvider：必须注册，否则无法通过 ContentResolver 访问
+
+  Q15: 四大组件的生命周期由谁管理？有什么共同点？
+  ─────────────────────────────────────────────────────────────────────────
+  A:
+  管理者：
+  - Activity：ATMS (ActivityTaskManagerService)
+  - Service：AMS (ActivityManagerService)
+  - BroadcastReceiver：AMS
+  - ContentProvider：AMS
+  
+  共同点：
+  1. 都在 AndroidManifest.xml 中注册
+  2. 都有独立的生命周期
+  3. 都由系统服务管理（不由应用控制）
+  4. 都支持跨进程通信
+  5. 都可以携带 Intent 数据
+
+  Q16: 如何选择 IPC 方式？
+  ─────────────────────────────────────────────────────────────────────────
+  A:
+  ┌───────────────────┬─────────────────────────────────────────────────┐
+  │  需求              │  推荐方案                                       │
+  ├───────────────────┼─────────────────────────────────────────────────┤
+  │  简单数据传递      │  Intent + Bundle                                │
+  │  方法调用          │  AIDL                                           │
+  │  低频消息          │  Messenger                                      │
+  │  数据共享          │  ContentProvider                                │
+  │  事件通知          │  BroadcastReceiver                              │
+  │  大文件传输        │  ContentProvider / 共享内存                      │
+  │  实时通信          │  AIDL + 回调                                    │
+  └───────────────────┴─────────────────────────────────────────────────┘
+
+  Q17: 说说你对 Android 组件化的理解？四大组件在组件化中扮演什么角色？
+  ─────────────────────────────────────────────────────────────────────────
+  A:
+  组件化理解：
+  - 将应用拆分为独立的模块，每个模块可独立开发、测试
+  - 模块间通过路由/接口通信，降低耦合
+  
+  四大组件在组件化中的角色：
+  - Activity：通过路由框架（ARouter）实现跨模块跳转
+  - Service：通过接口暴露（IProvider）实现跨模块服务调用
+  - BroadcastReceiver：通过事件总线实现跨模块事件通知
+  - ContentProvider：跨模块数据共享，也常被用作 SDK 自动初始化入口
+  
+  关键技术：
+  - ARouter / DeepLink：Activity 路由
+  - 接口下沉：Service 暴露接口到公共模块
+  - 事件总线：LiveData / Flow 替代 BroadcastReceiver
+  - App Startup：统一初始化，替代 ContentProvider 初始化
 ```
 
 ---
