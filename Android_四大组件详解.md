@@ -35,15 +35,17 @@
 5. [ContentProvider](#5-contentprovider)
    - 5.1 [ContentProvider 是什么](#51-contentprovider-是什么)
    - 5.2 [ContentProvider 原理](#52-contentprovider-原理)
-   - 5.3 [ContentProvider 核心方法](#53-contentprovider-核心方法)
-   - 5.4 [自定义 ContentProvider 完整示例](#54-自定义-contentprovider-完整示例)
-   - 5.5 [UriMatcher 使用](#55-urimatcher-使用)
-   - 5.6 [ContentObserver 监听数据变化](#56-contentobserver-监听数据变化)
-   - 5.7 [批量操作](#57-批量操作)
-   - 5.8 [ContentProvider 权限控制](#58-contentprovider-权限控制)
-   - 5.9 [ContentProvider 与 Room](#59-contentprovider-与-room)
-   - 5.10 [常用系统 ContentProvider](#510-常用系统-contentprovider)
-   - 5.11 [ContentProvider 常见问题](#511-contentprovider-常见问题)
+   - 5.3 [ContentProvider 启动流程](#53-contentprovider-启动流程经典面试题)
+   - 5.4 [Application 启动流程](#54-application-启动流程)
+   - 5.5 [ContentProvider 核心方法](#55-contentprovider-核心方法)
+   - 5.6 [自定义 ContentProvider 完整示例](#56-自定义-contentprovider-完整示例)
+   - 5.7 [UriMatcher 使用](#57-urimatcher-使用)
+   - 5.8 [ContentObserver 监听数据变化](#58-contentobserver-监听数据变化)
+   - 5.9 [批量操作](#59-批量操作)
+   - 5.10 [ContentProvider 权限控制](#510-contentprovider-权限控制)
+   - 5.11 [ContentProvider 与 Room](#511-contentprovider-与-room)
+   - 5.12 [常用系统 ContentProvider](#512-常用系统-contentprovider)
+   - 5.13 [ContentProvider 常见问题](#513-contentprovider-常见问题)
 6. [四大组件对比](#6-四大组件对比)
 7. [进程间通信 IPC](#7-进程间通信-ipc)
 8. [常见问题](#8-常见问题)
@@ -208,16 +210,87 @@ Android 四大组件是 Android 应用的基石，它们分别是：Activity、S
   从 onStop 恢复: onRestart → onStart → onResume
   从 onPause 恢复: onResume
 
-  场景6：屏幕旋转
+  场景6：A → B → A 完整时序（经典面试题）
+  ─────────────────────────────────────────────────────────────────────────
+
+  前提：Activity A 已处于 onResume 状态，此时启动 Activity B（B 完全遮挡 A）
+
+  【A 启动 B 的回调顺序】
+
+    ① A.onPause()                  ← A 先进入暂停状态
+    ② B.onCreate()  → B.onStart()  → B.onResume()   ← B 完整启动
+    ③ A.onStop()                   ← A 确认 B 已显示后才停止
+
+    ⚠️ 关键点：A.onPause() 和 B.onResume() 不能同时执行，
+       旧 Activity 的 onPause 先执行完，新 Activity 才会 onResume。
+       因此不要在 onPause 中做耗时操作，否则会阻塞新 Activity 的显示。
+
+    ⚠️ 源码依据：ActivityStack.java 中的 completePauseLocked() 方法
+       会触发新 Activity 的启动，确保旧 Activity 先 pause 再 resume 新的。
+
+  【按 Back 键从 B 返回 A 的回调顺序】
+
+    ④ B.onPause()                  ← B 先暂停
+    ⑤ A.onRestart() → A.onStart() → A.onResume()   ← A 重新可见并可交互
+    ⑥ B.onStop()    → B.onDestroy()                 ← B 销毁（standard 模式）
+
+  【完整时序图】
+
+    Activity A                    Activity B
+    ─────────                    ─────────
+    onResume()
+         │
+    onPause() ◄──── 用户点击启动 B
+         │
+         │                  onCreate()
+         │                  onStart()
+         │                  onResume()
+         │
+    onStop() ◄──── B 已完全显示
+         │
+         │              ◄──── 用户按 Back 键返回
+         │                  onPause()
+         │
+    onRestart() ──►
+    onStart() ──►
+    onResume() ──►
+         │
+         │                  onStop()
+         │                  onDestroy()
+
+  【特殊情况：B 为透明/对话框样式 Activity】
+
+    Activity A                    Activity B (透明)
+    ─────────                    ─────────
+    onResume()
+         │
+    onPause() ◄──── A 不会走到 onStop，因为 A 仍部分可见
+         │
+         │                  onCreate()
+         │                  onStart()
+         │                  onResume()
+         │
+         │              ◄──── 用户按 Back 键返回
+         │                  onPause()
+         │
+    onResume() ◄──── A 直接 onResume，不需要 onRestart/onStart
+         │
+         │                  onStop()
+         │                  onDestroy()
+
+    原因：onStop 的触发条件是 Activity 不再可见。透明 Activity 不会
+    完全遮挡底层 Activity，因此底层 Activity 只走到 onPause。
+
+  场景7：屏幕旋转
   ─────────────────────────────────────────────────────────────────────────
   onPause → onStop → onDestroy → onCreate → onStart → onResume
   （相当于销毁重建）
 
-  场景7：按Home键
+  场景8：按Home键
   ─────────────────────────────────────────────────────────────────────────
   onPause → onStop（不会 onDestroy）
 
-  场景8：从最近任务返回
+  场景9：从最近任务返回
   ─────────────────────────────────────────────────────────────────────────
   onRestart → onStart → onResume
 ```
@@ -1367,7 +1440,292 @@ A: 会导致内存泄漏，必须在 onDestroy() 中注销
 - 支持批量操作（applyBatch）
 ```
 
-### 5.3 ContentProvider 核心方法
+### 5.3 ContentProvider 启动流程（经典面试题）
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    ContentProvider 启动流程                                  │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+触发时机：
+─────────────────────────────────────────────────────────────────────────
+当其他进程通过 ContentResolver 访问本进程的 ContentProvider 时，
+如果本进程尚未启动，系统会先启动本进程，然后初始化 ContentProvider。
+
+启动流程（时序）：
+─────────────────────────────────────────────────────────────────────────
+
+  其他进程                         系统进程 (AMS)                   本进程
+     │                                 │                              │
+     │ ContentResolver.query()        │                              │
+     │        │                        │                              │
+     │        ▼                        │                              │
+     │ ApplicationContentResolver      │                              │
+     │        │                        │                              │
+     │        │ acquireProvider()      │                              │
+     │        ├───────────────────────►│                              │
+     │        │                        │                              │
+     │        │                        │ ① 查找目标 ContentProvider   │
+     │        │                        │    所在进程是否已启动        │
+     │        │                        │                              │
+     │        │                        │ ② 进程未启动 →               │
+     │        │                        │    AMS.startProcessLocked()  │
+     │        │                        ├─────────────────────────────►│
+     │        │                        │                              │
+     │        │                        │                    ③ 进程启动入口
+     │        │                        │                       ActivityThread.main()
+     │        │                        │                              │
+     │        │                        │                    ④ ActivityThread.attach()
+     │        │                        │                              │
+     │        │                        │              ⑤ ┌──────────────────────────┐
+     │        │                        │                │ Application 启动流程：    │
+     │        │                        │                │  a) LoadedApk.makeApplication()
+     │        │                        │                │     → new Application()    │
+     │        │                        │                │  b) Application.attach()   │
+     │        │                        │                │     → attachBaseContext()  │
+     │        │                        │                └──────────────────────────┘
+     │        │                        │                              │
+     │        │                        │              ⑥ installContentProviders()
+     │        │                        │                ┌──────────────────────────────┐
+     │        │                        │                │ 遍历 AndroidManifest.xml 中  │
+     │        │                        │                │ 注册的所有 ContentProvider：  │
+     │        │                        │                │                              │
+     │        │                        │                │ for each provider:            │
+     │        │                        │                │   a) ClassLoader 加载类       │
+     │        │                        │                │   b) ContentProvider.         │
+     │        │                        │                │      attachInfo()             │
+     │        │                        │                │   c) ContentProvider.onCreate()│
+     │        │                        │                └──────────────────────────────┘
+     │        │                        │                              │
+     │        │                        │              ⑦ Application.onCreate()
+     │        │                        │                              │
+     │        │                        │              ⑧ AMS 发布 Provider
+     │        │                        │◄─────────────────────────────│
+     │        │                        │  publishContentProviders()   │
+     │        │                        │                              │
+     │        │                        │ ⑨ 将 IContentProvider       │
+     │        │                        │    注册到 AMS               │
+     │        │                        │                              │
+     │        │◄───────────────────────│                              │
+     │        │ 返回 IContentProvider  │                              │
+     │        │                        │                              │
+     │        ▼                        │                              │
+     │ 通过 Binder 调用               │                              │
+     │ ContentProvider.query()        │                              │
+
+⚠️ 关键顺序（面试高频）：
+─────────────────────────────────────────────────────────────────────────
+
+  Application 构造函数
+        │
+        ▼
+  Application.attachBaseContext()    ← ContextImpl 注入
+        │
+        ▼
+  ContentProvider.attachInfo()       ← Provider 关联 Context
+        │
+        ▼
+  ContentProvider.onCreate()         ← Provider 初始化
+        │
+        ▼
+  Application.onCreate()             ← Application 初始化
+        │
+        ▼
+  Activity/Service.onCreate()        ← 组件创建
+
+  结论：ContentProvider.onCreate() 先于 Application.onCreate() 执行！
+
+源码路径：
+─────────────────────────────────────────────────────────────────────────
+  frameworks/base/core/java/android/app/ActivityThread.java
+    → handleBindApplication()
+      → LoadedApk.makeApplication()     // ⑤ 创建 Application
+      → installContentProviders()        // ⑥ 安装所有 ContentProvider
+      → Application.onCreate()           // ⑦ 回调 Application
+      → ActivityManagerService            // ⑧ 发布到 AMS
+        .publishContentProviders()
+
+  frameworks/base/core/java/android/app/ContentProvider.java
+    → attachInfo()                        // 关联 Context 和 ProviderInfo
+    → onCreate()                          // 子类实现初始化逻辑
+
+⚠️ 面试陷阱：
+─────────────────────────────────────────────────────────────────────────
+  Q: 在 ContentProvider.onCreate() 中能用 getContext() 吗？
+  A: 可以。attachInfo() 在 onCreate() 之前调用，此时 Context 已注入。
+
+  Q: 为什么 ContentProvider 要在 Application.onCreate() 之前初始化？
+  A: 因为其他进程可能在 Application 还没初始化完成时就尝试访问 Provider，
+     系统需要保证 Provider 尽早可用。
+
+  Q: ContentProvider.onCreate() 能做耗时操作吗？
+  A: 绝对不能！它在主线程执行，且阻塞 Application.onCreate()。
+     耗时操作会延迟整个应用的启动速度。
+```
+
+### 5.4 Application 启动流程
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                      Application 启动流程                                   │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+一、冷启动完整流程
+─────────────────────────────────────────────────────────────────────────
+
+  用户点击 App 图标
+        │
+        ▼
+  Launcher.startActivity()
+        │
+        ▼
+  AMS.startActivity()                    ← Binder 调用到系统进程
+        │
+        ▼
+  AMS 解析 Intent，查找目标进程
+        │
+        ├── 进程已存在 → 直接调度 Activity
+        │
+        └── 进程不存在 → ② 创建新进程
+                │
+                ▼
+          Zygote.fork()                  ← 从 Zygote 进程 fork
+                │
+                ▼
+          ActivityThread.main()          ← App 进程入口
+                │
+                ▼
+          ┌─────────────────────────────────────────────────────────┐
+          │                  Application 创建链路                    │
+          │                                                         │
+          │  ActivityThread.main()                                  │
+          │       │                                                 │
+          │       ▼                                                 │
+          │  Looper.prepareMainLooper()   ← 创建主线程 Looper      │
+          │       │                                                 │
+          │       ▼                                                 │
+          │  ActivityThread.attach()      ← 通知 AMS 进程就绪      │
+          │       │                                                 │
+          │       ▼                                                 │
+          │  ┌─ LoadedApk.makeApplication() ─────────────────────┐  │
+          │  │                                                  │  │
+          │  │  1) Instrumentation.newApplication()              │  │
+          │  │       │                                          │  │
+          │  │       ▼                                          │  │
+          │  │     ClassLoader.loadClass()                       │  │
+          │  │       │      ← 加载 Application 子类             │  │
+          │  │       ▼                                          │  │
+      ┌─────── new Application()  ◄─── Application 构造函数     │  │
+      │ │  │       │                                          │  │
+      │ │  │       ▼                                          │  │
+      │ │  │  Application.attach(context)                      │  │
+      │ │  │       │                                          │  │
+      │ │  │       ▼                                          │  │
+      │ │  │  Application.attachBaseContext()  ◄── 最早的回调   │  │
+      │ │  │       │                                          │  │
+      │ │  │       ▼                                          │  │
+      │ │  │  Instrumentation.callApplicationOnCreate()        │  │
+      │ │  │       │                                          │  │
+      │ │  │       ▼                                          │  │
+      │ │  └─ Application.onCreate()  ◄─── 常用初始化入口     ─┘  │
+      │ │         │                                                │
+      │ └─────────┼────────────────────────────────────────────────┘
+      │           │
+      │           ▼
+      │     installContentProviders()  ← 初始化所有 ContentProvider
+      │           │
+      │           ▼
+      │     Application.onCreate() 已经执行完（上面第⑦步）
+      │           │
+      │           ▼
+      │     Activity.onCreate()        ← 第一个 Activity 创建
+      │
+      │ 源码路径：
+      │   frameworks/base/core/java/android/app/ActivityThread.java
+      │     → handleBindApplication()
+      │       → createAppContext()
+      │       → LoadedApk.makeApplication()
+      │       → installContentProviders()
+      │       → mInstrumentation.callApplicationOnCreate()
+      │       → ActivityManagerNative.getDefault()
+      │         .publishContentProviders()
+
+二、Application 生命周期方法完整顺序
+─────────────────────────────────────────────────────────────────────────
+
+  ┌──────────────────────┐
+  │  Application 构造函数  │  ← 最先执行，此时还没有 Context
+  └──────────┬───────────┘
+             │
+             ▼
+  ┌──────────────────────┐
+  │ attachBaseContext()   │  ← Context 注入，最早能用到 Context 的时机
+  └──────────┬───────────┘
+             │
+             ▼
+  ┌──────────────────────────────┐
+  │ ContentProvider.attachInfo()  │
+  │ ContentProvider.onCreate()    │  ← 所有 Provider 依次初始化
+  └──────────┬───────────────────┘
+             │
+             ▼
+  ┌──────────────────────┐
+  │ Application.onCreate() │  ← 常规初始化入口（三方 SDK 初始化等）
+  └──────────┬───────────┘
+             │
+             ▼
+  ┌──────────────────────┐
+  │ Activity/Service      │  ← 四大组件开始工作
+  │ onCreate()            │
+  └──────────────────────┘
+
+三、进程优先级与 Application 的关系
+─────────────────────────────────────────────────────────────────────────
+
+  App 进程被创建的触发方式（按优先级从高到低）：
+
+  1. 前台 Activity 启动              → 可见进程优先级
+  2. startForegroundService()        → 服务进程优先级
+  3. ContentProvider 被访问           → 后台进程优先级（可能被 AMS 杀掉）
+  4. 发送有序广播触发                 → 后台进程优先级
+
+  ⚠️ 无论哪种触发方式，Application 的初始化流程都一样：
+     构造 → attachBaseContext → ContentProvider → onCreate
+
+四、面试高频问题
+─────────────────────────────────────────────────────────────────────────
+
+  Q1: Application 构造函数被调用几次？
+  A: 每个进程只调用一次。多进程 App 中，每个进程都有自己的 Application 实例。
+
+  Q2: attachBaseContext() 和 onCreate() 有什么区别？
+  A: attachBaseContext() 是 Context 注入时机，onCreate() 是初始化时机。
+     如果需要在最早时机获取 Context（如初始化全局数据库），用 attachBaseContext()。
+     大部分场景用 onCreate() 即可。
+
+  Q3: ContentProvider 的初始化为什么插在 attachBaseContext 和 onCreate 之间？
+  A: 源码设计决策。attachBaseContext 先让 Application 获得 Context 能力，
+     然后初始化 ContentProvider（需要 Context），最后才回调 onCreate 给开发者。
+     这保证了开发者在 onCreate 中能正常使用所有 Provider。
+
+  Q4: 多进程情况下如何区分当前进程？
+  A: 在 attachBaseContext() 或 onCreate() 中通过进程名判断：
+
+     String currentProcess = getCurrentProcessName();
+     if (currentProcess.endsWith(":push")) {
+         // 推送进程，只初始化推送 SDK
+     } else {
+         // 主进程，全量初始化
+     }
+
+  Q5: 如何优化 Application 启动速度？
+  A: 1) 延迟初始化：非必须的三方 SDK 移到子线程或首次使用时初始化
+     2) 减少 ContentProvider 数量：每个 Provider 都在主线程初始化
+     3) 使用 App Startup 库统一管理初始化
+     4) 避免在 attachBaseContext() 中做 IO 操作
+```
+
+### 5.5 ContentProvider 核心方法
 
 ```
 ┌─────────────────┬─────────────────────────────────────────────────────────┐
@@ -1389,7 +1747,7 @@ MIME 类型格式：
 - 多条记录：vnd.android.cursor.dir/vnd.com.example.users
 ```
 
-### 5.4 自定义 ContentProvider 完整示例
+### 5.6 自定义 ContentProvider 完整示例
 
 ```java
 /**
@@ -1507,7 +1865,7 @@ public class UserProvider extends ContentProvider {
     android:writePermission="com.example.WRITE_USER" />
 ```
 
-### 5.5 UriMatcher 使用
+### 5.7 UriMatcher 使用
 
 ```java
 /**
@@ -1552,7 +1910,7 @@ public class UriMatcherExample {
 }
 ```
 
-### 5.6 ContentObserver 监听数据变化
+### 5.8 ContentObserver 监听数据变化
 
 ```java
 /**
@@ -1599,7 +1957,7 @@ public class MainActivity extends AppCompatActivity {
 }
 ```
 
-### 5.7 批量操作
+### 5.9 批量操作
 
 ```java
 /**
@@ -1644,7 +2002,7 @@ public int bulkInsert(List<User> users) {
 }
 ```
 
-### 5.8 ContentProvider 权限控制
+### 5.10 ContentProvider 权限控制
 
 ```xml
 <!-- 1. 声明权限 -->
@@ -1688,7 +2046,7 @@ intent.setData(Uri.parse("content://com.example.provider/users/123"));
 intent.setFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
 ```
 
-### 5.9 ContentProvider 与 Room
+### 5.11 ContentProvider 与 Room
 
 ```java
 /**
@@ -1736,7 +2094,7 @@ public class RoomProvider extends ContentProvider {
 }
 ```
 
-### 5.10 常用系统 ContentProvider
+### 5.12 常用系统 ContentProvider
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -1776,7 +2134,7 @@ Cursor cursor = getContentResolver().query(
     MediaStore.Images.Media.DATE_ADDED + " DESC");
 ```
 
-### 5.11 ContentProvider 常见问题
+### 5.13 ContentProvider 常见问题
 
 ```
 Q1: ContentProvider 的方法在哪个线程执行？
