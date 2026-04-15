@@ -8,24 +8,37 @@
 ## 目录
 
 ### 一、SystemUI 基础
+
 - [第1章 SystemUI 概述](#1-systemui-概述)
   - [1.1 什么是 SystemUI](#11-什么是-systemui)
   - [1.2 SystemUI 包含的组件](#12-systemui-包含的组件)
   - [1.3 SystemUI 进程](#13-systemui-进程)
 
-- [第2章 SystemUI 启动流程](#2-systemui-启动流程)
-  - [2.1 整体架构](#21-整体架构)
-  - [2.2 启动时序](#22-启动时序)
-  - [2.3 核心组件初始化](#23-核心组件初始化)
+- [第2章 SystemUI 启动流程 (Android 16)](#2-systemui-启动流程-android-16)
+  - [2.1 整体架构 — Dagger 注入体系](#21-整体架构-android-16-dagger-注入)
+  - [2.2 核心源码分析](#22-核心源码分析-android-16-aosp)
+  - [2.3 Dagger 组件绑定示例](#23-dagger-组件绑定示例)
+  - [2.4 启动时序图](#24-启动时序图)
+  - [2.5 CoreStartable 服务列表](#25-主要-corestartable-服务列表)
 
-### 二、核心功能模块
-- [第3章 AOD (Always On Display)](#3-aod-always-on-display-详解)
+### 二、AOD 系统
+
+- [第3章 AOD 基础](#3-aod-always-on-display-详解)
   - [3.1 AOD 概述](#31-aod-概述)
-  - [3.2 Doze 状态机](#32-doze-状态机)
-  - [3.3 AOD 显示流程](#33-aod-显示流程)
-  - [3.4 AOD 核心组件源码](#34-aod-核心组件源码)
+  - [3.2 AOD 架构](#32-aod-架构-android-16)
+  - [3.3 Doze 状态机](#33-aod-状态机-dozemachine)
+  - [3.4 AOD 显示流程](#34-aod-显示流程-android-16)
+  - [3.5 AOD 核心组件源码](#35-aod-核心组件源码-android-16)
 
-- [第4章 通知系统](#4-通知系统详解)
+- [第12章 AOD 高级特性](#12-aod-高级特性)
+  - [12.1 WakefulnessLifecycle 交互](#121-aod-与-wakefulnesslifecycle-交互)
+  - [12.2 显示状态管理](#122-aod-显示状态管理)
+  - [12.3 传感器集成](#123-aod-传感器集成-android-16)
+  - [12.4 配置和设置](#124-aod-配置和设置-android-16)
+
+### 三、通知系统
+
+- [第4章 通知系统详解](#4-通知系统详解)
   - [4.1 通知系统架构](#41-通知系统概述)
   - [4.2 通知发送流程](#42-通知发送流程)
   - [4.3 通知核心组件](#43-通知核心组件)
@@ -36,25 +49,24 @@
 
 - [第6章 RemoteViews 机制](#6-remoteviews-深度解析)
   - [6.1 RemoteViews 原理](#61-remoteviews-原理)
-  - [6.2 RemoteViews 支持的 View](#62-remoteviews-支持的-view)
+  - [6.2 支持的 View](#62-remoteviews-支持的-view)
   - [6.3 RemoteViews 操作](#63-remoteviews-操作)
   - [6.4 Actions 机制深度解析](#64-actions-机制深度解析)
-  - [6.5 反射创建与 View 白名单机制](#65-反射创建与-view-白名单机制)
+  - [6.5 反射创建与 View 白名单](#65-反射创建与-view-白名单机制)
 
-- [第7章 通知渲染流程](#7-通知渲染流程)
-  - [7.1 渲染架构](#71-渲染架构)
-  - [7.2 渲染流程详解](#72-渲染流程详解)
+- [第7章 SystemUI 与 Framework 协作](#7-systemui-与-framework-协作)
+  - [7.1 通知协作流程](#71-通知协作流程)
 
-- [第8章 通知模板系统](#8-通知模板系统)
-  - [8.1 通知模板类型](#81-通知模板类型)
-  - [8.2 模板使用示例](#82-模板使用示例)
-  - [8.3 模板底层实现](#83-模板底层实现)
+- [第8章 通知渲染流程](#8-通知渲染流程)
+  - [8.1 渲染架构](#81-渲染架构)
+  - [8.2 渲染流程详解](#82-渲染流程详解)
 
-### 三、系统集成
-- [第9章 SystemUI 与 Framework 协作](#9-systemui-与-framework-协作)
+- [第9章 通知模板系统](#9-通知模板系统)
+  - [9.1 通知模板类型](#91-通知模板类型)
+  - [9.2 模板使用示例](#92-模板使用示例)
+  - [9.3 模板底层实现](#93-模板底层实现)
 
-### 四、高级特性
-- [第10章 面试常见问题](#10-面试常见问题)
+### 四、通知高级特性
 
 - [第11章 NotificationManagerService 高级特性](#11-notificationmanagerservice-高级特性)
   - [11.1 NMS 核心数据结构](#111-nms-核心数据结构)
@@ -62,27 +74,35 @@
   - [11.3 通知分组机制](#113-通知分组机制)
   - [11.4 通知气泡 (Bubble)](#114-通知气泡-bubble)
   - [11.5 通知声音和振动](#115-通知声音和振动)
+  - [11.6 通知持久化存储](#116-通知持久化存储)
+  - [11.7 通知历史机制](#117-通知历史机制)
 
-- [第12章 AOD 高级特性](#12-aod-高级特性)
-  - [12.1 AOD 与 PowerManagerService 交互](#121-aod-与-powermanagerservice-交互)
-  - [12.2 AOD 硬件抽象层](#122-aod-硬件抽象层-hal)
-  - [12.3 AOD 传感器集成](#123-aod-传感器集成)
-  - [12.4 AOD 配置和设置](#124-aod-配置和设置)
+### 五、Keyguard 锁屏
 
 - [第13章 Keyguard 锁屏系统](#13-keyguard-锁屏系统)
   - [13.1 Keyguard 概述](#131-keyguard-概述)
-  - [13.2 Keyguard 启动流程](#132-keyguard-启动流程)
-  - [13.3 KeyguardViewMediator 源码](#133-keyguardviewmediator-源码分析)
-  - [13.4 KeyguardUpdateMonitor](#134-keyguardupdatemonitor-状态管理)
-  - [13.5 安全验证机制](#135-安全验证机制)
-  - [13.6 图案解锁源码](#136-图案解锁源码分析)
-  - [13.7 生物识别解锁](#137-生物识别解锁)
-  - [13.8 锁屏与 SystemUI 交互](#138-锁屏与-systemui-交互)
-  - [13.9 Keyguard 状态机](#139-keyguard-状态机)
-  - [13.10 锁屏安全最佳实践](#1310-锁屏安全最佳实践)
+  - [13.2 源码目录结构](#132-keyguard-源码目录结构-android-16)
+  - [13.3 启动流程](#133-keyguard-启动流程)
+  - [13.4 KeyguardViewMediator 源码](#133-keyguardviewmediator-源码分析)
+  - [13.5 KeyguardUpdateMonitor 状态管理](#134-keyguardupdatemonitor-状态管理)
+  - [13.6 安全验证机制](#135-安全验证机制)
+  - [13.7 图案解锁源码](#136-图案解锁源码分析)
+  - [13.8 生物识别解锁](#137-生物识别解锁)
+  - [13.9 锁屏与 SystemUI 交互](#138-锁屏与-systemui-交互)
+  - [13.10 Keyguard 状态机](#139-keyguard-状态机)
+  - [13.11 锁屏安全最佳实践](#1310-锁屏安全最佳实践)
 
 - [第14章 Keyguard 面试常见问题](#14-keyguard-面试常见问题)
-  - [14.1 Keyguard 启动与验证](#141-keyguard-启动与验证)
+
+### 六、面试与总结
+
+- [第10章 面试常见问题](#10-面试常见问题)
+  - [10.1 SystemUI 基础](#101-systemui-基础)
+  - [10.2 AOD](#102-aod)
+  - [10.3 通知系统](#103-通知系统)
+  - [10.4 通知系统完整链路](#101-通知系统完整链路)
+  - [10.5 RemoteViews 深度解析](#102-remoteviews-深度解析)
+  - [10.6 AOD 状态机深度解析](#103-aod-状态机深度解析)
 
 ---
 
@@ -1983,45 +2003,44 @@ NotificationListenerService.onNotificationPosted():
  * 通知核心组件
  */
 
-// 1. NotificationRecord - 通知记录
-// 位置: frameworks/base/services/core/java/com/android/server/notification/
+// 1. NotificationRecord - 通知记录 (NMS 端)
+// 位置: services/core/java/com/android/server/notification/NotificationRecord.java
 public class NotificationRecord {
-    private final String key;           // 唯一标识: pkg + id + tag
-    private final Notification notification; // 原始通知
-    private final String channelId;    // 渠道 ID
-    private final int userId;          // 用户 ID
-    private final long postTime;       // 发布时间
-    private final int importance;      // 重要性级别
-    private final Ranking ranking;     // 排名信息
-    
-    // 通知强度 (强度越高，越重要)
-    public enum Intensity {
-        NO_ALERT,      // 无提醒
-        LOW_ALERT,    // 低提醒
-        HIGH_ALERT,   // 高提醒
-        PRIORITY,     // 优先级
-    }
+    private final StatusBarNotification sbn;     // 核心：包含 pkg/tag/id/userId/key/notification
+    private NotificationChannel mChannel;        // 渠道（含 channelId）
+    private int mImportance;                     // 重要性级别
+    private float mRankingScore;                 // 排名分数
+    private int mUserSentiment;                  // 用户情感评分
+    private long mCreationTimeMs;                // 创建时间
+    private long mUpdateTimeMs;                  // 更新时间
+    private long mInterruptionTimeMs;            // 打断时间
+
+    // 获取 key（来自 sbn）
+    public String getKey() { return sbn.getKey(); }
+    // 获取通知对象
+    public Notification getNotification() { return sbn.getNotification(); }
+    // 获取渠道 ID
+    public String getChannelId() { return mChannel != null ? mChannel.getId() : null; }
 }
 
-// 2. NotificationEntry - 通知条目 (SystemUI)
-// 位置: frameworks/base/packages/SystemUI/src/com/android/systemui/statusbar/notification/
-public class NotificationEntry {
-    private final String mKey;                    // 唯一标识
-    private final StatusBarNotification mSbn;    // 系统通知对象
-    private Notification mNotification;          // 通知内容
-    private Ranking mRanking;                    // 排名
-    private ExpandableNotificationRow mRow;      // 通知行视图
-    private boolean mIsRemoved;                  // 是否已移除
-    private boolean mIsDismissed;                // 是否已消除
-    
-    // 通知状态
-    public enum State {
-        DISMISSING,      // 正在消除
-        DISMISSED,       // 已消除
-        PENDING,         // 等待中
-        POSTED,          // 已发布
-        REMOVED,         // 已移除
+// 2. NotificationEntry - 通知条目 (SystemUI 端)
+// 位置: packages/SystemUI/src/com/android/systemui/statusbar/notification/collection/NotificationEntry.java
+public class NotificationEntry extends ListEntry {
+    private StatusBarNotification mSbn;           // 系统通知对象（含 key）
+    private Ranking mRanking;                     // 排名信息
+    private ExpandableNotificationRow row;        // 通知行视图（注意：非 mRow）
+
+    // 消除状态（注意：是枚举，非 boolean）
+    public enum DismissState {
+        NOT_DISMISSED,    // 未消除
+        DISMISSED,        // 已消除
+        PARENT_DISMISSED, // 父组已消除
     }
+    private DismissState mDismissState = DismissState.NOT_DISMISSED;
+
+    // key 来自父类 ListEntry，通过 mSbn.getKey() 初始化
+    // notification 通过 mSbn.getNotification() 获取
+    // 是否移除通过 row.isRemoved() 方法判断
 }
 
 // 3. ExpandableNotificationRow - 可展开通知行
@@ -3389,200 +3408,84 @@ NotificationManagerService.java
 ```java
 /**
  * NotificationManagerService 核心源码
+ * 基于 Android 16 (API 36) AOSP
+ * 源码路径：services/core/java/com/android/server/notification/NotificationManagerService.java
  */
 
 public class NotificationManagerService extends SystemService {
-    
-    // 通知列表（按用户分组）
-    private final ArrayMap<Integer, NotificationList> mNotificationLists = new ArrayMap<>();
-    
-    // 排名助手
+
+    // ====== 通知存储（实际字段名） ======
+    @GuardedBy("mNotificationLock")
+    final ArrayList<NotificationRecord> mNotificationList = new ArrayList<>();
+    @GuardedBy("mNotificationLock")
+    final ArrayMap<String, NotificationRecord> mNotificationsByKey = new ArrayMap<>();
+    @GuardedBy("mNotificationLock")
+    final ArrayList<NotificationRecord> mEnqueuedNotifications = new ArrayList<>();
+    @GuardedBy("mNotificationLock")
+    final ArrayMap<String, NotificationRecord> mSummaryByGroupKey = new ArrayMap<>();
+
+    // ====== 核心组件（通过构造器注入） ======
     private RankingHelper mRankingHelper;
-    
-    // 勿扰模式
     private ZenModeHelper mZenModeHelper;
-    
-    // 条件助手
+    private PreferencesHelper mPreferencesHelper;
+    private NotificationUsageStats mUsageStats;
+    private NotificationHistoryManager mHistoryManager;       // 非直接 new，由构造器注入
+    protected NotificationAttentionHelper mAttentionHelper;    // 声音/振动由此类处理
     private ConditionProviders mConditionProviders;
-    
-    // 通知监听器列表
-    private final ArraySet<ManagedServiceInfo> mListeners = new ArraySet<>();
-    
-    // 通知助手列表
-    private final ArraySet<ManagedServiceInfo> mAssistants = new ArraySet<>();
-    
-    // 通知分组
-    private final ArrayMap<String, NotificationGroup> mNotificationGroups = new ArrayMap<>();
-    
-    @Override
-    public void onStart() {
-        // 1. 发布 Binder 服务
-        publishBinderService(Context.NOTIFICATION_SERVICE, mService);
-        publishLocalService(NotificationManagerInternal.class, mInternalService);
-        
-        // 2. 初始化组件
-        mRankingHelper = new RankingHelper(getContext(), mPm);
-        mZenModeHelper = new ZenModeHelper(getContext(), mHandler);
-        mConditionProviders = new ConditionProviders(getContext(), mUserProfiles);
-        mUsageStats = new NotificationUsageStats(getContext());
-        mHistoryManager = new NotificationHistoryManager(getContext());
-        mBubbleController = new BubbleController(getContext());
-        
-        // 3. 注册监听器
-        mListeners.register(mListener);
-        
-        // 4. 启动线程
-        mHandlerThread.start();
-        mHandler = new WorkerHandler(mHandlerThread.getLooper());
-    }
-    
+
+    // ====== 通知数量限制 ======
+    // 每个应用最多 50 条活跃通知
+    static final int MAX_PACKAGE_NOTIFICATIONS = 50;
+
     /**
      * Binder 服务实现
+     * 注意：字段名是 mService（非 mBinderService）
      */
-    private final INotificationManager.Stub mService = new INotificationManager.Stub() {
-        
+    final IBinder mService = new INotificationManager.Stub() {
+
         @Override
         public void enqueueNotificationWithTag(String pkg, String opPkg,
-                String tag, int id, Notification notification, int userId) {
-            
-            // 检查权限
-            checkCallerIsSystemOrSameApp(pkg);
-            
-            // 检查通知限制
-            checkEnqueueNotificationRateLimit(pkg, userId);
-            
-            // 检查通知数量限制
-            if (isNotificationLimitReached(pkg, userId)) {
-                Slog.w(TAG, "Package " + pkg + " has reached notification limit");
-                return;
-            }
-            
-            // 创建 NotificationRecord
-            final NotificationRecord r = new NotificationRecord(
-                getContext(), notification, pkg, tag, id, userId);
-            
-            // 提取排名信号
-            mRankingHelper.extractSignals(r);
-            
-            // 检查是否被拦截
-            if (isBlocked(r)) {
-                Slog.d(TAG, "Notification blocked: " + r.getKey());
-                return;
-            }
-            
-            // 加入队列
-            mHandler.post(new EnqueueNotificationRunnable(userId, r));
+                String tag, int id, Notification notification, int userId)
+                throws RemoteException {
+            // 实际调用内部方法
+            enqueueNotificationInternal(pkg, opPkg, Binder.getCallingUid(),
+                    Binder.getCallingPid(), tag, id, notification, userId,
+                    false /* byForegroundService */, true /* isAppProvided */);
         }
-        
-        @Override
-        public void cancelNotificationWithTag(String pkg, String tag,
-                int id, int userId) {
-            
-            checkCallerIsSystemOrSameApp(pkg);
-            
-            final String key = Notification.keyFor(pkg, id, tag, userId);
-            mHandler.post(new CancelNotificationRunnable(key, userId));
-        }
-        
-        @Override
-        public void cancelAllNotifications(String pkg, int userId) {
-            checkCallerIsSystemOrSameApp(pkg);
-            mHandler.post(new CancelAllNotificationsRunnable(pkg, userId));
-        }
-        
-        @Override
-        public void setNotificationsEnabledForPackage(String pkg, int uid, 
-                boolean enabled) {
-            checkCallerIsSystem();
-            mPreferencesHelper.setNotificationsEnabledForPackage(pkg, uid, enabled);
-        }
-        
-        @Override
-        public NotificationChannel getNotificationChannel(String pkg, 
-                String channelId) {
-            checkCallerIsSystemOrSameApp(pkg);
-            return mPreferencesHelper.getNotificationChannel(pkg, channelId);
-        }
-        
-        @Override
-        public List<NotificationChannel> getNotificationChannels(String pkg) {
-            checkCallerIsSystemOrSameApp(pkg);
-            return mPreferencesHelper.getNotificationChannels(pkg);
-        }
-        
-        @Override
-        public void createNotificationChannels(String pkg, 
-                ParceledListSlice channels) {
-            checkCallerIsSystemOrSameApp(pkg);
-            mPreferencesHelper.createNotificationChannels(pkg, channels.getList());
-        }
+        // ... cancelNotificationWithTag, cancelAllNotifications 等省略
     };
-    
+
     /**
-     * 入队通知 Runnable
+     * EnqueueNotificationRunnable（入队）
+     * Android 16 中有两个 Runnable：
+     * 1. EnqueueNotificationRunnable — 入队排序
+     * 2. PostNotificationRunnable    — 实际发布
      */
-    private class EnqueueNotificationRunnable implements Runnable {
-        private final int mUserId;
-        private final NotificationRecord mRecord;
-        
-        EnqueueNotificationRunnable(int userId, NotificationRecord record) {
-            mUserId = userId;
-            mRecord = record;
-        }
-        
+    protected class EnqueueNotificationRunnable implements Runnable {
+        private final NotificationRecord r;
+        private final int userId;
+        private final boolean isAppForeground;
+        private final boolean isAppProvided;
+        private final PostNotificationTracker mTracker;
+
         @Override
         public void run() {
-            final NotificationRecord r = mRecord;
-            final String key = r.getKey();
-            
-            // 1. 获取通知列表
-            NotificationList list = mNotificationLists.get(mUserId);
-            if (list == null) {
-                list = new NotificationList();
-                mNotificationLists.put(mUserId, list);
-            }
-            
-            // 2. 移除旧通知（如果存在）
-            NotificationRecord old = list.get(key);
-            if (old != null) {
-                list.remove(key);
-                mUsageStats.unregisterCancelled(old);
-            }
-            
-            // 3. 验证通知
-            if (!validateNotification(r)) {
-                Slog.e(TAG, "Invalid notification: " + key);
-                return;
-            }
-            
-            // 4. 应用排名
-            mRankingHelper.rank(list, r);
-            
-            // 5. 应用勿扰
-            if (mZenModeHelper.shouldIntercept(r)) {
-                r.setIntercepted(true);
-                mUsageStats.registerBlocked(r);
-            }
-            
-            // 6. 添加到列表
-            list.add(r);
-            
-            // 7. 保存到历史
-            mHistoryManager.addNotification(r);
-            
-            // 8. 更新气泡
-            mBubbleController.updateBubble(r);
-            
-            // 9. 通知监听器
-            notifyPosted(r, old);
-            
-            // 10. 更新状态栏
-            updateStatusBarIcons();
-            
-            // 11. 发送声音和振动
-            if (!r.isIntercepted()) {
-                buzzBeepBlink(r);
-            }
+            // 1. 验证通知 → 2. 排名 → 3. 勿扰检查
+            // → 4. 添加到 mNotificationList + mNotificationsByKey
+            // → 5. mAttentionHelper.buzzBeepBlinkLocked(r, signals) // 声音振动
+            // → 6. 通知监听器
+        }
+    }
+
+    protected class PostNotificationRunnable implements Runnable {
+        private final String key;
+        private final String pkg;
+        private final int uid;
+        private final PostNotificationTracker mTracker;
+
+        @Override
+        public void run() {
+            // 实际发布通知到 SystemUI
         }
     }
 }
@@ -3780,37 +3683,35 @@ Notification notification = new Notification.Builder(context, channelId)
 │                    通知声音和振动                                          │
 └─────────────────────────────────────────────────────────────────────────────┘
 
-NMS 处理通知声音和振动的流程：
+NMS 处理通知声音和振动的流程（Android 16 实际实现）：
 
-NotificationManagerService.buzzBeepBlink(NotificationRecord record):
-│
-├── 1. 检查是否需要提醒
-│   if (record.isIntercepted() || !record.shouldShowAlert()) {
-│       return;  // 不需要提醒
-│   }
-│
-├── 2. 检查勿扰模式
-│   if (mZenModeHelper.shouldIntercept(record)) {
-│       return;  // 勿扰模式拦截
-│   }
-│
-├── 3. 播放声音
-│   if (record.getSound() != null) {
-│       playSound(record.getSound(), record.getAttributes());
-│   }
-│
-├── 4. 触发振动
-│   if (record.getVibration() != null) {
-│       vibrate(record.getVibration(), record.getAttributes());
-│   }
-│
-├── 5. 闪烁 LED
-│   if (record.getLight() != null) {
-│       blinkLight(record.getLight());
-│   }
-│
-└── 6. 记录统计
-    mUsageStats.registerAlerted(record);
+  声音/振动实际由 NotificationAttentionHelper 处理，非直接在 NMS 中：
+  NotificationAttentionHelper.buzzBeepBlinkLocked(NotificationRecord record, Signals signals):
+  │
+  ├── NMS 中的调用方式：
+  │   mAttentionHelper.buzzBeepBlinkLocked(r,
+  │       new NotificationAttentionHelper.Signals(
+  │           mUserProfiles.isCurrentProfile(r.getUserId()),
+  │           mListenerHints));
+  │
+  ├── 检查是否需要提醒
+  │   检查勿扰模式、中断信号等
+  │
+  ├── 播放声音
+  │   if (record.getSound() != null) → playSound()
+  │
+  ├── 触发振动
+  │   if (record.getVibration() != null) → vibrate()
+  │
+  └── 返回 bitfield 用于日志记录
+      返回值: (buzz ? 1 : 0) | (beep ? 2 : 0) | (blink ? 4 : 0) |
+              (polite_attenuated ? 8 : 0) | (polite_muted ? 16 : 0)
+
+  关键源码：
+  ─────────────────────────────────────────────────────────────────────────
+  NotificationAttentionHelper.java (services/core/java/.../notification/)
+  - buzzBeepBlinkLocked() 方法（非 NMS 中的 buzzBeepBlink）
+  - NMS 通过 mAttentionHelper 字段调用
 
 声音配置：
 NotificationChannel channel = new NotificationChannel(id, name, importance);
@@ -3825,6 +3726,306 @@ channel.setSound(
 振动配置：
 channel.enableVibration(true);
 channel.setVibrationPattern(new long[]{0, 500, 200, 500});  // 延迟, 振动, 静音, 振动...
+```
+
+### 11.6 通知持久化存储
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    通知持久化存储架构 (Android 16 实际实现)                  │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  ┌──────────────────────────────────────────────────────────────────────────┐
+  │                          内存层（运行时）                                │
+  │                                                                          │
+  │  NotificationManagerService 中的核心存储字段：                          │
+  │  ──────────────────────────────────────────────────────────────────────  │
+  │  ArrayList<NotificationRecord> mNotificationList       ← 通知列表      │
+  │  ArrayMap<String, NotificationRecord> mNotificationsByKey  ← 按 key 索引│
+  │  ArrayList<NotificationRecord> mEnqueuedNotifications  ← 待入队列表    │
+  │  ArrayMap<String, NotificationRecord> mSummaryByGroupKey  ← 分组摘要   │
+  │                                                                          │
+  │  所有字段都由 @GuardedBy("mNotificationLock") 保护                      │
+  │                                                                          │
+  │  特点：进程存活期间有效，进程死亡后丢失                                │
+  └──────────────────────────────────────────────────────────────────────────┘
+         │
+         │ 发布时触发 maybeRecordInterruptionLocked()
+         ▼
+  ┌──────────────────────────────────────────────────────────────────────────┐
+  │                       通知历史存储（ProtoBuf）                           │
+  │                                                                          │
+  │  实际类：NotificationHistoryManager + NotificationHistoryDatabase       │
+  │  路径：/data/system_ce/<userId>/notification_history/history/            │
+  │  ├── <timestamp_ms>        ← 以发布时间戳命名的 ProtoBuf 文件           │
+  │  ├── <timestamp_ms>.new    ← 写入中的临时文件（AtomicFile 机制）       │
+  │  └── <timestamp_ms>.bak    ← 备份文件                                  │
+  │                                                                          │
+  │  注意：不存在 NotificationRecordFile 类                                │
+  │  注意：不使用 Parcel 序列化，使用 Protocol Buffers                     │
+  │                                                                          │
+  │  序列化工具：NotificationHistoryProtoHelper                             │
+  │  Proto 定义：core/proto/android/server/notificationhistory.proto        │
+  │                                                                          │
+  │  Proto 字段：                                                            │
+  │  ──────────────────────────────────────────────────────────────────────  │
+  │  message HistoricalNotification {                                       │
+  │    optional string package = 1;                                         │
+  │    optional string channel_id = 2;                                      │
+  │    optional string channel_name = 3;                                    │
+  │    optional int32 uid = 4;                                              │
+  │    optional int32 user_id = 5;                                          │
+  │    optional int64 posted_time_ms = 6;                                   │
+  │    optional string title = 7;                                           │
+  │    optional string text = 8;                                            │
+  │    optional Icon icon = 9;                                              │
+  │    optional string conversation_id = 10;                                │
+  │  }                                                                      │
+  │                                                                          │
+  │  写入时机：通知发布时（非移除时！）                                    │
+  │  条件：r.isInterruptive() && !r.hasRecordedInterruption()               │
+  └──────────────────────────────────────────────────────────────────────────┘
+
+  关键源码路径（Android 16 实际）：
+  ─────────────────────────────────────────────────────────────────────────
+  services/core/java/com/android/server/notification/
+  ├── NotificationManagerService.java        ← 核心服务
+  ├── NotificationRecord.java                ← 通知记录
+  ├── NotificationHistoryManager.java        ← 历史管理（非构造器 new，由注入获取）
+  ├── NotificationHistoryDatabase.java       ← ProtoBuf 文件读写
+  ├── NotificationHistoryProtoHelper.java    ← Proto 序列化/反序列化
+  ├── NotificationAttentionHelper.java       ← 声音/振动（非 buzzBeepBlink）
+  └── PreferencesHelper.java                 ← 通知偏好设置
+```
+
+#### 通知偏好设置持久化
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                  通知偏好设置存储 (PreferencesHelper)                       │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  存储内容：
+  ─────────────────────────────────────────────────────────────────────────
+  - NotificationChannel（通知渠道配置）
+  - 应用通知开关（是否允许通知）
+  - 渠道重要性级别
+  - 渠道声音/振动/LED 设置
+  - DND（勿扰）规则
+  - 通知排名配置
+
+  存储路径（Android 16 实际）：
+  ─────────────────────────────────────────────────────────────────────────
+  /data/system_ce/<userId>/notification_policy.xml       ← 通知策略（确认存在）
+
+  渠道存储：
+  ─────────────────────────────────────────────────────────────────────────
+  实际使用单一 XML 文件，根标签为 <ranking>，XML_VERSION = 4
+  使用 TypedXmlSerializer/TypedXmlPullParser 进行读写
+  每个应用的渠道嵌套在 <package name="..."> 标签内：
+
+  <ranking version="4">
+    <package name="com.example.app">
+      <channel id="messages" name="消息" importance="4" ... />
+      <channel id="silent" name="静默" importance="0" ... />
+      <channel_group id="social" name="社交" />
+    </package>
+  </ranking>
+
+  注意：不存在独立的 notification_channels.xml 或按包名分割的 XML 文件
+
+  限制常量（Android 16 实际）：
+  ─────────────────────────────────────────────────────────────────────────
+  NOTIFICATION_CHANNEL_COUNT_LIMIT = 5000           ← 每应用渠道数上限
+  NOTIFICATION_CHANNEL_GROUP_COUNT_LIMIT = 6000     ← 每应用渠道组上限
+  NOTIFICATION_CHANNEL_DELETION_RETENTION_DAYS = 30 ← 删除渠道保留天数
+```
+
+---
+
+### 11.7 通知历史机制
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    通知历史机制 (Notification History)                      │
+│                    基于 Android 16 AOSP 源码验证                           │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  Android 10 引入通知历史功能，用户可以查看最近的通知记录。
+
+  入口：设置 → 应用和通知 → 通知 → 通知历史记录
+
+  ┌──────────────────────────────────────────────────────────────────────────┐
+  │                    通知历史架构（实际实现）                               │
+  │                                                                          │
+  │  ┌─────────────┐    ┌──────────────────────┐    ┌──────────────────┐   │
+  │  │    NMS      │───→│ NotificationHistory   │───→│ NotificationHistory│  │
+  │  │ (通知发布)  │    │ Manager (服务端)      │    │ Database (ProtoBuf)│  │
+  │  └─────────────┘    └──────────────────────┘    └──────────────────┘   │
+  │                                                           │              │
+  │                                                           │ ContentProvider│
+  │                                                           ▼              │
+  │  ┌───────────────────────────────────────────────────────────────────┐ │
+  │  │               通知历史设置页面 (Settings App)                     │ │
+  │  │  ┌─────────────────────────────────────────────────────────────┐ │ │
+  │  │  │  今天                                                      │ │ │
+  │  │  │  ┌───────────────────────────────────────────────────────┐ │ │ │
+  │  │  │  │ 微信 · 14:30                                          │ │ │ │
+  │  │  │  │ 张三: 你好                                             │ │ │ │
+  │  │  │  └───────────────────────────────────────────────────────┘ │ │ │
+  │  │  └─────────────────────────────────────────────────────────────┘ │ │
+  │  └───────────────────────────────────────────────────────────────────┘ │
+  └──────────────────────────────────────────────────────────────────────────┘
+```
+
+#### 通知历史存储（ProtoBuf，非 SQLite）
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    通知历史存储 (Android 16 实际实现)                       │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  注意：Android 16 不使用 SQLite 数据库存储通知历史！
+
+  存储路径：/data/system_ce/<userId>/notification_history/history/
+  存储格式：多个 Protocol Buffer 文件，以时间戳毫秒命名
+
+  Proto Schema（notificationhistory.proto）：
+  ─────────────────────────────────────────────────────────────────────────
+  message HistoricalNotifications {
+    repeated HistoricalNotification notifications = 1;
+  }
+
+  message HistoricalNotification {
+    optional string package = 1;           // 包名
+    optional string channel_id = 2;        // 渠道 ID
+    optional string channel_name = 3;      // 渠道名称
+    optional int32 uid = 4;                // UID
+    optional int32 user_id = 5;            // 用户 ID
+    optional int64 posted_time_ms = 6;     // 发布时间
+    optional string title = 7;             // 标题
+    optional string text = 8;              // 文本
+    optional Icon icon = 9;                // 图标
+    optional string conversation_id = 10;  // 会话 ID
+  }
+
+  写入时机（重要纠正）：
+  ─────────────────────────────────────────────────────────────────────────
+  通知历史在通知发布时写入，而非移除时！
+
+  NMS.maybeRecordInterruptionLocked() (line 3886):
+    if (r.isInterruptive() && !r.hasRecordedInterruption()) {
+        mHistoryManager.addNotification(builder.build());  // line 3911
+    }
+
+  只有「打断性通知」才会被记录到历史中（有声音/振动的通知）
+
+  数据保留策略（Android 16 实际常量）：
+  ─────────────────────────────────────────────────────────────────────────
+  HISTORY_RETENTION_DAYS = 1            ← 仅保留 1 天（非 7 天！）
+  MAX_PACKAGE_NOTIFICATIONS = 50        ← 每应用最多 50 条活跃通知
+  渠道删除保留：NOTIFICATION_CHANNEL_DELETION_RETENTION_DAYS = 30
+```
+
+#### 通知历史写入流程
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    通知历史写入流程（Android 16 实际）                      │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  触发条件：通知发布时，且为「打断性通知」
+  入口：NotificationManagerService.maybeRecordInterruptionLocked()
+
+  流程：
+  ─────────────────────────────────────────────────────────────────────────
+  1. 通知发布到 NMS
+     EnqueueNotificationRunnable.run()
+       → ... 排名、勿扰检查 ...
+       → maybeRecordInterruptionLocked(r)  // line 3886
+
+  2. 检查是否为打断性通知
+     if (r.isInterruptive() && !r.hasRecordedInterruption()) {
+         // 只有发出声音/振动的通知才记录
+     }
+
+  3. 构建 HistoricalNotification
+     HistoricalNotification.Builder builder = new Builder()
+         .setPackage(r.getSbn().getPackageName())
+         .setChannelId(r.getChannelId())
+         .setChannelName(r.getChannelName())
+         .setTitle(title)
+         .setText(text)
+         .setPostedTimeMs(System.currentTimeMillis());
+
+  4. 通知 NotificationHistoryManager
+     mHistoryManager.addNotification(builder.build());
+
+  5. NotificationHistoryDatabase 写入 ProtoBuf
+     → 序列化为 NotificationHistoryProto
+     → 以 AtomicFile 写入 /data/system_ce/<userId>/notification_history/history/
+     → 文件名 = posted_time_ms
+
+  清理策略：
+  ─────────────────────────────────────────────────────────────────────────
+  NotificationHistoryJobService 定期执行：
+  - 删除超过 HISTORY_RETENTION_DAYS（1天）的文件
+  - 通过 NotificationHistoryFilter 清理
+
+  关键源码路径：
+  ─────────────────────────────────────────────────────────────────────────
+  services/core/java/com/android/server/notification/
+  ├── NotificationHistoryManager.java         ← 历史管理
+  ├── NotificationHistoryDatabase.java        ← ProtoBuf 文件读写
+  ├── NotificationHistoryProtoHelper.java     ← Proto 序列化
+  ├── NotificationHistoryJobService.java      ← 定期清理 Job
+  └── NotificationHistoryFilter.java          ← 过滤逻辑
+
+  Settings 应用中的展示：
+  ─────────────────────────────────────────────────────────────────────────
+  packages/apps/Settings/
+  └── src/com/android/settings/notification/
+      ├── NotificationHistoryActivity.java
+      └── NotificationHistorySettings.java
+```
+
+#### 通知历史的用户开关
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    通知历史开关控制                                          │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  历史开关：Settings.Secure.NOTIFICATION_HISTORY_ENABLED
+
+  # 查看当前状态
+  $ adb shell settings get secure notification_history_enabled
+
+  # 开启通知历史（需要 root 或调试设备）
+  $ adb shell settings put secure notification_history_enabled 1
+
+  # 关闭通知历史
+  $ adb shell settings put secure notification_history_enabled 0
+
+  注意事项：
+  ─────────────────────────────────────────────────────────────────────────
+  - 关闭通知历史不会立即删除已有记录
+  - 关闭后新通知不再记录历史
+  - Android 16 默认仅保留 1 天历史（HISTORY_RETENTION_DAYS = 1）
+  - 某些 OEM 可能修改了保留天数
+
+  面试关键点：
+  ─────────────────────────────────────────────────────────────────────────
+  Q: 通知历史是在发布时还是移除时记录的？
+  A: Android 16 中是在发布时记录的（非移除时）。
+     只有打断性通知（isInterruptive() = true，即有声音/振动的通知）
+     才会被记录到历史中。条件判断在 NMS.maybeRecordInterruptionLocked()。
+
+  Q: 通知历史的存储格式是什么？
+  A: Protocol Buffers 文件（非 SQLite 数据库）。
+     每个通知历史记录存储为 /data/system_ce/<userId>/notification_history/history/
+     下的一个 ProtoBuf 文件，文件名为发布时间的毫秒时间戳。
+     使用 AtomicFile 机制保证写入安全。
 ```
 
 ---
