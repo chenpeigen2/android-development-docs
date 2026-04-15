@@ -20,7 +20,7 @@
 12. [Fragment](#12-fragment)
 13. [核心库对比](#13-核心库对比)
 14. [ConstraintLayout](#14-constraintlayout)
-15. [常见问题](#15-常见问题)
+15. [面试常见问题](#15-面试常见问题)
 16. [知识体系总结](#16-知识体系总结)
 
 ---
@@ -3563,47 +3563,1091 @@ A:
 
 ---
 
-## 15. 常见问题
+## 15. 面试常见问题
 
-### 15.1 ViewModel 什么时候销毁？
+### 15.1 Lifecycle 相关
 
-```
-ViewModel 在以下情况销毁：
-- Activity 真正 finish（不是配置更改）
-- Fragment 真正 detach
-
-注意：
-- 屏幕旋转不会销毁 ViewModel
-- ViewModel.onCleared() 在销毁时调用
-```
-
-### 15.2 LiveData 和 Flow 怎么选？
+**Q1：Lifecycle 的实现原理是什么？**
 
 ```
-LiveData：
-- 简单场景
-- 需要自动生命周期管理
-- 已有项目
+核心机制：利用 ReportFragment（无 UI 的 Fragment）注入 Activity 生命周期
 
-Flow（推荐）：
-- 复杂操作符（debounce、combine、flatMapLatest）
-- 需要更多控制
-- 新项目首选
+实现流程：
+  Activity.onCreate()
+    → ReportFragment.injectIfNeededIn(activity)
+      → 添加一个不可见的 ReportFragment 到 Activity
+        → ReportFragment 跟随 Activity 生命周期回调
+          → dispatch(lifecycleEvent)
+            → LifecycleRegistry.handleLifecycleEvent()
+              → 同步状态到所有 Observer
+
+  关键源码路径：
+  frameworks/support/lifecycle/runtime/src/main/java/androidx/lifecycle/
+  ├── ReportFragment.java        ← 生命周期分发入口
+  ├── LifecycleRegistry.java     ← 状态管理核心
+  └── Lifecycling.java           ← 类型适配（注解/接口）
+
+  Android 10+ 优化：
+  ─────────────────────────────────────────────────────────────────────────
+  使用 LifecycleObserver.onStateChanged() 直接回调，不再依赖 Fragment
+  通过 Application.ActivityLifecycleCallbacks 全局监听
 ```
 
-### 15.3 Room 能在主线程访问吗？
+**Q2：Lifecycle 的状态和事件有什么关系？**
 
 ```
-默认：不允许在主线程访问（会抛异常）
+状态（State）和事件（Event）的关系：
 
-解决：
-1. 使用 suspend 函数（推荐）
-2. 返回 LiveData/Flow（自动异步）
-3. allowMainThreadQueries()（不推荐）
+  Event 触发 State 变迁：
 
-Room.databaseBuilder(...)
-    .allowMainThreadQueries()  // 仅用于测试！
-    .build()
+  ON_CREATE  → CREATED
+  ON_START   → STARTED
+  ON_RESUME  → RESUMED
+  ON_PAUSE   → STARTED
+  ON_STOP    → CREATED
+  ON_DESTROY → DESTROYED
+  ON_ANY     → 不改变状态（用于监听所有事件）
+
+  状态回退规则：
+  ─────────────────────────────────────────────────────────────────────────
+  State 只能单调前进（向后兼容：DESTROYED < CREATED < STARTED < RESUMED）
+  但 Event 可以前进和后退（ON_CREATE → ON_START → ON_RESUME → ON_PAUSE → ...）
+
+  面试要点：
+  - State 是离散的 5 个值，Event 是 7 个值（含 ON_ANY）
+  - Observer 可能跳过中间状态（如后台直接到前台：DESTROYED → RESUMED）
+  - LifecycleRegistry 会自动补齐中间状态
+```
+
+**Q3：@OnLifecycleEvent 注解和 DefaultLifecycleObserver 有什么区别？**
+
+```
+DefaultLifecycleObserver（推荐）：
+  - 基于接口，Java 8 default method
+  - 性能更好（直接方法调用）
+  - @OnLifecycleEvent 已在 Java 8 支持后废弃
+
+  @OnLifecycleEvent（废弃）：
+  - 基于反射调用
+  - 需要注解处理器或运行时反射
+  - 仅用于兼容 Java 7
+
+  面试回答要点：
+  ─────────────────────────────────────────────────────────────────────────
+  新项目使用 DefaultLifecycleObserver（或 LifecycleEventObserver），
+  避免反射开销。如果项目 minSdk >= 26，直接用即可。
+```
+
+---
+
+### 15.2 ViewModel 相关
+
+**Q4：ViewModel 为什么能在屏幕旋转后保留数据？原理是什么？**
+
+```
+核心原理：ViewModelStore 持有 ViewModel 引用
+
+  配置更改流程：
+  ─────────────────────────────────────────────────────────────────────────
+  Activity 配置更改
+    → Activity.retainNonConfigurationInstances()
+      → 将 ViewModelStore 保存到 NonConfigurationInstances
+        → Activity 重建后通过 getLastNonConfigurationInstance() 恢复
+          → 新 Activity 复用同一个 ViewModelStore
+            → ViewModel 依然存在
+
+  关键源码：
+  ComponentActivity.onRetainNonConfigurationInstance()
+    → 保存 ViewModelStore
+  ComponentActivity.onCreate()
+    → 通过 ViewModelProvider 获取 ViewModel
+      → 如果 ViewModelStore 中已有，直接返回（不重新创建）
+
+  面试加分点：
+  ─────────────────────────────────────────────────────────────────────────
+  - ViewModelStore 内部用 HashMap<String, ViewModel> 存储
+  - 一个 Activity 有一个 ViewModelStore
+  - Fragment 共享 Activity 的 ViewModelStore 可实现 Fragment 间通信
+```
+
+**Q5：ViewModel 的 onCleared 什么时候调用？**
+
+```
+调用时机：
+  ─────────────────────────────────────────────────────────────────────────
+  1. Activity finish（非配置更改）
+     → ComponentActivity.onDestroy() → ViewModelStore.clear()
+  2. Fragment 真正销毁（非回退栈）
+     → Fragment.onDestroy() → ViewModelStore.clear()
+  3. NavGraph 中 Fragment 导航离开且不入栈
+
+  不会调用的情况：
+  ─────────────────────────────────────────────────────────────────────────
+  - 屏幕旋转（配置更改）
+  - Fragment 进入回退栈
+  - Activity 因内存不足被系统回收（恢复时 ViewModel 也会恢复）
+
+  典型用途：
+  ─────────────────────────────────────────────────────────────────────────
+  - 取消网络请求（viewModelScope.cancel()）
+  - 关闭数据库连接
+  - 清理资源引用
+```
+
+**Q6：ViewModel 和 onSaveInstanceState 的区别？**
+
+```
+┌──────────────────┬────────────────────┬──────────────────────────┐
+│       特性        │     ViewModel      │  onSaveInstanceState    │
+├──────────────────┼────────────────────┼──────────────────────────┤
+│  数据大小        │ 无限制（内存中）    │ 有限制（Bundle ~1MB）    │
+│  数据类型        │ 任意对象            │ 必须可序列化/可打包      │
+│  进程被杀        │ 丢失                │ 保留                     │
+│  配置更改        │ 保留                │ 保留                     │
+│  存储位置        │ 内存                │ 磁盘（系统服务）         │
+│  适用场景        │ UI 数据/网络结果     │ 少量关键数据（ID/状态）  │
+└──────────────────┴────────────────────┴──────────────────────────┘
+
+  最佳实践：两者结合使用
+  ─────────────────────────────────────────────────────────────────────────
+  - ViewModel 存大量数据（列表、表单、图片 URL）
+  - onSaveInstanceState 存恢复标识（滚动位置、当前页码）
+  - SavedStateHandle（ViewModel 的增强版）可以同时做到两者
+```
+
+---
+
+### 15.3 LiveData 相关
+
+**Q7：LiveData 的粘性事件问题是什么？怎么解决？**
+
+```
+问题描述：
+  ─────────────────────────────────────────────────────────────────────────
+  新 Observer 注册时，会立即收到最后一次的值（即使该值是在注册前发出的）
+  这对「事件」类型的数据是有问题的（如：导航事件、Toast、Snackbar）
+
+  场景：点击按钮 → LiveData 设置 "显示Toast" → 屏幕旋转
+        → Observer 重新注册 → 立即收到 "显示Toast" → 再次弹出 Toast
+
+  解决方案：
+  ─────────────────────────────────────────────────────────────────────────
+  方案一：SingleLiveEvent（Google 推荐）
+  ─────────────────────────────────────────────────────────────────────────
+  class SingleLiveEvent<T> : MutableLiveData<T>() {
+      private val pending = AtomicBoolean(false)
+
+      override fun observe(owner: LifecycleOwner, observer: Observer<T>) {
+          super.observe(owner) { t ->
+              if (pending.compareAndSet(true, false)) {
+                  observer.onChanged(t)
+              }
+          }
+      }
+
+      override fun setValue(value: T?) {
+          pending.set(true)
+          super.setValue(value)
+      }
+  }
+
+  方案二：Flow + SharedFlow（推荐新项目）
+  ─────────────────────────────────────────────────────────────────────────
+  val navigationEvent = MutableSharedFlow<NavTarget>()
+  // collect 时不会重放历史值
+
+  方案三：Event 包装类
+  ─────────────────────────────────────────────────────────────────────────
+  data class Event<out T>(private val content: T) {
+      var hasBeenHandled = false
+          private set
+      fun getContentIfNotHandled(): T? =
+          if (hasBeenHandled) null else { hasBeenHandled = true; content }
+  }
+```
+
+**Q8：LiveData 的 observe 和 observeForever 有什么区别？**
+
+```
+┌──────────────────┬──────────────────────┬──────────────────────────┐
+│       特性        │     observe()        │   observeForever()      │
+├──────────────────┼──────────────────────┼──────────────────────────┤
+│  生命周期感知    │ 是（自动移除）        │ 否（需手动 remove）     │
+│  主线程回调      │ 是                    │ 是                      │
+│  调用线程        │ 必须主线程            │ 必须主线程              │
+│  适用场景        │ UI 层观察             │ 非生命周期组件观察      │
+│  内存泄漏风险    │ 低                    │ 高（忘记 remove 时）    │
+└──────────────────┴──────────────────────┴──────────────────────────┘
+
+  面试注意：
+  ─────────────────────────────────────────────────────────────────────────
+  - observeForever 通常用于 Service、Repository 等非 UI 组件
+  - 使用 observeForever 必须在合适的时机调用 removeObserver()
+  - 否则会导致内存泄漏和多次回调
+```
+
+**Q9：LiveData 的 postValue 和 setValue 有什么区别？**
+
+```
+┌──────────────────┬──────────────────────┬──────────────────────────┐
+│       特性        │     setValue()       │   postValue()           │
+├──────────────────┼──────────────────────┼──────────────────────────┤
+│  调用线程        │ 主线程               │ 任意线程                │
+│  通知时机        │ 立即                 │ 下一个主线程 Looper     │
+│  多次调用        │ 每次都通知           │ 只通知最后一次的值      │
+│  底层机制        │ 直接分发             │ Handler.post 到主线程   │
+└──────────────────┴──────────────────────┴──────────────────────────┘
+
+  postValue 的坑：
+  ─────────────────────────────────────────────────────────────────────────
+  // 子线程连续调用
+  liveData.postValue("A")
+  liveData.postValue("B")
+  liveData.postValue("C")
+  // Observer 只收到 "C"（中间值丢失！）
+
+  // 解决：如果需要每次都收到，用 setValue 在主线程
+  // 或使用 Channel / Flow 替代
+```
+
+---
+
+### 15.4 Room 相关
+
+**Q10：Room 的编译期检查是怎么实现的？**
+
+```
+Room 使用 Annotation Processor（注解处理器）在编译期验证 SQL：
+
+  编译期检查内容：
+  ─────────────────────────────────────────────────────────────────────────
+  1. @Entity：表名、列名、主键是否合法
+  2. @Dao：SQL 语句语法检查
+     - @Query 中的 SQL 语法正确性
+     - 返回类型与查询列是否匹配
+     - 参数绑定（:param）是否正确
+  3. @Database：entities 和 version 是否完整
+
+  编译期生成的类：
+  ─────────────────────────────────────────────────────────────────────────
+  AppDatabase_Impl.java         ← Database 实现
+  UserDao_Impl.java             ← Dao 实现
+  User_Table.java               ← 表结构描述
+
+  面试加分：
+  ─────────────────────────────────────────────────────────────────────────
+  - Room 会在编译期生成 SQLite 表创建语句
+  - 如果 SQL 写错了，编译直接报错（而非运行时崩溃）
+  - 这是 Room 相比原生 SQLite 的最大优势之一
+```
+
+**Q11：Room 的数据库迁移怎么做？**
+
+```
+迁移机制：Migration 类指定 version 范围 + SQL 右异操作
+
+  基本用法：
+  ─────────────────────────────────────────────────────────────────────────
+  val MIGRATION_1_2 = object : Migration(1, 2) {
+      override fun migrate(database: SupportSQLiteDatabase) {
+          database.execSQL("ALTER TABLE user ADD COLUMN age INTEGER NOT NULL DEFAULT 0")
+      }
+  }
+
+  Room.databaseBuilder(context, AppDb::class.java, "app.db")
+      .addMigrations(MIGRATION_1_2)
+      .build()
+
+  常见面试追问：
+  ─────────────────────────────────────────────────────────────────────────
+  Q: 如果迁移失败怎么办？
+  A: 抛出 IllegalStateException，可通过 fallbackToDestructiveMigration()
+     选择销毁重建（数据丢失！仅开发阶段使用）
+
+  Q: 跨版本迁移（1→3）？
+  A: Room 会按顺序执行 1→2, 2→3；也可以直接写 1→3 的 Migration
+
+  Q: 生产环境如何安全迁移？
+  A: 使用破坏性迁移 + 数据备份/恢复策略
+     或使用 SupportSQLiteDatabase 的事务进行原子迁移
+```
+
+**Q12：Room 的 TypeConverter 有什么用？**
+
+```
+作用：将 Room 不支持的类型转换为支持的类型（基本类型/String）
+
+  示例：
+  ─────────────────────────────────────────────────────────────────────────
+  // Room 不支持 Date 类型，需要转换
+  class Converters {
+      @TypeConverter
+      fun fromTimestamp(value: Long?): Date? = value?.let { Date(it) }
+
+      @TypeConverter
+      fun dateToTimestamp(date: Date?): Long? = date?.time
+  }
+
+  // 在 Database 上注册
+  @TypeConverters(Converters::class)
+  abstract class AppDatabase : RoomDatabase()
+
+  常用场景：
+  ─────────────────────────────────────────────────────────────────────────
+  - Date ↔ Long（时间戳）
+  - List<String> ↔ String（JSON 序列化）
+  - Enum ↔ String/Int
+  - 自定义数据类 ↔ JSON String（使用 Gson/Moshi）
+```
+
+---
+
+### 15.5 WorkManager 相关
+
+**Q13：WorkManager 和 JobScheduler/AlarmManager 有什么区别？**
+
+```
+┌──────────────────┬──────────────────────┬──────────────────────┬──────────────────┐
+│       特性        │    WorkManager       │   JobScheduler       │  AlarmManager    │
+├──────────────────┼──────────────────────┼──────────────────────┼──────────────────┤
+│  最低 API         │ 14（通过 JobScheduler │  21                  │  1               │
+│                  │ 或 AlarmManager 兼容）│                      │                  │
+│  保证执行         │ 是（持久化）          │ 不保证               │ 不保证           │
+│  约束条件         │ 丰富（网络/电量/存储）│ 有限                 │ 无               │
+│  周期任务         │ 支持                  │ 不支持               │ 支持             │
+│  链式任务         │ 支持                  │ 不支持               │ 不支持           │
+│  系统重启后       │ 保留                  │ 保留                 │ 不保留（默认）   │
+│  Doze 兼容       │ 是                    │ 是                   │ 需 setAndAllow.. │
+│  App 进程被杀     │ 保留                  │ 保留                 │ 保留             │
+└──────────────────┴──────────────────────┴──────────────────────┴──────────────────┘
+
+  内部调度策略：
+  ─────────────────────────────────────────────────────────────────────────
+  API 23+ → 使用 JobScheduler
+  API 14-22 → 使用 AlarmManager + BroadcastReceiver
+  两种路径都由 WorkManager 统一封装
+
+  面试要点：
+  ─────────────────────────────────────────────────────────────────────────
+  - WorkManager 不是「准时执行」，而是「保证在满足条件后执行」
+  - 适合：上传日志、同步数据、定时清理
+  - 不适合：精确时间提醒（用 AlarmManager setExactAndAllowWhileIdle）
+```
+
+**Q14：WorkManager 的 Worker 有哪几种？怎么选？**
+
+```
+┌──────────────────────┬──────────────────────────────────────────────────────┐
+│       Worker 类型      │                    适用场景                          │
+├──────────────────────┼──────────────────────────────────────────────────────┤
+│  Worker               │ 不需要 RxJava/Coroutine，阻塞式                      │
+│  CoroutineWorker      │ 需要 Kotlin 协程，可挂起等待                         │
+│  RxWorker             │ 需要 RxJava                                          │
+│  ListenableWorker     │ 需要自定义异步框架（如 AsyncTask 替代）               │
+└──────────────────────┴──────────────────────────────────────────────────────┘
+
+  推荐：
+  ─────────────────────────────────────────────────────────────────────────
+  Kotlin 项目 → CoroutineWorker（支持 suspend，自动切线程）
+  Java 项目  → Worker（doWork 在后台线程）
+
+  CoroutineWorker 的挂起：
+  ─────────────────────────────────────────────────────────────────────────
+  class MyWorker(appContext: Context, params: WorkerParameters)
+      : CoroutineWorker(appContext, params) {
+
+      override suspend fun doWork(): Result {
+          // 可直接调用 suspend 函数
+          val data = api.fetchData()  // 网络请求
+          database.save(data)         // 数据库写入
+          return Result.success()
+      }
+  }
+```
+
+**Q15：WorkManager 如何实现链式任务？**
+
+```
+链式任务 API：
+  ─────────────────────────────────────────────────────────────────────────
+  WorkManager.getInstance(context)
+      .beginWith(workA)                    // 开始
+      .then(workB)                         // A 完成后执行 B
+      .then(workC)                         // B 完成后执行 C
+      .enqueue()
+
+  并行合并：
+  ─────────────────────────────────────────────────────────────────────────
+  WorkManager.getInstance(context)
+      .beginWith(listOf(workA, workB))     // A 和 B 并行执行
+      .then(workC)                         // A、B 都完成后执行 C
+      .enqueue()
+
+  分叉合并：
+  ─────────────────────────────────────────────────────────────────────────
+  val chain1 = workManager.beginWith(workA).then(workB)
+  val chain2 = workManager.beginWith(workC).then(workD)
+  WorkContinuation.combine(listOf(chain1, chain2))
+      .then(workE)                         // B 和 D 都完成后执行 E
+      .enqueue()
+
+  输入数据传递：
+  ─────────────────────────────────────────────────────────────────────────
+  Worker A 的输出 → 自动成为 Worker B 的输入（通过 Data 对象）
+```
+
+---
+
+### 15.6 Navigation 相关
+
+**Q16：Navigation 的安全参数传递是怎么做的？**
+
+```
+传统方式（不安全）：
+  ─────────────────────────────────────────────────────────────────────────
+  val bundle = Bundle().apply { putString("name", "test") }
+  findNavController().navigate(R.id.action, bundle)
+  // 接收端 key 写错 → 运行时崩溃
+
+  Safe Args（推荐）：
+  ─────────────────────────────────────────────────────────────────────────
+  // build.gradle 添加 safe args 插件
+  // 导航图中声明参数
+  <argument android:name="userId" app:type="integer" />
+
+  // 编译期自动生成代码
+  // 发送端：
+  val action = HomeFragmentDirections.actionToDetail(userId = 123)
+  findNavController().navigate(action)
+
+  // 接收端：
+  val args = DetailFragmentArgs.fromBundle(arguments!!)
+  val userId = args.userId  // 类型安全，编译期检查
+
+  面试要点：
+  ─────────────────────────────────────────────────────────────────────────
+  - Safe Args 通过注解处理器在编译期生成 Directions 和 Args 类
+  - 支持类型：Int、Long、Float、String、Boolean、Parcelable、Serializable
+  - 支持默认值和可空类型
+```
+
+**Q17：Navigation 的 Deep Link 是怎么实现的？**
+
+```
+显式 Deep Link（代码创建）：
+  ─────────────────────────────────────────────────────────────────────────
+  val pendingIntent = NavDeepLinkBuilder(context)
+      .setGraph(R.navigation.nav_graph)
+      .setDestination(R.id.detailFragment)
+      .setArguments(bundle)
+      .createPendingIntent()
+
+  隐式 Deep Link（导航图中声明）：
+  ─────────────────────────────────────────────────────────────────────────
+  <deepLink app:uri="https://example.com/user/{userId}" />
+
+  // 匹配后自动跳转到对应 Fragment，参数自动注入
+
+  面试注意：
+  ─────────────────────────────────────────────────────────────────────────
+  - 显式 Deep Link 会创建新的 Task（new task）
+  - 隐式 Deep Link 会使用现有 Task 或创建新的
+  - URL 参数 {userId} 会自动解析并注入到目标 Fragment 的参数中
+```
+
+---
+
+### 15.7 DataStore 相关
+
+**Q18：DataStore 和 SharedPreferences 的区别？**
+
+```
+┌──────────────────┬──────────────────────┬──────────────────────────┐
+│       特性        │     DataStore        │   SharedPreferences     │
+├──────────────────┼──────────────────────┼──────────────────────────┤
+│  异步 API        │ Flow（协程）          │ 同步（apply 异步写入）   │
+│  数据安全        │ 无 ANR 风险           │ getSharedPreferences     │
+│                  │                      │ 可能 ANR（wait 等锁）    │
+│  类型安全        │ Protobuf（Proto）     │ 无类型检查               │
+│  一致性          │ 事务性写入            │ apply 可能丢失           │
+│  数据损坏        │检测到损坏会抛异常     │ 静默损坏                 │
+│  协程支持        │ 原生支持              │ 不支持                   │
+│  多进程          │ 不支持（默认）        │ 不支持                   │
+└──────────────────┴──────────────────────┴──────────────────────────┘
+
+  SharedPreferences 的 ANR 问题：
+  ─────────────────────────────────────────────────────────────────────────
+  sp.apply() → 异步写入磁盘
+  但在 Activity.onPause()/onStop() 时，系统会 wait 等待写入完成
+  如果数据量大 → ANR
+
+  DataStore 两种实现：
+  ─────────────────────────────────────────────────────────────────────────
+  Preferences DataStore → 键值对（类似 SP，迁移简单）
+  Proto DataStore       → 类型安全（需要 .proto 文件定义结构）
+```
+
+**Q19：DataStore 如何从 SharedPreferences 迁移？**
+
+```
+一行代码迁移：
+  ─────────────────────────────────────────────────────────────────────────
+  val dataStore: DataStore<Preferences> = PreferenceDataStoreFactory.create(
+      produceFile = { File(context.filesDir, "datastore/settings.preferences_pb") }
+  ) {
+      // 关键：指定 SharedPreferencesMigration
+      SharedPreferencesMigration(
+          context,
+          "old_sp_name"  // 原来的 SP 文件名
+      )
+  }
+
+  迁移流程：
+  ─────────────────────────────────────────────────────────────────────────
+  1. 首次创建 DataStore 时，自动执行迁移
+  2. 读取 SP 中的所有数据
+  3. 转换为 DataStore 格式写入
+  4. 迁移完成后，SP 数据不再使用（但不会删除 SP 文件）
+
+  注意事项：
+  ─────────────────────────────────────────────────────────────────────────
+  - 迁移只执行一次（有标记文件）
+  - 迁移期间不要同时使用 SP 和 DataStore
+  - DataStore 应该声明为单例（避免多实例问题）
+```
+
+---
+
+### 15.8 Paging 相关
+
+**Q20：Paging 3 的核心组件有哪些？**
+
+```
+Paging 3 核心架构：
+  ─────────────────────────────────────────────────────────────────────────
+  ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
+  │ PagingSource │ ──→ │  Pager      │ ──→ │ Flow<Paging │
+  │ (数据源)     │     │ (配置+构建)  │     │   Data<T>>  │
+  └─────────────┘     └─────────────┘     └──────┬──────┘
+                                                  │
+                                                  ▼
+                                          ┌─────────────┐
+                                          │PagingData   │
+                                          │Adapter      │
+                                          └─────────────┘
+
+  PagingSource：
+  ─────────────────────────────────────────────────────────────────────────
+  - 定义数据源（网络/数据库）
+  - 核心方法：load(LoadParams) → LoadResult
+  - 自动处理分页加载、重试、刷新
+
+  RemoteMediator（可选）：
+  ─────────────────────────────────────────────────────────────────────────
+  - 网络 + 数据库双层缓存场景
+  - 先从数据库读 → 网络加载 → 存入数据库
+  - Single source of truth 模式
+
+  Pager：
+  ─────────────────────────────────────────────────────────────────────────
+  - 配置 PagingConfig（pageSize、prefetchDistance、enablePlaceholders）
+  - 构建 Flow<PagingData<T>>
+
+  PagingDataAdapter：
+  ─────────────────────────────────────────────────────────────────────────
+  - RecyclerView 的 Adapter 子类
+  - 自动处理 DiffUtil、加载状态、占位符
+```
+
+**Q21：Paging 的 loadState 包含哪些状态？**
+
+```
+三种 LoadState：
+  ─────────────────────────────────────────────────────────────────────────
+  LoadState.NotLoading  → 空闲，无加载操作
+  LoadState.Loading     → 正在加载
+  LoadState.Error       → 加载失败（含 Throwable）
+
+  三个维度（LoadStates）：
+  ─────────────────────────────────────────────────────────────────────────
+  LoadStates {
+      refresh: LoadState  → 刷新/初始加载
+      prepend: LoadState  → 向前加载（上一页）
+      append:  LoadState  → 向后加载（下一页）
+  }
+
+  使用方式：
+  ─────────────────────────────────────────────────────────────────────────
+  // 在 Adapter 中监听加载状态
+  adapter.loadStateFlow.collect { loadStates ->
+      when (loadStates.refresh) {
+          is LoadState.Loading -> showProgressBar()
+          is LoadState.Error   -> showError()
+          is LoadState.NotLoading -> hideProgressBar()
+      }
+  }
+
+  // 添加尾部加载更多 Footer
+  adapter.withLoadStateFooter(FooterLoadStateAdapter { adapter.retry() })
+```
+
+---
+
+### 15.9 RecyclerView 相关
+
+**Q22：RecyclerView 的缓存机制是什么？**
+
+```
+四级缓存结构：
+  ─────────────────────────────────────────────────────────────────────────
+  ┌──────────────────────────────────────────────────────────────────────┐
+  │                        RecyclerView 缓存                            │
+  │                                                                      │
+  │  ① Scrap (mAttachedScrap + mChangedScrap)                           │
+  │     ─ 屏幕内缓存，layout 期间暂存                                    │
+  │     ─ 不经过 Adapter 绑定（不需要 onBindViewHolder）                 │
+  │     ─ 大小：无限制                                                   │
+  │                                                                      │
+  │  ② Cache (mCachedViews)                                             │
+  │     ─ 屏幕外缓存，默认 2 个                                          │
+  │     ─ 不经过 Adapter 绑定                                            │
+  │     ─ 按 position 缓存，精确匹配                                     │
+  │                                                                      │
+  │  ③ ViewCacheExtension                                                │
+  │     ─ 开发者自定义缓存（一般不用）                                    │
+  │                                                                      │
+  │  ④ RecycledViewPool                                                  │
+  │     ─ 按 viewType 缓存，默认每种类型 5 个                            │
+  │     ─ 需要重新 onBindViewHolder                                      │
+  │     ─ 多个 RecyclerView 可共享同一个 Pool                            │
+  └──────────────────────────────────────────────────────────────────────┘
+
+  面试必背：
+  ─────────────────────────────────────────────────────────────────────────
+  缓存命中顺序：Scrap → Cache → Extension → Pool → create 新 ViewHolder
+  Scrap/Cache：直接复用，不需要 rebind（性能最好）
+  Pool：需要 rebind，但不需要 create（性能其次）
+  create：全新创建（性能最差）
+```
+
+**Q23：RecyclerView 的 DiffUtil 是怎么工作的？**
+
+```
+DiffUtil 使用 Eugene W. Myers 差分算法计算两个列表的最小差异：
+
+  核心流程：
+  ─────────────────────────────────────────────────────────────────────────
+  1. 使用 DiffUtil.Callback 计算差异
+     - getOldListSize() / getNewListSize()
+     - areItemsTheSame()   → 同一个 item？（通常比较 ID）
+     - areContentsTheSame() → 内容相同？（完全相等）
+  2. 生成 Patch 操作列表（插入/删除/移动/更改）
+  3. 使用 DiffUtil.dispatchUpdatesTo(adapter) 分发更新
+     → 自动转换为 notifyItemInserted/Removed/Changed
+     → 带默认动画
+
+  AsyncListDiffer（推荐）：
+  ─────────────────────────────────────────────────────────────────────────
+  - 在后台线程计算差异
+  - 自动在主线程 dispatch 更新
+  - ListAdapter 内部就是用 AsyncListDiffer
+
+  性能：
+  ─────────────────────────────────────────────────────────────────────────
+  O(N) 空间 + O(N + D²) 时间（N=列表长度，D=差异数量）
+  如果列表很大且差异很少 → 非常高效
+```
+
+**Q24：RecyclerView 为什么比 ListView 好？**
+
+```
+┌──────────────────┬──────────────────────┬──────────────────────────┐
+│       特性        │    RecyclerView      │       ListView           │
+├──────────────────┼──────────────────────┼──────────────────────────┤
+│  ViewHolder      │ 强制使用              │ 可选（但不用会低效）     │
+│  布局管理        │ LayoutManager 可扩展  │ 只有垂直滚动             │
+│  动画            │ ItemAnimator 内置     │ 无                       │
+│  分割线          │ ItemDecoration 自定义  │ divider 属性             │
+│  局部刷新        │ notifyItemChanged     │ notifyDataSetChanged 全刷│
+│  差异计算        │ DiffUtil              │ 手动实现                 │
+│  多类型          │ 多 ViewType 标准       │ 需要手动管理             │
+│  嵌套滚动        │ 原生支持              │ 兼容性差                 │
+│  缓存            │ 四级缓存              │ 两级（Scrap + Recycle）  │
+│  分页            │ Paging 集成           │ 无                       │
+└──────────────────┴──────────────────────┴──────────────────────────┘
+
+  面试总结：RecyclerView 在性能、灵活性、扩展性上全面碾压 ListView
+  新项目不需要讨论，直接用 RecyclerView
+```
+
+---
+
+### 15.10 ViewPager2 相关
+
+**Q25：ViewPager2 相比 ViewPager 有什么改进？**
+
+```
+┌──────────────────┬──────────────────────┬──────────────────────────┐
+│       特性        │    ViewPager2        │       ViewPager          │
+├──────────────────┼──────────────────────┼──────────────────────────┤
+│  底层实现        │ RecyclerView          │ 自定义 ViewGroup         │
+│  垂直滑动        │ 支持（ORIENTATION_    │ 不支持                   │
+│                  │ VERTICAL）            │                          │
+│  RTL             │ 原生支持              │ 不支持                   │
+│  DiffUtil        │ 支持（RecyclerView）  │ 不支持                   │
+│  动画            │ ItemDecoration/       │ PageTransformer          │
+│                  │ PageTransformer       │                          │
+│  预加载          │ setOffscreenPageLimit │ 同左                     │
+│  notifyChange    │ 局部刷新              │ 全局刷新                 │
+│  伪造拖拽        │ fakeDragBy()          │ 无                       │
+└──────────────────┴──────────────────────┴──────────────────────────┘
+
+  面试关键点：
+  ─────────────────────────────────────────────────────────────────────────
+  - ViewPager2 内部是 RecyclerView + LinearLayoutManager
+  - 所以天然支持垂直滑动、DiffUtil、ItemDecoration
+  - FragmentStateAdapter 替代 FragmentStatePagerAdapter
+```
+
+**Q26：ViewPager2 的离屏加载和生命周期怎么管理？**
+
+```
+离屏加载机制：
+  ─────────────────────────────────────────────────────────────────────────
+  viewPager.offscreenPageLimit = 1  // 默认值
+  // 左右各预加载 1 页
+
+  Fragment 生命周期管理：
+  ─────────────────────────────────────────────────────────────────────────
+  使用 FragmentStateAdapter 时：
+  - 当前页的 Fragment → RESUMED
+  - 左右 offscreenPageLimit 范围内的 Fragment → STARTED
+  - 超出范围的 Fragment → onDestroyView（视图销毁，但 Fragment 保留）
+
+  BEHAVIOR 设置：
+  ─────────────────────────────────────────────────────────────────────────
+  FragmentStateAdapter.BEHAVIOR_RESUME_ONLY_CURRENT_FRAGMENT
+  → 只有当前页的 Fragment 到达 RESUMED 状态
+  → 其他可见但非当前页的 Fragment 只到 STARTED
+
+  懒加载最佳实践：
+  ─────────────────────────────────────────────────────────────────────────
+  - 结合 Lifecycle 在 onResume 中加载数据
+  - 或使用setMaxLifecycle() 控制 Fragment 生命周期状态
+```
+
+---
+
+### 15.11 Fragment 相关
+
+**Q27：Fragment 的生命周期和 Activity 生命周期什么关系？**
+
+```
+Fragment 生命周期依附于 Activity：
+
+  Activity           Fragment
+  ──────────        ──────────────────
+  onCreate()   →    onAttach() → onCreate() → onCreateView() → onViewCreated()
+  onStart()    →    onStart()
+  onResume()   →    onResume()
+  onPause()    →    onPause()
+  onStop()     →    onStop()
+  onDestroy()  →    onDestroyView() → onDestroy() → onDetach()
+
+  额外的 Fragment 专有回调：
+  ─────────────────────────────────────────────────────────────────────────
+  onCreateView()       → 创建视图（Fragment 特有）
+  onViewCreated()      → 视图创建完成
+  onDestroyView()      → 视图销毁（Fragment 特有，可用于回退栈保留 Fragment）
+  onViewStateRestored()→ 视图状态恢复
+
+  关键点：
+  ─────────────────────────────────────────────────────────────────────────
+  - Fragment 的生命周期由宿主 Activity 控制
+  - FragmentManager 负责管理 Fragment 的状态
+  - 回退栈中的 Fragment 不会走 onDestroy/onDetach
+  - 但会走 onDestroyView（视图销毁，保留 Fragment 实例）
+```
+
+**Q28：Fragment 的 add/replace/hide/show 有什么区别？**
+
+```
+┌──────────────────┬──────────────────────────────────────────────────────┐
+│       操作        │                    行为                              │
+├──────────────────┼──────────────────────────────────────────────────────┤
+│  add()           │ 添加 Fragment 到容器，不会移除已有 Fragment           │
+│  replace()       │ 先移除容器中所有 Fragment，再添加新的                 │
+│  hide()          │ 隐藏 Fragment（setVisibility(GONE)），不销毁         │
+│  show()          │ 显示被 hide 的 Fragment                              │
+│  remove()        │ 彻底移除 Fragment                                    │
+│  detach()        │ 销毁 Fragment 的视图，保留 Fragment 实例             │
+│  attach()        │ 重新创建 detach 的 Fragment 视图                     │
+└──────────────────┴──────────────────────────────────────────────────────┘
+
+  场景选择：
+  ─────────────────────────────────────────────────────────────────────────
+  Tab 切换（频繁切换）→ add + hide/show（复用视图，不走生命周期）
+  单页导航（不回退）  → replace（干净，自动销毁旧 Fragment）
+  需要保留状态        → add + hide/show（视图不销毁，状态保留）
+  内存敏感            → replace 或 detach（释放视图内存）
+
+  面试陷阱：
+  ─────────────────────────────────────────────────────────────────────────
+  hide/show 不会触发任何生命周期回调！
+  需要监听可见性时，使用 onHiddenChanged(boolean) 回调
+  或使用 FragmentTransaction.setMaxLifecycle()（推荐）
+```
+
+**Q29：Fragment 之间如何通信？**
+
+```
+方案一：共享 ViewModel（推荐）
+  ─────────────────────────────────────────────────────────────────────────
+  // 两个 Fragment 获取同一个 Activity 级别的 ViewModel
+  class SharedViewModel : ViewModel() {
+      val selected = MutableLiveData<Item>()
+  }
+
+  class FragmentA : Fragment() {
+      // 点击后设置
+      sharedViewModel.selected.value = item
+  }
+
+  class FragmentB : Fragment() {
+      // 观察
+      sharedViewModel.selected.observe(viewLifecycleOwner) { ... }
+  }
+
+  方案二：Fragment Result API（简单数据传递）
+  ─────────────────────────────────────────────────────────────────────────
+  // 发送端
+  setFragmentResult("requestKey", bundleOf("data" to value))
+
+  // 接收端
+  setFragmentResultListener("requestKey") { key, bundle ->
+      val data = bundle.getString("data")
+  }
+
+  方案三：Navigation Safe Args（导航传参）
+  ─────────────────────────────────────────────────────────────────────────
+  // 见 Q16
+
+  面试要点：
+  ─────────────────────────────────────────────────────────────────────────
+  - 避免直接 fragmentA.xxx = xxx（耦合太强）
+  - 避免通过 Activity 中转（不够优雅）
+  - 共享 ViewModel 是最推荐的方案
+```
+
+---
+
+### 15.12 ConstraintLayout 相关
+
+**Q30：ConstraintLayout 的性能为什么比 RelativeLayout/LinearLayout 好？**
+
+```
+性能对比：
+  ─────────────────────────────────────────────────────────────────────────
+  LinearLayout（多层嵌套）：
+  RelativeLayout（2 次 measure）：
+  ConstraintLayout（1 次 measure，单层结构）：
+
+  LinearLayout 嵌套问题：
+  ─────────────────────────────────────────────────────────────────────────
+  <LinearLayout vertical>
+      <LinearLayout horizontal>
+          <TextView/>
+          <ImageView/>
+      </LinearLayout>
+      <RelativeLayout>
+          <Button/>
+          <TextView/>
+      </RelativeLayout>
+  </LinearLayout>
+  → 3 层嵌套，每层都要 measure + layout
+  → 时间复杂度：O(层数 × 子 View 数量)
+
+  ConstraintLayout：
+  ─────────────────────────────────────────────────────────────────────────
+  <ConstraintLayout>
+      <TextView ... constraints ... />
+      <ImageView ... constraints ... />
+      <Button ... constraints ... />
+  </ConstraintLayout>
+  → 1 层，只 measure 1 次（大多数情况）
+  → 减少了 measure 调用次数
+
+  面试注意：
+  ─────────────────────────────────────────────────────────────────────────
+  - 简单布局（如只有 2-3 个 View）差异不大
+  - 复杂布局（10+ View，多嵌套）ConstraintLayout 优势明显
+  - 关键是减少嵌套层级 → 减少 measure 次数
+```
+
+---
+
+### 15.13 综合面试题
+
+**Q31：如何选择 AndroidX 架构组件来搭建项目架构？**
+
+```
+推荐架构（MVVM + Jetpack）：
+  ─────────────────────────────────────────────────────────────────────────
+  ┌─────────┐    ┌───────────┐    ┌──────────────┐    ┌────────────┐
+  │  View    │ ←→ │ ViewModel │ ←→ │  Repository  │ ←→ │ Data Source│
+  │(Activity │    │           │    │              │    │            │
+  │ Fragment)│    │ LiveData  │    │  Room        │    │  Network   │
+  │          │    │ Flow      │    │  Retrofit    │    │  Database  │
+  │ XML/     │    │ StateFlow │    │  DataStore   │    │  Cache     │
+  │ Compose  │    │           │    │              │    │            │
+  └─────────┘    └───────────┘    └──────────────┘    └────────────┘
+
+  组件选择建议：
+  ─────────────────────────────────────────────────────────────────────────
+  UI 层：     Activity + Fragment + Navigation
+  观察：      Flow（新项目）/ LiveData（旧项目维护）
+  存储：      Room + DataStore（替代 SP）
+  后台任务：  WorkManager（保证执行）/ Coroutine（轻量异步）
+  列表：      RecyclerView + Paging 3
+  分页：      Paging 3
+  图片：      Glide / Coil（推荐）
+  网络：      Retrofit + OkHttp
+  依赖注入：  Hilt
+
+  面试回答模板：
+  ─────────────────────────────────────────────────────────────────────────
+  "我推荐 MVVM 架构，View 层通过观察 ViewModel 的 Flow/StateFlow
+   获取数据变化。数据层使用 Repository 模式封装 Room 和 Retrofit，
+   后台任务使用 WorkManager 保证可靠执行。列表场景使用 Paging 3
+   实现高效分页加载，Navigation 管理页面导航。"
+```
+
+**Q32：LiveData 和 StateFlow/SharedFlow 怎么选？**
+
+```
+┌──────────────────┬──────────────────────┬──────────────────────────┬──────────────────┐
+│       特性        │     LiveData         │    StateFlow             │  SharedFlow      │
+├──────────────────┼──────────────────────┼──────────────────────────┼──────────────────┤
+│  生命周期感知    │ 自动                  │ 需 collectLifecycleFlow  │ 需手动管理       │
+│  初始值          │ 无（可 nullable）     │ 必须有                   │ 可无              │
+│  粘性            │ 是                    │ 是（新 collector 收最新）│ 可配置             │
+│  操作符          │ map/switchMap         │ 丰富（Flow 操作符）      │ 丰富              │
+│  协程支持        │ 需要 liveData{} 构造器│ 原生                     │ 原生              │
+│  多观察者        │ 支持                  │ 支持                     │ 支持（多播）      │
+│  适用场景        │ 简单 UI 状态          │ 复杂 UI 状态             │ 事件（导航/Toast）│
+└──────────────────┴──────────────────────┴──────────────────────────┴──────────────────┘
+
+  选择建议：
+  ─────────────────────────────────────────────────────────────────────────
+  - UI 状态数据 → StateFlow（替代 LiveData）
+  - 一次性事件   → SharedFlow（替代 SingleLiveEvent）
+  - 维护旧项目   → 继续使用 LiveData，不强制迁移
+  - 新项目       → 全面使用 Flow 体系
+```
+
+**Q33：如何优化 RecyclerView 的性能？**
+
+```
+优化清单：
+  ─────────────────────────────────────────────────────────────────────────
+  1. ViewHolder 复用
+     - 避免在 onBindViewHolder 中创建新对象
+     - 使用 DiffUtil 精准刷新
+
+  2. 布局优化
+     - 减少 Item 布局层级（使用 ConstraintLayout）
+     - 使用 ViewStub 延迟加载不常用部分
+
+  3. 图片加载
+     - 使用 Glide/Coil 异步加载 + 缓存
+     - 在 RecyclerView 滑动时暂停加载
+       recyclerView.addOnScrollListener(object : OnScrollListener() {
+           override fun onScrollStateChanged(recyclerView, newState) {
+               if (newState == SCROLL_STATE_IDLE) Glide.with(...).resumeRequests()
+               else Glide.with(...).pauseRequests()
+           }
+       })
+
+  4. 预加载
+     - 设置 prefetchCount（LinearLayoutManager.setItemPrefetchCount）
+
+  5. 共享 RecycledViewPool
+     - 多个 RecyclerView（如嵌套列表）共享 Pool
+     - pool.setMaxRecycledViews(viewType, maxSize)
+
+  6. setHasFixedSize(true)
+     - Item 大小不随数据变化时设置，避免 requestLayout
+
+  7. Payload 局部刷新
+     - notifyItemChanged(position, payload)
+     - onBindViewHolder(holder, position, payloads) 中只更新变化的部分
+```
+
+**Q34：SavedStateHandle 是什么？解决了什么问题？**
+
+```
+问题背景：
+  ─────────────────────────────────────────────────────────────────────────
+  ViewModel 在配置更改时保留，但进程被系统杀死时会丢失
+  onSaveInstanceState 能保存，但使用 Bundle，API 不友好
+
+  SavedStateHandle 的作用：
+  ─────────────────────────────────────────────────────────────────────────
+  - 在 ViewModel 中直接访问 saved state
+  - 键值对形式，支持 LiveData 和 Flow
+  - 结合 ViewModel 使用，无需手动处理 onSaveInstanceState
+
+  使用方式：
+  ─────────────────────────────────────────────────────────────────────────
+  class MyViewModel(private val savedStateHandle: SavedStateHandle) : ViewModel() {
+      private val _query = savedStateHandle.getLiveData<String>("query")
+      val query: LiveData<String> = _query
+
+      fun setQuery(q: String) {
+          savedStateHandle["query"] = q
+      }
+  }
+
+  // 通过 AbstractSavedStateViewModelFactory 或 by viewModels() 自动注入
+
+  面试要点：
+  ─────────────────────────────────────────────────────────────────────────
+  - SavedStateHandle 结合了 ViewModel + onSaveInstanceState 的优点
+  - 进程被杀后恢复时，ViewModel 中的数据依然存在
+  - 适合保存少量关键数据（搜索关键词、滚动位置、选中的 ID）
+```
+
+**Q35：Fragment 的回退栈是什么？怎么管理？**
+
+```
+回退栈（Back Stack）：
+  ─────────────────────────────────────────────────────────────────────────
+  FragmentTransaction.addToBackStack("tag")
+  → 将事务加入回退栈
+  → 按 Back 键时弹出栈顶事务，恢复到之前的状态
+
+  行为区别：
+  ─────────────────────────────────────────────────────────────────────────
+  replace(...).addToBackStack(null)
+  → 旧 Fragment：onDestroyView（视图销毁，Fragment 实例保留）
+  → 按 Back：重新走 onCreateView 重建视图
+
+  replace(...)（不加 addToBackStack）
+  → 旧 Fragment：onDestroyView → onDestroy → onDetach（完全销毁）
+  → 无法回退
+
+  管理方法：
+  ─────────────────────────────────────────────────────────────────────────
+  fragmentManager.popBackStack()               // 弹出栈顶
+  fragmentManager.popBackStack("tag", 0)       // 弹出到指定 tag
+  fragmentManager.popBackStack("tag", POP_BACK_STACK_INCLUSIVE)  // 包含 tag 也弹出
+  fragmentManager.clearBackStack("tag")        // 清除到指定 tag
+
+  面试注意：
+  ─────────────────────────────────────────────────────────────────────────
+  - Navigation 组件内部就是用 FragmentManager 的回退栈
+  - 回退栈中的 Fragment 不走 onDestroy，但走 onDestroyView
+  - 这是 Fragment 状态丢失的常见来源之一（重建视图时需要恢复状态）
 ```
 
 ---
