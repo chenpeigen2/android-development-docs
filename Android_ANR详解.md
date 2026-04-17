@@ -892,93 +892,554 @@ public String dumpAsCommaSeparatedArrayWithHeader() {
 
 ### 5.1 Input ANR
 
+Input ANR 是最常见也是最复杂的 ANR 类型。和其他 ANR 不同，它的超时检测**完全在 Native 层完成**，从 Android 11 开始不再依赖 Java 层 Handler。
+
 #### 5.1.1 Log 特征
 
 ```
 ANR in com.example.app (Input dispatching timed out)
 Reason: Input dispatching timed out waiting to send event to app.
+Window is waiting in state WINDOW_KEY_DISPATCHING_PENDING because the
+target window is not responding.
 mTimeout: 5000ms
+mSince: 1234567890123
 ```
 
-#### 5.1.2 超时源码位置
+**三要素快速定位**:
+- `Reason` — 具体场景（发送事件超时 / 窗口无响应 / 无焦点窗口）
+- `mTimeout: 5000ms` — Input 超时固定 5 秒
+- `mSince` — 超时计时开始的毫秒时间戳（可用于 trace 对齐）
 
-Input ANR 在 Native 层 `InputDispatcher` 中检测，不在 Java 层。
+#### 5.1.2 Input ANR 的三种场景
 
-#### 5.1.3 根因分析
+根据 `TimeoutRecord.java` 和 `AnrController.java` 的源码分析，Input ANR 有三种不同场景：
+
+| 场景 | Reason 关键字 | 触发条件 | 责任方 |
+|------|--------------|----------|--------|
+| **窗口无响应** | `Input dispatching timed out waiting to send event to app` | 事件已发送给应用但 5s 未收到完成信号 | 应用主线程 |
+| **无焦点窗口** | `no window focus has been received within 5000 ms` | 应用无焦点窗口超过 5s | 应用 / 系统 |
+| **InputChannel 断开** | `InputChannel is closed` | InputChannel 被关闭 | 系统 / 应用 |
+
+**场景一：窗口无响应（最常见）**
 
 ```
-主线程阻塞的五大根因：
+用户触摸屏幕
+       │
+       ▼
+InputReader (Native) — 读取原始输入事件
+       │
+       ▼
+InputDispatcher (Native) — 通过 InputChannel 发送给目标窗口
+       │
+       ├─ 发送成功 → 事件加入 mWaitQueue → 开始 5s 计时
+       │
+       ▼
+NativeInputEventReceiver (Native) — 在应用端接收事件
+       │
+       ▼
+InputEventReceiver.dispatchInputEvent (Java) → ViewRootImpl → View
+       │
+       ▼
+finishInputEvent() — 发送完成信号 (FINISHED_EVENTS)
+       │
+       ▼
+InputDispatcher 收到完成信号 → 从 mWaitQueue 移除 → 计时终止
+```
 
-根因 A：主线程在等锁（最常见）
-─────────────────────────────────────────────────────────────────────────────
-  synchronized(mutex) {
-      // 子线程持有同一把锁，但子线程被 Block 在 IO / 网络 / DB
-      // 主线程等锁等过了 5 秒
-  }
+**超时链路源码分析**:
 
-根因 B：主线程在做同步 Binder 调用
-─────────────────────────────────────────────────────────────────────────────
-  // 主线程直接调用 system service 的同步方法，service 端响应慢
-  ContentResolver.query(uri, ...)    // system server 端 DB 慢
-  NotificationManager.getActiveNotifications()
+```cpp
+// frameworks/base/services/core/jni/com_android_server_input_InputManagerService.cpp
+// Native 回调入口 — InputDispatcher 检测到超时后通知 Java 层
 
-根因 C：主线程在做耗时计算/IO/网络
-─────────────────────────────────────────────────────────────────────────────
-  BitmapFactory.decodeFile(path)     // 大图加载
-  JSON.parse(inputStream.readText()) // 大 JSON
-  FileInputStream.readBytes()         // 大文件
+// 1. InputDispatcher (Native) 检测到窗口无响应
+//    调用 Java 层 InputManagerService.notifyWindowUnresponsive()
+private void notifyWindowUnresponsive(IBinder token, int pid, boolean isPidValid, String reason) {
+    mWindowManagerCallbacks.notifyWindowUnresponsive(token,
+            isPidValid ? OptionalInt.of(pid) : OptionalInt.empty(), reason);
+}
 
-根因 D：主线程在做低效 View 操作
-─────────────────────────────────────────────────────────────────────────────
-  // onDraw 中执行耗时操作，或嵌套层级过深导致 measure/layout 慢
-  override fun onDraw(canvas: Canvas) {
-      super.onDraw(canvas)
-      findViewById(R.id.xxx)   // 每次 onDraw 都去遍历 view tree
-      heavyOperation()        // onDraw 中做计算
-  }
+// 2. InputManagerCallback 收到通知，构建 TimeoutRecord
+@Override
+public void notifyWindowUnresponsive(@NonNull IBinder token, @NonNull OptionalInt pid, String reason) {
+    TimeoutRecord timeoutRecord = TimeoutRecord.forInputDispatchWindowUnresponsive(
+            timeoutMessage(pid, reason));
+    mService.mAnrController.notifyWindowUnresponsive(token, pid, timeoutRecord);
+}
 
-根因 E：CPU 调度被其他进程抢占
-─────────────────────────────────────────────────────────────────────────────
-  // 系统 CPU 繁忙，主线程虽然一直在跑但每次只拿到很短时间片
-  // 5 秒内累计实际执行时间不够
+// 3. AnrController 处理超时
+//    路径: AnrController.java:143-198
+//    - 通过 inputToken 找到 WindowState / ActivityRecord
+//    - 如果能关联到 Activity，调用 activity.inputDispatchingTimedOut()
+//    - 如果无法关联（嵌入式窗口），直接调用 mAmInternal.inputDispatchingTimedOut(pid)
+//    - 异步 dump ANR 状态到 traces.txt
+
+// 4. AMS 层的 inputDispatchingTimedOut 最终调用 ProcessErrorStateRecord.appNotResponding()
+```
+
+**场景二：无焦点窗口**
+
+```java
+// InputManagerCallback.java:108-112
+@Override
+public void notifyNoFocusedWindowAnr(@NonNull InputApplicationHandle applicationHandle) {
+    TimeoutRecord timeoutRecord = TimeoutRecord.forInputDispatchNoFocusedWindow(
+            timeoutMessage(OptionalInt.empty(), "Application does not have a focused window"));
+    mService.mAnrController.notifyAppUnresponsive(applicationHandle, timeoutRecord);
+}
+```
+
+场景二触发条件：
+- 应用有焦点但无焦点窗口（焦点窗口被移除，新窗口还未创建）
+- 应用刚启动，还在创建窗口的过程中
+
+**场景三：InputChannel 断开**
+
+```java
+// NativeInputEventReceiver.cpp:305-318
+int NativeInputEventReceiver::handleEvent(int receiveFd, int events, void* data) {
+    if (events & (ALOOPER_EVENT_ERROR | ALOOPER_EVENT_HANGUP)) {
+        // InputChannel 关闭时返回 REMOVE_CALLBACK，InputDispatcher 认为连接断开
+        if (kDebugDispatchCycle) {
+            ALOGD("channel '%s' ~ Publisher closed input channel or an error occurred. events=0x%x",
+                  mName.c_str(), events);
+        }
+        return REMOVE_CALLBACK;  // 不触发 ANR，只是移除回调
+    }
+    // ...
+}
+```
+
+InputChannel HANGUP 通常是应用主动关闭 window（如 Activity 销毁）导致，不一定触发 ANR。
+
+#### 5.1.3 根因分析（结合源码）
+
+**根因 A：主线程在等锁（最常见，占比 > 60%）**
+
+```java
+// 应用代码示例
+class MyPresenter {
+    private final Object lock = new Object();
+    private String data;
+
+    // 子线程：持有锁但被 IO 阻塞
+    void loadData() {
+        synchronized(lock) {
+            data = performNetworkRequest();  // 网络 IO 慢
+        }
+    }
+
+    // 主线程：等锁超时 5s
+    void onCreate() {
+        synchronized(lock) {   // ← 等这里！子线程还卡在网络请求
+            render(data);
+        }
+    }
+}
+```
+
+`traces.txt` 中表现为：
+```
+"main" prio=5 tid=1 Blocked
+  locks java.lang.Object@7a3e4568 held by thread 15
+  at com.example.MyPresenter.onCreate(MyPresenter.java:25)
+  at android.app.Activity.onCreate(Activity.java:1234)
+
+"pool-1-thread-1" prio=5 tid=15 Runnable
+  at java.net.SocketInputStream.read(SocketInputStream.java:163)
+  at java.net.HttpURLConnectionImpl.readResponse(HttpURLConnectionImpl.java:456)
+  - waiting to lock java.lang.Object@7a3e4568 held by thread 1
+```
+
+**根因 B：主线程在做同步 Binder 调用（system server 端阻塞）**
+
+```java
+// 主线程调用 ContentProvider / SMS / PackageManager 等系统服务
+// 如果 system_server 端 DB 锁住了，主线程等 Binder 超时 5s
+
+// 典型场景：ContentProvider 初始化 + 多进程
+ContentResolver.query(uri, ...)  // 跨进程调用
+// system_server: ContentProvider.onCreate() 中做了耗时操作
+// 主线程在 Binder 等待区等超过 5s
+
+// 另一个场景：通知栏 Service 连接
+override fun onServiceConnected(name: ComponentName, service: IBinder) {
+    // system server 端 Service.onBind() 慢
+}
+
+// traces.txt 表现：
+// "main" prio=5 tid=1 Suspended
+//   at ActivityThread.performBindService(ActivityThread.java:4567)
+//   at ActivityThread$H.handleMessage(ActivityThread.java:2345)
+//   - waiting for service connection (可能跨进程等锁)
+```
+
+**根因 C：主线程在执行耗时 I/O 操作**
+
+```java
+// 反例：大文件读取 / 大图加载 / SharedPreferences 多进程模式
+override fun onCreate(savedInstanceState: Bundle?) {
+    super.onCreate(savedInstanceState)
+    // ❌ SharedPreferences 首次读取，多进程模式下会解析 XML
+    val prefs = getSharedPreferences("config", Context.MODE_MULTI_PROCESS)
+    val data = prefs.getString("key", "")  // 如果文件大，可能耗时
+
+    // ❌ 大图加载（即使在 ImageView 设置前 decode）
+    val bitmap = BitmapFactory.decodeFile("/data/user/0/com.example/files/large.png")
+    // BitmapFactory 在 decode 时需要申请内存 + 像素解析，
+    // 如果图片超大（20MB+），可能超过 5s
+
+    // ❌ 数据库初始化
+    val db = SQLiteDatabase.openDatabase(path, null, OPEN_READONLY)
+    // 首次打开 DB 文件需要解析 header + 建立 B-tree 索引
+}
+```
+
+**根因 D：主线程在等待 GC（内存压力大时）**
+
+```
+"main" prio=5 tid=1 Runnable
+  at com.example.MyActivity.onCreate(MyActivity.java:30)
+  at android.app.Activity.performCreate(Activity.java:7890)
+  at android.app.Instrumentation.callActivityOnCreate(Instrumentation.java:1306)
+  - waiting for GC ( Alloc space:256MB, Free space:3MB, Objects:45000 )
+
+// 原因：系统可用内存不足，GC concurrent mark 阶段没能及时完成
+// 表现为 "waiting for GC" 关键字
+```
+
+**根因 E：主线程被 Choreographer 调度阻塞**
+
+```java
+// Choreographer 帧调度导致的延迟
+// 如果上一帧 render 超过 16ms，后续帧会被阻塞
+override fun onFrameCallback(frameTimeNanos: Long) {
+    // 上一帧超过 16ms，这一帧 callback 被延迟
+    // 如果连续多帧都超时，累积延迟超过 5s → ANR
+    doExpensiveRender()
+    Choreographer.getInstance().postFrameCallback(this)
+}
 ```
 
 #### 5.1.4 修复方案
 
+**方案 A：锁竞争修复**
+
 ```java
-// 锁竞争修复：缩小锁粒度
-// 反例
-synchronized(this) {
-    loadData();   // 耗时操作
-    updateUI();
-}
+// ❌ 反例：锁粒度过大
+class BadPresenter {
+    private val lock = Any()
+    private var cache: Bitmap? = null
 
-// 正例：只锁必要的临界区
-String data;
-synchronized(this) {
-    data = cache;   // 只锁读取
-}
-processInMainThread(data);
-
-// Binder 阻塞修复：带超时
-ExecutorService executor = Executors.newSingleThreadExecutor();
-Future<String> future = executor.submit(() -> {
-    return contentResolver.query(uri, null, null, null, null);
-});
-try {
-    String result = future.get(3, TimeUnit.SECONDS);
-} catch (TimeoutException e) {
-    future.cancel(true);
-    // 降级处理
-}
-
-// 耗时操作修复：协程
-lifecycleScope.launch(Dispatchers.IO) {
-    val data = api.getData()
-    withContext(Dispatchers.Main) {
-        updateUI(data)
+    fun loadAndRender() {
+        synchronized(lock) {
+            cache = BitmapFactory.decodeFile(path)  // 大图 decode 中
+            view.render(cache!!)                       // decode 还没完
+        }  // 整个操作期间其他线程全被阻塞
     }
 }
+
+// ✅ 正例 1：缩小临界区，只锁必要的数据结构
+class GoodPresenter {
+    private val lock = Any()
+    private @Volatile var cache: Bitmap? = null
+
+    fun loadAndRender() {
+        // 解码在临界区外完成
+        val bitmap = BitmapFactory.decodeFile(path)
+
+        synchronized(lock) {
+            cache = bitmap  // 只锁赋值操作，毫秒级
+        }
+        // UI 操作在临界区外
+        view.render(bitmap)
+    }
+}
+
+// ✅ 正例 2：使用 CopyOnWriteArrayList / ConcurrentHashMap 减少锁
+class DataManager {
+    private val cache = ConcurrentHashMap<String, Bitmap>()
+
+    fun put(key: String, value: Bitmap) {
+        cache[key] = value  // 无锁写入
+    }
+
+    fun get(key: String): Bitmap? {
+        return cache[key]  // 无锁读取
+    }
+}
+
+// ✅ 正例 3：ReadWriteLock
+class CacheManager {
+    private val rwLock = ReentrantReadWriteLock()
+    private val cache = HashMap<String, Any>()
+
+    fun read(key: String): Any? {
+        rwLock.readLock().lock()
+        try {
+            return cache[key]
+        } finally {
+            rwLock.readLock().unlock()
+        }
+    }
+
+    fun write(key: String, value: Any) {
+        rwLock.writeLock().lock()
+        try {
+            cache[key] = value
+        } finally {
+            rwLock.writeLock().unlock()
+        }
+    }
+}
+```
+
+**方案 B：Binder 调用修复**
+
+```java
+// ❌ 反例：主线程同步调用 ContentProvider
+class BadFragment : Fragment() {
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+        // ContentProvider query 在主线程执行
+        val cursor = contentResolver.query(uri, null, null, null, null)
+        // 如果 ContentProvider 初始化慢，这里会 Block
+    }
+}
+
+// ✅ 正例 1：ContentProvider 懒加载，不在启动路径上触发
+class GoodFragment : Fragment() {
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+        view.post {
+            // 等第一帧绘制完成后再查询
+            loadData()
+        }
+    }
+
+    private fun loadData() {
+        lifecycleScope.launch {
+            val cursor = withContext(Dispatchers.IO) {
+                contentResolver.query(uri, null, null, null, null)
+            }
+            // 处理数据
+        }
+    }
+}
+
+// ✅ 正例 2：Binder 调用带超时，避免无限等待
+class SafeContentResolver {
+    suspend fun <T> queryWithTimeout(
+        uri: Uri,
+        timeout: Long = 3000
+    ): T? = withTimeoutOrNull(timeout) {
+        withContext(Dispatchers.IO) {
+            contentResolver.query(uri, null, null, null, null) as T
+        }
+    }
+}
+```
+
+**方案 C：主线程 I/O 修复**
+
+```java
+// ❌ 反例：大图在主线程解码
+override fun onCreate(savedInstanceState: Bundle?) {
+    super.onCreate(savedInstanceState)
+    val bitmap = BitmapFactory.decodeFile(path)  // ❌ 主线程 decode
+    imageView.setImageBitmap(bitmap)
+}
+
+// ✅ 正例 1：协程 + IO 线程解码
+lifecycleScope.launch {
+    val bitmap = withContext(Dispatchers.IO) {
+        BitmapFactory.decodeFile(path)  // IO 线程 decode
+    }
+    imageView.setImageBitmap(bitmap)     // 主线程设置
+}
+
+// ✅ 正例 2：大图先缩小再加载
+lifecycleScope.launch {
+    val options = BitmapFactory.Options().apply {
+        inJustDecodeBounds = true  // 先获取尺寸，不分配内存
+    }
+    BitmapFactory.decodeFile(path, options)
+
+    // 计算采样率
+    options.inSampleSize = calculateInSampleSize(options, 1024, 1024)
+    options.inJustDecodeBounds = false
+
+    withContext(Dispatchers.IO) {
+        BitmapFactory.decodeFile(path, options)  // 缩小后 decode
+    }
+}
+
+// ✅ 正例 3：SharedPreferences 多进程模式替代方案
+// MODE_MULTI_PROCESS 在 Android N 之后已废弃
+// 使用 ContentProvider 或 Room 进行跨进程数据共享
+```
+
+**方案 D：GC 优化**
+
+```java
+// ❌ 避免在启动路径上创建大量对象
+class BadActivity : AppCompatActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        // ❌ 每次 onCreate 都创建新对象，增加 GC 压力
+        val analytics = AnalyticsEngine()  // 重型对象
+        val helpers = ArrayList<Helper>()   // 大集合
+        val bitmapCache = LruCache<String, Bitmap>(100)  // 内存分配
+    }
+}
+
+// ✅ 使用单例 / 对象池，减少启动路径上的内存分配
+class GoodActivity : AppCompatActivity() {
+    private val analytics by lazy { AnalyticsEngine.getInstance() }
+    private val helpers by lazy { HelperPool.get() }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        // 无重型对象分配
+    }
+}
+
+// ✅ 主动触发 GC hint（谨慎使用）
+override fun onCreate(savedInstanceState: Bundle?) {
+    super.onCreate(savedInstanceState)
+    // 在重型操作前 hint 系统提前 GC
+    System.gc()  // 提示性的，不保证立即执行
+    // 然后执行重型操作
+}
+```
+
+#### 5.1.5 分析方法（从 Log 定位根因）
+
+**第一步：从 Logcat 找到 ANR 上下文**
+
+```bash
+# 过滤 ANR 相关的 Logcat
+adb logcat | grep -E "ANR|InputDispatch|ActivityManager"
+
+# 查找 ANR 前的应用行为
+adb logcat -v time | grep -B 20 "ANR in com.example"
+```
+
+**关键 Log 位置**:
+
+```
+// 1. ANR 触发时的主线程堆栈（在 traces.txt 中）
+//    重点关注："main" prio=5 tid=1 ??? 状态
+
+// 2. 状态关键字对照：
+//    Runnable       → 正在执行（可能是 CPU 密集型）
+//    Blocked        → 等待锁
+//    TimedWaiting   → 等 Object.wait() + 超时
+//    Waiting        → 等锁 / 等条件
+//    Suspended      → 被挂起（GC 或 native 挂起）
+
+// 3. Binder trace（如果 ANR 发生在跨进程调用）
+adb bugreport > bugreport.zip
+# 查看 main.txt_transportable_bugreport/BUGreport_version > /main_entry/ANR
+```
+
+**第二步：traces.txt 分析**
+
+```bash
+# traces.txt 路径（不同 Android 版本略有不同）
+# Android 10+: /data/anr/traces.txt
+# 需要 root 或 adb shell read
+
+adb shell cat /data/anr/traces.txt
+
+# 分析主线程状态：
+# 1. 如果是 "Blocked" — 找 waiting to lock xxx，找到持有锁的线程，看它在做什么
+# 2. 如果是 "Runnable" — 看主线程当前在执行哪个方法
+# 3. 如果是 "Waiting" — 找 wait() 调用，分析等待条件
+# 4. 如果有 "GC" 关键字 — 内存压力大，优先解决内存泄漏
+```
+
+**traces.txt 典型模式速查**:
+
+| traces.txt 关键字 | 含义 | 解决方案 |
+|------------------|------|---------|
+| `waiting to lock java/lang/Object@xxxxx` | 等锁 | 缩小锁粒度 / 改用无锁数据结构 |
+| `performBindService` | Service 绑定慢 | 检查 Service.onBind() |
+| `acquireContentProviderClient` | ContentProvider 获取慢 | 检查 Provider.onCreate() |
+| `doFrame` / `Choreographer` | 渲染超时 | 减少 onDraw 耗时 / 检查 CPU 调度 |
+| `android.database.sqlite` | 数据库操作 | 移到子线程 |
+| `BitmapFactory.decode` | 图片解码 | 协程 + IO 线程 |
+| `waitForGcToComplete` | 等待 GC | 检查内存泄漏 / 减少对象分配 |
+| `nativePollOnce` | Looper 等待消息 | 正常等待，非阻塞 |
+
+**第三步：Systrace / Perfetto 分析**
+
+```bash
+# Systrace（适合快速定位卡顿帧）
+python $ANDROID_SDK/platform-tools/systrace/systrace.py \
+    --app=com.example \
+    gfx input view sched freq \
+    -b 16384 \
+    -o trace.html
+
+# Perfetto（Android 10+，更详细）
+adb shell perfetto \
+    -c - \
+    --txt \
+    -o /data/misc/perfetto-traces/trace.perfetto-trace \
+    <<EOF
+buffers: {
+    size_kb: 63488
+    fill_policy: RING_BUFFER
+}
+duration_ms: 10000
+data_sources: {
+    config {
+        name: "linux.ftrace"
+        ftrace_config {
+            ftrace_events: "sched/sched_switch"
+            ftrace_events: "sched/sched_blocked"
+            ftrace_events: "power/cpu_frequency"
+            ftrace_events: "power/cpu_idle"
+        }
+    }
+    config {
+        name: "android.surfaceflinger.frametimeline"
+    }
+}
+EOF
+
+adb pull /data/misc/perfetto-traces/trace.perfetto-trace .
+```
+
+**Systrace 中找 ANR**:
+
+1. 在 Systrace 中找到 ANR 时间点（红色竖线）
+2. 放大主线程（main）行
+3. 找 `InputQueue` 或 `Choreographer` 的 gap（空白区域 = 无响应）
+4. gap 之前的主线程最后一行代码就是阻塞点
+
+```
+主线程行示意：
+[ViewRootImpl]  [InputQueue]  [Choreographer]  [某方法]
+   ████████████      ████           ████████████
+   正常处理        等待消息         ANR 前的最后一帧
+                  ← 5s gap →
+                       ↑
+                   这 5s 主线程在做什么？
+```
+
+**第四步：Simpleperf 分析 CPU 占用**
+
+```bash
+# 如果怀疑 CPU 抢占导致 ANR（根因 E）
+adb shell simpleperf record -p <pid> --duration=10 \
+    -o /data/local/tmp/perf.data
+
+adb pull /data/local/tmp/perf.data .
+
+# 在 Perfetto 中加载分析热点函数
+python simpleperf.py report -i perf.data
 ```
 
 ---
