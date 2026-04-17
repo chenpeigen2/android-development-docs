@@ -1120,144 +1120,473 @@ OkHttpClient client = new OkHttpClient.Builder()
 
 ## 第 7 章 OkHttp 核心原理
 
-### 7.1 请求流程
+### 7.1 整体架构
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                         OkHttp 请求流程                                      │
+│                            OkHttp 整体架构                                   │
 └─────────────────────────────────────────────────────────────────────────────┘
 
-1. 创建 Request
-        │
-        ▼
-2. 创建 Call (RealCall)
-        │
-        ▼
-3. 执行请求 (execute/enqueue)
-        │
-        ▼
-4. Dispatcher 调度请求
-        │
-        ▼
-5. 拦截器链执行
-   ├─► RetryAndFollowUpInterceptor (重试和重定向)
-   ├─► BridgeInterceptor (桥接拦截器)
-   ├─► CacheInterceptor (缓存拦截器)
-   ├─► ConnectInterceptor (连接拦截器)
-   └─► CallServerInterceptor (网络请求)
-        │
-        ▼
-6. 返回 Response
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                          OkHttpClient (.Builder)                            │
+│                                                                              │
+│   ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐        │
+│   │ Dispatcher │  │  Interceptors│  │  Okio       │  │ConnectionPool│        │
+│   │  (线程池)   │  │  (拦截器链)  │  │  (I/O)      │  │  (连接复用)  │        │
+│   └─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘        │
+│          │                │                │                │                │
+│          └────────────────┴────────────────┴────────────────┘                │
+│                                   │                                          │
+│                                   ▼                                          │
+│                            ┌─────────────┐                                   │
+│                            │ RealCall    │ ← 请求入口                         │
+│                            │  - execute()│   同步                             │
+│                            │  - enqueue()│   异步                             │
+│                            └──────┬──────┘                                   │
+│                                   │                                          │
+│                                   ▼                                          │
+│                        ┌─────────────────────┐                               │
+│                        │ Interceptor Chain   │                               │
+│                        │                     │                               │
+│                        │ [1] RetryAndFollowUp│                               │
+│                        │ [2] Bridge          │                               │
+│                        │ [3] Cache           │                               │
+│                        │ [4] Connect         │                               │
+│                        │ [5] CallServer      │                               │
+│                        └─────────────────────┘                               │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                              请求分层                                          │
+│                                                                              │
+│  应用层  ←→ OkHttpClient + Interceptors (应用拦截器)                         │
+│   │                                                                              │
+│   ▼                                                                              │
+│  网络层  ←→ RetryAndFollowUp → Bridge → Cache → Connect → CallServer          │
+│   │                                                                              │
+│   ▼                                                                              │
+│  传输层  ←→ Socket / SSLSocket + Okio                                        │
+│   │                                                                              │
+│   ▼                                                                              │
+│  协议层  ←→ HTTP/1.1 / HTTP/2 / TLS 1.3                                      │
+└──────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 7.2 拦截器链
+### 7.2 请求完整流程（源码级）
+
+```
+用户: client.newCall(request).execute()
+        │
+        ▼
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ RealCall (请求的最小执行单元)                                                 │
+│                                                                              │
+│  1. 校验是否已执行 (executed 标志)                                            │
+│  2. 同步: dispatcher.executed(this) — 加入 runningSyncCalls                  │
+│     异步: dispatcher.enqueue(AsyncCall) — 加入 readyAsyncCalls / runningAsyncCalls│
+│  3. getResponseWithInterceptorChain() — 启动拦截器链                         │
+│  4. finally: dispatcher.finished(this) — 从队列移除                           │
+└──────────────────────────────────────────────────────────────────────────────┘
+        │
+        ▼
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ getResponseWithInterceptorChain() — 拦截器链的入口                            │
+│                                                                              │
+│  RealInterceptorChain(chain, index=0, request)                               │
+│        │                                                                     │
+│        │ chain.proceed(request)                                             │
+│        ▼                                                                     │
+│  拦截器[0] RetryAndFollowUpInterceptor.intercept(chain)                       │
+│        │                                                                     │
+│        │ chain.proceed(request)                                             │
+│        ▼                                                                     │
+│  拦截器[1] BridgeInterceptor.intercept(chain)                                │
+│        │  • 添加 Cookie                                                      │
+│        │  • GZIP 压缩                                                        │
+│        │  • 添加必要的 Header                                                 │
+│        │                                                                     │
+│        │ chain.proceed(request)                                             │
+│        ▼                                                                     │
+│  拦截器[2] CacheInterceptor.intercept(chain)                                │
+│        │  • 查缓存 (cache.get)                                               │
+│        │  • 缓存命中 → 直接返回缓存 Response                                  │
+│        │  • 缓存未命中 → chain.proceed(request) → 写缓存 (cache.put)         │
+│        │                                                                     │
+│        │ chain.proceed(request)                                             │
+│        ▼                                                                     │
+│  拦截器[3] ConnectInterceptor.intercept(chain)                               │
+│        │  • 从 ConnectionPool 获取 / 新建 RealConnection                      │
+│        │  • 建立 Socket 连接 / TLS 握手                                      │
+│        │  • connection.connect() → socket = rawSocket                        │
+│        │    if HTTPS: sslSocketFactory.createSocket(rawSocket)              │
+│        │                                                                     │
+│        │ chain.proceed(request)                                             │
+│        ▼                                                                     │
+│  拦截器[4] CallServerInterceptor.intercept(chain)                           │
+│        │  • 写入请求头 (sink.writeHeaders)                                   │
+│        │  • 写入请求体 (sink.writeRequestBody)                               │
+│        │  • 刷新输出 (sink.flush)                                           │
+│        │  • 读取响应头 (source.readHeaders)                                 │
+│        │  • 读取响应体 (source.readBody)                                    │
+│        │                                                                     │
+│  返回 Response ← 一层层往回走，每个拦截器对 Response 做后处理               │
+└──────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 7.3 拦截器链（责任链模式）深度分析
+
+#### 7.3.1 责任链模式在 OkHttp 中的实现
+
+```
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                         责任链模式执行图                                      │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+proceed() 调用链 (从上往下):
+  RealInterceptorChain.proceed(request)
+       │
+       │ index=0, 取 interceptors[0] = RetryAndFollowUpInterceptor
+       ▼
+  RetryAndFollowUpInterceptor.intercept(chain)  ← 第1个拦截器收到 chain
+       │
+       │ 创建新的 RealInterceptorChain(index=1)
+       │ 调用 chain.proceed(request) — 继续往下传
+       ▼
+  BridgeInterceptor.intercept(chain)             ← 第2个拦截器收到 chain
+       │
+       │ 创建新的 RealInterceptorChain(index=2)
+       │ 调用 chain.proceed(request) — 继续往下传
+       ▼
+  CacheInterceptor.intercept(chain)             ← 第3个拦截器收到 chain
+       │
+       │ 创建新的 RealInterceptorChain(index=3)
+       │ 调用 chain.proceed(request) — 继续往下传
+       ▼
+  ConnectInterceptor.intercept(chain)           ← 第4个拦截器收到 chain
+       │
+       │ 创建新的 RealInterceptorChain(index=4)
+       │ 调用 chain.proceed(request) — 继续往下传
+       ▼
+  CallServerInterceptor.intercept(chain)        ← 第5个拦截器（最后一层）
+       │
+       │ ⚠️ 注意：这里是最后一层，不再调用 chain.proceed()
+       │    直接执行 HTTP 请求并返回 Response
+       ▼
+  Response ← 沿原路返回，每个拦截器在 return 之前做后处理
+       │
+  ConnectInterceptor 后处理 ← 什么都不做
+       │
+  CacheInterceptor 后处理 ← 写缓存
+       │
+  BridgeInterceptor 后处理 ← GZIP 解压
+       │
+  RetryAndFollowUpInterceptor 后处理 ← 重试 / 重定向
+       │
+  返回用户
+```
+
+#### 7.3.2 RealInterceptorChain 源码核心逻辑
 
 ```java
-/**
- * 拦截器链采用责任链模式
- * 
- * 每个拦截器都有三个职责：
- * 1. 对请求进行预处理
- * 2. 调用 chain.proceed() 将请求传递给下一个拦截器
- * 3. 对响应进行后处理
- */
-
+// RealInterceptorChain.java — 拦截器链的递归/递归展开结构
 public class RealInterceptorChain implements Interceptor.Chain {
-    
-    private final List<Interceptor> interceptors;
-    private final int index;
-    private final Request request;
-    
-    @Override
-    public Response proceed(Request request) throws IOException {
-        // 调用下一个拦截器
-        Interceptor interceptor = interceptors.get(index);
+    private final List<Interceptor> interceptors;  // 拦截器列表
+    private final int index;                        // 当前拦截器下标
+    private final Request request;                  // 当前请求
+
+    public Response proceed(Request request, StreamAllocation streamAllocation,
+            HttpCodec httpCodec, RealConnection connection) {
+
+        // 1. 校验下标不越界
+        if (index >= interceptors.size()) {
+            throw new AssertionError("拦截器链遍历完毕但未生成 Response");
+        }
+
+        // 2. 标记当前调用已启动（用于统计）
+        calls++;
+
+        // 3. 构造下一个拦截器链（index + 1）
         RealInterceptorChain next = new RealInterceptorChain(
-            interceptors, index + 1, request
+            interceptors,
+            index + 1,
+            request,
+            streamAllocation,
+            httpCodec,
+            connection
         );
-        
-        return interceptor.intercept(next);
+
+        // 4. 取当前拦截器，执行
+        Interceptor interceptor = interceptors.get(index);
+
+        // 5. ⚠️ 这里是关键：调用当前拦截器，传入下一个 chain
+        //    当前拦截器内部会调用 chain.proceed()，形成递归展开
+        Response response = interceptor.intercept(next);
+
+        return response;
     }
 }
 ```
 
-### 7.3 连接池原理
+#### 7.3.3 五大核心拦截器职责
+
+| 拦截器 | 职责 | 对请求做什么 | 对响应做什么 |
+|-------|------|------------|-------------|
+| **RetryAndFollowUpInterceptor** | 重试与重定向 | 判断是否重试/重定向，修改 URL | 处理 307/308 重定向，跟随 Location 头 |
+| **BridgeInterceptor** | 协议转换 | 添加默认 Header（GZIP/Keep-Alive/Content-Type） | GZIP 解压响应体 |
+| **CacheInterceptor** | HTTP 缓存 | 无 | 命中缓存直接返回，否则写入新缓存 |
+| **ConnectInterceptor** | 建立连接 | 无 | 建立 TCP + TLS 连接 |
+| **CallServerInterceptor** | 网络 I/O | 写入请求头/体 | 读取响应头/体 |
+
+### 7.4 连接池原理（ConnectionPool）
+
+#### 7.4.1 为什么需要连接池
+
+```
+无连接池（每次请求新建连接）:
+  请求1 ──► [TCP握手: 14ms] ──► [TLS握手: 56ms] ──► [发送: 5ms] ──► [接收: 10ms] ──► 总计: 85ms
+  请求2 ──► [TCP握手: 14ms] ──► [TLS握手: 56ms] ──► [发送: 5ms] ──► [接收: 10ms] ──► 总计: 85ms
+  请求3 ──► [TCP握手: 14ms] ──► [TLS握手: 56ms] ──► [发送: 5ms] ──► [接收: 10ms] ──► 总计: 85ms
+
+有连接池（复用已建立连接）:
+  请求1 ──► [TCP握手: 14ms] ──► [TLS握手: 56ms] ──► [发送: 5ms] ──► [接收: 10ms] ──► 总计: 85ms
+  请求2 ──► [复用连接: 3ms] ──► 总计: 3ms    (节省 82ms)
+  请求3 ──► [复用连接: 3ms] ──► 总计: 3ms    (节省 82ms)
+```
+
+#### 7.4.2 连接池数据结构
 
 ```java
-/**
- * ConnectionPool 核心逻辑
- */
-
+// ConnectionPool.java — 连接池核心
 public final class ConnectionPool {
-    
-    // 最大空闲连接数
+    // 最大空闲连接数（每个 Address）
     private final int maxIdleConnections;
-    
-    // 保活时间
+    // 空闲连接保活时间
     private final long keepAliveDurationNs;
-    
-    // 连接队列
+    // 连接队列（Deque 支持首尾高效增删）
     private final ArrayDeque<RealConnection> connections = new ArrayDeque<>();
-    
-    // 获取连接
-    RealConnection get(Address address) {
-        // 1. 遍历连接池
-        for (RealConnection connection : connections) {
-            // 2. 检查连接是否可用
-            if (connection.isEligible(address)) {
-                return connection;
+
+    // RouteDatabase: 记录失败路线（用于快速失败跳过）
+    private final RouteDatabase routeDatabase;
+}
+```
+
+#### 7.4.3 连接获取流程
+
+```
+ConnectInterceptor.intercept(chain)
+        │
+        ▼
+RealConnection.new(connectionPool)
+        │
+        ▼
+connectionPool.get(address) — 从池中查找匹配连接
+        │
+        ├── 遍历 connections (Deque)
+        │
+        ├── 判断条件: connection.isEligible(address)
+        │      ├── HTTP/1.1 → 必须同 Address（host+port+proxy）
+        │      └── HTTP/2   → 必须同 Host（HTTP/2 多路复用，同一 host 共享一个连接）
+        │
+        ├── 找到 → return connection (复用)
+        │         └── 复用前检查: connection.isHealthy() — Socket 是否还连着
+        │
+        └── 找不到 → return null (需新建)
+                   └── 新建 RealConnection → 放入池中
+```
+
+#### 7.4.4 连接池清理机制
+
+```java
+// ConnectionPool.java — 后台清理线程
+private final Runnable cleanupRunnable = () -> {
+    while (true) {
+        // 执行清理，返回下次清理的间隔（纳秒）
+        long waitNanos = cleanup(System.nanoTime());
+        if (waitNanos == -1) return;  // 池空了，退出
+        LockSupport.parkNanos(this, waitNanos);
+    }
+};
+
+// cleanup() 核心逻辑
+long cleanup(long now) {
+    RealConnection longestIdleConnection = null;
+    long longestIdleDurationNs = 0;
+    int idleConnectionCount = 0;
+
+    synchronized (this) {
+        // 遍历所有连接
+        for (Iterator<RealConnection> i = connections.iterator(); i.hasNext(); ) {
+            RealConnection connection = i.next();
+
+            // 统计该连接上还有多少 StreamAllocation（活跃的请求）
+            int streams = connection.allocations.size();
+            if (streams > 0) {
+                idleConnectionCount++;  // 有活跃请求，跳过
+                continue;
+            }
+
+            // 无活跃请求，计算空闲时长
+            long idleDurationNs = now - connection.idleAtNanos;
+            if (idleDurationNs > longestIdleDurationNs) {
+                longestIdleDurationNs = idleDurationNs;
+                longestIdleConnection = connection;
             }
         }
-        return null;
-    }
-    
-    // 放入连接
-    void put(RealConnection connection) {
-        connections.add(connection);
+
+        // 清理策略1: 超过保活时间 → 立即移除
+        if (longestIdleDurationNs >= keepAliveDurationNs) {
+            connections.remove(longestIdleConnection);
+            longestIdleConnection.socket().close();
+            return 0;  // 清理完立即再检查
+        }
+
+        // 清理策略2: 超过最大空闲连接数 → 移除最久的
+        if (idleConnectionCount > maxIdleConnections) {
+            connections.remove(longestIdleConnection);
+            longestIdleConnection.socket().close();
+            return 0;
+        }
+
+        // 计算到下次需要清理的时间
+        long nanosToWait = keepAliveDurationNs - longestIdleDurationNs;
+        return nanosToWait;  // 线程 park 这个时间后再次清理
     }
 }
 ```
 
-### 7.4 缓存原理
+**清理触发条件**:
+- 空闲连接数 > `maxIdleConnections`（默认 5）
+- 某连接的空闲时间 > `keepAliveDuration`（默认 5 分钟）
+
+#### 7.4.5 HTTP/2 连接复用
+
+```
+HTTP/1.1 模式（每请求一个连接）:
+  连接1 ──► 请求A (请求B必须等A完成)
+  连接2 ──► 请求B (并行需新建连接)
+  连接3 ──► 请求C (并行需新建连接)
+
+HTTP/2 模式（多路复用，一个连接并行多个请求）:
+  连接1 ──► 请求A ──┐
+             请求B ──┼── 并行在一个 TCP 连接上
+             请求C ──┘
+  复用率更高，连接数更少
+```
+
+### 7.5 缓存原理（CacheInterceptor）
+
+#### 7.5.1 HTTP 缓存协议基础
+
+```
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                          HTTP 缓存决策流程                                     │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+请求到达
+    │
+    ▼
+查本地缓存 ─────────────────────────────────────────────────────────┐
+    │                                                                │
+    ├── 命中 ──► 检查新鲜度 ──► 未过期 ──► 直接返回缓存 Response     │
+    │                      │                                        │
+    │                      ├── 已过期 ──► 发送验证请求 ──► 304 ──► 更新缓存头，返回缓存
+    │                      │                            │            │
+    │                      │                            └── 200 ──► 返回新数据，写入缓存
+    │                                                                │
+    └── 未命中 ──► 发送网络请求 ──► 200 ──► 写入缓存 ──► 返回 Response
+                                                               │
+                                                               ▼
+                                                          存储位置: /data/data/<pkg>/cache/http_cache/
+                                                          格式:     HTTP/1.1 原始格式（header + body）
+```
+
+#### 7.5.2 CacheStrategy 决策
 
 ```java
-/**
- * CacheInterceptor 缓存逻辑
- */
+// CacheStrategy.java — 缓存策略工厂
+public class CacheStrategy {
+    final Request networkRequest;   // 需要发到网络的请求（null = 不发网络）
+    final Response cacheResponse;   // 缓存的响应（null = 不返回缓存）
 
-public final class CacheInterceptor implements Interceptor {
-    
-    @Override
-    public Response intercept(Chain chain) throws IOException {
-        // 1. 尝试从缓存获取
-        Response cacheCandidate = cache != null 
-            ? cache.get(chain.request()) 
-            : null;
-        
-        // 2. 判断缓存策略
-        CacheStrategy strategy = new CacheStrategy.Factory(
-            now, chain.request(), cacheCandidate
-        ).get();
-        
-        Request networkRequest = strategy.networkRequest;
-        Response cacheResponse = strategy.cacheResponse;
-        
-        // 3. 如果不使用网络，直接返回缓存
-        if (networkRequest == null) {
-            return cacheResponse;
-        }
-        
-        // 4. 执行网络请求
-        Response networkResponse = chain.proceed(networkRequest);
-        
-        // 5. 写入缓存
-        if (cache != null) {
-            cache.put(networkResponse);
-        }
-        
-        return networkResponse;
-    }
+    // 决策过程（CacheInterceptor 中调用）
+    // 1. FORCE_CACHE: 强制用缓存
+    //    → networkRequest = null（不发网络）
+    //    → cacheResponse = 缓存响应
+
+    // 2. FORCE_NETWORK: 强制用网络
+    //    → networkRequest = 新请求
+    //    → cacheResponse = null（不用缓存）
+
+    // 3. 正常流程:
+    //    networkRequest = 可能有条件地发（带 If-None-Match / If-Modified-Since）
+    //    cacheResponse = 可能有缓存响应（过期时可用 stale 响应）
+
+    // 条件请求（返回缓存但同时发验证）:
+    //    → networkRequest 有 If-None-Match (ETag) 或 If-Modified-Since
+    //    → cacheResponse = stale 缓存（过期但还能用）
+    //    → 服务器返回 304 → 用缓存（节省 body 传输）
+    //    → 服务器返回 200 → 用新响应
 }
+```
+
+#### 7.5.3 缓存 key 与存储结构
+
+```java
+// 缓存 key: URL 的 MD5
+String key = new CacheKey.Builder(url).build().toString();
+// 存储: /http_cache/<hash>/<metadata> + <data>
+
+// metadata (HTTP header 原始格式)
+// data (响应体原始 bytes)
+```
+
+### 7.6 RetryAndFollowUpInterceptor 重试与重定向
+
+```java
+// 重试条件
+// 1. 协议异常: IOException (连接断开、超时等)
+// 2. 可重定向的响应码: 307, 308 (POST/GET 重定向)
+// 3. 407: Proxy Authentication Required
+// 4. 路由异常: RouteException
+
+// 重试次数限制: 20 次（防止无限重试）
+
+// 重定向跟随
+// 307/308 → 读取 Location 头，直接发新请求
+// 响应码 3xx 但不带 Location → 返回错误
+```
+
+### 7.7 Okio 底层 I/O
+
+```
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                              Okio 架构                                       │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+OkHttp 的 I/O 底层依赖 Okio:
+
+  BufferedSink (写入端)      BufferedSource (读取端)
+       │                          ▲
+       ▼                          │
+  Sink (抽象输出)           Source (抽象输入)
+       │                          ▲
+       ▼                          │
+  实际 I/O (Socket / File)       │
+       │                          │
+       ▼                          │
+  Segment → SegmentPool (零拷贝优化)                                    │
+
+关键概念:
+  Segment: 8KB 数据块，双向链表，支持零拷贝传递（不需要复制数据）
+  SegmentPool: 回收空闲 Segment，复用内存块，减少 GC
+
+  BufferedSink: 带缓冲的输出，writeUtf8() → Buffer.writeUtf8()
+  BufferedSource: 带缓冲的输入，readUtf8() → Buffer.readUtf8()
+
+Socket 读写示例:
+  source = connection.socket().inputStream
+  source.read(headerBuffer)      // 读取响应头
+  body = source.read(contentLength) // 读取响应体
 ```
 
 ---
@@ -1267,172 +1596,288 @@ public final class CacheInterceptor implements Interceptor {
 ### 8.1 OkHttpClient 创建
 
 ```java
-public OkHttpClient() {
-    this(new Builder());
+// OkHttpClient.java — 不可变对象，所有配置在 Builder 中
+public OkHttpClient {
+    final Dispatcher dispatcher;          // 调度器
+    final List<Interceptor> interceptors;  // 应用拦截器（用户添加的）
+    final List<Interceptor> networkInterceptors; // 网络拦截器
+    final ConnectionPool connectionPool;    // 连接池
+    final List<Protocol> protocols;        // 协议列表 (HTTP/1.1, HTTP/2)
+    final List<ConnectionSpec> connectionSpecs; // TLS 版本和加密套件
+    final Dns dns;                         // DNS 解析
+    final SocketFactory socketFactory;      // Socket 工厂
+    final SSLSocketFactory sslSocketFactory; // SSL Socket 工厂
+    final CertificateChainCleaner certificateChainCleaner;
+    final HostnameVerifier hostnameVerifier;
+    final CertificatePinner certificatePinner;
+    final Authenticator proxyAuthenticator;   // 代理认证
+    final Authenticator authenticator;         // 源站认证
+    final int connectTimeout;     // 连接超时 ms
+    final int readTimeout;        // 读取超时 ms
+    final int writeTimeout;       // 写入超时 ms
+    final int pingInterval;       // WebSocket ping 间隔
 }
 
-public OkHttpClient(Builder builder) {
-    this.dispatcher = builder.dispatcher;
-    this.proxy = builder.proxy;
-    this.protocols = builder.protocols;
-    this.connectionSpecs = builder.connectionSpecs;
-    this.interceptors = Util.immutableList(builder.interceptors);
-    this.networkInterceptors = Util.immutableList(builder.networkInterceptors);
-    this.eventListenerFactory = builder.eventListenerFactory;
-    this.proxySelector = builder.proxySelector;
-    this.cookieJar = builder.cookieJar;
-    this.cache = builder.cache;
-    this.internalCache = builder.internalCache;
-    this.socketFactory = builder.socketFactory;
-    // ... 其他配置
+// 最佳实践: 单例模式（OkHttpClient 线程安全，应复用）
+public class OkHttpFactory {
+    private static volatile OkHttpClient INSTANCE;
+
+    public static OkHttpClient get() {
+        if (INSTANCE == null) {
+            synchronized (OkHttpFactory.class) {
+                if (INSTANCE == null) {
+                    INSTANCE = new OkHttpClient.Builder()
+                        .connectTimeout(10, TimeUnit.SECONDS)
+                        .readTimeout(10, TimeUnit.SECONDS)
+                        .writeTimeout(10, TimeUnit.SECONDS)
+                        .connectionPool(new ConnectionPool(
+                            5, 5, TimeUnit.MINUTES))
+                        .build();
+                }
+            }
+        }
+        return INSTANCE;
+    }
 }
 ```
 
-### 8.2 Call 创建与执行
+### 8.2 Call 创建与执行（同步/异步）
 
 ```java
-// 创建 Call
-@Override
-public Call newCall(Request request) {
-    return new RealCall(this, request, false);
+// RealCall.java — Call 的唯一实现
+
+// 1. 创建 Call
+@Override public Call newCall(Request request) {
+    return new RealCall(this, request, false);  // false = 非 WebSocket
 }
 
-// RealCall.execute()
-@Override
-public Response execute() throws IOException {
+// 2. 同步执行
+@Override public Response execute() throws IOException {
+    // 防止重复执行
     synchronized (this) {
         if (executed) throw new IllegalStateException("Already Executed");
         executed = true;
     }
-    
     try {
-        // 1. 加入调度队列
+        // 加入同步调用队列（用于统计和取消）
         client.dispatcher().executed(this);
-        
-        // 2. 执行拦截器链
-        Response result = getResponseWithInterceptorChain();
-        
-        if (result == null) throw new IOException("Canceled");
-        return result;
+        // 执行拦截器链
+        Response response = getResponseWithInterceptorChain();
+        if (response == null) throw new IOException("Canceled");
+        return response;
     } finally {
-        // 3. 从调度队列移除
+        // 从队列移除
         client.dispatcher().finished(this);
     }
 }
-```
 
-### 8.3 Dispatcher 调度器
-
-```java
-public final class Dispatcher {
-    
-    // 最大并发请求数
-    private int maxRequests = 64;
-    
-    // 每个主机最大并发请求数
-    private int maxRequestsPerHost = 5;
-    
-    // 异步请求队列
-    private final ArrayDeque<AsyncCall> readyAsyncCalls = new ArrayDeque<>();
-    private final ArrayDeque<AsyncCall> runningAsyncCalls = new ArrayDeque<>();
-    
-    // 同步请求队列
-    private final ArrayDeque<RealCall> runningSyncCalls = new ArrayDeque<>();
-    
-    // 异步请求
-    synchronized void enqueue(AsyncCall call) {
-        // 1. 检查并发限制
-        if (runningAsyncCalls.size() < maxRequests 
-            && runningCallsForHost(call) < maxRequestsPerHost) {
-            // 2. 加入运行队列
-            runningAsyncCalls.add(call);
-            // 3. 提交到线程池
-            executorService().execute(call);
-        } else {
-            // 4. 加入等待队列
-            readyAsyncCalls.add(call);
-        }
+// 3. 异步执行
+@Override public void enqueue(Callback responseCallback) {
+    synchronized (this) {
+        if (executed) throw new IllegalStateException("Already Executed");
+        executed = true;
     }
-    
-    // 请求完成
-    void finished(AsyncCall call) {
-        synchronized (this) {
-            // 1. 从运行队列移除
-            runningAsyncCalls.remove(call);
-            
-            // 2. 尝试运行等待队列中的请求
-            promoteCalls();
+    // 包装成 AsyncCall，提交到 Dispatcher 线程池
+    client.dispatcher().enqueue(new AsyncCall(responseCallback));
+}
+
+// AsyncCall 是 RealCall 的内部类（Runnable 实现）
+final class AsyncCall extends NamedRunnable {
+    private final Callback responseCallback;
+
+    @Override protected void execute() {
+        try {
+            // 执行拦截器链
+            Response response = getResponseWithInterceptorChain();
+            // 判断是否成功
+            if (retryAndFollowUpInterceptor.isRecoverable(e, streamAllocation)) {
+                // 可恢复错误，添加到重试队列
+                client.dispatcher().retryAndPerform(this);
+                return;
+            }
+            // 回调失败
+            responseCallback.onFailure(RealCall.this, e);
+        } catch (IOException e) {
+            responseCallback.onFailure(RealCall.this, e);
+        } finally {
+            // 从 Dispatcher 移除
+            client.dispatcher().finished(this);
         }
     }
 }
 ```
 
-### 8.4 ConnectionPool
+### 8.3 Dispatcher 调度器（并发控制核心）
 
 ```java
-public final class ConnectionPool {
-    
-    // 最大空闲连接数（默认 5）
-    private final int maxIdleConnections;
-    
-    // 保活时间（默认 5 分钟）
-    private final long keepAliveDurationNs;
-    
-    // 清理线程
-    private static final Executor executor = new ThreadPoolExecutor(
-        0, 1, 60L, TimeUnit.SECONDS, 
-        new SynchronousQueue<>(),
-        Util.threadFactory("OkHttp ConnectionPool", true)
-    );
-    
-    // 清理任务
-    private final Runnable cleanupRunnable = () -> {
-        while (true) {
-            long waitNanos = cleanup(System.nanoTime());
-            if (waitNanos == -1) return;
-            try {
-                Thread.sleep(waitNanos / 1000000L, (int) (waitNanos % 1000000L));
-            } catch (InterruptedException e) {
-                return;
-            }
-        }
-    };
-    
-    // 清理过期连接
-    long cleanup(long now) {
-        int inUseConnectionCount = 0;
-        long maxIdleConnection = Long.MIN_VALUE;
-        RealConnection longestIdleConnection = null;
-        
-        // 遍历所有连接
-        synchronized (this) {
-            for (Iterator<RealConnection> i = connections.iterator(); i.hasNext(); ) {
-                RealConnection connection = i.next();
-                
-                // 检查是否在使用
-                if (pruneAndGetAllocationCount(connection, now) > 0) {
-                    inUseConnectionCount++;
-                    continue;
-                }
-                
-                // 记录最久未使用的空闲连接
-                long idleDurationNs = now - connection.idleAtNanos;
-                if (idleDurationNs > maxIdleConnection) {
-                    maxIdleConnection = idleDurationNs;
-                    longestIdleConnection = connection;
-                }
-            }
-            
-            // 清理条件：超过最大空闲数 或 超过保活时间
-            if (longestIdleConnection != null
-                && (inUseConnectionCount > 0 || idleConnectionCount > maxIdleConnections)
-                && maxIdleConnection > keepAliveDurationNs) {
-                connections.remove(longestIdleConnection);
-                longestIdleConnection.socket().close();
-                return 0;
-            }
+// Dispatcher.java — 异步请求的并发调度
+
+public final class Dispatcher {
+    // 并发数限制
+    private int maxRequests = 64;           // 全局最大并发
+    private int maxRequestsPerHost = 5;     // 每台主机最大并发
+
+    // 三个队列
+    private final Deque<AsyncCall> runningSyncCalls = new ArrayDeque<>();    // 同步运行中
+    private final Deque<AsyncCall> runningAsyncCalls = new ArrayDeque<>();   // 异步运行中
+    private final Deque<AsyncCall> readyAsyncCalls = new ArrayDeque<>();      // 异步等待中
+
+    // 线程池（按需创建）
+    private ExecutorService executorService;
+
+    // 异步入队
+    synchronized void enqueue(AsyncCall call) {
+        // 条件1: 全局并发 < 64
+        // 条件2: 同 Host 并发 < 5
+        if (runningAsyncCalls.size() < maxRequests
+                && runningCallsForHost(call) < maxRequestsPerHost) {
+            // 直接运行
+            runningAsyncCalls.add(call);
+            executorService().execute(call);
+        } else {
+            // 达到上限，加入等待队列
+            readyAsyncCalls.add(call);
         }
     }
+
+    // 请求完成时调用 → 触发等待队列的 promotion
+    void finished(AsyncCall call) {
+        if (runningAsyncCalls.remove(call)) {
+            // 触发 promotion
+            promoteCalls();
+        }
+        // 统计
+        idleCallback.run();
+    }
+
+    // 将等待队列中的请求 promotion 到运行状态
+    private void promoteCalls() {
+        // 遍历等待队列
+        for (Iterator<AsyncCall> i = readyAsyncCalls.iterator(); i.hasNext(); ) {
+            AsyncCall call = i.next();
+            if (runningAsyncCalls.size() >= maxRequests) break;
+            if (runningCallsForHost(call) >= maxRequestsPerHost) continue;
+            // 移出等待队列，加入运行队列
+            i.remove();
+            runningAsyncCalls.add(call);
+            executorService().execute(call);
+        }
+    }
+
+    // 线程池（懒加载）
+    public synchronized ExecutorService executorService() {
+        if (executorService == null) {
+            executorService = new ThreadPoolExecutor(
+                0, Integer.MAX_VALUE, 60L, TimeUnit.SECONDS,
+                new SynchronousQueue<>(),   // 不缓存任务，直接创建线程
+                Util.threadFactory("OkHttp Dispatcher", false)
+            );
+        }
+        return executorService;
+    }
+}
+```
+
+**Dispatcher 限流图解**:
+
+```
+请求进来
+    │
+    ▼
+runningAsyncCalls.size() < 64 ? ──► 否 ──► 加入 readyAsyncCalls（等待）
+    │                                      ▲
+    │ 是                                    │
+    ▼                                      │
+runningCallsForHost(call) < 5 ? ──► 否 ──┘
+    │
+    │ 是
+    ▼
+加入 runningAsyncCalls
+    │
+    ▼
+线程池执行
+
+请求完成后:
+    │
+    ▼
+从 runningAsyncCalls 移除
+    │
+    ▼
+promoteCalls() — 检查 waiting 队列
+    │
+    ▼
+如果有可执行的，移入 runningAsyncCalls 并执行
+```
+
+### 8.4 RealConnection 与 Socket
+
+```java
+// RealConnection.java — 底层 TCP 连接
+
+public final class RealConnection extends NamedRunnable {
+    private final ConnectionPool connectionPool;
+    private final Route route;  // 路由信息（地址 + 代理 + 证书）
+
+    // 底层 Socket
+    private Socket socket;
+    private Socket rawSocket;  // 原始 Socket（HTTPS 时为 SSLSocket 包装）
+
+    // HTTP/2 相关
+    private Http2Connection http2Connection;
+    private Protocol protocol;
+
+    // 关联的 StreamAllocation（用于多路复用计数）
+    private final List<Reference<StreamAllocation>> allocations = new ArrayList<>();
+
+    // 建立连接
+    public void connect(int connectTimeout, int readTimeout, int writeTimeout,
+            Call call, EventListener.EventListener eventListener) {
+
+        // 1. 选择代理类型
+        //    - DIRECT: 直连
+        //    - HTTP: HTTP 代理（CONNECT 建立隧道）
+        //    - SOCKS: SOCKS 代理
+
+        // 2. 建立 Socket 连接
+        socket = rawSocketFactory.createSocket();
+        socket.connect(new InetSocketAddress(route.socketAddress(), connectTimeout));
+
+        // 3. 如果是 HTTPS，进行 TLS 握手
+        if (route.address().sslSocketFactory() != null) {
+            socket = doSslHandshake(socket, route);
+        }
+    }
+
+    // HTTP/1.1 创建 HttpCodec
+    public HttpCodec newCodec(OkHttpClient client, StreamAllocation streamAllocation,
+            Callback callback) {
+        // HTTP/1.1 每个连接同时只处理一个请求-响应对
+        // HTTP/2 可以通过同一个连接处理多个
+        return new Http1ExchangeCodec(this, streamAllocation, callback);
+    }
+}
+```
+
+### 8.5 StreamAllocation（连接复用计数）
+
+```java
+// StreamAllocation.java — 管理连接上的「流」（请求-响应对）
+
+public final class StreamAllocation {
+    private final ConnectionPool connectionPool;
+    private final Route route;
+    private RealConnection connection;     // 引用的连接
+    private HttpCodec codec;              // 当前正在使用的 codec
+
+    // 关键方法: release()
+    // 每次请求完成时调用，表示这个「流」不再使用此连接
+    // 当 connections 上所有 allocations 都 release 后，连接变为空闲
+    public void streamFinished(String codecName, long bytesRead, boolean responseCompleted) {
+        connectionPool.streamFinished(this);
+    }
+
+    // HTTP/2: 同一个 RealConnection 可以同时有多个 StreamAllocation（多路复用）
+    // HTTP/1.1: 同时只能有 1 个 StreamAllocation（pipeline 已被废弃）
 }
 ```
 
