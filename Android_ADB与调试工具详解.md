@@ -19,6 +19,7 @@
 10. [屏幕操作](#10-屏幕操作)
 11. [dumpsys 深度解析](#11-dumpsys-深度解析)
 12. [进程与性能调试](#12-进程与性能调试)
+    - 12.4 [系统排查与 Dump 分析](#124-系统排查与-dump-分析)
 13. [SQLite 与 Content Provider](#13-sqlite-与-content-provider)
 14. [Systrace 与 Perfetto](#14-systrace-与-perfetto)
 15. [Android Studio 调试工具](#15-android-studio-调试工具)
@@ -1217,6 +1218,540 @@ $ adb shell getprop | grep dalvik.vm.heap
   dalvik.vm.heapstartsize=8m
   dalvik.vm.heapgrowthlimit=256m       ← dexopt 进程的堆上限
   dalvik.vm.heapsize=512m              ← 大堆（largeHeap=true）
+```
+
+### 12.4 系统排查与 Dump 分析
+
+当应用出现 ANR、内存泄漏、Crash 或系统异常时，Dump 数据是排查的核心。
+
+#### 12.4.1 ANR 问题排查
+
+ANR（Application Not Responding）的标准排查流程：
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         ANR 排查流程                                        │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+发现 ANR
+   │
+   ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  Step 1: 找到 ANR trace 文件                                               │
+│                                                                             │
+│  $ adb shell ls /data/anr/                                                 │
+│  $ adb pull /data/anr/ ./.                                                  │
+│                                                                             │
+│  关键文件:                                                                  │
+│  • anr_xxxx.txt  → ANR 时系统自动导出的 main thread trace                  │
+│  • traces.txt     → 最近一次 ANR 的简略 trace                               │
+└─────────────────────────────────────────────────────────────────────────────┘
+   │
+   ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  Step 2: 分析 main thread状态                                               │
+│                                                                             │
+│  $ adb shell cat /data/anr/anr_xxxx.txt                                     │
+│                                                                             │
+│  关键字段:                                                                  │
+│  "main" tid=1  → 主线程状态                                                 │
+│                                                                             │
+│  常见 ANR 原因:                                                            │
+│  ─────────────────────────────────────────────────────────────────────────  │
+│  状态                          │ 含义                                       │
+│  waiting to lock <lock addr>   │ 等待锁，可能死锁/锁竞争                     │
+│  held by tid=X                 │ 锁被某个线程持有                            │
+│  Blocked                       │ 线程被阻塞                                 │
+│  Runnable                       │ 可能在执行耗时操作                         │
+│  Object.wait()                  │ 在等待某个对象                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+   │
+   ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  Step 3: 结合 logcat 时间戳定位                                             │
+│                                                                             │
+│  $ adb logcat -v threadtime | grep "ANR in"                                │
+│  01-15 10:23:45.123  1234  5678 E/ActivityManager: ANR in com.example     │
+│                                                                             │
+│  结合 trace 中的 CPU 时间片和 logcat，确认主线程在做什么                     │
+└─────────────────────────────────────────────────────────────────────────────┘
+   │
+   ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  Step 4: 常见 ANR 场景与对策                                                │
+│                                                                             │
+│  1. 主线程 IO（文件/数据库）                                                │
+│     → 异步化，使用 WorkerThread/Coroutines                                  │
+│                                                                             │
+│  2. 主线程网络请求                                                          │
+│     → 强制要求在子线程，Android 9+ 会直接抛 NetworkOnMainThreadException    │
+│                                                                             │
+│  3. 服务超时 (BroadcastReceiver/Service)                                   │
+│     → onReceive/onCreate 执行超过 10s / 前台服务 20s                        │
+│     → 检查是否有阻塞操作                                                    │
+│                                                                             │
+│  4. ContentProvider publish 超时                                            │
+│     → Application.onCreate 中做了过多初始化                                │
+│                                                                             │
+│  5. 死锁                                                                    │
+│     → trace 中出现两个线程互相等待对方持有的锁                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+```bash
+# 查看 ANR trace
+$ adb shell cat /data/anr/traces.txt
+
+# 查看上一次 ANR 简要信息
+$ adb shell dumpsys activity ANR
+
+# 强制触发一次 ANR dump（用于实时分析）
+$ adb shell dumpsys activity dumpheap --local com.example.app /sdcard/adhoc_anr.hprof
+```
+
+#### 12.4.2 Hprof 内存dump分析
+
+Hprof 是 Java 堆的完整快照，用于定位内存泄漏和大对象。
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         Hprof 获取方式                                      │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  方式一: adb am dumpheap（无需代码修改）                                    │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  # 导出 Java 堆                                                              │
+│  $ adb shell am dumpheap com.example.app /sdcard/app.hprof                 │
+│  $ adb pull /sdcard/app.hprof ./.                                           │
+│                                                                             │
+│  # 注意事项:                                                                │
+│  • 导出的 hprof 无法直接用 hprof-conv 转换                                  │
+│  • 文件较大，拉取需要时间                                                    │
+│  • 需要有足够存储空间                                                        │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  方式二: 代码中使用 Debug API（精确时刻）                                   │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  ```kotlin                                                                  │
+│  // 在需要dump的时刻调用                                                    │
+│  Debug.dumpHprofData("/sdcard/dump.hprof")                                 │
+│  ```                                                                        │
+│                                                                             │
+│  # 拉取文件                                                                  │
+│  $ adb pull /sdcard/dump.hprof ./.                                          │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  方式三: Android Studio Profiler（实时）                                    │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  1. Run → Profile → 选择进程                                                │
+│  2. 在 Memory 面板点击 "Dump Java heap"                                    │
+│  3. 自动在 Studio 中打开 Analyzer                                          │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  方式四: LeakCanary（自动检测泄漏）                                         │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  dependencies {                                                             │
+│      debugImplementation 'com.squareup.leakcanary:leakcanary-android:2.x' │
+│  }                                                                          │
+│                                                                             │
+│  自动 dump + 分析，无需手动操作                                              │
+│  发现泄漏后会在通知栏通知                                                    │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+```bash
+# Hprof 转换（如果需要用旧版 MAT）
+$ hprof-conf app.hprof converted.hprof
+
+# 使用 Android Studio 打开分析（直接支持标准格式）
+# File → Open → 选择 .hprof 文件
+```
+
+**Hprof 分析要点（MAT / Android Studio Analyzer）：**
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         Hprof 分析核心视图                                  │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+1. Histogram（直方图）→ 按类名统计对象数量/内存
+   路径: Package Explorer → Histogram
+   用途: 找到数量异常多的类
+
+2. Dominator Tree（支配树）→ 按内存占用排序
+   路径: Package Explorer → Dominator Tree
+   用途: 快速找到最大的内存持有者
+
+3. Top Consumers → 按包/类列出大对象
+   用途: Bitmap、大数组等
+
+4. Leak Suspects → MAT 自动怀疑的泄漏点
+   用途: 快速定位泄漏链
+
+5. Path to GC Roots → 对象到 GC Root 的引用链
+   关键: 排除 WeakRef，只看强引用路径
+```
+
+#### 12.4.3 线程状态dump (kill -3 / SIGQUIT)
+
+最常用的现场保存手段，不中断进程，打印所有线程的当前栈。
+
+```bash
+# 方式一: adb shell kill -3（发送 SIGQUIT）
+$ adb shell kill -3 <pid>
+
+# 方式二: top + 功能键
+$ adb shell
+$ top -t -H              # 显示线程
+# 按 H 键切换到线程视图
+# 按 1 键显示每个 CPU
+
+# 方式三: debug .dumpAllThreads()
+# 代码中调用:
+Debug.dumpAllThreads()
+
+# 方式四: DDMS / Android Studio
+# Devices 面板 → 选择进程 → 点击 "Dump Threads" 按钮
+```
+
+**SIGQUIT 输出解读：**
+
+```
+"main" prio=5 tid=1 Runnable              ← 主线程，Runnable状态
+  | group="main" sCount=0 ucsCount=0
+  | stack=....                             ← 栈起始地址
+  at com.example.MainActivity.onCreate() @ 0x12345678
+  at android.app.Activity.performCreate() @ 0xabcdef
+  at android.app.Instrumentation.callActivityOnCreate() @ 0x123
+
+"Worker" prio=5 tid=3 TIMED_WAIT          ← TIMED_WAIT状态
+  | waiting for <0xabcd1234>              ← 等待的Monitor锁地址
+  at java.lang.Object.wait(Object.java)
+  at com.example.Worker.run() @ 0x11223344
+
+"Finalizer" daemon prio=5 tid=2 WAITING  ← FinalizerDaemon
+  | waiting for <0x789xyz>                ← 等待FinalReference
+  at java.lang.Object.wait()
+  at java.lang.ref.FinalizerReference.poll() @ 0x111
+```
+
+**线程状态速查：**
+
+```
+┌───────────────┬─────────────────────────────────────────────────────────────┐
+│  状态          │  含义                                                       │
+├───────────────┼─────────────────────────────────────────────────────────────┤
+│  Runnable     │ 正在运行或可运行，等待CPU调度                               │
+│  TIMED_WAIT   │ Object.wait(timeout) / Thread.sleep()                      │
+│  WAITING      │ Object.wait() / LockSupport.park() / join()                │
+│  BLOCKED      │ 等待Monitor锁                                               │
+│  MONITOR      │ 持有Monitor锁                                               │
+│  Native       │ 执行native代码                                              │
+│  Suspended    │ 被暂停（GC/调试器）                                         │
+└───────────────┴─────────────────────────────────────────────────────────────┘
+```
+
+#### 12.4.4 systrace / Perfetto 系统trace
+
+```bash
+# systrace（Android 9 以前，Python 工具）
+$ python systrace.py -t 10 -o trace.html \
+    sched freq idle am wm gfx view \
+    --app=com.example.app
+
+# Perfetto（Android 10+，推荐）
+$ adb shell perfetto \
+    -c - --txt \
+    -o /data/misc/perfetto-traces/trace.perfetto-trace \
+    << 'EOF'
+buffers: {
+    size_kb: 8960
+    fill_policy: DISCARD
+}
+data_sources: {
+    config {
+        name: "linux.ftrace"
+        ftrace_config {
+            ftrace_events: "sched/sched_switch"
+            ftrace_events: "sched/sched_wakeup"
+            ftrace_events: "power/cpu_frequency"
+            ftrace_events: "power/cpu_idle"
+            ftrace_events: "power/gpu_frequency"
+            ftrace_events: "power/gpu_busy"
+        }
+    }
+}
+data_sources: {
+    config {
+        name: "android.surfaceflinger.frametimeline"
+    }
+}
+duration_ms: 10000
+EOF
+
+# 拉取 trace
+$ adb pull /data/misc/perfetto-traces/trace.perfetto-trace ./
+
+# Perfetto UI 打开（Chrome）
+$ open https://ui.perfetto.dev
+```
+
+**Perfetto 关键分析维度：**
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         Perfetto 分析面板                                  │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+1. Android Frame Lifecycle（帧生命周期）
+   • SurfaceFlinger 每帧 vs App 每帧
+   • 发现 long UI thread task / long gpu task
+
+2. CPU Schedule（调度）
+   • 线程切片：哪个线程在哪个CPU核心
+   • 发现不均匀调度、CPU竞争
+
+3. GPU（如果有 GPU counters）
+   • GPU 利用率
+   • 发现 GPU 瓶颈
+
+4. SurfaceFlinger
+   • 每层合成时间
+   • 发现合成延迟
+
+5. Memory
+   • 内存压力事件
+   • 发现 GC 暂停
+```
+
+#### 12.4.5 GfxInfo 帧渲染分析
+
+专门分析 UI 渲染性能，定位掉帧原因。
+
+```bash
+# 获取当前帧渲染统计
+$ adb shell dumpsys gfxinfo com.example.app
+
+# 获取最近 120 帧的详细信息
+$ adb shell dumpsys gfxinfo com.example.app framerstats
+
+# 获取带时间戳的帧数据（Android 10+）
+$ adb shell dumpsys gfxinfo com.example.app framestats
+
+# 重置统计（分析特定操作前必须重置）
+$ adb shell dumpsys gfxinfo com.example.app reset
+```
+
+**framestats 输出解读：**
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         Frame Timing Data (framestats)                        │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+SF COMPOSER:              # SurfaceFlinger 合成
+  187865489093734         # 帧提交时间 (ns)
+
+JANKY FRAMES:             # 标记超过 16.67ms 的帧
+  50  (total frames: 120)
+
+HISTOGRAM:
+  16ms: 65                # 65帧在 16ms 内完成
+  17ms: 20                # 20帧 16-17ms
+  33ms: 5                 # 5帧 33ms+（明显卡顿）
+  ...
+
+帧耗时分解（每帧详情）：
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  Frame Completed: 187865490000000                                          │
+│  • DequeueQueue Duration: -XXX       # Buffer出队耗时                      │
+│  • Queue Duration: XXXX              # App提交Buffer到SF的耗时               │
+│  • SF Composer Duration: XXXX        # SurfaceFlinger合成耗时               │
+│                                                                             │
+│  对应Android Performance Pipeline:                                         │
+│  app:  Draw + Prepare + Process + Execute  →  提交到 HWUI                   │
+│  surfacelflinger: SurfaceFlinger 处理 BufferQueue → 合成到屏幕               │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+常见掉帧原因：
+• DequeueQueue 耗时高 → GPU 渲染太慢 / buffer 不足
+• Queue Duration 高   → App 提交太慢（主线程被阻塞）
+• SF Composer 耗时高  → 合成层数过多 / GPU 负载高
+```
+
+#### 12.4.6 ProcStats 内存压力分析
+
+ProcStats 记录了应用在不同状态的内存占用和运行时长，是分析内存抖动和后台耗电的重要工具。
+
+```bash
+# 查看应用内存运行时长统计
+$ adb shell dumpsys procstats com.example.app
+
+# 查看系统整体 procstats（所有应用）
+$ adb shell dumpsys procstats
+
+# 导出为 JSON（方便程序化分析）
+$ adb shell dumpsys procstats --json com.example.app > procstats.json
+
+# 查看最近 3 小时的数据
+$ adb shell dumpsys procstats --hours 3 com.example.app
+```
+
+**procstats 输出解读：**
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         ProcStats 解读                                      │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+COMMITTED RANKS (最近 3 小时):
+  %Imorable: 4.6%   ← 内存占比过高的应用
+
+Memory:
+  Process PSS:
+    12 MB:          # 12MB 内存
+      进程名...   [100%] # 100%的时间都在这个内存级别
+    25 MB:          # 25MB 内存
+      进程名...   [80%]
+
+RSS (物理内存):
+  内存分布同 PSS，更直观
+
+运行时长：
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  com.example.app:                                                  duration  │
+│  com.example.app 2 / u0a100                        3.7% (  2h28m21s)      │
+│    1 proc:  /T  (   100%)                                                   │
+│    1 proc:  /F  (    60%)  ← 60%时间在前台                                  │
+│    1 proc:  /B  (    40%)  ← 40%时间在后台                                  │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+关键指标：
+• %Time: 该内存级别占用的时间比例
+•前台(/F)/后台(/B) 占比: 评估后台内存消耗
+• duration: 累计运行时长
+```
+
+#### 12.4.7 Bugreport 全面系统dump
+
+Bugreport 是最完整的系统状态打包，包含所有服务 dump、logcat、traces 等。
+
+```bash
+# 获取 bugreport（包含所有系统信息）
+$ adb bugreport bugreport.zip
+
+# 只获取文本报告（更快）
+$ adb bugreport -d bugreport.txt
+
+# 查看 bugreport 内容结构
+$ unzip -l bugreport.zip
+  bugreport-xxx.txt         ← 主要文本报告
+  version.txt               ← Android 版本信息
+```
+
+**bugreport 结构解读：**
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         Bugreport 文件结构                                  │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+bugreport-xxx.txt 主要章节：
+─────────────────────────────────────────────────────────────────────────────
+
+=== SYSTEM LOG (logcat -v threadtime) ===
+  完整的系统 logcat，按时间排序
+
+=== EVENT LOG ===
+  系统事件日志，ANR/Crash 发生时刻
+
+=== VM TRACES (if crash) ===
+  Java/native crash 的堆栈
+
+=== MAIN ===
+  dumpsys activity / window / meminfo 等主要服务输出
+
+=== MEMORY INFO ===
+  每个进程的 PSS 内存
+
+=== PROCRANK ===
+  按内存占用的进程排名
+
+=== CPU INFO ===
+  top / mpstat 输出
+
+=== FTRACE / KERNEL LOG ===
+  内核日志和 ftrace（如果启用）
+```
+
+**定位 ANR 的 bugreport 步骤：**
+
+```
+1. 搜索 "ANR in" 找到 ANR 发生位置
+2. 向上找 "Reason:" 字段，看 ANR 类型
+3. 跳到 "CPU state" 部分，看 ANR 时 CPU 在做什么
+4. 跳到 "proc stats" 部分，看进程内存/状态
+5. 结合 SYSTEM LOG 中对应时间戳的 logcat
+```
+
+#### 12.4.8 常用 Dump 命令速查
+
+```bash
+# === 进程/内存 ===
+adb shell dumpsys meminfo <pkg>           # 内存详情（最常用）
+adb shell dumpsys procstats <pkg>         # 内存运行时长
+adb shell cat /proc/<pid>/status          # 进程状态
+adb shell cat /proc/<pid>/maps            # 内存映射
+adb shell cat /proc/<pid>/smaps           # 详细内存映射
+
+# === ANR ===
+adb shell cat /data/anr/traces.txt        # 当前 ANR traces
+adb shell ls /data/anr/                    # 所有 ANR 文件
+adb pull /data/anr/ ./.                    # 拉取所有 ANR dump
+
+# === Hprof ===
+adb shell am dumpheap <pkg> <path>        # 导出 Java heap
+adb pull <device_path> ./.                 # 拉取到本地
+
+# === Thread dump ===
+adb shell kill -3 <pid>                    # SIGQUIT 打印线程栈
+adb shell dumpsys activity processes       # 进程状态
+
+# === 系统状态 ===
+adb bugreport <output.zip>                 # 完整系统报告
+adb shell dumpsys <service>                # 各服务状态
+adb shell dumpsys --help                   # 查看所有服务列表
+
+# === 网络 ===
+adb shell cat /proc/<pid>/net/tcp          # TCP 连接状态
+adb shell netstat -an                      # 网络统计
+adb shell ifconfig                          # 网卡配置
+
+# === Binder ===
+adb shell dumpsys binder                   # Binder 驱动状态
+adb shell cat /sys/kernel/debug/binder/*   # Binder 详细信息（需root）
+
+# === 文件描述符 ===
+adb shell ls -la /proc/<pid>/fd/           # 进程打开的文件描述符
+adb shell ls -la /proc/<pid>/fd/ | wc -l   # FD 数量统计
+
+# === ART 运行时 ===
+adb shell dumpsys app_vm <pkg>             # ART 内存状态
+adb shell dumpsys activity meminfo         # Activity 内存追踪
+adb shell cat /d/ion/heaps                 # ION 堆分配（图形内存）
+
+# === GFX/渲染 ===
+adb shell dumpsys gfxinfo <pkg>            # 帧渲染统计
+adb shell dumpsys gfxinfo <pkg> framestats # 带时间戳帧详情
+adb shell dumpsys gfxinfo <pkg> reset      # 重置统计
 ```
 
 ---
