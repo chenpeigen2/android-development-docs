@@ -8,9 +8,6 @@
 
 | 属性 | 值 |
 |------|---|
-| 仓库 | `ssh://icode.baidu.com:8235/baidu/baiduapp-android/nacomp` |
-| Maven Group | `com.baidu.searchbox.nacomp` |
-| 负责人 | 周航 <zhouhang01@baidu.com> |
 | 设计理念 | 组件化 + MVVM + FSM + 泛型类型安全 |
 
 ### 1.1 子模块划分
@@ -863,27 +860,6 @@ val items = listOf(
 )
 (adapter as DelegatorAdapter).setItems(items)
 ```
-
-### 7.3 lib_hissug 中的适配器一览
-
-| 适配器 | 所属模块 | 用途 |
-|--------|---------|------|
-| `TitleItemAdapter` | lib_hot_search | 热搜标题 |
-| `TextStyleItemAdapter` | lib_hot_search | 文字样式热搜项 |
-| `ImageStyleItemAdapter` | lib_hot_search | 图片样式热搜项 |
-| `ImageBtnStyleItemAdapter` | lib_hot_search | 图片按钮热搜项 |
-| `PhraseStyleItemAdapter` | lib_hot_search | 短语样式热搜项 |
-| `ViewMoreItemAdapter` | lib_hot_search | 查看更多 |
-| `HistoryItemAdapter` | lib_hissug_frame | 搜索历史项 |
-| `HisTitleItemAdapter` | lib_hissug_frame | 历史标题 |
-| `MoreHisItemAdapter` | lib_hissug_frame | 更多历史 |
-| `ContentItemAdapter` | lib_hissug_frame | 内容项 |
-| `HisGuideAdapter` | lib_hissug_frame | 历史引导 |
-| `UploadDocumentItemAdapter` | lib_hissug_frame | 文档上传项 |
-| `AiToolTemplateItemAdapter` | lib_hissug_frame | AI工具模板项 |
-| `AnchorItemAdapter` | lib_hissug_frame | 锚点项 |
-
----
 
 ## 8. 使用指南 — 工具类
 
