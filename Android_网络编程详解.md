@@ -366,14 +366,14 @@ val client = OkHttpClient.Builder()
 
 ## 6.3 Android 17 局域网权限与证书配置
 
-`INTERNET` 不等于局域网隐私授权。Android 17 且 target 37+ 的应用直接访问局域网设备时，按实际业务申请 `ACCESS_LOCAL_NETWORK`；投屏优先系统 output switcher，mDNS 优先系统发现/选择器，不能为了公网请求申请该权限。
+`INTERNET` 不等于局域网访问控制。是否需要 `ACCESS_LOCAL_NETWORK` 取决于设备系统、目标 SDK 和访问方式；应以 Android 17 SDK 中的权限定义及行为变更文档为准，只有直接访问局域网设备的功能才纳入该权限流程。投屏优先系统 output switcher，mDNS 优先系统发现/选择器，不能为了公网请求申请局域网权限。
 
 ```xml
 <uses-permission android:name="android.permission.INTERNET" />
 <uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK" />
 ```
 
-HTTPS 的 `network_security_config` 应把企业 CA 限定到实际域名，`debug-overrides` 只在 debuggable 构建信任测试 CA；不要安装 trust-all `TrustManager` 或 `HostnameVerifier { _, _ -> true }`。Android 17 固定 tag 的 Conscrypt 网络安全配置位于 `external/conscrypt/nsc`，`RootTrustManager` 按 hostname 选择域配置。
+HTTPS 的 `network_security_config` 应把企业 CA 限定到实际域名，`debug-overrides` 只在 debuggable 构建信任测试 CA；不要安装 trust-all `TrustManager` 或 `HostnameVerifier { _, _ -> true }`。网络安全配置的公开行为以 `NetworkSecurityConfig`、`RootTrustManager` 及 Android 17 对应 tag 的 Conscrypt 源码为准，不应把内部目录结构当作稳定应用 API。
 
 OkHttp 请求的取消必须传到 `Call.cancel()`，Response 必须在 `use` 中关闭；POST/支付请求必须由业务协议定义幂等键后才允许重试。
 

@@ -2606,11 +2606,11 @@ Retrofit 缓存方法解析结果以减少重复反射；这不是 HTTP 响应�
 
 ### 19.4 Android 17 本地网络权限
 
-targetSdk 37 的本地网络访问受 `ACCESS_LOCAL_NETWORK` 运行时权限保护。直接访问局域网设备的功能应先声明并申请权限，授权后才创建连接；系统提供的设备选择器可走平台中介访问路径，避免申请广泛局域网权限。拒绝时显示功能不可用和重新授权入口，不循环请求权限。普通远端 HTTPS 仍使用 `INTERNET`，不能把两类权限混为一谈。
+本地网络访问是否受 `ACCESS_LOCAL_NETWORK` 保护，应根据 Android 17 SDK 的权限定义、设备版本、targetSdk 和具体访问路径判断；不能仅凭 targetSdk 37 一句话推导所有设备行为。直接访问局域网设备的功能应在确认权限存在且需要时声明并申请；系统提供的设备选择器可能走平台中介访问路径。拒绝时显示功能不可用和重新授权入口，不循环请求权限。普通远端 HTTPS 仍使用 `INTERNET`，不能把两类权限混为一谈。
 
 ```xml
 <uses-permission android:name="android.permission.INTERNET" />
-<!-- 仅在功能访问局域网时声明；API 37 上还须运行时申请。 -->
+<!-- 仅在 SDK/设备行为要求且功能确实访问局域网时声明；运行时申请以权限定义为准。 -->
 <uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK" />
 ```
 

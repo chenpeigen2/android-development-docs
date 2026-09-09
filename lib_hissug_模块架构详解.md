@@ -337,6 +337,6 @@ Fragment 在 `viewLifecycleOwner.lifecycleScope` 中通过 `repeatOnLifecycle(ST
 
 输入法显示、His 首帧和 Sug 首次结果是三个不同时间点。记录入口点击、页面首帧、输入法可见、请求结束、结果提交等时间戳，才能区分布局耗时、网络耗时和输入法时序。离屏列表应停止动画和图片请求；复用时重置内容、点击监听器、字号和主题状态。
 
-Android 17 的 targetSdk 37 应用使用新的无锁 `MessageQueue` 实现，诊断工具应通过公开的 Looper/Trace 能力观察消息分发，不反射队列内部链表。远端 HTTPS 搜索不等于局域网访问；只有访问局域网端点的功能才进入本地网络权限流程。
+Android 17 AOSP 在 `frameworks/base/core/java/android/os/MessageQueue.java` 中演进了消息队列实现；应用诊断应通过公开的 Looper/Trace 能力观察消息分发，不反射队列内部链表。该实现细节不是应用可依赖的 API，不能把它表述为所有 targetSdk 37 应用都必然使用的稳定契约。远端 HTTPS 搜索不等于局域网访问；只有访问局域网端点的功能才进入本地网络权限流程。
 
 参考：[Flow 取消](https://kotlinlang.org/docs/cancellation-and-timeouts.html)、[生命周期协程](https://developer.android.com/topic/libraries/architecture/coroutines)、[Android 17 行为变化](https://developer.android.com/about/versions/17/behavior-changes-17)。

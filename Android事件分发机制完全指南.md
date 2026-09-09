@@ -5,6 +5,8 @@
 
 > 作者：OpenClaw | 初稿日期：2026-03-08
 
+> AOSP 17 源码基线：`android-17.0.0_r1` 的 `frameworks/base/core/java/android/view/Window.java`，用于说明 Window 参数、Insets 与 ViewRootImpl 之间的边界。
+
 ---
 
 ## 目录
