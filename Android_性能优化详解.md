@@ -3137,10 +3137,10 @@ APK 结构:
 └── AndroidManifest.xml
 
 分析命令:
-# 查看 APK 大小分布
+echo "APK 大小分布"
 ./gradlew assembleRelease --analyze
 
-# 使用 APK Analyzer
+echo "使用 APK Analyzer"
 android {
     buildTypes {
         release {
@@ -3681,6 +3681,20 @@ if (AppWatcher.objectWatcher.hasWatchedObjects) {
 ```
 
 ---
+
+## 10.7 从 Perfetto 时间线到优化决策
+
+以“首屏等待账户数据”为例，在读取、数据库打开、模型解析处添加稳定 trace 名称，采集 `sched`、`am`、`wm`、`gfx`、`view`、`binder_driver` 和 FrameTimeline。启动前开始采集，复现一次动作，结束后在 UI 中确认应用 slice、线程状态和帧轨道都实际存在。
+
+```sql
+SELECT s.name, ROUND(s.dur / 1e6, 2) AS wall_ms, t.name, p.name
+FROM slice s JOIN thread_track tt ON tt.id=s.track_id
+JOIN thread t ON t.utid=tt.utid JOIN process p ON p.upid=t.upid
+WHERE p.name='com.example.app' AND s.dur > 0
+ORDER BY s.dur DESC;
+```
+
+主线程 `Running` 主要查计算；`Runnable` 却未运行查 CPU 竞争；同步 Binder 后休眠沿 flow 查服务端；等待数据库锁查持锁事务。若 UI 线程已结束而 FrameTimeline 仍迟到，转查 RenderThread/GPU/SurfaceFlinger。优化必要依赖链（例如先显示本地缓存、后台刷新），不要把所有初始化盲目并行化。
 
 ## 12. 总结
 

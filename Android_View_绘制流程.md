@@ -6,79 +6,79 @@
 
 ## 目录
 
-1. [概述](#1-概述)
-2. [ViewRootImpl 核心机制](#2-viewrootimpl-核心机制)
-   - 2.1 [ViewRootImpl 概述](#21-viewrootimpl-概述)
-   - 2.2 [ViewRootImpl 创建流程](#22-viewrootimpl-创建流程)
-   - 2.3 [setView 完整流程](#23-setview-完整流程)
-   - 2.4 [requestLayout 流程](#24-requestlayout-流程)
-   - 2.5 [scheduleTraversals 流程](#25-scheduletraversals-流程)
-   - 2.6 [performTraversals 完整流程](#26-performtraversals-完整流程)
-   - 2.7 [完整帧绘制流程](#27-完整帧绘制流程)
-   - 2.8 [Choreographer 详解](#28-choreographer-详解)
-     - 2.8.1 [架构总览](#281-choreographer-架构总览)
-     - 2.8.2 [VSync 信号产生与传递](#282-vsync-信号产生与传递)
-     - 2.8.3 [FrameDisplayEventReceiver 底层实现](#283-framedisplayeventreceiver-底层实现)
-     - 2.8.4 [doFrame 源码详解](#284-choreographerdoframe-源码详解)
-     - 2.8.5 [postCallback 流程](#285-postcallback-流程)
-     - 2.8.6 [CallbackQueue 详解](#286-callbackqueue-详解)
-     - 2.8.7 [同步屏障与异步消息](#287-同步屏障与异步消息)
-     - 2.8.8 [掉帧检测与分析](#288-掉帧检测与分析)
-     - 2.8.9 [Choreographer 与 SurfaceFlinger 关系](#289-choreographer-与-surfaceflinger-关系)
-   - 2.9 [BufferQueue 与双缓冲机制](#29-bufferqueue-与双缓冲机制)
-   - 2.10 [渲染合成流程](#210-渲染合成流程)
-   - 2.11 [Canvas 到 Surface 调用详解](#211-canvas-到-surface-调用详解)
-     - 2.11.1 [Canvas 与 Surface 关系](#2111-canvas-与-surface-关系)
-     - 2.11.2 [View 绘制到 Canvas 流程](#2112-view-绘制到-canvas-流程)
-     - 2.11.3 [软件绘制流程](#2113-软件绘制流程-drawsoftware)
-     - 2.11.4 [Canvas 如何绑定到 Surface](#2114-canvas-如何绑定到-surface)
-     - 2.11.5 [硬件加速绘制流程](#2115-硬件加速绘制流程-threadedrenderer)
-       - 2.11.5.1 [ThreadedRenderer 架构](#21151-threadedrenderer-架构)
-       - 2.11.5.2 [ThreadedRenderer.draw 完整流程](#21152-threadedrendererdraw-完整流程)
-       - 2.11.5.3 [View.updateDisplayListIfDirty 详解](#21153-viewupdatedisplaylistifdirty-详解)
-       - 2.11.5.4 [硬件加速 Canvas 获取详解](#21154-硬件加速-canvas-获取详解)
-         - 2.11.5.4.1 [硬件加速模式不调用 Surface.lockCanvas](#211541-硬件加速模式不调用-surfacelockcanvas)
-         - 2.11.5.4.2 [RenderNode.beginRecording 源码分析](#211542-rendernodebeginrecording-源码分析)
-         - 2.11.5.4.3 [RecordingCanvas vs SkiaCanvas 对比](#211543-recordingcanvas-vs-skiacanvas-内部结构对比)
-         - 2.11.5.4.4 [硬件加速绘制完整流程图](#211544-硬件加速绘制完整流程图)
-       - 2.11.5.5 [RenderThread 渲染流程](#21155-renderthread-渲染流程)
-       - 2.11.5.6 [OpenGL ES 渲染流程](#21156-opengl-es-渲染流程)
-       - 2.11.5.7 [RenderNode 与 DisplayList 详解](#21157-rendernode-与-displaylist-详解)
-       - 2.11.5.8 [软件绘制 vs 硬件加速对比](#21158-软件绘制-vs-硬件加速对比)
-   - 2.12 [Surface 到 SurfaceFlinger 调用详解](#212-surface-到-surfaceflinger-调用详解)
-     - 2.12.1 [Surface 创建流程](#2121-surface-创建流程)
-     - 2.12.2 [BufferQueue 创建与组件](#2122-bufferqueue-创建与组件)
-     - 2.12.3 [应用绘制到 SurfaceFlinger 完整流程](#2123-应用绘制到-surfaceflinger-完整流程)
-     - 2.12.4 [跨进程通信方式](#2124-跨进程通信方式)
-   - 2.13 [View 绘制多层级架构](#213-view-绘制多层级架构)
-   - 2.14 [层级调用完整流程](#214-层级调用完整流程)
-     - 2.14.1 [软件绘制完整流程](#2141-软件绘制完整流程)
-     - 2.14.2 [硬件加速绘制完整流程](#2142-硬件加速绘制完整流程)
-     - 2.14.3 [两种模式对比流程图](#2143-两种模式对比流程图)
-   - 2.15 [层级总结表](#215-层级总结表)
-     - 2.15.1 [软件绘制 vs 硬件加速 层级差异](#2151-软件绘制-vs-硬件加速-层级差异)
-     - 2.15.2 [关键类差异](#2152-关键类差异)
-     - 2.15.3 [跨层通信方式](#2153-跨层通信方式)
-3. [WindowManager 架构](#3-windowmanager-架构)
-4. [Measure 测量流程](#4-measure-测量流程)
-5. [Layout 布局流程](#5-layout-布局流程)
-6. [Draw 绘制流程](#6-draw-绘制流程)
-7. [常见问题](#7-常见问题)
-8. [软件渲染 vs 硬件渲染 全面对比](#8-软件渲染-vs-硬件渲染-全面对比)
-   - 8.1 [阶段 1: 触发更新](#81-阶段-1-触发更新-相同)
-   - 8.2 [阶段 2: VSync 处理](#82-阶段-2-vsync-处理-相同)
-   - 8.3 [阶段 3: 测量与布局](#83-阶段-3-测量与布局-相同)
-   - 8.4 [阶段 4: 绘制入口](#84-阶段-4-绘制入口-分叉点)
-   - 8.5 [阶段 5: Canvas 获取](#85-阶段-5-canvas-获取-重大差异)
-   - 8.6 [阶段 6: 执行绘制](#86-阶段-6-执行绘制-重大差异)
-   - 8.7 [阶段 7: 提交结果](#87-阶段-7-提交结果-重大差异)
-   - 8.8 [阶段 8: SurfaceFlinger 合成](#88-阶段-8-surfaceflinger-合成-相同)
-   - 8.9 [完整对比总结图](#89-完整对比总结图)
-   - 8.10 [关键类对比表](#810-关键类对比表)
-   - 8.11 [性能对比](#811-性能对比)
-9. [总结](#9-总结)
-   - 9.1 [核心流程图](#91-核心流程图)
-   - 9.2 [关键类总结](#92-关键类总结)
+- [1. 概述](#1-概述)
+    - [1.1 核心三阶段](#11-核心三阶段)
+    - [1.2 整体架构图](#12-整体架构图)
+- [2. ViewRootImpl 核心机制](#2-viewrootimpl-核心机制)
+    - [2.1 ViewRootImpl 概述](#21-viewrootimpl-概述)
+    - [2.2 ViewRootImpl 创建流程](#22-viewrootimpl-创建流程)
+    - [2.3 setView 完整流程](#23-setview-完整流程)
+    - [2.4 requestLayout 流程](#24-requestlayout-流程)
+    - [2.5 scheduleTraversals 流程](#25-scheduletraversals-流程)
+    - [2.6 performTraversals 完整流程](#26-performtraversals-完整流程)
+    - [2.7 完整帧绘制流程](#27-完整帧绘制流程)
+    - [2.8 Choreographer 详解](#28-choreographer-详解)
+        - [2.8.1 Choreographer 架构总览](#281-choreographer-架构总览)
+        - [2.8.2 VSync 信号产生与传递](#282-vsync-信号产生与传递)
+        - [2.8.3 FrameDisplayEventReceiver 底层实现](#283-framedisplayeventreceiver-底层实现)
+        - [2.8.4 Choreographer.doFrame() 源码详解](#284-choreographerdoframe-源码详解)
+        - [2.8.5 postCallback() 流程](#285-postcallback-流程)
+        - [2.8.6 CallbackQueue 详解](#286-callbackqueue-详解)
+        - [2.8.7 同步屏障与异步消息](#287-同步屏障与异步消息)
+        - [2.8.8 掉帧检测与分析](#288-掉帧检测与分析)
+        - [2.8.9 Choreographer 与 SurfaceFlinger 关系](#289-choreographer-与-surfaceflinger-关系)
+    - [2.9 BufferQueue 与双缓冲机制](#29-bufferqueue-与双缓冲机制)
+    - [2.10 渲染合成流程](#210-渲染合成流程)
+    - [2.11 Canvas 到 Surface 调用详解](#211-canvas-到-surface-调用详解)
+        - [2.11.1 Canvas 与 Surface 关系](#2111-canvas-与-surface-关系)
+        - [2.11.2 View 绘制到 Canvas 流程](#2112-view-绘制到-canvas-流程)
+        - [2.11.3 软件绘制流程 (drawSoftware)](#2113-软件绘制流程-drawsoftware)
+        - [2.11.4 Canvas 如何绑定到 Surface](#2114-canvas-如何绑定到-surface)
+        - [2.11.5 硬件加速绘制流程 (ThreadedRenderer)](#2115-硬件加速绘制流程-threadedrenderer)
+    - [2.12 Surface 到 SurfaceFlinger 调用详解](#212-surface-到-surfaceflinger-调用详解)
+        - [2.12.1 Surface 创建流程：useClientSurface 决定协议](#2121-surface-创建流程useclientsurface-决定协议)
+        - [2.12.2 BufferQueue 创建与组件：BLAST 建立生产端](#2122-bufferqueue-创建与组件blast-建立生产端)
+        - [2.12.3 应用绘制到 SurfaceFlinger 完整流程](#2123-应用绘制到-surfaceflinger-完整流程)
+        - [2.12.4 跨进程通信方式与职责边界](#2124-跨进程通信方式与职责边界)
+    - [2.13 View 绘制多层级架构](#213-view-绘制多层级架构)
+    - [2.14 层级调用完整流程](#214-层级调用完整流程)
+        - [2.14.1 软件绘制完整流程](#2141-软件绘制完整流程)
+        - [2.14.2 硬件加速绘制完整流程](#2142-硬件加速绘制完整流程)
+        - [2.14.3 两种模式对比流程图](#2143-两种模式对比流程图)
+    - [2.15 层级总结表](#215-层级总结表)
+        - [2.15.1 软件绘制 vs 硬件加速 层级差异](#2151-软件绘制-vs-硬件加速-层级差异)
+        - [2.15.2 关键类差异](#2152-关键类差异)
+        - [2.15.3 跨层通信方式](#2153-跨层通信方式)
+- [3. WindowManager 架构](#3-windowmanager-架构)
+- [4. Measure 测量流程](#4-measure-测量流程)
+    - [4.1 Measure 流程图](#41-measure-流程图)
+    - [4.2 MeasureSpec 详解](#42-measurespec-详解)
+    - [4.3 onMeasure 标准实现](#43-onmeasure-标准实现)
+- [5. Layout 布局流程](#5-layout-布局流程)
+    - [5.1 Layout 流程图](#51-layout-流程图)
+    - [5.2 onLayout 标准实现](#52-onlayout-标准实现)
+- [6. Draw 绘制流程](#6-draw-绘制流程)
+    - [6.1 Draw 流程图](#61-draw-流程图)
+    - [6.2 onDraw 实现](#62-ondraw-实现)
+- [7. 常见问题](#7-常见问题)
+    - [7.1 为什么子线程不能更新 UI？](#71-为什么子线程不能更新-ui)
+    - [7.2 invalidate() vs requestLayout()](#72-invalidate-vs-requestlayout)
+    - [7.3 View.post() 为什么可以获取宽高？](#73-viewpost-为什么可以获取宽高)
+- [8. 软件渲染 vs 硬件渲染 全面对比](#8-软件渲染-vs-硬件渲染-全面对比)
+    - [8.1 阶段 1: 触发更新 (相同)](#81-阶段-1-触发更新-相同)
+    - [8.2 阶段 2: VSync 处理 (相同)](#82-阶段-2-vsync-处理-相同)
+    - [8.3 阶段 3: 测量与布局 (相同)](#83-阶段-3-测量与布局-相同)
+    - [8.4 阶段 4: 绘制入口 (分叉点)](#84-阶段-4-绘制入口-分叉点)
+    - [8.5 阶段 5: Canvas 获取 (重大差异)](#85-阶段-5-canvas-获取-重大差异)
+    - [8.6 阶段 6: 执行绘制 (重大差异)](#86-阶段-6-执行绘制-重大差异)
+    - [8.7 阶段 7: 提交结果 (重大差异)](#87-阶段-7-提交结果-重大差异)
+    - [8.8 阶段 8: SurfaceFlinger 合成 (相同)](#88-阶段-8-surfaceflinger-合成-相同)
+    - [8.9 完整对比总结图](#89-完整对比总结图)
+    - [8.10 关键类对比表](#810-关键类对比表)
+    - [8.11 性能对比](#811-性能对比)
+- [9. 总结](#9-总结)
+    - [9.1 核心流程图](#91-核心流程图)
+    - [9.2 关键类总结](#92-关键类总结)
 
 ---
 
@@ -2604,203 +2604,453 @@ Android 图形系统采用 生产者-消费者 模型:
 
 ### 2.12 Surface 到 SurfaceFlinger 调用详解
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         Surface 到 SurfaceFlinger 调用详解                  │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
+绘制链路必须区分三个对象：`SurfaceControl` 是合成层句柄，`Surface` 是应用提交内容的生产端，`GraphicBuffer` 才是某一帧的图形缓冲。创建层、建立生产端和提交首帧是不同步骤。Android 17 普通窗口的内容层还存在客户端创建与服务端创建两条路径。
 
-#### 2.12.1 Surface 创建流程
+#### 2.12.1 Surface 创建流程：useClientSurface 决定协议
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         Surface 创建流程                                    │
-│  从 ViewRootImpl 到 SurfaceFlinger                                         │
-└─────────────────────────────────────────────────────────────────────────────┘
+源码精简节选（[WindowManager.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/view/WindowManager.java)）：
 
-  ViewRootImpl.setView()
-              │
-              │  mWindowSession.addToDisplay()
-              ▼
-  ┌─────────────────────────────────────────────────────────────────────────┐
-  │  WindowManagerService.addWindow()                                       │
-  │  源码: frameworks/base/services/core/java/com/android/server/wm/        │
-  │  ─────────────────────────────────────────────────────────────────────── │
-  │                                                                         │
-  │  // 1. 创建 WindowState                                                 │
-  │  final WindowState win = new WindowState(this, session, client, ...);  │
-  │                                                                         │
-  │  // 2. 创建 SurfaceControl                                              │
-  │  win.createSurfaceControl();                                            │
-  │                                                                         │
-  └─────────────────────────────────────────────────────────────────────────┘
-              │
-              ▼
-  ┌─────────────────────────────────────────────────────────────────────────┐
-  │  WindowSurfaceController 创建 SurfaceControl                            │
-  │  ─────────────────────────────────────────────────────────────────────── │
-  │                                                                         │
-  │  WindowSurfaceController(SurfaceSession s, String name, ...) {          │
-  │      mSurfaceControl = new SurfaceControl.Builder(s)                   │
-  │              .setName(name)                                             │
-  │              .setSize(w, h)                                             │
-  │              .build();                                                  │
-  │  }                                                                      │
-  │                                                                         │
-  └─────────────────────────────────────────────────────────────────────────┘
-              │
-              │ JNI
-              ▼
-  ┌─────────────────────────────────────────────────────────────────────────┐
-  │  Native: SurfaceComposerClient::createSurface()                         │
-  │  源码: frameworks/native/libs/gui/                                      │
-  │  ─────────────────────────────────────────────────────────────────────── │
-  │                                                                         │
-  │  status_t SurfaceComposerClient::createSurface(...) {                   │
-  │      // 通过 Binder 调用 SurfaceFlinger                                 │
-  │      return mClient->createSurface(...);                                │
-  │  }                                                                      │
-  │                                                                         │
-  └─────────────────────────────────────────────────────────────────────────┘
-              │
-              │ Binder IPC
-              ▼
-  ┌─────────────────────────────────────────────────────────────────────────┐
-  │  SurfaceFlinger::createLayer()                                          │
-  │  源码: frameworks/native/services/surfaceflinger/                       │
-  │  ─────────────────────────────────────────────────────────────────────── │
-  │                                                                         │
-  │  status_t SurfaceFlinger::createLayer(...) {                            │
-  │      // 创建 BufferLayer                                                │
-  │      sp<BufferLayer> layer = new BufferLayer(this, client, name, w, h);│
-  │                                                                         │
-  │      // 创建 BufferQueue (生产者-消费者)                                │
-  │      layer->setBuffers(w, h, format, flags);                            │
-  │                                                                         │
-  │      // 返回 IGraphicBufferProducer 给应用                              │
-  │      *gbp = layer->getProducer();                                       │
-  │                                                                         │
-  │      // 添加到 Layer 列表                                               │
-  │      addClientLayer(client, handle, gbp, layer);                        │
-  │  }                                                                      │
-  │                                                                         │
-  └─────────────────────────────────────────────────────────────────────────┘
+```java
+static boolean useClientSurface() {
+    return com.android.window.flags.Flags.useClientSurface();
+}
 ```
 
-#### 2.12.2 BufferQueue 创建与组件
+该入口读取 window flags，不是根据 targetSdk 直接判断，也不能仅因运行 Android 17 就断言 flag 必定开启。下表限定普通、非 locally managed 窗口；windowless/嵌入场景由自己的 WindowLayout 与 session 协调。
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         BufferQueue 核心组件                                │
-│  源码: frameworks/native/libs/gui/                                         │
-└─────────────────────────────────────────────────────────────────────────────┘
+| 条件 | 内容 SurfaceControl 的创建者 | 同步调用 | 异步调用 |
+|---|---|---|---|
+| `useClientSurface() == true` | ViewRootImpl.updateSurfaceControl / createSurfaceControl | relayout2，传入客户端层句柄 | relayoutAsync2，传入客户端层句柄 |
+| `useClientSurface() == false` | WMS → WindowStateAnimator.createSurfaceLocked | relayout，通过 out SurfaceControl 返回句柄 | relayoutAsync，不返回新句柄，受适用条件限制 |
 
-  ┌─────────────────────────────────────────────────────────────────────────┐
-  │                                                                         │
-  │  ┌─────────────────────────────────────────────────────────────────┐   │
-  │  │                      BufferQueueCore                             │   │
-  │  │  核心状态管理                                                    │   │
-  │  │  - mSlots[64]: 缓冲区槽位数组                                    │   │
-  │  │  - mQueue: 待消费的缓冲区队列                                    │   │
-  │  │  - mFreeSlots: 空闲槽位集合                                      │   │
-  │  └─────────────────────────────────────────────────────────────────┘   │
-  │                                    │                                    │
-  │                    ┌───────────────┴───────────────┐                   │
-  │                    ▼                               ▼                    │
-  │  ┌─────────────────────────────┐   ┌─────────────────────────────┐    │
-  │  │  BufferQueueProducer        │   │  BufferQueueConsumer        │    │
-  │  │  (生产者接口)                │   │  (消费者接口)                │    │
-  │  │                             │   │                             │    │
-  │  │  dequeueBuffer()            │   │  acquireBuffer()            │    │
-  │  │  queueBuffer()              │   │  releaseBuffer()            │    │
-  │  └─────────────────────────────┘   └─────────────────────────────┘    │
-  │                                                                         │
-  └─────────────────────────────────────────────────────────────────────────┘
+```text
+窗口注册：ViewRootImpl.setView -> IWindowSession.addToDisplayAsUser -> WMS.addWindow
+随后按需遍历 / relayoutWindow：
+  client surface 开启，且不是 locally managed
+    updateSurfaceControl(viewVisibility)
+      缓存可用 -> 复用内容 SurfaceControl
+      无可用层 -> createSurfaceControl -> Builder.setBLASTLayer().build()
+    getSurfaceControlForRelayout
+      -> relayout2 / relayoutAsync2（SurfaceControl：客户端 -> WMS）
+      -> WMS.relayoutWindow -> WindowState.setClientSurface
+         将内容层挂到窗口层，更新绘制 / 输入状态
+  client surface 关闭
+    relayout（out SurfaceControl：WMS -> 客户端）
+      -> WMS.createSurfaceControl
+      -> WindowStateAnimator.createSurfaceLocked -> setBLASTLayer().build()
+共同的应用内容生产链：
+  有效内容 SurfaceControl -> updateBlastSurfaceIfNeeded
+    -> BLASTBufferQueue -> createSurfaceWithHandle -> mSurface.transferFrom
+    -> 软件 Canvas 或硬件渲染器产生 buffer
 ```
+
+`addWindow` 注册窗口及其管理关系，不应画成其中必定立即创建内容 buffer layer 并返回生产者接口。新路径的 relayout 传入层句柄，旧路径的 relayout 输出层句柄；这正是参数方向上的区别。
+
+##### 2.12.1.1 客户端的创建、缓存与可见性状态
+
+| 字段 | 作用 |
+|---|---|
+| `mSurfaceControl` | 当前内容层句柄，保持对象不等于句柄始终有效 |
+| `mCachedSurfaceControl` | INVISIBLE 分支保留的可复用内容层引用 |
+| `mSurface` | 渲染器使用的 Java Surface，底层生产端可经 transferFrom 更换 |
+| `mBlastBufferQueue` | 将本窗口生产的 buffer 送到内容层事务路径 |
+| `mBbqApplyToken` | 同一个 ViewRootImpl 重建 BLAST 队列时保持提交排序关系 |
+
+源码精简节选（[ViewRootImpl.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/view/ViewRootImpl.java)）：
+
+```java
+private SurfaceControl createSurfaceControl() {
+    int surfaceFlags = SurfaceControl.NOT_ADD_TO_ROOT;
+    if ((mWindowAttributes.privateFlags
+            & WindowManager.LayoutParams.PRIVATE_FLAG_IS_ROUNDED_CORNERS_OVERLAY) != 0) {
+        surfaceFlags |= SurfaceControl.SKIP_SCREENSHOT;
+    }
+    final SurfaceControl.Builder builder = new SurfaceControl.Builder()
+            .setCallsite("ViewRootImpl.createSurfaceControl")
+            .setName("VRI-" + getTitle())
+            .setFlags(surfaceFlags)
+            .setFormat((mWindowAttributes.flags
+                    & WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED) != 0
+                    ? PixelFormat.TRANSLUCENT : mWindowAttributes.format)
+            .setMetadata(SurfaceControl.METADATA_WINDOW_TYPE, mWindowAttributes.type)
+            .setBLASTLayer();
+    try {
+        return builder.build();
+    } catch (OutOfResourcesException e) {
+        Slog.w(mTag, "OutOfResourcesException creating surface", e);
+        return new SurfaceControl();
+    }
+}
+```
+
+源码精简节选（[ViewRootImpl.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/view/ViewRootImpl.java)）：
+
+```java
+private int updateSurfaceControl(int viewVisibility) {
+    int relayoutResult = 0;
+    if (viewVisibility == View.VISIBLE) {
+        if (!mSurfaceControl.isValid()) {
+            final SurfaceControl cachedSurfaceControl = mCachedSurfaceControl;
+            mCachedSurfaceControl = null;
+            if (cachedSurfaceControl == null || !cachedSurfaceControl.isValid()) {
+                Trace.traceBegin(Trace.TRACE_TAG_VIEW, "createSurfaceControl");
+                final SurfaceControl newSc = createSurfaceControl();
+                mSurfaceControl.copyFrom(newSc, "VRI-new");
+                newSc.release();
+                Trace.traceEnd(Trace.TRACE_TAG_VIEW);
+            } else {
+                mSurfaceControl.copyFrom(cachedSurfaceControl, "VRI-from-cache");
+                mPendingTransaction.setBackgroundBlurRadius(mSurfaceControl, 0);
+                cachedSurfaceControl.release();
+            }
+            relayoutResult |= RELAYOUT_RES_SURFACE_CHANGED | RELAYOUT_RES_FIRST_TIME;
+        }
+    } else if (mSurfaceControl.isValid()) {
+        if (viewVisibility == View.INVISIBLE) {
+            mCachedSurfaceControl = new SurfaceControl(mSurfaceControl, "VRI-cache");
+        }
+        mSurfaceControl.release();
+    }
+    return relayoutResult;
+}
+```
+
+创建器使用 `NOT_ADD_TO_ROOT`，再设窗口类型 metadata、像素格式与 BLAST layer 类型；硬件加速分支使用 TRANSLUCENT 格式。它不直接把新层加进显示根层级，所以“客户端已经 build 成功”并不等于层已经可见或已经通过完整窗口策略处理。
+
+VISIBLE 且当前句柄无效时，先检查缓存再新建；缓存复用时清 background blur radius。INVISIBLE 时复制一份引用到缓存并 release 当前引用，其他不可见状态不执行这一缓存赋值。这里的 release 是释放当前句柄持有的引用，不可直接理解成“系统层和全部 GPU buffer 此刻已经被销毁”。
+
+创建失败返回无效 SurfaceControl，绘制路径因此可以跳过不可用输出，而不是继续在一个假定有效的 Surface 上画首帧。
+
+##### 2.12.1.2 relayout2 与 relayoutAsync2：句柄如何传给 WMS
+
+源码精简节选（[ViewRootImpl.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/view/ViewRootImpl.java)）：
+
+```java
+private SurfaceControl getSurfaceControlForRelayout(int viewVisibility) {
+    if (mWindowLayout.isLocallyManaged()) {
+        return mSurfaceControl;
+    }
+    return viewVisibility == View.VISIBLE && mSurfaceControl.isValid() ? mSurfaceControl : null;
+}
+```
+
+普通窗口只在 VISIBLE 且句柄有效时传出 mSurfaceControl；locally managed 窗口走自身返回分支，而前面的客户端创建也明确排除了它，不能套用普通根窗口创建逻辑。
+
+以下是 `relayoutWindow()` 的分支节选：先在入口更新客户端层，再在已有布局计算结果上选择同步/异步协议。省略中间的窗口 frame 计算、坐标兼容转换与结果处理。
+
+源码精简节选（[ViewRootImpl.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/view/ViewRootImpl.java)）：
+
+```java
+if (WindowManager.useClientSurface() && !mWindowLayout.isLocallyManaged()) {
+    relayoutResult = updateSurfaceControl(viewVisibility);
+}
+
+// ... 计算布局、requestedWidth/Height、relayoutAsync、seqId
+if (relayoutAsync) {
+    if (WindowManager.useClientSurface()) {
+        final SurfaceControl surfaceControl = getSurfaceControlForRelayout(viewVisibility);
+        mWindowSession.relayoutAsync2(mWindow, params,
+                requestedWidth, requestedHeight, viewVisibility,
+                insetsPending ? WindowManagerGlobal.RELAYOUT_INSETS_PENDING : 0,
+                mRelayoutSeq, seqId, surfaceControl);
+        if (surfaceControl != null
+                && (mViewFrameInfo.flags & FrameInfo.FLAG_WINDOW_VISIBILITY_CHANGED) != 0
+                && !mWindowLayout.isLocallyManaged()) {
+            relayoutResult |= RELAYOUT_RES_FIRST_TIME;
+        }
+    } else {
+        mWindowSession.relayoutAsync(mWindow, params,
+                requestedWidth, requestedHeight, viewVisibility,
+                insetsPending ? WindowManagerGlobal.RELAYOUT_INSETS_PENDING : 0,
+                mRelayoutSeq, seqId);
+    }
+} else {
+    if (WindowManager.useClientSurface()) {
+        final SurfaceControl surfaceControl = getSurfaceControlForRelayout(viewVisibility);
+        relayoutResult |= mWindowSession.relayout2(mWindow, params,
+                requestedWidth, requestedHeight, viewVisibility,
+                insetsPending ? WindowManagerGlobal.RELAYOUT_INSETS_PENDING : 0,
+                mRelayoutSeq, seqId, surfaceControl, mRelayoutResult);
+    } else {
+        relayoutResult |= mWindowSession.relayout(mWindow, params,
+                requestedWidth, requestedHeight, viewVisibility,
+                insetsPending ? WindowManagerGlobal.RELAYOUT_INSETS_PENDING : 0,
+                mRelayoutSeq, seqId, mRelayoutResult, mSurfaceControl);
+    }
+    // ... 同步 relayout 返回结果处理
+}
+```
+
+协议签名直接表达了方向差异，两个 Async 入口都是 oneway；同步 relayout2 仍会返回 frame、Insets、配置等 WindowRelayoutResult，不能写成“启用 client surface 后不再需要 WMS 返回任何结果”。
+
+源码精简节选（[IWindowSession.aidl](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/view/IWindowSession.aidl)）：
+
+```aidl
+int relayout(IWindow window, in WindowManager.LayoutParams attrs, int requestedWidth,
+        int requestedHeight, int viewVisibility, int flags, int seq, int lastSyncSeqId,
+        out @nullable WindowRelayoutResult outRelayoutResult, out SurfaceControl outSurface);
+int relayout2(IWindow window, in WindowManager.LayoutParams attrs, int requestedWidth,
+        int requestedHeight, int viewVisibility, int flags, int seq, int lastSyncSeqId,
+        in SurfaceControl surface, out @nullable WindowRelayoutResult outRelayoutResult);
+
+oneway void relayoutAsync(IWindow window, in WindowManager.LayoutParams attrs,
+        int requestedWidth, int requestedHeight, int viewVisibility, int flags, int seq,
+        int lastSyncSeqId);
+
+oneway void relayoutAsync2(IWindow window, in WindowManager.LayoutParams attrs,
+        int requestedWidth, int requestedHeight, int viewVisibility, int flags, int seq,
+        int lastSyncSeqId, in SurfaceControl surface);
+```
+
+`canRelayoutAsync()` 检查窗口可见性变化、starting window、待完成同步序列和配置差异；本地计算后若几何变化还需要 BLAST 同步序列，也可能回到同步调用。尤其旧服务端模式在可见性变化时可能需要取回新层句柄，不能不加条件地改走 oneway。
+
+##### 2.12.1.3 WMS 绑定客户端层与旧服务端创建分支
+
+WMS.relayoutWindow 对新路径调用 setClientSurface。内部参数仍名为 outSurfaceControl，是复用内部处理接口留下的命名；不要从这个变量名推断 relayout2 的 AIDL 参数也是 out。
+
+源码精简节选（[WindowManagerService.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/services/core/java/com/android/server/wm/WindowManagerService.java)）：
+
+```java
+if (WindowManager.useClientSurface() && viewVisibility == View.VISIBLE
+        && outSurfaceControl != null) {
+    win.setClientSurface(outSurfaceControl);
+}
+```
+
+源码精简节选（[WindowState.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/services/core/java/com/android/server/wm/WindowState.java)）：
+
+```java
+void setClientSurface(@NonNull SurfaceControl surface) {
+    if (mWinAnimator.mSurfaceControl == surface) {
+        return;
+    }
+    if (mWinAnimator.mSurfaceControl != null
+            && mWinAnimator.mSurfaceControl.isSameSurface(surface)) {
+        if (!isClientLocal()) {
+            surface.release();
+        }
+        return;
+    }
+    Slog.d(TAG, "setClientSurface " + surface + " for " + mName);
+    if (!surface.isValid()) {
+        return;
+    }
+    if (mWinAnimator.mSurfaceControl != null) {
+        getPendingTransaction().remove(mWinAnimator.mSurfaceControl);
+    }
+    mWinAnimator.mSurfaceControl = isClientLocal()
+            ? new SurfaceControl(surface, "setClientSurface") : surface;
+    getPendingTransaction().reparent(surface, mSurfaceControl);
+    mWinAnimator.resetDrawState();
+    setHasSurface(true);
+    mInputWindowHandle.forceChange();
+    if (mStartingData instanceof SnapshotStartingData) {
+        mLastConfigReportedToClient = true;
+        if (mSyncState != SYNC_STATE_NONE) {
+            getSyncTransaction().reparent(surface, mSurfaceControl);
+        }
+    }
+}
+```
+
+`WindowState.mSurfaceControl` 是系统维护的窗口层，而 `mWinAnimator.mSurfaceControl` 记录内容层。setClientSurface 将传入内容层 reparent 到窗口层，并重置 draw state、标记已有 Surface、更新输入信息。复用同一个底层层句柄时还需释放不再需要的反序列化引用。
+
+层的创建位置变了，不代表窗口层级、可见性、输入和权限策略从 WMS 移交给应用。客户端不能凭 build 一个 SurfaceControl 就绕过窗口管理。
+
+服务端创建函数只属于 flag 关闭的分支：
+
+源码精简节选（[WindowStateAnimator.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/services/core/java/com/android/server/wm/WindowStateAnimator.java)）：
+
+```java
+SurfaceControl createSurfaceLocked() {
+    if (WindowManager.useClientSurface()) {
+        Slog.e(TAG, "No longer create client surfaces on the server side", new Throwable());
+        return null;
+    }
+    final WindowState w = mWin;
+
+    if (mSurfaceControl != null) {
+        return mSurfaceControl;
+    }
+
+    w.setHasSurface(false);
+
+    ProtoLog.i(WM_DEBUG_ANIM, "createSurface %s: mDrawState=DRAW_PENDING", this);
+
+    resetDrawState();
+
+    int flags = SurfaceControl.HIDDEN;
+    final WindowManager.LayoutParams attrs = w.mAttrs;
+
+    if ((mWin.mAttrs.privateFlags & PRIVATE_FLAG_IS_ROUNDED_CORNERS_OVERLAY) != 0) {
+        flags |= SurfaceControl.SKIP_SCREENSHOT;
+    }
+
+    if (DEBUG_VISIBILITY) {
+        Slog.v(TAG, "Creating surface " + this
+                + " format=" + attrs.format + " flags=" + flags);
+    }
+    try {
+        final boolean isHwAccelerated = (attrs.flags & FLAG_HARDWARE_ACCELERATED) != 0;
+        final int format = isHwAccelerated ? PixelFormat.TRANSLUCENT : attrs.format;
+
+        mTitle = attrs.getTitle().toString();
+        Trace.traceBegin(TRACE_TAG_WINDOW_MANAGER, "new SurfaceControl");
+        mSurfaceControl = mWin.makeSurface()
+                .setParent(mWin.mSurfaceControl)
+                .setName(mTitle)
+                .setFormat(format)
+                .setFlags(flags)
+                .setMetadata(METADATA_WINDOW_TYPE, attrs.type)
+                .setMetadata(METADATA_OWNER_UID, mSession.mUid)
+                .setMetadata(METADATA_OWNER_PID, mSession.mPid)
+                .setCallsite("WindowSurfaceController")
+                .setBLASTLayer().build();
+        Trace.traceEnd(TRACE_TAG_WINDOW_MANAGER);
+
+        w.setHasSurface(true);
+        w.mInputWindowHandle.forceChange();
+
+        ProtoLog.i(WM_SHOW_SURFACE_ALLOC,
+                "  CREATE SURFACE %s: pid=%d format=%d flags=0x%x / %s",
+                mSurfaceControl, mSession.mPid, attrs.format, flags, this);
+    } catch (OutOfResourcesException e) {
+        Slog.w(TAG, "OutOfResourcesException creating surface");
+        mService.mRoot.reclaimSomeSurfaceMemory(this, "create", true);
+        mDrawState = NO_SURFACE;
+        return null;
+    } catch (Exception e) {
+        Slog.e(TAG, "Exception creating surface (parent dead?)", e);
+        mDrawState = NO_SURFACE;
+        return null;
+    }
+    // ... 后续日志及返回 mSurfaceControl
+}
+```
+
+该 tag 的 `WindowStateAnimator` 直接保存 `SurfaceControl mSurfaceControl`，没有独立的 `WindowSurfaceController.java` 类。上面 `setCallsite("WindowSurfaceController")` 是调试来源字符串，不能据此在类图中继续画出旧类。新旧分支创建的内容层都使用 BLAST layer，区别不等于“新路径用 BLAST，旧路径完全不用 BLAST”。
+
+#### 2.12.2 BufferQueue 创建与组件：BLAST 建立生产端
+
+ViewRootImpl 有有效的内容层后，通过 updateBlastSurfaceIfNeeded 建立或更新生产端。这一步与“内容 SurfaceControl 由谁创建”正交：即使 flag 关闭、内容层来自服务端，应用仍可以通过自身 BLASTBufferQueue 生产并提交内容。
+
+源码精简节选（[ViewRootImpl.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/view/ViewRootImpl.java)）：
+
+```java
+void updateBlastSurfaceIfNeeded() {
+    if (mBlastBufferQueue != null && mBlastBufferQueue.isSameSurfaceControl(mSurfaceControl)) {
+        mBlastBufferQueue.update(mSurfaceControl,
+            mSurfaceSize.x, mSurfaceSize.y,
+            mWindowAttributes.format);
+        return;
+    }
+    if (mBlastBufferQueue != null) {
+        mBlastBufferQueue.destroy();
+    }
+    mBlastBufferQueue = new BLASTBufferQueue(mTag, true );
+    mBlastBufferQueue.setApplyToken(mBbqApplyToken);
+    mBlastBufferQueue.update(mSurfaceControl, mSurfaceSize.x, mSurfaceSize.y,
+            mWindowAttributes.format);
+    mBlastBufferQueue.setTransactionHangCallback(sTransactionHangCallback);
+
+    Surface blastSurface;
+
+    blastSurface = mBlastBufferQueue.createSurfaceWithHandle();
+    mSurface.transferFrom(blastSurface);
+    mTransaction.setRecoverableFromBufferStuffing(mSurfaceControl).applyAsyncUnsafe();
+}
+```
+
+源码精简节选（[BLASTBufferQueue.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/graphics/java/android/graphics/BLASTBufferQueue.java)）：
+
+```java
+public Surface createSurfaceWithHandle() {
+    return nativeGetSurface(mNativeObject, true );
+}
+```
+
+同一个内容层只需 update 队列尺寸/格式并直接返回；层改变时销毁旧队列、重新创建队列，并复用 mBbqApplyToken，防止旧新队列以不同 apply token 交错提交。只有生产端真的变化时才 transferFrom，避免无意义地增加 Surface generation ID 并触发 EGL 资源重建。
+
+Native BLASTBufferQueue 创建 BufferQueue 的两个端点，消费者由 BLAST 侧持有。队列核心是进程内的队列对象，不是一个由两个进程直接共享的 ASHMEM 控制结构。
+
+源码精简节选（[BLASTBufferQueue.cpp](https://android.googlesource.com/platform/frameworks/native/+/refs/tags/android-17.0.0_r1/libs/gui/BLASTBufferQueue.cpp)）：
+
+```cpp
+void BLASTBufferQueue::createBufferQueue(sp<IGraphicBufferProducer>* outProducer,
+                                         sp<IGraphicBufferConsumer>* outConsumer) {
+    LOG_ALWAYS_FATAL_IF(outProducer == nullptr, "BLASTBufferQueue: outProducer must not be NULL");
+    LOG_ALWAYS_FATAL_IF(outConsumer == nullptr, "BLASTBufferQueue: outConsumer must not be NULL");
+
+    std::unique_ptr<gui::BufferReleaseChannel::ConsumerEndpoint> bufferReleaseConsumer;
+    gui::BufferReleaseChannel::open(mName, bufferReleaseConsumer, mBufferReleaseProducer);
+    mBufferReleaseReader = std::make_shared<BufferReleaseReader>(std::move(bufferReleaseConsumer));
+
+    auto core = sp<BBQBufferQueueCore>::make(mBufferReleaseReader);
+    LOG_ALWAYS_FATAL_IF(core == nullptr, "BLASTBufferQueue: failed to create BufferQueueCore");
+
+    auto producer = sp<BBQBufferQueueProducer>::make(core, wp<BLASTBufferQueue>::fromExisting(this),
+                                                     mBufferReleaseReader);
+    LOG_ALWAYS_FATAL_IF(producer == nullptr,
+                        "BLASTBufferQueue: failed to create BBQBufferQueueProducer");
+
+    auto consumer = sp<BufferQueueConsumer>::make(core);
+    consumer->setAllowExtraAcquire(true);
+    LOG_ALWAYS_FATAL_IF(consumer == nullptr,
+                        "BLASTBufferQueue: failed to create BufferQueueConsumer");
+
+    *outProducer = producer;
+    *outConsumer = consumer;
+}
+```
+
+```text
+应用进程
+  Surface / NativeWindow
+    -> BufferQueueProducer -- queueBuffer --> BufferQueueCore
+                                             |
+                          BLASTBufferItemConsumer / BufferQueueConsumer
+                                             |
+                                    BLASTBufferQueue
+                                      取得 buffer 与 fence
+                                      放入 SurfaceControl.Transaction
+                                             |
+                       Binder 事务（buffer handle + fence + layer 状态）
+                                             v
+SurfaceFlinger 进程
+  接收目标 BLAST layer 的事务 -> 合成调度 -> HWC / GPU -> 显示
+```
+
+`GraphicBuffer` 的底层分配通过图形缓冲句柄被相关进程导入；同步靠 fence 和 buffer 生命周期协议，而不是把像素数组逐帧复制到 Binder。生产/消费两端可以在同进程，这与图形缓冲本身被跨进程使用是两个问题。
 
 #### 2.12.3 应用绘制到 SurfaceFlinger 完整流程
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         应用绘制到 SurfaceFlinger 完整流程                   │
-└─────────────────────────────────────────────────────────────────────────────┘
+| 阶段 | 软件绘制 | 硬件绘制 | 共同结果 |
+|---|---|---|---|
+| UI 内容 | drawSoftware 中直接执行 View.draw | 录制/更新 RenderNode 显示列表 | 本帧要显示的内容 |
+| 获取输出 | Surface.lockCanvas → Native Surface | RenderThread/HWUI 从 NativeWindow 获取输出 | 获得可写 GraphicBuffer，处理相应 fence |
+| 栅格化 | CPU/Skia 写入缓冲 | HWUI 的 GPU 后端渲染 | 产生本帧像素 |
+| 生产端提交 | unlockCanvasAndPost | 后端 present，例如 GLES 的 eglSwapBuffers | buffer 进入生产端队列 |
+| BLAST 消费 | 接收 frame available、取得 buffer | 同左 | 把 buffer/fence 与 layer 更新组成事务 |
+| 合成与释放 | SurfaceFlinger / HWC / GPU | 同左 | 合成与释放同步，使 buffer 后续能被重用 |
 
-  Step 1: 应用获取缓冲区 (dequeueBuffer)
-  ─────────────────────────────────────────────────────────────────────────────
-  Java: Surface.lockCanvas() → JNI → Native: Surface::lock()
-      → BufferQueueProducer::dequeueBuffer()
-      → 状态: FREE → DEQUEUED
-      → 返回 GraphicBuffer (共享内存)
+BLAST 的 buffer 事务可直接提交，也可以交给同步回调与其他窗口事务合并。特别是 resize：测量得到新大小、层几何改变和新大小内容 buffer 需要协调，不能仅因 onLayout 返回就认为新尺寸已经显示。
 
-  Step 2: 应用绘制到缓冲区
-  ─────────────────────────────────────────────────────────────────────────────
-  软件绘制: Canvas.draw → Skia 写入 GraphicBuffer 内存
-  硬件加速: RenderThread → OpenGL ES → GPU 写入 GraphicBuffer
+此处的 BufferQueue 消费者是应用侧 BLAST，不是让 SurfaceFlinger 通过旧 `BufferLayer::onFrameAvailable()` 直接消费同一个队列。SurfaceFlinger 接收的是目标层的 buffer 事务；queueBuffer 完成、事务到达合成器、GPU 完成与显示呈现也不是同一时刻。
 
-  Step 3: 应用提交缓冲区 (queueBuffer)
-  ─────────────────────────────────────────────────────────────────────────────
-  Java: Surface.unlockCanvasAndPost() → Native: Surface::unlockAndPost()
-      → BufferQueueProducer::queueBuffer()
-      → 状态: DEQUEUED → QUEUED
-      → 通知 SurfaceFlinger 有新帧
+来源：[BLASTBufferQueue.cpp](https://android.googlesource.com/platform/frameworks/native/+/refs/tags/android-17.0.0_r1/libs/gui/BLASTBufferQueue.cpp) 的 onFrameAvailable、buffer 获取及 Transaction.setBuffer 路径。
 
-  Step 4: SurfaceFlinger 获取缓冲区 (acquireBuffer)
-  ─────────────────────────────────────────────────────────────────────────────
-  VSync 到来时:
-  Layer::latchBuffer() → BufferQueueConsumer::acquireBuffer()
-      → 状态: QUEUED → ACQUIRED
+#### 2.12.4 跨进程通信方式与职责边界
 
-  Step 5: SurfaceFlinger 合成并显示
-  ─────────────────────────────────────────────────────────────────────────────
-  SurfaceFlinger::handleMessageRefresh()
-      → 合成所有 Layer (GLES 或 HWC)
-      → 提交到 FrameBuffer
-      → BufferQueueConsumer::releaseBuffer()
-      → 状态: ACQUIRED → FREE
-      → 显示到屏幕
-```
+| 通道 | 传输内容 | 不能混淆的概念 |
+|---|---|---|
+| IWindowSession Binder | 窗口注册、relayout、绘制完成与同步事务 | 不是每一笔 Canvas 绘图调用都经过 WMS |
+| relayout2 / relayoutAsync2 | 客户端 SurfaceControl 句柄作为输入 | 不是服务端输出一个新的 Surface 生产者 |
+| relayout（旧分支） | 输出服务端创建的内容 SurfaceControl | 不等于把全部图形 buffer 都在 WMS 分配 |
+| SurfaceControl.Transaction | 层状态、buffer handle、fence 等提交到合成器 | 提交句柄不等于通过 Binder 复制整帧像素 |
+| JNI | Java Surface / BLASTBufferQueue 与 native 对象互调 | Java→native 不意味着跨进程 |
+| BufferQueue 协议 | dequeue/queue/acquire/release 与同步 | BufferQueueCore 对象不是跨进程共享内存 |
 
-#### 2.12.4 跨进程通信方式
-
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         跨进程通信方式                                      │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-  ┌─────────────────────────────────────────────────────────────────────────┐
-  │                                                                         │
-  │  应用进程                          SurfaceFlinger 进程                  │
-  │  ┌───────────────────────┐       ┌───────────────────────┐             │
-  │  │                       │       │                       │             │
-  │  │  Surface              │       │  Layer                │             │
-  │  │       │               │       │       │               │             │
-  │  │       ▼               │       │       ▼               │             │
-  │  │  BufferQueueProducer  │◄─────►│  BufferQueueConsumer  │             │
-  │  │       │               │       │       │               │             │
-  │  │       │               │       │       │               │             │
-  │  │       ▼               │       │       ▼               │             │
-  │  │  ┌─────────────────────────────────────────────────┐ │             │
-  │  │  │              BufferQueueCore                    │ │             │
-  │  │  │              (共享内存)                          │ │             │
-  │  │  │  GraphicBuffer[0] GraphicBuffer[1] ...          │ │             │
-  │  │  └─────────────────────────────────────────────────┘ │             │
-  │  │                       │       │                       │             │
-  │  └───────────────────────┘       └───────────────────────┘             │
-  │                                                                         │
-  └─────────────────────────────────────────────────────────────────────────┘
-
-  通信方式:
-  ┌─────────────────┬───────────────────────────────────────────────────────┐
-  │  Binder IPC     │  创建 Surface、SurfaceControl                         │
-  │                 │  IWindowSession.addToDisplay()                        │
-  ├─────────────────┼───────────────────────────────────────────────────────┤
-  │  共享内存       │  GraphicBuffer (图形缓冲区)                           │
-  │  (DMA-BUF)      │  应用和 SurfaceFlinger 都可以直接访问                 │
-  ├─────────────────┼───────────────────────────────────────────────────────┤
-  │  Callback       │  IConsumerListener::onFrameAvailable()                │
-  │                 │  通知 SurfaceFlinger 有新帧                           │
-  └─────────────────┴───────────────────────────────────────────────────────┘
-```
+完整窗口策略和其他窗口类型的差异见 [Window 与 Surface 详解](Android_Window与Surface详解.md#7-android-17-的-surface-建立与-relayout)。
 
 ### 2.13 View 绘制多层级架构
 
@@ -2884,7 +3134,7 @@ Android 图形系统采用 生产者-消费者 模型:
                                        │ Binder IPC (IWindowSession)
                                        ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                         层级 3: WMS 层 (Window Manager Service)             │
+│                         层级 3: WMS 层 (Window Manager Service，管理窗口关系与策略)             │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
 │  ┌─────────────────────────────────────────────────────────────────────┐   │
@@ -2898,13 +3148,14 @@ Android 图形系统采用 生产者-消费者 模型:
 │  │       │  3. 窗口层级 (Z-Order) 管理                                 │   │
 │  │       │  4. 窗口动画                                                │   │
 │  │       │  5. 输入事件分发                                            │   │
-│  │       │  6. 分配 Surface                                            │   │
+│  │       │  6. 管理窗口层与内容层挂接，协调 Surface 路径             │   │
 │  │       │                                                             │   │
 │  │       ├── WindowState (窗口状态)                                    │   │
 │  │       ├── WindowToken (窗口令牌)                                    │   │
 │  │       ├── Session (会话管理)                                        │   │
 │  │       ├── DisplayContent (显示内容)                                 │   │
-│  │       └── WindowSurfaceController (Surface 控制)                    │   │
+│  │       ├── client surface: ViewRootImpl 创建 BLAST SurfaceControl     │   │
+│  │       └── legacy: WindowStateAnimator.createSurfaceLocked             │   │
 │  │                                                                     │   │
 │  └─────────────────────────────────────────────────────────────────────┘   │
 │                                                                             │
@@ -2927,11 +3178,11 @@ Android 图形系统采用 生产者-消费者 模型:
 │  │       │  - unlockCanvasAndPost()  提交绘制结果                      │   │
 │  │       │                                                             │   │
 │  │       ▼                                                             │   │
-│  │  BufferQueue (缓冲队列)                                             │   │
+│  │  BufferQueue / BLASTBufferQueue (生产-消费协议)                       │   │
 │  │       │                                                             │   │
 │  │       │  生产者-消费者模型:                                         │   │
-│  │       │  - 生产者: Surface (应用 UI 线程)                           │   │
-│  │       │  - 消费者: SurfaceFlinger                                   │   │
+│  │       │  - 生产者: Surface / NativeWindow (应用端)                   │   │
+│  │       │  - BLAST 消费: 获取 buffer 并写入 layer Transaction           │   │
 │  │       │  - 缓冲区: GraphicBuffer (双缓冲/三缓冲)                    │   │
 │  │       │                                                             │   │
 │  │       │  状态流转:                                                  │   │
@@ -2944,7 +3195,7 @@ Android 图形系统采用 生产者-消费者 模型:
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
                                        │
-                                       │ BufferQueue (共享内存)
+                                       │ Buffer / fence / SurfaceControl.Transaction
                                        ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         层级 5: SurfaceFlinger 层 (合成服务)                │
@@ -3415,15 +3666,15 @@ Android 图形系统采用 生产者-消费者 模型:
 │  通信方式            │  使用场景                                             │
 ├─────────────────────┼───────────────────────────────────────────────────────┤
 │  Binder IPC         │  应用进程 ↔ System Server (WMS)                       │
-│                     │  IWindowSession.addToDisplay()                        │
+│                     │  IWindowSession.addToDisplayAsUser()                 │
 ├─────────────────────┼───────────────────────────────────────────────────────┤
 │  JNI                │  Java ↔ Native 层                                     │
 │                     │  Choreographer ↔ DisplayEventReceiver                 │
 │                     │  Surface.lockCanvas() ↔ nativeLockCanvas()            │
 │                     │  RenderNode.beginRecording() ↔ Native                 │
 ├─────────────────────┼───────────────────────────────────────────────────────┤
-│  共享内存 (ASHMEM)   │  BufferQueue (GraphicBuffer 共享)                    │
-│                     │  应用进程 ↔ SurfaceFlinger                            │
+│  Buffer / fence     │  GraphicBuffer 句柄与同步协议                       │
+│                     │  不等于通过共享内存逐帧复制 BufferQueueCore               │
 ├─────────────────────┼───────────────────────────────────────────────────────┤
 │  Socket (BitTube)   │  SurfaceFlinger ↔ 应用进程 VSync 通知                 │
 │                     │  EventThread ↔ DisplayEventReceiver                   │
@@ -3604,6 +3855,145 @@ protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
 
 ---
 
+### 4.4 View.measure()：缓存、强制布局与测量状态
+
+父容器调用的是 final 方法 `measure()`，不是直接调用子项的 `onMeasure()`。外层协议统一管理测量缓存、RTL 属性解析、测量状态检查及布局标志；子类只实现尺寸计算。
+
+| 字段 / 标志 | 含义 |
+|---|---|
+| `mOldWidthMeasureSpec` / `mOldHeightMeasureSpec` | 上次传入的完整约束，包含 mode 和 size |
+| `mMeasureCache` | 以两个 MeasureSpec 组合成的 long 为键缓存宽高结果 |
+| `PFLAG_FORCE_LAYOUT` | 本次需要重新处理测量/布局；requestLayout、forceLayout 均会设置 |
+| `PFLAG_MEASURED_DIMENSION_SET` | onMeasure 必须通过 setMeasuredDimension 建立的完成标记 |
+| `PFLAG3_MEASURE_NEEDED_BEFORE_LAYOUT` | 命中测量缓存后，在 layout 前可能仍需补调 onMeasure |
+| `PFLAG_LAYOUT_REQUIRED` | 本次测量处理后需要进入布局回调 |
+
+源码精简节选（省略注释；[View.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/view/View.java)）：
+
+```java
+public final void measure(int widthMeasureSpec, int heightMeasureSpec) {
+    boolean optical = isLayoutModeOptical(this);
+    if (optical != isLayoutModeOptical(mParent)) {
+        Insets insets = getOpticalInsets();
+        int oWidth  = insets.left + insets.right;
+        int oHeight = insets.top  + insets.bottom;
+        widthMeasureSpec  = MeasureSpec.adjust(widthMeasureSpec,  optical ? -oWidth  : oWidth);
+        heightMeasureSpec = MeasureSpec.adjust(heightMeasureSpec, optical ? -oHeight : oHeight);
+    }
+    long key = (long) widthMeasureSpec << 32 | (long) heightMeasureSpec & 0xffffffffL;
+    if (mMeasureCache == null) mMeasureCache = new LongSparseLongArray(2);
+
+    final boolean forceLayout = (mPrivateFlags & PFLAG_FORCE_LAYOUT) == PFLAG_FORCE_LAYOUT;
+    final boolean specChanged = widthMeasureSpec != mOldWidthMeasureSpec
+            || heightMeasureSpec != mOldHeightMeasureSpec;
+    final boolean isSpecExactly = MeasureSpec.getMode(widthMeasureSpec) == MeasureSpec.EXACTLY
+            && MeasureSpec.getMode(heightMeasureSpec) == MeasureSpec.EXACTLY;
+    final boolean matchesSpecSize = getMeasuredWidth() == MeasureSpec.getSize(widthMeasureSpec)
+            && getMeasuredHeight() == MeasureSpec.getSize(heightMeasureSpec);
+    final boolean needsLayout = specChanged
+            && (sAlwaysRemeasureExactly || !isSpecExactly || !matchesSpecSize);
+
+    if (forceLayout || needsLayout) {
+        mPrivateFlags &= ~PFLAG_MEASURED_DIMENSION_SET;
+
+        resolveRtlPropertiesIfNeeded();
+
+        int cacheIndex;
+        if (sUseMeasureCacheDuringForceLayoutFlagValue) {
+            cacheIndex =  mMeasureCache.indexOfKey(key);
+        } else {
+            cacheIndex = forceLayout ? -1 : mMeasureCache.indexOfKey(key);
+        }
+
+        if (cacheIndex < 0) {
+            if (isTraversalTracingEnabled()) {
+                Trace.beginSection(mTracingStrings.onMeasure);
+            }
+            if (android.os.Flags.adpfMeasureDuringInputEventBoost()) {
+                final boolean notifyRenderer = hasExpensiveMeasuresDuringInputEvent();
+                if (notifyRenderer) {
+                    getViewRootImpl().notifyRendererOfExpensiveFrame(
+                            "ADPF_SendHint: hasExpensiveMeasuresDuringInputEvent");
+                }
+            }
+            onMeasure(widthMeasureSpec, heightMeasureSpec);
+            if (isTraversalTracingEnabled()) {
+                Trace.endSection();
+            }
+            mPrivateFlags3 &= ~PFLAG3_MEASURE_NEEDED_BEFORE_LAYOUT;
+        } else {
+            long value = mMeasureCache.valueAt(cacheIndex);
+            setMeasuredDimensionRaw((int) (value >> 32), (int) value);
+            mPrivateFlags3 |= PFLAG3_MEASURE_NEEDED_BEFORE_LAYOUT;
+        }
+        if ((mPrivateFlags & PFLAG_MEASURED_DIMENSION_SET) != PFLAG_MEASURED_DIMENSION_SET) {
+            throw new IllegalStateException("View with id " + getId() + ": "
+                    + getClass().getName() + "#onMeasure() did not set the"
+                    + " measured dimension by calling"
+                    + " setMeasuredDimension()");
+        }
+
+        mPrivateFlags |= PFLAG_LAYOUT_REQUIRED;
+    }
+
+    mOldWidthMeasureSpec = widthMeasureSpec;
+    mOldHeightMeasureSpec = heightMeasureSpec;
+
+    mMeasureCache.put(key, ((long) mMeasuredWidth) << 32 |
+            (long) mMeasuredHeight & 0xffffffffL); // suppress sign extension
+}
+```
+
+这个实现解释了三个常见现象：
+
+1. **调用 measure 不等于调用 onMeasure**。约束相同且没有强制布局时可以跳过；命中缓存也可以恢复测量值。
+2. **缓存不只是按宽高数值判断**。键包含完整 MeasureSpec，相同 size、不同 mode 不同义。强制布局期间是否使用缓存还取决于源码中的特性开关，而 `requestLayout()` 本身会清空本节点缓存。
+3. **测量可以发生多次**。ViewRootImpl 可能因窗口大小改变重新测量，父容器也可能为权重或 MATCH_PARENT 补测；不要在 onMeasure 中发请求、加载图片或累计不可逆状态。
+
+### 4.5 默认尺寸与 resolveSizeAndState
+
+基类 View 的默认实现使用 `getDefaultSize(getSuggestedMinimumWidth(), widthMeasureSpec)`；AT_MOST 下它会取 spec 上限。因此简单继承 View 却不重写 onMeasure，wrap_content 常常表现为填满可用区域，而不是按自绘图形自动包裹。
+
+源码精简节选（省略注释；[View.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/view/View.java)）：
+
+```java
+protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+    setMeasuredDimension(getDefaultSize(getSuggestedMinimumWidth(), widthMeasureSpec),
+            getDefaultSize(getSuggestedMinimumHeight(), heightMeasureSpec));
+}
+```
+
+源码精简节选（省略注释；[View.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/view/View.java)）：
+
+```java
+public static int resolveSizeAndState(int size, int measureSpec, int childMeasuredState) {
+    final int specMode = MeasureSpec.getMode(measureSpec);
+    final int specSize = MeasureSpec.getSize(measureSpec);
+    final int result;
+    switch (specMode) {
+        case MeasureSpec.AT_MOST:
+            if (specSize < size) {
+                result = specSize | MEASURED_STATE_TOO_SMALL;
+            } else {
+                result = size;
+            }
+            break;
+        case MeasureSpec.EXACTLY:
+            result = specSize;
+            break;
+        case MeasureSpec.UNSPECIFIED:
+        default:
+            result = size;
+    }
+    return result | (childMeasuredState & MEASURED_STATE_MASK);
+}
+```
+
+`resolveSizeAndState()` 把期望尺寸与父约束合并：EXACTLY 服从父指定值；AT_MOST 下超限时截断并置 `MEASURED_STATE_TOO_SMALL`；UNSPECIFIED 使用期望值。返回值同时含尺寸位和状态位，不能把它当普通像素值继续做几何运算。
+
+例如圆形仪表盘内容希望占 120dp，左右 padding 各 16dp，则期望宽度是 152dp。父 AT_MOST 100dp 时得到 100dp 并带 TOO_SMALL；父 EXACTLY 200dp 时得到 200dp。圆形绘制可以在最终矩形内部取短边，但不能擅自把父要求的 200×100 改为 100×100。
+
+
 ## 5. Layout 布局流程
 
 ### 5.1 Layout 流程图
@@ -3660,64 +4050,171 @@ protected void onLayout(boolean changed, int left, int top, int right, int botto
 
 ---
 
-## 6. Draw 绘制流程
+### 5.3 View.layout()：边界变化不等于测量尺寸变化
 
-### 6.1 Draw 流程图
+`mLeft/mTop/mRight/mBottom` 是相对父坐标的布局边界；`mMeasuredWidth/mMeasuredHeight` 是测量结果。`layout(l,t,r,b)` 先更新边界，必要时执行 onLayout，然后通知布局监听器、清理布局标志。
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         Draw 绘制流程                                       │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-ViewRootImpl.performDraw()
-        │
-        ▼
-ViewRootImpl.draw()
-        │
-        ▼
-DecorView.draw(Canvas)
-        │
-        │  public void draw(Canvas canvas) {
-        │      // 1. 绘制背景
-        │      drawBackground(canvas);
-        │      
-        │      // 2. 绘制内容 (自定义 View 重写此方法)
-        │      onDraw(canvas);
-        │      
-        │      // 3. 绘制子 View (ViewGroup 实现)
-        │      dispatchDraw(canvas);
-        │      
-        │      // 4. 绘制装饰 (滚动条、前景)
-        │      onDrawForeground(canvas);
-        │  }
-        ▼
-绘制完成
-```
-
-### 6.2 onDraw 实现
+源码精简节选（省略注释；[View.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/view/View.java)）：
 
 ```java
-@Override
-protected void onDraw(Canvas canvas) {
-    super.onDraw(canvas);
-    
-    // 绘制背景
-    canvas.drawColor(Color.WHITE);
-    
-    // 绘制圆形
-    Paint paint = new Paint();
-    paint.setColor(Color.RED);
-    paint.setAntiAlias(true);
-    canvas.drawCircle(getWidth() / 2, getHeight() / 2, 100, paint);
-    
-    // 绘制文字
-    paint.setColor(Color.BLACK);
-    paint.setTextSize(40);
-    canvas.drawText("Hello", 100, 100, paint);
+public void layout(int l, int t, int r, int b) {
+    if ((mPrivateFlags3 & PFLAG3_MEASURE_NEEDED_BEFORE_LAYOUT) != 0) {
+        if (isTraversalTracingEnabled()) {
+            Trace.beginSection(mTracingStrings.onMeasureBeforeLayout);
+        }
+        onMeasure(mOldWidthMeasureSpec, mOldHeightMeasureSpec);
+        if (isTraversalTracingEnabled()) {
+            Trace.endSection();
+        }
+        mPrivateFlags3 &= ~PFLAG3_MEASURE_NEEDED_BEFORE_LAYOUT;
+    }
+
+    int oldL = mLeft;
+    int oldT = mTop;
+    int oldB = mBottom;
+    int oldR = mRight;
+
+    boolean changed = isLayoutModeOptical(mParent) ?
+            setOpticalFrame(l, t, r, b) : setFrame(l, t, r, b);
+
+    if (changed || (mPrivateFlags & PFLAG_LAYOUT_REQUIRED) == PFLAG_LAYOUT_REQUIRED) {
+        if (isTraversalTracingEnabled()) {
+            Trace.beginSection(mTracingStrings.onLayout);
+        }
+        onLayout(changed, l, t, r, b);
+        if (isTraversalTracingEnabled()) {
+            Trace.endSection();
+        }
+
+        if (shouldDrawRoundScrollbar()) {
+            if(mRoundScrollbarRenderer == null) {
+                mRoundScrollbarRenderer = new RoundScrollbarRenderer(this);
+            }
+        } else {
+            mRoundScrollbarRenderer = null;
+        }
+
+        mPrivateFlags &= ~PFLAG_LAYOUT_REQUIRED;
+
+        ListenerInfo li = mListenerInfo;
+        if (li != null && li.mOnLayoutChangeListeners != null) {
+            ArrayList<OnLayoutChangeListener> listenersCopy =
+                    (ArrayList<OnLayoutChangeListener>)li.mOnLayoutChangeListeners.clone();
+            int numListeners = listenersCopy.size();
+            for (int i = 0; i < numListeners; ++i) {
+                listenersCopy.get(i).onLayoutChange(this, l, t, r, b, oldL, oldT, oldR, oldB);
+            }
+        }
+    }
+    // ... 后续处理焦点与布局完成标志
 }
 ```
 
----
+`setFrame()` 在尺寸改变时进入 `sizeChange()` / `onSizeChanged()`。所以缓存 Path、Shader 或文字排版结果时，`onSizeChanged()` 是合适入口；它不是每次 layout 都调用。位置变化但宽高不变，仍可能执行 onLayout，却不需要重建尺寸相关缓存。
+
+若 `changed == false` 但存在 `PFLAG_LAYOUT_REQUIRED`，框架仍执行 onLayout。反过来，仅修改 `translationX` 不改变这四个布局边界；它通过 RenderNode 参与显示和坐标变换，不要求重新排列兄弟节点。
+
+### 5.4 父子坐标与布局案例
+
+假设父容器在祖父中的 left 为 30，子 View 在父中 layout(10,20,110,70)：子 `width=100`、`height=50`、`left=10`；它在祖父坐标的水平位置至少要加上父的 30，还要考虑 scroll 和变换。不要把屏幕绝对位置直接传给 child.layout。
+
+自定义 ViewGroup 通常先用 `measureChildWithMargins()` 测量，累积子项占用空间，再用 `child.layout()` 放置。GONE 不占普通布局空间，INVISIBLE 通常仍占；margin 由父容器消费，padding 属于容器自己的内部留白。完整容器示例见 [自定义 View 指南](Android_自定义View_绘制完全指南.md#35-实战支持-margin-的纵向容器)。
+
+
+## 6. Draw 绘制流程
+
+### 6.1 View.draw() 顺序
+
+基类 `draw(Canvas)` 先更新脏标记，再按背景、内容、子项、装饰的顺序组织绘制。下面保留常见的无 fading edge 分支；有 fading edge 时会额外保存图层、绘制渐隐边缘并恢复，但内容前后关系不变。
+
+源码精简节选（省略注释；[View.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/view/View.java)）：
+
+```java
+public void draw(@NonNull Canvas canvas) {
+    final int privateFlags = mPrivateFlags;
+    mPrivateFlags = (privateFlags & ~PFLAG_DIRTY_MASK) | PFLAG_DRAWN;
+    int saveCount;
+
+    drawBackground(canvas);
+    final int viewFlags = mViewFlags;
+    boolean horizontalEdges = (viewFlags & FADING_EDGE_HORIZONTAL) != 0;
+    boolean verticalEdges = (viewFlags & FADING_EDGE_VERTICAL) != 0;
+    if (!verticalEdges && !horizontalEdges) {
+        onDraw(canvas);
+        dispatchDraw(canvas);
+
+        drawAutofilledHighlight(canvas);
+        if (mOverlay != null && !mOverlay.isEmpty()) {
+            mOverlay.getOverlayView().dispatchDraw(canvas);
+        }
+        onDrawForeground(canvas);
+        drawDefaultFocusHighlight(canvas);
+
+        if (isShowingLayoutBounds()) {
+            debugDrawFocus(canvas);
+        }
+        return;
+    }
+
+    boolean drawTop = false;
+    boolean drawBottom = false;
+    boolean drawLeft = false;
+    boolean drawRight = false;
+
+    float topFadeStrength = 0.0f;
+    float bottomFadeStrength = 0.0f;
+    float leftFadeStrength = 0.0f;
+    float rightFadeStrength = 0.0f;
+```
+
+从代码可直接读出：`onDraw()` 不是绘制全部内容的唯一入口。子项在 `dispatchDraw()` 中绘制；autofill highlight 在子项之后；Overlay 在 foreground 之前；最后还可能有默认焦点高亮和布局边界调试绘制。重写 `draw()` 后不调用 super，会同时绕过这些框架行为。
+
+### 6.2 ViewGroup.drawChild() 与硬件显示列表
+
+源码精简节选（省略注释；[ViewGroup.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/view/ViewGroup.java)）：
+
+```java
+protected boolean drawChild(@NonNull Canvas canvas, View child, long drawingTime) {
+    return child.draw(canvas, this, drawingTime);
+}
+```
+
+`drawChild()` 委托给 View 面向父容器的 draw 重载。该重载处理滚动、矩阵、alpha、裁剪、传统 Animation 与硬件 RenderNode；并不是在每一帧都直接执行 `child.onDraw()`。硬件路径可以引用未失效子树的显示列表，只更新节点属性或重录真正变脏的部分。
+
+| 扩展点 | 应承担的职责 | 典型例子 |
+|---|---|---|
+| `onDraw(Canvas)` | 自己的内容 | 仪表盘刻度、进度弧、文字 |
+| `dispatchDraw(Canvas)` | 子 View 绘制前后的附加内容 | 子项背后的连线、子项上方的选择框 |
+| `onDrawForeground(Canvas)` | 前景、滚动条等装饰层 | 覆盖内容的边框；调用 super 保留默认装饰 |
+| `drawChild(Canvas, View, long)` | 单个子项绘制包装 | 配合 save/restore 的逐项裁剪 |
+
+只在 dispatchDraw 的 super 调用之后画内容，会盖住子项，但仍可能在 foreground 和 Overlay 相关层次之下；需要跨层覆盖时应先确定要覆盖哪一层，而不是不断提高 elevation。
+
+### 6.3 属性失效与内容重录的区别
+
+`setTranslationX()` 走的是 RenderNode 属性更新，通常无需执行 onMeasure 或重录该 View 的静态绘制命令；`setText()`、更改自绘 Path 则可能改变内容显示列表，有时还改变期望尺寸。
+
+```kotlin
+// 自定义 View 内的应用代码：绘制内容变化与几何变化分别处理。
+var lineColor: Int = Color.BLACK
+    set(value) {
+        if (field == value) return
+        field = value
+        paint.color = value
+        invalidate()
+    }
+
+var preferredRadiusPx: Float = 60f
+    set(value) {
+        require(value.isFinite() && value >= 0f)
+        if (field == value) return
+        field = value
+        requestLayout() // onMeasure 的期望尺寸依赖此值
+        invalidate()    // onDraw 的内容也依赖此值
+    }
+```
+
+`invalidate()` 表示“已有内容不再有效”，不是“立即调用 onDraw”；`requestLayout()` 表示“布局约束需要重新求解”，也不是“此树所有节点必定重测”。外层遍历仍会合并请求并复用可用结果。
 
 ## 7. 常见问题
 

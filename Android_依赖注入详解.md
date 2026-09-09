@@ -1,70 +1,66 @@
 # Android 依赖注入详解
 
+> 适用环境：Android 17（API 37）；Hilt/Dagger 2.50、Koin 3.5.0 用于解释容器及作用域，处理器接入与 AGP 版本分别配置。
+
 > 作者：OpenClaw | 日期：2026-03-13
 
 ---
 
 ## 目录
 
-1. [概述](#1-概述)
-   - 1.1 [什么是依赖注入](#11-什么是依赖注入)
-   - 1.2 [为什么需要依赖注入](#12-为什么需要依赖注入)
-   - 1.3 [依赖注入方式](#13-依赖注入方式)
-   - 1.4 [Android DI 框架对比](#14-android-di-框架对比)
-2. [依赖注入基础](#2-依赖注入基础)
-   - 2.1 [手动依赖注入](#21-手动依赖注入)
-   - 2.2 [工厂模式](#22-工厂模式)
-   - 2.3 [服务定位器模式](#23-服务定位器模式)
-3. [Hilt 依赖注入](#3-hilt-依赖注入)
-   - 3.1 [Hilt 简介](#31-hilt-简介)
-   - 3.2 [基本配置](#32-基本配置)
-   - 3.3 [@Inject 注入](#33-inject-注入)
-   - 3.4 [@Module 和 @Provides](#34-module-和-provides)
-   - 3.5 [组件和作用域](#35-组件和作用域)
-   - 3.6 [@ApplicationContext 和 @ActivityContext](#36-applicationcontext-和-activitycontext)
-   - 3.7 [ViewModel 注入](#37-viewmodel-注入)
-   - 3.8 [接口绑定](#38-接口绑定)
-   - 3.9 [Entry Points](#39-entry-points)
-   - 3.10 [测试支持](#310-测试支持)
-4. [Koin 依赖注入](#4-koin-依赖注入)
-   - 4.1 [Koin 简介](#41-koin-简介)
-   - 4.2 [基本配置](#42-基本配置)
-   - 4.3 [依赖声明](#43-依赖声明)
-   - 4.4 [依赖注入](#44-依赖注入)
-   - 4.5 [构造器注入](#45-构造器注入)
-   - 4.6 [作用域](#46-作用域)
-   - 4.7 [属性注入](#47-属性注入)
-   - 4.8 [Koin 测试](#48-koin-测试)
-   - 4.9 [Compose 支持](#49-compose-支持)
-5. [Dagger2 详解](#5-dagger2-详解)
-   - 5.1 [Dagger2 概述](#51-dagger2-概述)
-   - 5.2 [核心概念](#52-核心概念)
-     - 5.2.1 [@Inject - 标记注入点](#521-inject---标记注入点)
-     - 5.2.2 [@Module 的三种形式](#522-module-的三种形式)
-     - 5.2.3 [@Module + @Provides - 提供依赖](#523-module--provides---提供依赖)
-     - 5.2.4 [@Binds - 接口绑定](#524-binds---接口绑定)
-     - 5.2.5 [@Component - 连接器](#525-component---连接器)
-     - 5.2.6 [Module 和 Component 类型选择总结](#526-module-和-component-类型选择总结)
-   - 5.3 [自定义 Scope](#53-自定义-scope)
-     - 5.3.1 [Scope 定义](#531-scope-定义)
-     - 5.3.2 [Scope 规则](#532-scope-规则)
-     - 5.3.3 [无 Scope 行为详解](#533-无-scope-行为详解)
-     - 5.3.4 [完整 Scope 示例](#534-完整-scope-示例)
-   - 5.4 [@Qualifier 限定符](#54-qualifier-限定符)
-   - 5.5 [Subcomponent 子组件](#55-subcomponent-子组件)
-   - 5.6 [Component Dependencies](#56-component-dependencies)
-   - 5.7 [依赖提升](#57-依赖提升)
-   - 5.8 [Dagger2 完整示例](#58-dagger2-完整示例)
-   - 5.9 [Dagger2 vs Hilt](#59-dagger2-vs-hilt)
-   - 5.10 [常见问题](#510-常见问题)
-6. [框架对比](#6-框架对比)
-7. [最佳实践](#7-最佳实践)
-   - 7.1 [架构设计](#71-架构设计)
-   - 7.2 [作用域使用](#72-作用域使用)
-   - 7.3 [命名和限定符](#73-命名和限定符)
-   - 7.4 [测试策略](#74-测试策略)
-8. [常见问题](#8-常见问题)
-9. [知识体系总结](#9-知识体系总结)
+- [1. 概述](#1-概述)
+  - [1.1 什么是依赖注入](#11-什么是依赖注入)
+  - [1.2 为什么需要依赖注入](#12-为什么需要依赖注入)
+  - [1.3 依赖注入方式](#13-依赖注入方式)
+  - [1.4 Android DI 框架对比](#14-android-di-框架对比)
+- [2. 依赖注入基础](#2-依赖注入基础)
+  - [2.1 手动依赖注入](#21-手动依赖注入)
+  - [2.2 工厂模式](#22-工厂模式)
+  - [2.3 服务定位器模式](#23-服务定位器模式)
+- [3. Hilt 依赖注入](#3-hilt-依赖注入)
+  - [3.1 Hilt 简介](#31-hilt-简介)
+  - [3.2 基本配置](#32-基本配置)
+  - [3.3 @Inject 注入](#33-inject-注入)
+  - [3.4 @Module 和 @Provides](#34-module-和-provides)
+  - [3.5 组件和作用域](#35-组件和作用域)
+  - [3.6 @ApplicationContext 和 @ActivityContext](#36-applicationcontext-和-activitycontext)
+  - [3.7 ViewModel 注入](#37-viewmodel-注入)
+  - [3.8 接口绑定](#38-接口绑定)
+  - [3.9 Entry Points](#39-entry-points)
+  - [3.10 测试支持](#310-测试支持)
+- [4. Koin 依赖注入](#4-koin-依赖注入)
+  - [4.1 Koin 简介](#41-koin-简介)
+  - [4.2 基本配置](#42-基本配置)
+  - [4.3 依赖声明](#43-依赖声明)
+  - [4.4 依赖注入](#44-依赖注入)
+  - [4.5 构造器注入](#45-构造器注入)
+  - [4.6 作用域](#46-作用域)
+  - [4.7 属性注入](#47-属性注入)
+  - [4.8 Koin 测试](#48-koin-测试)
+  - [4.9 Compose 支持](#49-compose-支持)
+- [5. Dagger2 详解](#5-dagger2-详解)
+  - [5.1 Dagger2 概述](#51-dagger2-概述)
+  - [5.2 核心概念](#52-核心概念)
+  - [5.3 自定义 Scope](#53-自定义-scope)
+  - [5.4 @Qualifier 限定符](#54-qualifier-限定符)
+  - [5.5 Subcomponent 子组件](#55-subcomponent-子组件)
+  - [5.6 Component Dependencies](#56-component-dependencies)
+  - [5.7 依赖提升](#57-依赖提升)
+  - [5.8 Dagger2 完整示例](#58-dagger2-完整示例)
+  - [5.9 Dagger2 vs Hilt](#59-dagger2-vs-hilt)
+  - [5.10 常见问题](#510-常见问题)
+- [6. 框架对比](#6-框架对比)
+- [7. 最佳实践](#7-最佳实践)
+  - [7.1 架构设计](#71-架构设计)
+  - [7.2 作用域使用](#72-作用域使用)
+  - [7.3 命名和限定符](#73-命名和限定符)
+  - [7.4 测试策略](#74-测试策略)
+- [8. 常见问题](#8-常见问题)
+- [9. 知识体系总结](#9-知识体系总结)
+- [10. 对象所有权、失败路径与 Android 17](#10-对象所有权失败路径与-android-17)
+  - [10.1 容器复用不等于全局唯一](#101-容器复用不等于全局唯一)
+  - [10.2 初始化失败与资源释放](#102-初始化失败与资源释放)
+  - [10.3 平台权限留在 UI 边界](#103-平台权限留在-ui-边界)
 
 ---
 
@@ -72,7 +68,7 @@
 
 ### 1.1 什么是依赖注入
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         依赖注入定义                                        │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -101,7 +97,7 @@ class UserRepository {
     private val api = UserApi()        // 内部创建
     private val dao = UserDao()        // 内部创建
     private val context = MyApp.context // 全局引用
-    
+
     fun getUser(id: String): User {
         // ...
     }
@@ -131,7 +127,7 @@ class UserRepository(
 
 ### 1.3 依赖注入方式
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         依赖注入方式                                        │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -155,10 +151,10 @@ class UserRepository(
   interface ApiInjector {
       fun inject(api: UserApi)
   }
-  
+
   class UserRepository : ApiInjector {
       private var api: UserApi? = null
-      
+
       override fun inject(api: UserApi) {
           this.api = api
       }
@@ -168,7 +164,7 @@ class UserRepository(
   ─────────────────────────────────────────────────────────────────────────
   class UserRepository {
       private var api: UserApi? = null
-      
+
       fun setApi(api: UserApi) {
           this.api = api
       }
@@ -177,7 +173,7 @@ class UserRepository(
 
 ### 1.4 Android DI 框架对比
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         DI 框架对比                                         │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -228,7 +224,7 @@ object AppContainer {
     // 单例
     private val userApi: UserApi by lazy { UserApi() }
     private val userDao: UserDao by lazy { UserDao() }
-    
+
     val userRepository: UserRepository by lazy {
         UserRepositoryImpl(userApi, userDao)
     }
@@ -243,9 +239,9 @@ class UserViewModel(
 
 // ==================== Application 级容器 ====================
 class MyApplication : Application() {
-    
+
     lateinit var appContainer: AppContainer
-    
+
     override fun onCreate() {
         super.onCreate()
         appContainer = AppContainer()
@@ -255,11 +251,11 @@ class MyApplication : Application() {
 class AppContainer {
     private val userApi: UserApi by lazy { UserApi() }
     private val userDao: UserDao by lazy { UserDao() }
-    
+
     val userRepository: UserRepository by lazy {
         UserRepositoryImpl(userApi, userDao)
     }
-    
+
     // Activity 级容器
     fun createUserContainer(): UserContainer {
         return UserContainer(userRepository)
@@ -274,13 +270,13 @@ class UserContainer(
 
 // Activity 中使用
 class UserActivity : AppCompatActivity() {
-    
+
     private lateinit var container: UserContainer
-    
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         container = (application as MyApplication).appContainer.createUserContainer()
-        
+
         val viewModel: UserViewModel by viewModels {
             container.userViewModelFactory
         }
@@ -295,7 +291,7 @@ class UserActivity : AppCompatActivity() {
 class UserViewModelFactory(
     private val repository: UserRepository
 ) : ViewModelProvider.Factory {
-    
+
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(UserViewModel::class.java)) {
@@ -307,7 +303,7 @@ class UserViewModelFactory(
 
 // 使用
 class UserActivity : AppCompatActivity() {
-    
+
     private val viewModel: UserViewModel by viewModels {
         UserViewModelFactory(AppContainer.userRepository)
     }
@@ -336,31 +332,31 @@ private val viewModel: UserViewModel by viewModels {
 ```kotlin
 // ==================== Service Locator ====================
 object ServiceLocator {
-    
+
     private val instances = mutableMapOf<KClass<*>, Any>()
-    
+
     @Synchronized
     fun <T : Any> register(clazz: KClass<T>, instance: T) {
         instances[clazz] = instance
     }
-    
+
     @Suppress("UNCHECKED_CAST")
     @Synchronized
     fun <T : Any> get(clazz: KClass<T>): T {
         return instances[clazz] as? T
             ?: throw IllegalStateException("No instance registered for ${clazz.simpleName}")
     }
-    
+
     @Synchronized
     fun <T : Any> getOrNull(clazz: KClass<T>): T? {
         return instances[clazz] as? T
     }
-    
+
     @Synchronized
     fun <T : Any> unregister(clazz: KClass<T>) {
         instances.remove(clazz)
     }
-    
+
     @Synchronized
     fun clear() {
         instances.clear()
@@ -384,7 +380,13 @@ val repository = ServiceLocator.get(UserRepository::class)
 
 ### 3.1 Hilt 简介
 
-```
+Hilt 插件、runtime、compiler 和 testing artifacts 使用同一个发布版本。下方 2.50 配置解释代码生成链；KSP 插件在根工程或 version catalog 中另行声明，版本按 Kotlin/AGP 工具链选择。
+
+AGP 9 默认内置 Kotlin，旧 `org.jetbrains.kotlin.android`/`org.jetbrains.kotlin.kapt` 配置不能原样复用。Dagger 的 KSP 后端无法解析同轮由 Javac/KAPT 生成的类型，因此迁移必须覆盖整个生成类型依赖链；继续使用 Javac 处理器时采用工具链支持的 legacy-kapt 路径。
+
+来源：[Hilt Gradle setup](https://dagger.dev/hilt/gradle-setup.html)、[Dagger KSP 限制](https://dagger.dev/dev-guide/ksp.html)、[AGP 内置 Kotlin 迁移](https://developer.android.com/build/migrate-to-built-in-kotlin)。
+
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         Hilt 简介                                           │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -404,7 +406,7 @@ val repository = ServiceLocator.get(UserRepository::class)
   plugins {
       id("com.google.dagger.hilt.android") version "2.50" apply false
   }
-  
+
   // build.gradle (Module)
   plugins {
       id("com.android.application")
@@ -412,12 +414,12 @@ val repository = ServiceLocator.get(UserRepository::class)
       id("com.google.dagger.hilt.android")
       id("com.google.devtools.ksp")
   }
-  
+
   dependencies {
       implementation("com.google.dagger:hilt-android:2.50")
       ksp("com.google.dagger:hilt-compiler:2.50")
-      
-      // ViewModel 支持
+
+      // 可选：Fragment + Navigation 的导航图作用域集成，非 @HiltViewModel 必需依赖。
       implementation("androidx.hilt:hilt-navigation-fragment:1.1.0")
   }
 ```
@@ -484,13 +486,13 @@ class UserRepository @Inject constructor(
 // ==================== 字段注入 ====================
 @AndroidEntryPoint
 class MainActivity : AppCompatActivity() {
-    
+
     @Inject
     lateinit var userRepository: UserRepository
-    
+
     @Inject
     lateinit var analytics: Analytics
-    
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // userRepository 和 analytics 已自动注入
@@ -502,7 +504,7 @@ class UserRepository @Inject constructor(
     private val api: UserApi
 ) {
     private lateinit var context: Context
-    
+
     @Inject
     fun setContext(context: Context) {
         this.context = context
@@ -517,7 +519,7 @@ class UserRepository @Inject constructor(
 @Module
 @InstallIn(SingletonComponent::class)  // 安装到 Application 级别
 object NetworkModule {
-    
+
     @Provides
     @Singleton
     fun provideOkHttpClient(): OkHttpClient {
@@ -526,7 +528,7 @@ object NetworkModule {
             .addInterceptor(LoggingInterceptor())
             .build()
     }
-    
+
     @Provides
     @Singleton
     fun provideRetrofit(okHttpClient: OkHttpClient): Retrofit {
@@ -536,7 +538,7 @@ object NetworkModule {
             .addConverterFactory(GsonConverterFactory.create())
             .build()
     }
-    
+
     @Provides
     @Singleton
     fun provideUserApi(retrofit: Retrofit): UserApi {
@@ -548,7 +550,7 @@ object NetworkModule {
 @Module
 @InstallIn(SingletonComponent::class)
 object DatabaseModule {
-    
+
     @Provides
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): AppDatabase {
@@ -558,7 +560,7 @@ object DatabaseModule {
             "app_database"
         ).build()
     }
-    
+
     @Provides
     fun provideUserDao(database: AppDatabase): UserDao {
         return database.userDao()
@@ -569,7 +571,7 @@ object DatabaseModule {
 @Module
 @InstallIn(SingletonComponent::class)
 abstract class RepositoryModule {
-    
+
     @Binds
     @Singleton
     abstract fun bindUserRepository(
@@ -581,7 +583,7 @@ abstract class RepositoryModule {
 @Module
 @InstallIn(SingletonComponent::class)
 object RepositoryModule {
-    
+
     @Provides
     @Singleton
     fun provideUserRepository(
@@ -595,7 +597,7 @@ object RepositoryModule {
 
 ### 3.5 组件和作用域
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         Hilt 组件层次结构                                   │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -641,7 +643,7 @@ object RepositoryModule {
 @Module
 @InstallIn(SingletonComponent::class)
 object AppModule {
-    
+
     @Provides
     @Singleton
     fun provideSharedPreferences(@ApplicationContext context: Context): SharedPreferences {
@@ -653,7 +655,7 @@ object AppModule {
 @Module
 @InstallIn(ActivityComponent::class)
 object ActivityModule {
-    
+
     @Provides
     @ActivityScoped
     fun provideActivityDependency(): ActivityDependency {
@@ -665,7 +667,7 @@ object ActivityModule {
 @Module
 @InstallIn(FragmentComponent::class)
 object FragmentModule {
-    
+
     @Provides
     @FragmentScoped
     fun provideFragmentDependency(): FragmentDependency {
@@ -704,7 +706,7 @@ class UserRepository @Inject constructor(
 @Module
 @InstallIn(SingletonComponent::class)
 object AppModule {
-    
+
     @Provides
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): AppDatabase {
@@ -724,7 +726,7 @@ class ImageLoader @Inject constructor(
 // 使用
 @AndroidEntryPoint
 class MainActivity : AppCompatActivity() {
-    
+
     @Inject
     lateinit var imageLoader: ImageLoader  // 自动注入 Activity context
 }
@@ -739,16 +741,16 @@ class UserViewModel @Inject constructor(
     private val userRepository: UserRepository,
     private val savedStateHandle: SavedStateHandle
 ) : ViewModel() {
-    
+
     private val userId: String = savedStateHandle["userId"] ?: ""
-    
+
     private val _user = MutableStateFlow<User?>(null)
     val user: StateFlow<User?> = _user
-    
+
     init {
         loadUser()
     }
-    
+
     private fun loadUser() {
         viewModelScope.launch {
             _user.value = userRepository.getUser(userId)
@@ -759,13 +761,13 @@ class UserViewModel @Inject constructor(
 // ==================== Fragment 中使用 ====================
 @AndroidEntryPoint
 class UserFragment : Fragment() {
-    
+
     // 方式1：Fragment 独有 ViewModel
     private val viewModel: UserViewModel by viewModels()
-    
+
     // 方式2：与 Activity 共享 ViewModel
     private val activityViewModel: UserViewModel by activityViewModels()
-    
+
     // 方式3：带 SavedStateHandle 参数传递
     // 导航时传参
     // findNavController().navigate(R.id.userFragment, bundleOf("userId" to "123"))
@@ -774,7 +776,7 @@ class UserFragment : Fragment() {
 // ==================== Activity 中使用 ====================
 @AndroidEntryPoint
 class MainActivity : AppCompatActivity() {
-    
+
     private val viewModel: UserViewModel by viewModels()
 }
 
@@ -790,11 +792,11 @@ annotation class MainDispatcher
 @Module
 @InstallIn(SingletonComponent::class)
 object CoroutinesModule {
-    
+
     @Provides
     @IoDispatcher
     fun provideIoDispatcher(): CoroutineDispatcher = Dispatchers.IO
-    
+
     @Provides
     @MainDispatcher
     fun provideMainDispatcher(): CoroutineDispatcher = Dispatchers.Main
@@ -805,7 +807,7 @@ class UserViewModel @Inject constructor(
     private val repository: UserRepository,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher
 ) : ViewModel() {
-    
+
     fun loadData() {
         viewModelScope.launch(ioDispatcher) {
             // 在 IO 线程执行
@@ -834,7 +836,7 @@ class UserRepositoryImpl @Inject constructor(
 @Module
 @InstallIn(SingletonComponent::class)
 abstract class RepositoryModule {
-    
+
     @Binds
     @Singleton
     abstract fun bindUserRepository(impl: UserRepositoryImpl): UserRepository
@@ -871,11 +873,11 @@ annotation class RemoteSource
 @Module
 @InstallIn(SingletonComponent::class)
 object DataSourceModule {
-    
+
     @Provides
     @LocalSource
     fun provideLocalDataSource(): DataSource = LocalDataSource()
-    
+
     @Provides
     @RemoteSource
     fun provideRemoteDataSource(): DataSource = RemoteDataSource()
@@ -903,15 +905,15 @@ interface RepositoryEntryPoint {
 
 // 在 ContentProvider 中使用
 class MyContentProvider : ContentProvider() {
-    
+
     override fun query(...): Cursor? {
         val appContext = context?.applicationContext ?: return null
-        
+
         val hiltEntryPoint = EntryPointAccessors.fromApplication(
             appContext,
             RepositoryEntryPoint::class.java
         )
-        
+
         val userRepository = hiltEntryPoint.userRepository()
         // 使用 userRepository
     }
@@ -919,9 +921,9 @@ class MyContentProvider : ContentProvider() {
 
 // ==================== 在非 Hilt 类中使用 ====================
 class NonHiltClass(context: Context) {
-    
+
     private val userRepository: UserRepository
-    
+
     init {
         val entryPoint = EntryPointAccessors.fromApplication(
             context.applicationContext,
@@ -934,71 +936,58 @@ class NonHiltClass(context: Context) {
 
 ### 3.10 测试支持
 
+Hilt 测试依赖与主工程 Hilt 2.50 保持一致，包括 testing runtime 与对应的测试 annotation processor。仪器测试由配置了 HiltTestApplication 的 runner 启动；Robolectric 则通过 `@Config(application = HiltTestApplication::class)` 配置 Application。
+
+下面用生产接口和测试替身演示模块替换，不向测试直接注入 `@HiltViewModel`。
+
 ```kotlin
-// ==================== 单元测试 ====================
-@HiltAndroidTest
-class UserRepositoryTest {
-    
-    @get:Rule
-    var hiltRule = HiltAndroidRule(this)
-    
-    @Inject
-    lateinit var userRepository: UserRepository
-    
-    @Before
-    fun init() {
-        hiltRule.inject()
-    }
-    
-    @Test
-    fun testGetUser() {
-        val user = userRepository.getUser("123")
-        assertEquals("张三", user.name)
-    }
-}
-
-// ==================== 替换 Module（测试）====================
-@Module
-@InstallIn(SingletonComponent::class)
-object TestNetworkModule {
-    
-    @Provides
-    @Singleton
-    fun provideFakeUserApi(): UserApi {
-        return FakeUserApi()  // 测试用假实现
-    }
-}
-
-// 测试配置
-@UninstallModules(NetworkModule::class)  // 卸载原 Module
-@HiltAndroidTest
-class UserViewModelTest {
-    
-    @get:Rule
-    var hiltRule = HiltAndroidRule(this)
-    
-    @Inject
-    lateinit var userApi: UserApi  // 会注入 FakeUserApi
-    
-    // ...
-}
-
-// ==================== Robolectric 测试 ====================
-@RunWith(RobolectricTestRunner::class)
-@Config(application = HiltTestApplication::class)
-@HiltAndroidTest
-class ExampleTest {
-    // ...
+// main：生产绑定
+interface Endpoint { fun host(): String }
+@dagger.Module
+@dagger.hilt.InstallIn(dagger.hilt.components.SingletonComponent::class)
+object EndpointModule {
+    @dagger.Provides
+    fun endpoint(): Endpoint = object : Endpoint { override fun host() = "api.example.com" }
 }
 ```
 
----
+```kotlin
+// androidTest：替换相同组件中的生产模块
+@dagger.Module
+@dagger.hilt.testing.TestInstallIn(
+    components = [dagger.hilt.components.SingletonComponent::class],
+    replaces = [EndpointModule::class]
+)
+object FakeEndpointModule {
+    @dagger.Provides
+    fun endpoint(): Endpoint = object : Endpoint { override fun host() = "localhost" }
+}
+@dagger.hilt.android.testing.HiltAndroidTest
+class EndpointInjectionTest {
+    @get:org.junit.Rule
+    val hiltRule = dagger.hilt.android.testing.HiltAndroidRule(this)
+    @javax.inject.Inject lateinit var endpoint: Endpoint
+
+    @org.junit.Before fun inject() { hiltRule.inject() }
+    @org.junit.Test fun resolvesFake() {
+        org.junit.Assert.assertEquals("localhost", endpoint.host())
+    }
+}
+```
+
+测试 Activity/Fragment 在 HiltAndroidRule 完成注入后再启动；规则有多个时显式指定 order。对 suspend 仓库使用 runTest，对 ViewModel 的 Main dispatcher 与虚拟时间控制见 7.4 节。测试替换解决的是依赖隔离，不自动模拟网络权限或 Activity 生命周期。
+
+参考：[Hilt testing](https://dagger.dev/hilt/testing.html)。
 
 ## 4. Koin 依赖注入
 
 ### 4.1 Koin 简介
 
-```
+下方采用 Koin 3.5.0 的经典 DSL：single 在容器中复用实例，factory 每次解析创建实例，scoped 在指定作用域内复用。Android、Compose 与 testing 模块应使用匹配版本。
+
+来源：[Koin 验证文档（标明 verify 从 3.3+ 可用，checkModules 在 4.0 起废弃）](https://insert-koin.io/docs/reference/koin-test/verify/)。
+
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         Koin 简介                                           │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1018,13 +1007,13 @@ class ExampleTest {
   dependencies {
       // Koin 核心
       implementation("io.insert-koin:koin-android:3.5.0")
-      
+
       // ViewModel 支持
       implementation("io.insert-koin:koin-androidx-compose:3.5.0")
-      
+
       // Navigation 支持
       implementation("io.insert-koin:koin-androidx-navigation:3.5.0")
-      
+
       // WorkManager 支持
       implementation("io.insert-koin:koin-androidx-workmanager:3.5.0")
   }
@@ -1036,62 +1025,60 @@ class ExampleTest {
 // ==================== Module 定义 ====================
 val networkModule = module {
     // 单例
-    single { 
+    single {
         OkHttpClient.Builder()
             .connectTimeout(30, TimeUnit.SECONDS)
-            .build() 
+            .build()
     }
-    
-    single { 
+
+    single {
         Retrofit.Builder()
             .baseUrl("https://api.example.com/")
             .client(get())  // 获取上面的 OkHttpClient
             .addConverterFactory(GsonConverterFactory.create())
-            .build() 
+            .build()
     }
-    
+
     single { get<Retrofit>().create(UserApi::class.java) }
 }
 
 val databaseModule = module {
-    single { 
+    single {
         Room.databaseBuilder(
             androidContext(),
             AppDatabase::class.java,
             "app_database"
-        ).build() 
+        ).build()
     }
-    
+
     single { get<AppDatabase>().userDao() }
 }
 
 val repositoryModule = module {
     // 单例
     single<UserRepository> { UserRepositoryImpl(get(), get()) }
-    
+
     // 或使用 factory（每次创建新实例）
-    factory<UserRepository> { UserRepositoryImpl(get(), get()) }
+    // factory<UserRepository> { UserRepositoryImpl(get(), get()) }
 }
 
 val viewModelModule = module {
     // ViewModel
     viewModel { UserViewModel(get()) }
-    
-    // 带参数的 ViewModel
-    viewModel { (userId: String) -> 
-        UserViewModel(get(), userId) 
-    }
+
+    // 不同详情类型使用独立定义，避免覆盖 UserViewModel 的绑定。
+    viewModel { (userId: String) -> UserDetailViewModel(get(), userId) }
 }
 
 // ==================== Application 初始化 ====================
 class MyApplication : Application() {
     override fun onCreate() {
         super.onCreate()
-        
+
         startKoin {
             // Android 上下文
             androidContext(this@MyApplication)
-            
+
             // 加载模块
             modules(
                 networkModule,
@@ -1111,11 +1098,11 @@ class MyApplication : Application() {
 val appModule = module {
     // 单例，整个应用共享一个实例
     single { UserApi() }
-    
+
     // 带名称的单例
     single(named("local")) { LocalDataSource() }
     single(named("remote")) { RemoteDataSource() }
-    
+
     // 带作用域的单例
     single { UserRepository(get(), get(named("local"))) }
 }
@@ -1124,10 +1111,10 @@ val appModule = module {
 val appModule = module {
     // 每次获取都创建新实例
     factory { UserAdapter() }
-    
+
     // 带参数的工厂
-    factory { (userId: String) -> 
-        UserSession(userId) 
+    factory { (userId: String) ->
+        UserSession(userId)
     }
 }
 
@@ -1135,12 +1122,12 @@ val appModule = module {
 val viewModelModule = module {
     // ViewModel
     viewModel { UserViewModel(get()) }
-    
+
     // 带参数的 ViewModel
-    viewModel { (userId: String) -> 
-        UserDetailViewModel(get(), userId) 
+    viewModel { (userId: String) ->
+        UserDetailViewModel(get(), userId)
     }
-    
+
     // 带 SavedStateHandle 的 ViewModel
     viewModel { UserViewModel(get(), get()) }  // 第二个 get 是 SavedStateHandle
 }
@@ -1159,11 +1146,11 @@ val appModule = module {
 ```kotlin
 // ==================== by inject（懒加载）====================
 class MainActivity : AppCompatActivity() {
-    
+
     // 懒加载注入
     private val userRepository: UserRepository by inject()
     private val userApi: UserApi by inject()
-    
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // 首次访问时才创建
@@ -1173,10 +1160,10 @@ class MainActivity : AppCompatActivity() {
 
 // ==================== get()（立即获取）====================
 class MainActivity : AppCompatActivity() {
-    
+
     // 立即获取
     private val userRepository: UserRepository = get()
-    
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
     }
@@ -1184,39 +1171,39 @@ class MainActivity : AppCompatActivity() {
 
 // ==================== ViewModel 注入 ====================
 class MainActivity : AppCompatActivity() {
-    
+
     // ViewModel 注入
     private val viewModel: UserViewModel by viewModel()
-    
+
     // 带参数的 ViewModel
-    private val detailViewModel: UserDetailViewModel by viewModel { 
-        parametersOf("userId123") 
+    private val detailViewModel: UserDetailViewModel by viewModel {
+        parametersOf("userId123")
     }
-    
+
     // Activity 共享 ViewModel
     private val sharedViewModel: SharedViewModel by viewModel()
 }
 
 class UserFragment : Fragment() {
-    
+
     // Fragment 独有 ViewModel
     private val viewModel: UserViewModel by viewModel()
-    
+
     // 与 Activity 共享 ViewModel
     private val sharedViewModel: SharedViewModel by sharedViewModel()
-    
+
     // 带参数的 ViewModel
-    private val detailViewModel: UserDetailViewModel by viewModel { 
-        parametersOf("userId123") 
+    private val detailViewModel: UserDetailViewModel by viewModel {
+        parametersOf("userId123")
     }
 }
 
 // ==================== 带名称的注入 ====================
 class MainActivity : AppCompatActivity() {
-    
+
     private val localDataSource: DataSource by inject(named("local"))
     private val remoteDataSource: DataSource by inject(named("remote"))
-    
+
     // 或
     private val dataSource: DataSource by inject {
         parametersOf("local")
@@ -1239,10 +1226,10 @@ class UserRepository(
 val appModule = module {
     single { UserApi() }
     single { UserDao() }
-    
+
     // 自动注入 api 和 dao
     single { UserRepository(get(), get()) }
-    
+
     // 或更简洁
     singleOf(::UserRepository)
 }
@@ -1253,10 +1240,10 @@ val appModule = module {
     singleOf(::UserApi)
     singleOf(::UserDao)
     singleOf(::UserRepository)
-    
+
     // 工厂
     factoryOf(::UserAdapter)
-    
+
     // 绑定接口
     singleOf(::UserRepositoryImpl) bind UserRepository::class
 }
@@ -1274,52 +1261,34 @@ val session: UserSession = get { parametersOf("userId123") }
 
 ### 4.6 作用域
 
+作用域决定缓存实例的容器，不自动等于 Activity/账号生命周期。下面用显式登录 session 演示创建、解析与关闭；业务管理者在登录时创建、注销时关闭，不把会话状态放在应用级 single 中永久保留。
+
 ```kotlin
-// ==================== 定义作用域 ====================
-val appModule = module {
-    // 定义作用域
-    scope<MainActivity> {
-        scoped { ActivityPresenter() }
-        scoped { ActivityAdapter() }
-    }
-    
-    scope<UserFragment> {
-        scoped { FragmentPresenter() }
+import org.koin.core.Koin
+import org.koin.core.qualifier.named
+import org.koin.core.scope.Scope
+import org.koin.dsl.module
+
+class SessionCart { val productIds = mutableListOf<String>() }
+val sessionModule = module {
+    scope(named("login-session")) {
+        scoped { SessionCart() }
     }
 }
-
-// ==================== 使用作用域 ====================
-class MainActivity : AppCompatActivity() {
-    
-    private val scope = createScope(this)
-    
-    private val presenter: ActivityPresenter by scope.inject()
-    private val adapter: ActivityAdapter by scope.inject()
-    
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        // ...
+class LoginSession(private val koin: Koin) : AutoCloseable {
+    private var scope: Scope? = null
+    fun begin() {
+        close()
+        scope = koin.createScope(java.util.UUID.randomUUID().toString(), named("login-session"))
     }
-    
-    override fun onDestroy() {
-        super.onDestroy()
-        scope.close()  // 销毁作用域
-    }
-}
-
-// ==================== 作用域链接 ====================
-class MainActivity : AppCompatActivity() {
-    
-    private val activityScope = createScope(this)
-    
-    fun navigateToFragment() {
-        val fragment = UserFragment().apply {
-            // 链接作用域，Fragment 可以访问 Activity 的依赖
-            linkScope(activityScope)
-        }
-    }
+    fun cart(): SessionCart = requireNotNull(scope) { "尚未登录" }.get()
+    override fun close() { scope?.close(); scope = null }
 }
 ```
+
+关闭作用域后不要继续使用外部保存的旧 cart。Scope.close 清理容器不等于关闭任意数据库、线程池或网络流；需要释放的资源由业务所有者显式关闭，或通过该版本的 onClose 定义配套清理。UI 线程约束与线程安全也不由 scoped 自动提供。
+
+参考：[Koin scopes](https://insert-koin.io/docs/reference/koin-core/scopes/)。
 
 ### 4.7 属性注入
 
@@ -1333,10 +1302,10 @@ val appModule = module {
 class MyApplication : Application() {
     override fun onCreate() {
         super.onCreate()
-        
+
         startKoin {
             androidContext(this@MyApplication)
-            
+
             // 加载属性
             properties(
                 mapOf(
@@ -1344,7 +1313,7 @@ class MyApplication : Application() {
                     "debug" to true
                 )
             )
-            
+
             modules(appModule)
         }
     }
@@ -1362,15 +1331,15 @@ class UserRepository {
 ```kotlin
 // ==================== 单元测试 ====================
 class UserRepositoryTest : KoinTest {
-    
+
     @get:Rule
     val koinTestRule = KoinTestRule.create {
         modules(testModule)
     }
-    
+
     // 注入
     private val userRepository: UserRepository by inject()
-    
+
     @Test
     fun testGetUser() {
         val user = userRepository.getUser("123")
@@ -1380,80 +1349,120 @@ class UserRepositoryTest : KoinTest {
 
 // ==================== Mock 替换 ====================
 class UserViewModelTest : KoinTest {
-    
+
     private val mockRepository: UserRepository = mockk()
-    
+
     @get:Rule
     val koinTestRule = KoinTestRule.create {
         modules(module {
             single<UserRepository> { mockRepository }
         })
     }
-    
+
     @Test
     fun testLoadUser() {
         every { mockRepository.getUser("123") } returns User("123", "张三")
-        
+
         val viewModel: UserViewModel by viewModel()
         viewModel.loadUser("123")
-        
+
         verify { mockRepository.getUser("123") }
     }
 }
 
-// ==================== checkModules ====================
+// ==================== verify：JVM 测试中的结构验证 ====================
+// 使用与运行库匹配的 koin-test；此 API 从 Koin 3.3+ 提供。
+
 class ModuleCheckTest {
     @Test
     fun checkKoinModules() {
-        koinApplication {
-            modules(appModule)
-            checkModules()  // 检查所有依赖是否可解析
-        }
+        appModule.verify()
     }
 }
 ```
+
+`verify()` 是 JVM 上的配置结构检查，不会执行全部业务路径，也不证明运行时参数、Android Context、协程和作用域生命周期正确。需要额外类型/注入参数的定义应按对应版本的验证 API 声明，再补运行测试。
+
+来源：[Koin verify 与 checkModules 边界](https://insert-koin.io/docs/reference/koin-test/verify/)。
 
 ### 4.9 Compose 支持
 
-```kotlin
-// ==================== Compose 注入 ====================
-@Composable
-fun UserScreen() {
-    // ViewModel
-    val viewModel: UserViewModel = koinViewModel()
-    
-    // 或带参数
-    val detailViewModel: UserDetailViewModel = koinViewModel { 
-        parametersOf("userId123") 
-    }
-    
-    // 普通依赖
-    val userRepository: UserRepository = koinInject()
-    
-    // ...
-}
+Compose 页面应接收状态和动作，而不是在每次重组创建根容器。Koin 3.5.0 可以沿用 Android 的 ViewModel 集成：Application 初始化一次容器，Activity 通过 `by viewModel()` 获取由 ViewModelStore 管理的实例，再传入 Compose。这样也能让预览使用简单假数据。
 
-// ==================== KoinApplication ====================
-@Composable
-fun App() {
-    KoinApplication(
-        application = koinApplication {
-            modules(appModule)
-        }
-    ) {
-        // 子组件可以使用 Koin
-        UserScreen()
+```kotlin
+import android.app.Application
+import android.os.Bundle
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.lifecycle.ViewModel
+import org.koin.android.ext.koin.androidContext
+import org.koin.androidx.viewmodel.dsl.viewModel
+import org.koin.androidx.viewmodel.ext.android.viewModel
+import org.koin.core.context.startKoin
+import org.koin.dsl.module
+
+interface GreetingSource { fun title(): String }
+class LocalGreetingSource : GreetingSource { override fun title() = "你好，Android" }
+class GreetingViewModel(source: GreetingSource) : ViewModel() { val title = source.title() }
+val greetingModule = module {
+    single<GreetingSource> { LocalGreetingSource() }
+    viewModel { GreetingViewModel(get()) }
+}
+class GreetingApplication : Application() {
+    override fun onCreate() {
+        super.onCreate()
+        startKoin { androidContext(this@GreetingApplication); modules(greetingModule) }
     }
+}
+class GreetingActivity : ComponentActivity() {
+    private val model: GreetingViewModel by viewModel()
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContent { GreetingScreen(model.title) }
+    }
+}
+@Composable
+fun GreetingScreen(title: String) { Text(title) }
+```
+
+清单注册 GreetingApplication/Activity，依赖 `koin-android:3.5.0` 以及工程自己的 Compose runtime/Material3 配置。动态状态用 `collectAsStateWithLifecycle` 收集，不在重组中重复 startKoin。导航图需要独立 ViewModel 时，按目的地 owner 获取，不能把 Activity 级 ViewModel 当成每个详情页独立实例。
+
+参考：[Koin Android ViewModel](https://insert-koin.io/docs/reference/koin-android/viewmodel/)、[Compose 生命周期](https://developer.android.com/develop/ui/compose/lifecycle)。
+
+#### 4.9.1 在 Compose 目的地获取 ViewModel
+
+使用 `koin-androidx-compose:3.5.0` 时，也可以直接按当前 LocalViewModelStoreOwner 获取；同一个 owner 下不同详情实例使用稳定 key 区分。parameters 仅参与首次创建，参数变化不会自动重建相同 key 的实例。
+
+```kotlin
+import androidx.compose.runtime.Composable
+import org.koin.androidx.compose.koinViewModel
+import org.koin.core.parameter.parametersOf
+
+// 前面的 module 中注册：viewModel { (id: String) -> DetailViewModel(get(), id) }
+class DetailViewModel(source: GreetingSource, val id: String) : ViewModel() {
+    val title = "${source.title()} - $id"
+}
+@Composable
+fun DetailRoute(id: String) {
+    val model: DetailViewModel = koinViewModel(
+        key = "detail:$id",
+        parameters = { parametersOf(id) }
+    )
+    GreetingScreen(model.title)
 }
 ```
 
----
+`koinViewModel` 最终使用 owner 的 ViewModelStore 解析实例；导航目的地销毁后由该 owner 清理 ViewModel。应用级容器继续由 Application 初始化一次，不在每个 Route 中另开根容器。
+
+发布源码：`koin-androidx-compose:3.5.0` 的 source JAR 中 `org/koin/androidx/compose/ViewModel.kt`，以及 `koin-android:3.5.0` 的 ViewModel 解析实现。参考：[3.5.0 source JAR](https://repo.maven.apache.org/maven2/io/insert-koin/koin-androidx-compose/3.5.0/koin-androidx-compose-3.5.0-sources.jar)。
 
 ## 5. Dagger2 详解
 
 ### 5.1 Dagger2 概述
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         Dagger2 简介                                        │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1501,13 +1510,13 @@ class UserRepository @Inject constructor(
 
 // ② 字段注入（用于无法构造函数注入的场景，如 Activity）
 class MainActivity : AppCompatActivity() {
-    
+
     @Inject
     lateinit var userRepository: UserRepository
-    
+
     @Inject
     lateinit var analytics: AnalyticsService
-    
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // 需要手动调用注入
@@ -1520,7 +1529,7 @@ class UserManager @Inject constructor(
     private val api: UserApi
 ) {
     private lateinit var context: Context
-    
+
     @Inject
     fun init(context: Context) {
         this.context = context
@@ -1531,24 +1540,24 @@ class UserManager @Inject constructor(
 
 #### 5.2.2 @Module 的三种形式
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         @Module 三种形式                                    │
 └─────────────────────────────────────────────────────────────────────────────┘
 
   @Module 可以标注：object、class、abstract class
   ─────────────────────────────────────────────────────────────────────────
-  
+
   object：
   - 天然单例，Dagger 不需要创建实例
   - 适合无状态的 Provider
   - 最常用的形式
-  
+
   class：
   - 可以有构造参数
   - 可以有状态
   - Dagger 会自动创建实例（如果无参）
-  
+
   abstract class：
   - 用于 @Binds 方法
   - @Binds 必须是抽象方法
@@ -1559,13 +1568,13 @@ class UserManager @Inject constructor(
 // ==================== 1. object Module（最常用）====================
 @Module
 object NetworkModule {
-    
+
     @Provides
     @Singleton
     fun provideOkHttpClient(): OkHttpClient {
         return OkHttpClient.Builder().build()
     }
-    
+
     @Provides
     fun provideApiService(): ApiService = ApiService()
 }
@@ -1590,7 +1599,7 @@ public final class DaggerAppComponent {
 // 情况 2.1：无参 class - Dagger 自动创建实例
 @Module
 class AnalyticsModule {  // 无参
-    
+
     @Provides
     @Singleton
     fun provideAnalytics(): Analytics {
@@ -1610,7 +1619,7 @@ val appComponent = DaggerAppComponent.create()
 class DatabaseModule(
     private val databaseName: String  // 有参
 ) {
-    
+
     @Provides
     @Singleton
     fun provideDatabase(context: Context): Database {
@@ -1646,7 +1655,7 @@ val appComponent = DaggerAppComponent.builder()
 // 无参 class Module 生成代码：
 public final class DaggerAppComponent implements AppComponent {
     private AnalyticsModule analyticsModule;  // Dagger 自动创建
-    
+
     private DaggerAppComponent() {
         this.analyticsModule = new AnalyticsModule();  // 自动 new
     }
@@ -1655,19 +1664,19 @@ public final class DaggerAppComponent implements AppComponent {
 // 有参 class Module 生成代码：
 public final class DaggerAppComponent implements AppComponent {
     private DatabaseModule databaseModule;  // 需要外部传入
-    
+
     private DaggerAppComponent(Builder builder) {
         this.databaseModule = builder.databaseModule;  // 从 Builder 获取
     }
-    
+
     public static final class Builder {
         private DatabaseModule databaseModule;
-        
+
         public Builder databaseModule(DatabaseModule module) {
             this.databaseModule = module;
             return this;
         }
-        
+
         public AppComponent build() {
             if (databaseModule == null) {
                 throw new IllegalStateException("DatabaseModule must be set");
@@ -1680,12 +1689,12 @@ public final class DaggerAppComponent implements AppComponent {
 // ==================== 3. abstract class Module（@Binds 专用）====================
 @Module
 abstract class RepositoryModule {
-    
+
     // @Binds 必须在抽象类中
     @Binds
     @Singleton
     abstract fun bindUserRepository(impl: UserRepositoryImpl): UserRepository
-    
+
     @Binds
     @Singleton
     abstract fun bindOrderRepository(impl: OrderRepositoryImpl): OrderRepository
@@ -1699,12 +1708,12 @@ abstract class RepositoryModule {
 // ==================== 4. 混合使用（abstract + companion object）====================
 @Module
 abstract class MixedModule {
-    
+
     // @Binds：简单绑定
     @Binds
     @Singleton
     abstract fun bindUserRepository(impl: UserRepositoryImpl): UserRepository
-    
+
     companion object {
         // @Provides：需要逻辑的绑定
         @Provides
@@ -1725,7 +1734,7 @@ abstract class MixedModule {
 // ==================== Module 定义 ====================
 @Module
 object NetworkModule {
-    
+
     @Provides
     @Singleton
     fun provideOkHttpClient(): OkHttpClient {
@@ -1734,7 +1743,7 @@ object NetworkModule {
             .connectTimeout(30, TimeUnit.SECONDS)
             .build()
     }
-    
+
     @Provides
     @Singleton
     fun provideRetrofit(client: OkHttpClient): Retrofit {
@@ -1744,17 +1753,24 @@ object NetworkModule {
             .addConverterFactory(GsonConverterFactory.create())
             .build()
     }
-    
+
     @Provides
     fun provideUserApi(retrofit: Retrofit): UserApi {
         return retrofit.create(UserApi::class.java)
     }
 }
 
+```
+
+#### 5.2.4 @Binds - 接口绑定
+
+`@Binds` 声明接口到可注入实现的映射，不执行手动构造逻辑。
+
+```kotlin
 // ==================== 抽象 Module（使用 @Binds）====================
 @Module
 abstract class RepositoryModule {
-    
+
     // @Binds 比 @Provides 更高效，生成更少的代码
     @Binds
     @Singleton
@@ -1764,7 +1780,7 @@ abstract class RepositoryModule {
 // 等价的 @Provides 写法
 @Module
 object RepositoryModule {
-    
+
     @Provides
     @Singleton
     fun provideUserRepository(impl: UserRepositoryImpl): UserRepository = impl
@@ -1820,11 +1836,11 @@ annotation class Remote
 
 @Module
 abstract class DataSourceModule {
-    
+
     @Binds
     @Local
     abstract fun bindLocalDataSource(impl: LocalDataSource): DataSource
-    
+
     @Binds
     @Remote
     abstract fun bindRemoteDataSource(impl: RemoteDataSource): DataSource
@@ -1834,12 +1850,12 @@ abstract class DataSourceModule {
 
 @Module
 abstract class MixedModule {
-    
+
     // @Binds：简单绑定
     @Binds
     @Singleton
     abstract fun bindUserRepository(impl: UserRepositoryImpl): UserRepository
-    
+
     companion object {
         // @Provides：需要逻辑的绑定
         @Provides
@@ -1856,24 +1872,24 @@ abstract class MixedModule {
 
 #### 5.2.5 @Component - 连接器
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         @Component 类型选择                                 │
 └─────────────────────────────────────────────────────────────────────────────┘
 
   @Component 可以标注：interface、abstract class
   ─────────────────────────────────────────────────────────────────────────
-  
+
   interface（推荐）：
   - Dagger 生成实现类（DaggerXXX implements XXX）
   - 只定义契约，不关心实现
   - 更清晰的 API 设计
   - 无法实例化，强制使用 Dagger 生成
-  
+
   abstract class（不推荐）：
   - Dagger 生成子类（DaggerXXX extends XXX）
   - 可行，但没有额外好处
-  
+
   普通 class（不支持）：
   - 编译错误！
   - Dagger 需要生成子类，普通类无法继承
@@ -1884,17 +1900,17 @@ abstract class MixedModule {
 @Singleton
 @Component(modules = [NetworkModule::class, DatabaseModule::class, RepositoryModule::class])
 interface AppComponent {
-    
+
     // 注入方法（方法名不重要，参数类型重要）
     fun inject(activity: MainActivity)
     fun inject(fragment: UserFragment)
     fun inject(service: MyService)
-    
+
     // 暴露依赖给子组件或其他调用者
     fun userRepository(): UserRepository
     fun apiService(): ApiService
     fun database(): AppDatabase
-    
+
     // 子组件工厂
     fun userComponent(): UserComponent.Factory
 }
@@ -1918,7 +1934,7 @@ public final class DaggerAppComponent implements AppComponent {
 @Singleton
 @Component(modules = [NetworkModule::class])
 abstract class AppComponent {
-    
+
     abstract fun inject(activity: MainActivity)
     abstract fun userRepository(): UserRepository
 }
@@ -1938,9 +1954,9 @@ class AppComponent {
 @Singleton
 @Component(modules = [AppModule::class])
 interface AppComponent {
-    
+
     fun inject(activity: MainActivity)
-    
+
     @Component.Factory
     interface Factory {
         fun create(@BindsInstance application: Application): AppComponent
@@ -1954,7 +1970,7 @@ val appComponent = DaggerAppComponent.factory().create(application)
 @Singleton
 @Component(modules = [AppModule::class])
 interface AppComponent {
-    
+
     @Component.Builder
     interface Builder {
         @BindsInstance
@@ -1971,7 +1987,7 @@ val appComponent = DaggerAppComponent.builder()
 
 #### 5.2.6 Module 和 Component 类型选择总结
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         Module 和 Component 类型选择                        │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -2031,7 +2047,7 @@ annotation class UserSessionScope
 
 #### 5.3.2 Scope 规则
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         Scope 规则                                          │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -2041,15 +2057,15 @@ annotation class UserSessionScope
   // ✅ 正确
   @Singleton
   class UserRepository @Inject constructor()
-  
+
   @Singleton
   @Component
   interface AppComponent { }
-  
+
   // ❌ 错误：Component 没有标注
   @Singleton
   class UserRepository @Inject constructor()
-  
+
   @Component  // 缺少 @Singleton
   interface AppComponent { }
 
@@ -2067,7 +2083,7 @@ annotation class UserSessionScope
   @Singleton
   @Component
   interface AppComponent { }
-  
+
   @Singleton  // 编译错误！不能复用
   @Subcomponent
   interface ActivityComponent { }
@@ -2076,17 +2092,17 @@ annotation class UserSessionScope
   ─────────────────────────────────────────────────────────────────────────
   val component1 = DaggerActivityComponent.create()
   val repo1 = component1.userRepository()  // 实例 A
-  
+
   val component2 = DaggerActivityComponent.create()
   val repo2 = component2.userRepository()  // 实例 B
-  
+
   // repo1 !== repo2，不同 Component 实例
 
   规则 5：无 @Scope 时的行为
   ─────────────────────────────────────────────────────────────────────────
-  
+
   没有 @Scope 时，依赖是 Unscoped 的，每次请求都会创建新实例：
-  
+
   ┌───────────────────┬──────────────────────────┬─────────────────────────┐
   │      情况          │        行为              │      生成代码            │
   ├───────────────────┼──────────────────────────┼─────────────────────────┤
@@ -2123,9 +2139,9 @@ val repo2 = appComponent.userRepository()  // 新实例 B
 
 // 无 Scope 生成的代码：
 public final class DaggerAppComponent implements AppComponent {
-    
+
     // 没有 Provider 缓存！
-    
+
     @Override
     public UserRepository userRepository() {
         // 每次直接创建新实例
@@ -2135,16 +2151,16 @@ public final class DaggerAppComponent implements AppComponent {
 
 // 有 Scope 生成的代码：
 public final class DaggerAppComponent implements AppComponent {
-    
+
     // 有缓存！用 DoubleCheck 包装
     private Provider<UserRepository> userRepositoryProvider;
-    
+
     private void initialize() {
         this.userRepositoryProvider = DoubleCheck.provider(
             UserRepository_Factory.create(userApiProvider)
         );
     }
-    
+
     @Override
     public UserRepository userRepository() {
         // 返回缓存的实例
@@ -2242,18 +2258,18 @@ interface ActivityComponent {
 @Singleton
 @Component(modules = [AppModule::class, NetworkModule::class])
 interface AppComponent {
-    
+
     // 暴露全局依赖
     fun context(): Context
     fun database(): Database
-    
+
     // 子组件工厂
     fun userSessionComponent(): UserSessionComponent.Factory
 }
 
 @Module(subcomponents = [UserSessionComponent::class])
 object AppModule {
-    
+
     @Provides
     @Singleton
     fun provideContext(app: Application): Context = app
@@ -2263,13 +2279,13 @@ object AppModule {
 @UserSessionScope
 @Subcomponent(modules = [UserSessionModule::class])
 interface UserSessionComponent {
-    
+
     fun userRepository(): UserRepository
     fun cartManager(): CartManager
-    
+
     // 子组件工厂
     fun activityComponent(): ActivityComponent.Factory
-    
+
     @Subcomponent.Factory
     interface Factory {
         fun create(@BindsInstance user: User): UserSessionComponent
@@ -2278,7 +2294,7 @@ interface UserSessionComponent {
 
 @Module(subcomponents = [ActivityComponent::class])
 object UserSessionModule {
-    
+
     @Provides
     @UserSessionScope
     fun provideUserRepository(user: User): UserRepository = UserRepository(user)
@@ -2288,10 +2304,10 @@ object UserSessionModule {
 @ActivityScope
 @Subcomponent(modules = [ActivityModule::class])
 interface ActivityComponent {
-    
+
     fun inject(activity: MainActivity)
     fun orderManager(): OrderManager
-    
+
     @Subcomponent.Factory
     interface Factory {
         fun create(@BindsInstance activity: Activity): ActivityComponent
@@ -2300,7 +2316,7 @@ interface ActivityComponent {
 
 @Module
 object ActivityModule {
-    
+
     @Provides
     @ActivityScope
     fun provideOrderManager(cartManager: CartManager): OrderManager = OrderManager(cartManager)
@@ -2308,45 +2324,45 @@ object ActivityModule {
 
 // ==================== 使用 ====================
 class MyApplication : Application() {
-    
+
     lateinit var appComponent: AppComponent
     var userSessionComponent: UserSessionComponent? = null
-    
+
     override fun onCreate() {
         super.onCreate()
         appComponent = DaggerAppComponent.create()
     }
-    
+
     fun userLogin(user: User) {
         userSessionComponent = appComponent.userSessionComponent().create(user)
     }
-    
+
     fun userLogout() {
         userSessionComponent = null
     }
 }
 
 class MainActivity : AppCompatActivity() {
-    
+
     @Inject
     lateinit var orderManager: OrderManager  // @ActivityScope
-    
+
     @Inject
     lateinit var userRepository: UserRepository  // @UserSessionScope
-    
+
     private var activityComponent: ActivityComponent? = null
-    
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        
+
         activityComponent = (application as MyApplication)
             .userSessionComponent!!
             .activityComponent()
             .create(this)
-        
+
         activityComponent?.inject(this)
     }
-    
+
     override fun onDestroy() {
         super.onDestroy()
         activityComponent = null
@@ -2388,11 +2404,11 @@ annotation class Internal  // 内部实现
 // ==================== 使用限定符 ====================
 @Module
 object CoroutinesModule {
-    
+
     @Provides
     @IoDispatcher
     fun provideIoDispatcher(): CoroutineDispatcher = Dispatchers.IO
-    
+
     @Provides
     @MainDispatcher
     fun provideMainDispatcher(): CoroutineDispatcher = Dispatchers.Main
@@ -2400,11 +2416,11 @@ object CoroutinesModule {
 
 @Module
 object ContextModule {
-    
+
     @Provides
     @ApplicationContext
     fun provideApplicationContext(app: Application): Context = app
-    
+
     @Provides
     @ActivityContext
     fun provideActivityContext(activity: Activity): Context = activity
@@ -2433,11 +2449,11 @@ annotation class RemoteSource
 
 @Module
 object DataSourceModule {
-    
+
     @Provides
     @LocalSource
     fun provideLocalDataSource(): DataSource = LocalDataSource()
-    
+
     @Provides
     @RemoteSource
     fun provideRemoteDataSource(): DataSource = RemoteDataSource()
@@ -2457,7 +2473,7 @@ class DataRepository @Inject constructor(
 
 #### 5.5.1 Subcomponent 概念
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         Subcomponent vs Component Dependencies              │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -2484,14 +2500,14 @@ class DataRepository @Inject constructor(
 @Singleton
 @Component(modules = [AppModule::class])
 interface AppComponent {
-    
+
     // 声明子组件工厂
     fun activityComponent(): ActivityComponent.Factory
 }
 
 @Module(subcomponents = [ActivityComponent::class])  // 注册子组件
 object AppModule {
-    
+
     @Provides
     @Singleton
     fun provideDatabase(): Database = Database()
@@ -2501,12 +2517,12 @@ object AppModule {
 @ActivityScope
 @Subcomponent(modules = [ActivityModule::class])
 interface ActivityComponent {
-    
+
     fun inject(activity: MainActivity)
-    
+
     // 声明孙组件工厂
     fun fragmentComponent(): FragmentComponent.Factory
-    
+
     @Subcomponent.Factory
     interface Factory {
         fun create(
@@ -2520,9 +2536,9 @@ interface ActivityComponent {
 @FragmentScope
 @Subcomponent(modules = [FragmentModule::class])
 interface FragmentComponent {
-    
+
     fun inject(fragment: LoginFragment)
-    
+
     @Subcomponent.Factory
     interface Factory {
         fun create(): FragmentComponent
@@ -2531,33 +2547,33 @@ interface FragmentComponent {
 
 // ==================== 使用 ====================
 class MainActivity : AppCompatActivity() {
-    
+
     @Inject
     lateinit var database: Database  // 来自父组件 @Singleton
-    
+
     @Inject
     lateinit var activityDependency: ActivityDependency  // @ActivityScope
-    
+
     private var activityComponent: ActivityComponent? = null
-    
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        
+
         // 通过父组件创建子组件
         activityComponent = (application as MyApplication)
             .appComponent
             .activityComponent()
             .create(this)
-        
+
         activityComponent?.inject(this)
     }
 }
 
 class LoginFragment : Fragment() {
-    
+
     @Inject
     lateinit var fragmentDependency: FragmentDependency  // @FragmentScope
-    
+
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         // 通过 Activity 组件创建 Fragment 组件
         (requireActivity() as MainActivity)
@@ -2573,7 +2589,7 @@ class LoginFragment : Fragment() {
 
 #### 5.6.1 概念对比
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         Subcomponent vs Dependencies                        │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -2585,7 +2601,7 @@ class LoginFragment : Fragment() {
               │ 自动继承所有依赖
               ▼
          ActivityComponent (子)
-         
+
   Component Dependencies（组合）：
   ─────────────────────────────────────────────────────────────────────────
          AppComponent
@@ -2602,7 +2618,7 @@ class LoginFragment : Fragment() {
 @Singleton
 @Component(modules = [AppModule::class])
 interface AppComponent {
-    
+
     // 必须显式暴露，子组件才能访问
     fun context(): Context
     fun database(): Database
@@ -2617,9 +2633,9 @@ interface AppComponent {
     modules = [ActivityModule::class]
 )
 interface ActivityComponent {
-    
+
     fun inject(activity: MainActivity)
-    
+
     @Component.Factory
     interface Factory {
         fun create(
@@ -2631,15 +2647,15 @@ interface ActivityComponent {
 
 // ==================== 使用 ====================
 class MainActivity : AppCompatActivity() {
-    
+
     @Inject
     lateinit var userRepository: UserRepository  // 来自 AppComponent（必须显式暴露）
-    
+
     private var activityComponent: ActivityComponent? = null
-    
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        
+
         // 创建子组件，手动传入父组件
         activityComponent = DaggerActivityComponent
             .factory()
@@ -2647,7 +2663,7 @@ class MainActivity : AppCompatActivity() {
                 appComponent = (application as MyApplication).appComponent,
                 activity = this
             )
-        
+
         activityComponent?.inject(this)
     }
 }
@@ -2655,7 +2671,7 @@ class MainActivity : AppCompatActivity() {
 
 #### 5.6.3 选择建议
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         何时使用 Subcomponent vs Dependencies               │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -2681,14 +2697,14 @@ class MainActivity : AppCompatActivity() {
 
 #### 5.7.1 概念
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         依赖提升（Scope 桥接）                               │
 └─────────────────────────────────────────────────────────────────────────────┘
 
   问题：如何将子组件 Scope 的依赖，提升到父组件 Scope？
   ─────────────────────────────────────────────────────────────────────────
-  
+
   @CoordinatorScope（子组件）
           │
           │  factory.create().dependency
@@ -2707,10 +2723,10 @@ class MainActivity : AppCompatActivity() {
 @CoordinatorScope
 @Subcomponent(modules = [InternalModule::class])
 interface CoordinatorComponent {
-    
+
     @get:Internal
     val coordinator: Coordinator
-    
+
     @Subcomponent.Factory
     interface Factory {
         fun create(): CoordinatorComponent
@@ -2719,7 +2735,7 @@ interface CoordinatorComponent {
 
 @Module
 abstract class InternalModule {
-    
+
     @Binds
     @Internal
     abstract fun bindCoordinator(impl: CoordinatorImpl): Coordinator
@@ -2728,7 +2744,7 @@ abstract class InternalModule {
 // ==================== 父组件模块（提升依赖）====================
 @Module(subcomponents = [CoordinatorComponent::class])
 object CoordinatorModule {
-    
+
     @Singleton  // 提升到 Singleton 级别
     @Provides
     fun provideCoordinator(factory: CoordinatorComponent.Factory): Coordinator =
@@ -2787,11 +2803,11 @@ annotation class Internal
 // ==================== AppModule ====================
 @Module(subcomponents = [UserSessionComponent::class])
 object AppModule {
-    
+
     @Provides
     @Singleton
     fun provideContext(app: Application): Context = app.applicationContext
-    
+
     @Provides
     @Singleton
     fun provideSharedPreferences(@ApplicationContext context: Context): SharedPreferences =
@@ -2801,7 +2817,7 @@ object AppModule {
 // ==================== NetworkModule ====================
 @Module
 object NetworkModule {
-    
+
     @Provides
     @Singleton
     fun provideOkHttpClient(): OkHttpClient =
@@ -2811,7 +2827,7 @@ object NetworkModule {
                 level = HttpLoggingInterceptor.Level.BODY
             })
             .build()
-    
+
     @Provides
     @Singleton
     fun provideRetrofit(client: OkHttpClient): Retrofit =
@@ -2820,7 +2836,7 @@ object NetworkModule {
             .client(client)
             .addConverterFactory(GsonConverterFactory.create())
             .build()
-    
+
     @Provides
     @Singleton
     fun provideApiService(retrofit: Retrofit): ApiService =
@@ -2830,12 +2846,12 @@ object NetworkModule {
 // ==================== CoroutinesModule ====================
 @Module
 object CoroutinesModule {
-    
+
     @Provides
     @Singleton
     @IoDispatcher
     fun provideIoDispatcher(): CoroutineDispatcher = Dispatchers.IO
-    
+
     @Provides
     @Singleton
     @MainDispatcher
@@ -2845,7 +2861,7 @@ object CoroutinesModule {
 // ==================== RepositoryModule ====================
 @Module
 abstract class RepositoryModule {
-    
+
     @Binds
     @Singleton
     abstract fun bindUserRepository(impl: UserRepositoryImpl): UserRepository
@@ -2862,15 +2878,15 @@ abstract class RepositoryModule {
     ]
 )
 interface AppComponent {
-    
+
     // 暴露全局依赖
     fun context(): Context
     fun apiService(): ApiService
     fun userRepository(): UserRepository
-    
+
     // 子组件工厂
     fun userSessionComponent(): UserSessionComponent.Factory
-    
+
     @Component.Factory
     interface Factory {
         fun create(@BindsInstance application: Application): AppComponent
@@ -2881,11 +2897,11 @@ interface AppComponent {
 @UserSessionScope
 @Subcomponent(modules = [UserSessionModule::class])
 interface UserSessionComponent {
-    
+
     fun cartManager(): CartManager
-    
+
     fun activityComponent(): ActivityComponent.Factory
-    
+
     @Subcomponent.Factory
     interface Factory {
         fun create(@BindsInstance user: User): UserSessionComponent
@@ -2894,7 +2910,7 @@ interface UserSessionComponent {
 
 @Module(subcomponents = [ActivityComponent::class])
 object UserSessionModule {
-    
+
     @Provides
     @UserSessionScope
     fun provideCartManager(user: User): CartManager = CartManager(user)
@@ -2904,10 +2920,10 @@ object UserSessionModule {
 @ActivityScope
 @Subcomponent(modules = [ActivityModule::class])
 interface ActivityComponent {
-    
+
     fun inject(activity: MainActivity)
     fun inject(fragment: CartFragment)
-    
+
     @Subcomponent.Factory
     interface Factory {
         fun create(@BindsInstance activity: Activity): ActivityComponent
@@ -2916,7 +2932,7 @@ interface ActivityComponent {
 
 @Module
 object ActivityModule {
-    
+
     @Provides
     @ActivityScope
     fun provideOrderManager(cartManager: CartManager): OrderManager = OrderManager(cartManager)
@@ -2924,19 +2940,19 @@ object ActivityModule {
 
 // ==================== Application ====================
 class MyApplication : Application() {
-    
+
     lateinit var appComponent: AppComponent
     var userSessionComponent: UserSessionComponent? = null
-    
+
     override fun onCreate() {
         super.onCreate()
         appComponent = DaggerAppComponent.factory().create(this)
     }
-    
+
     fun userLogin(user: User) {
         userSessionComponent = appComponent.userSessionComponent().create(user)
     }
-    
+
     fun userLogout() {
         userSessionComponent = null
     }
@@ -2944,32 +2960,32 @@ class MyApplication : Application() {
 
 // ==================== 使用示例 ====================
 class MainActivity : AppCompatActivity() {
-    
+
     @Inject
     lateinit var userRepository: UserRepository  // @Singleton
-    
+
     @Inject
     lateinit var cartManager: CartManager  // @UserSessionScope
-    
+
     @Inject
     lateinit var orderManager: OrderManager  // @ActivityScope
-    
+
     private var activityComponent: ActivityComponent? = null
-    
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        
+
         activityComponent = (application as MyApplication)
             .userSessionComponent!!
             .activityComponent()
             .create(this)
-        
+
         activityComponent?.inject(this)
-        
+
         // 所有依赖已注入
         userRepository.getUser("123")
     }
-    
+
     override fun onDestroy() {
         super.onDestroy()
         activityComponent = null
@@ -2979,7 +2995,7 @@ class MainActivity : AppCompatActivity() {
 
 ### 5.9 Dagger2 vs Hilt
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         Dagger2 vs Hilt                                     │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -3026,24 +3042,25 @@ class MainActivity : AppCompatActivity() {
 
 ### 5.10 常见问题
 
-```
+```text
 Q1: @Singleton 真的是单例吗？
 ─────────────────────────────────────────────────────────────────────────
 A: 是的，但范围限于 Component 生命周期
-   - SingletonComponent：Application 级单例
-   - ActivityComponent：Activity 级单例
+   - Hilt SingletonComponent 中的 @Singleton：该组件实例内复用，通常为应用进程生命周期
+   - Hilt ActivityComponent 使用 @ActivityScoped，不是 @Singleton
+   - @Singleton 不保证跨进程唯一，也不自动保证线程安全
    - 注意：不同 Component 实例中的 @Singleton 是不同的实例
 
 Q2: Subcomponent 和 Component Dependencies 怎么选？
 ─────────────────────────────────────────────────────────────────────────
-A: 
+A:
    - 层级分明、共享大量父依赖：Subcomponent
    - 平行模块、需要控制暴露：Component Dependencies
    - 性能敏感：Subcomponent
 
 Q3: 为什么 Scope 必须同时标注在 Component 和依赖上？
 ─────────────────────────────────────────────────────────────────────────
-A: 
+A:
    - Component 上的 Scope：表示这个 Component 可以缓存该 Scope 的依赖
    - 依赖上的 Scope：表示这个依赖应该被缓存
    - 两者必须匹配，否则编译错误
@@ -3056,33 +3073,33 @@ A: 通过 Component 暴露的方法获取依赖
 
 Q5: 如何处理循环依赖？
 ─────────────────────────────────────────────────────────────────────────
-A: 
+A:
    1. 重新设计架构，避免循环依赖（推荐）
-   2. 使用 Lazy<T> 延迟获取
-   
-   class A @Inject constructor(private val b: Lazy<B>)
-   class B @Inject constructor(private val a: Lazy<A>)
-   
-   // 使用时
-   val bInstance = b.get()
+   2. 在确实需要延迟边的场景使用 dagger.Lazy<T>（不是 kotlin.Lazy）
+      若双方构造/初始化阶段立即调用 get()，仍不能解决循环；优先拆分职责
+
+   class A @Inject constructor(private val b: dagger.Lazy<B>)
+   class B @Inject constructor(private val a: dagger.Lazy<A>)
+
+   // 在持有 b 的类内部、真正使用时才调用 b.get()；不是在构造阶段解引用。
 
 Q6: @Binds 和 @Provides 有什么区别？
 ─────────────────────────────────────────────────────────────────────────
-A: 
+A:
    - @Binds：只用于接口绑定，生成更少代码，更高效
    - @Provides：可以执行任何逻辑，更灵活
-   
+
    // @Binds 只能用于抽象方法
    @Binds
    abstract fun bindRepository(impl: RepositoryImpl): Repository
-   
+
    // @Provides 可以有逻辑
    @Provides
    fun provideRepository(impl: RepositoryImpl): Repository = impl
 
 Q7: 如何调试 Dagger 问题？
 ─────────────────────────────────────────────────────────────────────────
-A: 
+A:
    1. 查看编译错误信息（Dagger 会给出详细错误）
    2. 查看 generated 目录下的生成代码
    3. 使用 kapt.showProcessorStats = true 查看处理时间
@@ -3093,7 +3110,7 @@ A:
 
 ## 6. 框架对比
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         依赖注入框架对比                                    │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -3120,22 +3137,22 @@ A:
 
   选择建议：
   ─────────────────────────────────────────────────────────────────────────
-  
+
   1. 新项目（Android）：
      - Java 项目：Hilt
      - Kotlin 项目：Hilt 或 Koin
-  
+
   2. 小型项目：
      - Koin（简单易用）
      - 手动 DI（无额外依赖）
-  
+
   3. 大型项目：
      - Hilt（Google 官方推荐）
      - Dagger2（极致性能）
-  
+
   4. 多平台项目：
      - Koin（Kotlin Multiplatform 支持）
-  
+
   5. 需要编译时检查：
      - Hilt 或 Dagger2
 ```
@@ -3240,7 +3257,7 @@ object CoroutinesModule {
     @Provides
     @IoDispatcher
     fun provideIoDispatcher(): CoroutineDispatcher = Dispatchers.IO
-    
+
     @Provides
     @MainDispatcher
     fun provideMainDispatcher(): CoroutineDispatcher = Dispatchers.Main
@@ -3250,7 +3267,7 @@ object CoroutinesModule {
 val appModule = module {
     single(named("io")) { Dispatchers.IO }
     single(named("main")) { Dispatchers.Main }
-    
+
     single { CoroutineDispatcherProvider(
         io = get(named("io")),
         main = get(named("main"))
@@ -3260,55 +3277,72 @@ val appModule = module {
 
 ### 7.4 测试策略
 
+依赖图检查、业务单元测试和 Android 容器集成测试解决不同问题。Koin verify 检查定义结构；Hilt 生成代码检查绑定；两者都不能代替运行协程和页面生命周期。
+
+下面直接构造 ViewModel，用 fake 仓库测试成功与失败。此测试不启动 Hilt/Koin，依赖 JUnit 4、与应用协程版本一致的 kotlinx-coroutines-test 以及 lifecycle-viewmodel-ktx。
+
 ```kotlin
-// ==================== Hilt 测试 ====================
-@HiltAndroidTest
-class UserViewModelTest {
-    
-    @get:Rule
-    var hiltRule = HiltAndroidRule(this)
-    
-    @BindValue
-    @JvmField
-    val mockRepository: UserRepository = mockk()
-    
-    @Inject
-    lateinit var viewModel: UserViewModel
-    
-    @Before
-    fun init() {
-        hiltRule.inject()
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import java.io.IOException
+import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.test.*
+import org.junit.Assert.assertEquals
+import org.junit.Test
+
+interface NameSource { suspend fun fetch(): String }
+class NameViewModel(private val source: NameSource) : ViewModel() {
+    private val mutable = MutableStateFlow("idle")
+    val state = mutable.asStateFlow()
+    fun load() = viewModelScope.launch {
+        mutable.value = "loading"
+        try { mutable.value = source.fetch() }
+        catch (cancelled: CancellationException) { throw cancelled }
+        catch (error: IOException) { mutable.value = "error" }
     }
 }
-
-// ==================== Koin 测试 ====================
-class UserViewModelTest : KoinTest {
-    
-    private val mockRepository: UserRepository = mockk()
-    
-    @get:Rule
-    val koinRule = KoinTestRule.create {
-        modules(module {
-            single<UserRepository> { mockRepository }
-        })
+@OptIn(ExperimentalCoroutinesApi::class)
+class NameViewModelTest {
+    @Test fun success() = runTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        try {
+            val model = NameViewModel(object : NameSource {
+                override suspend fun fetch(): String { delay(100); return "Alice" }
+            })
+            val job = model.load()
+            runCurrent()
+            assertEquals("loading", model.state.value)
+            advanceUntilIdle()
+            job.join()
+            assertEquals("Alice", model.state.value)
+        } finally { Dispatchers.resetMain() }
     }
-    
-    @Test
-    fun test() {
-        val viewModel: UserViewModel by viewModel()
-        // ...
+    @Test fun failure() = runTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        try {
+            val model = NameViewModel(object : NameSource {
+                override suspend fun fetch(): String = throw IOException("offline")
+            })
+            model.load()
+            advanceUntilIdle()
+            assertEquals("error", model.state.value)
+        } finally { Dispatchers.resetMain() }
     }
 }
 ```
 
----
+Hilt 集成测试使用 `@HiltAndroidTest`、HiltAndroidRule 与测试 Application；用 `@TestInstallIn` 替换生产模块。`@HiltViewModel` 应通过 ViewModelProvider/宿主 `by viewModels()` 获取，不能当普通字段直接 `@Inject lateinit var viewModel`。Koin 测试创建独立 `koinApplication` 并在 finally 中 close，避免全局容器污染下一条测试。
+
+参考：[协程测试](https://developer.android.com/kotlin/coroutines/test)、[Hilt 测试](https://dagger.dev/hilt/testing.html)、[Koin verify](https://insert-koin.io/docs/reference/koin-test/verify/)。
 
 ## 8. 常见问题
 
-```
+```text
 Q1: Hilt 和 Koin 怎么选？
 ─────────────────────────────────────────────────────────────────────────
-A: 
+A:
    - 编译时检查重要：Hilt
    - 简单易用优先：Koin
    - 团队熟悉 Dagger：Hilt
@@ -3317,8 +3351,9 @@ A:
 Q2: @Singleton 真的是单例吗？
 ─────────────────────────────────────────────────────────────────────────
 A: 是的，但范围限于 Component 生命周期
-   - SingletonComponent：Application 级单例
-   - ActivityComponent：Activity 级单例
+   - Hilt SingletonComponent 中的 @Singleton：该组件实例内复用，通常为应用进程生命周期
+   - Hilt ActivityComponent 使用 @ActivityScoped，不是 @Singleton
+   - @Singleton 不保证跨进程唯一，也不自动保证线程安全
    - 注意：不同 Component 中的 @Singleton 是不同的实例
 
 Q3: 为什么注入失败？
@@ -3338,7 +3373,7 @@ A: 使用 @EntryPoint 和 EntryPointAccessors
    interface MyEntryPoint {
        fun userRepository(): UserRepository
    }
-   
+
    val entryPoint = EntryPointAccessors.fromApplication(
        context, MyEntryPoint::class.java
    )
@@ -3350,15 +3385,15 @@ A: 不推荐。建议选择一个框架统一使用。
 
 Q6: 如何处理循环依赖？
 ─────────────────────────────────────────────────────────────────────────
-A: 
+A:
    1. 重新设计架构，避免循环依赖
    2. 使用 Lazy 注入
    3. 使用 Provider/Factory 延迟获取
 
    // Hilt
    @Inject
-   lateinit var lazyRepository: Lazy<UserRepository>
-   
+   lateinit var lazyRepository: dagger.Lazy<UserRepository>
+
    // Koin
    val repository: Lazy<UserRepository> = inject()
 
@@ -3372,7 +3407,7 @@ A:
    ) : ViewModel() {
        val userId: String = savedStateHandle["userId"] ?: ""
    }
-   
+
    Koin：使用 parametersOf
    viewModel { (userId: String) -> UserViewModel(get(), userId) }
    private val viewModel: UserViewModel by viewModel { parametersOf("123") }
@@ -3383,18 +3418,18 @@ A:
    Hilt：
    - 查看 generated 目录下的代码
    - 使用 kapt.showProcessorStats = true
-   
+
    Koin：
    - 使用 KoinLogger
-   - 调用 checkModules() 检查
-   - 使用 koin.dump() 打印依赖图
+   - 对匹配版本的模块使用 verify()，并补参数/作用域的运行测试
+   - 使用该版本公开的 logger 配置；不把非标准的 koin.dump() 当通用 API
 ```
 
 ---
 
 ## 9. 知识体系总结
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         依赖注入知识体系                                    │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -3427,3 +3462,21 @@ A:
 ---
 
 > 作者：OpenClaw | 日期：2026-03-13
+
+## 10. 对象所有权、失败路径与 Android 17
+
+### 10.1 容器复用不等于全局唯一
+
+Dagger 的 Scope 在具体 Component 实例中缓存绑定；Hilt 的 `@Singleton` 绑定到 SingletonComponent，`@ActivityScoped` 绑定到 ActivityComponent。ActivityRetainedComponent 跨配置变化保留，ActivityComponent 则随 Activity 重建；长寿命对象不能依赖更短寿命的 Activity/View。
+
+`dagger.Lazy<T>.get()` 延迟获取并在该 Lazy 包装器内缓存实例；Provider 每次 get 都请求解析，底层若是 scoped 绑定仍会得到同一实例。Kotlin `Lazy<T>.value` 是另一套接口，不能替代 Dagger 生成代码要求的类型。
+
+### 10.2 初始化失败与资源释放
+
+构造器适合建立廉价且确定的对象关系，不适合同步联网或读大数据库。把可能失败的启动动作暴露为 suspend 方法并返回业务状态；对象创建成功不意味着连接建立成功。数据库、流、注册的监听器和自建协程作用域由所有者关闭，容器丢弃引用不会自动调用任意 AutoCloseable.close。
+
+### 10.3 平台权限留在 UI 边界
+
+Android 17 本地网络权限由可见宿主发起授权，注入的 Repository 接收授权后的调用，不保存 Activity 用来弹权限框。后台任务与 native 依赖是否满足系统要求取决于其实际运行方式，与 DI 图能否生成是不同问题。诊断组件继续使用公开 Handler/Looper/Trace API，不反射 targetSdk 37 的 MessageQueue 私有结构。
+
+参考：[Hilt components](https://dagger.dev/hilt/components.html)、[Dagger Lazy API](https://dagger.dev/api/latest/dagger/Lazy.html)、[Android 17 行为变化](https://developer.android.com/about/versions/17/behavior-changes-17)。

@@ -1,22 +1,69 @@
 # Android 组件化详解
 
-> 作者：OpenClaw | 日期：2026-04-02  
+> 适用环境：Android 17（API 37）；模块边界采用 Gradle/AGP 公共 API，ARouter 1.5.2 独立作为传统注解处理器接入示例。
+
+> 作者：OpenClaw | 日期：2026-04-02
 > 组件化架构完全指南 | 模块解耦、路由、通信
 
 ---
 
-## 📚 目录
+## 目录
 
 - [1. 概述](#1-概述)
+  - [1.1 什么是组件化](#11-什么是组件化)
+  - [1.2 组件化 vs 单工程 vs 插件化](#12-组件化-vs-单工程-vs-插件化)
+  - [1.3 组件化优势](#13-组件化优势)
 - [2. 分层架构](#2-分层架构)
+  - [2.1 四层结构](#21-四层结构)
+  - [2.2 模块依赖规则](#22-模块依赖规则)
 - [3. 模块划分原则](#3-模块划分原则)
+  - [3.1 五大原则](#31-五大原则)
+  - [3.2 常见模块划分](#32-常见模块划分)
+  - [3.3 接口定义规范](#33-接口定义规范)
 - [4. 模块解耦方案](#4-模块解耦方案)
+  - [4.1 接口解耦](#41-接口解耦)
+  - [4.2 依赖注入（Koin / Hilt）](#42-依赖注入koin--hilt)
+  - [4.3 事件总线](#43-事件总线)
+  - [4.4 服务发现](#44-服务发现)
 - [5. 路由框架](#5-路由框架)
+  - [5.1 路由原理](#51-路由原理)
+  - [5.2 ARouter 使用](#52-arouter-使用)
+  - [5.3 路由拦截器](#53-路由拦截器)
+  - [5.4 路由表生成原理](#54-路由表生成原理)
 - [6. 组件通信](#6-组件通信)
+  - [6.1 页面跳转](#61-页面跳转)
+  - [6.2 数据传递](#62-数据传递)
+  - [6.3 服务调用](#63-服务调用)
+  - [6.4 跨进程通信](#64-跨进程通信)
 - [7. 项目结构与 Gradle 配置](#7-项目结构与-gradle-配置)
+  - [7.1 目录结构](#71-目录结构)
+  - [7.2 Gradle 配置](#72-gradle-配置)
+  - [7.3 模块独立运行配置](#73-模块独立运行配置)
+  - [7.4 资源冲突管理](#74-资源冲突管理)
 - [8. 最佳实践](#8-最佳实践)
+  - [8.1 模块边界定义](#81-模块边界定义)
+  - [8.2 API 设计原则](#82-api-设计原则)
+  - [8.3 版本管理](#83-版本管理)
+  - [8.4 调试技巧](#84-调试技巧)
 - [9. 面试常见问题](#9-面试常见问题)
+  - [Q1：组件化原理？](#q1组件化原理)
+  - [Q2：ARouter 路由表是如何生成的？](#q2arouter-路由表是如何生成的)
+  - [Q3：模块间如何通信？](#q3模块间如何通信)
+  - [Q4：组件化和插件化的区别？](#q4组件化和插件化的区别)
+  - [Q5：组件化有哪些问题/挑战？](#q5组件化有哪些问题挑战)
 - [10. 业界实践：百度App组件化之路](#10-业界实践百度app组件化之路)
+  - [10.1 大型App复杂度来源](#101-大型app复杂度来源)
+  - [10.2 组件化演进历程](#102-组件化演进历程)
+  - [10.3 组件化实现路径](#103-组件化实现路径)
+  - [10.4 组件化收益](#104-组件化收益)
+  - [10.5 核心原则](#105-核心原则)
+- [参考资料](#参考资料)
+- [11. 可替换的组件契约与装配](#11-可替换的组件契约与装配)
+  - [11.1 API 模块不暴露实现类型](#111-api-模块不暴露实现类型)
+  - [11.2 api 与 implementation 的传播](#112-api-与-implementation-的传播)
+  - [11.3 不依赖私有路由 API 的页面跳转](#113-不依赖私有路由-api-的页面跳转)
+  - [11.4 独立调试与启动顺序](#114-独立调试与启动顺序)
+  - [11.5 Android 17 的组件边界](#115-android-17-的组件边界)
 
 ---
 
@@ -26,7 +73,7 @@
 
 组件化是将一个大型 App 拆分为多个独立业务模块的架构方式。每个模块可独立开发、编译、运行，模块间通过接口或路由进行通信，实现真正的解耦。
 
-```
+```text
 ┌─────────────────────────────────────────┐
 │            主工程 (App Shell)           │
 │  · 集成所有模块                         │
@@ -86,7 +133,7 @@
 
 ### 2.1 四层结构
 
-```
+```text
 ┌──────────────────────────────────────────────────────┐
 │                 Layer 1: App Shell                   │
 │               （应用壳工程）                          │
@@ -129,7 +176,7 @@
 
 ### 2.2 模块依赖规则
 
-```
+```text
                     ┌─────────┐
                     │   App   │
                     └────┬────┘
@@ -173,7 +220,7 @@
 ### 3.2 常见模块划分
 
 **电商项目：**
-```
+```text
 module-home      # 首屏、首页
 module-user      # 登录、注册、个人中心
 module-product   # 商品列表、商品详情
@@ -184,7 +231,7 @@ module-shop      # 店铺
 ```
 
 **社交项目：**
-```
+```text
 module-home      # 首页 Feed
 module-message   # 消息、聊天
 module-moment    # 动态、朋友圈
@@ -196,7 +243,7 @@ module-medial    # 拍照、图片处理
 
 接口放在公共层（`lib-common`），模块只依赖接口，不依赖实现：
 
-```
+```text
 lib-common/
 ├── api/
 │   ├── IUserService.kt      # 用户服务接口
@@ -405,7 +452,7 @@ println(configService.getApiHost())
 
 路由框架解决的是**跨模块页面跳转**问题。模块之间没有直接依赖，无法通过 `startActivity` 直接启动其他模块的 Activity。
 
-```
+```text
 ┌──────────────────────────────────────────────────────────────┐
 │                        路由原理                               │
 └──────────────────────────────────────────────────────────────┘
@@ -443,33 +490,33 @@ println(configService.getApiHost())
 
 ### 5.2 ARouter 使用
 
-**1. Gradle 配置：**
+**1. Gradle 配置（ARouter 1.5.2，外置 Kotlin/KAPT 工具链）：**
+
+ARouter API、compiler 和可选 register 插件是不同构件，各有独立版本。这里使用注解处理器，不使用字节码注册插件；`kapt {}` 与 `android {}` 同级。
 
 ```kotlin
-// 项目 build.gradle.kts
+// 模块 build.gradle.kts；限定外置 Kotlin/KAPT 的旧工具链。
+// Android/Kotlin 插件版本必须由根工程统一提供。
 plugins {
-    id("com.alibaba.arouter") version "1.5.2"
+    id("com.android.library")
+    id("org.jetbrains.kotlin.android")
+    id("org.jetbrains.kotlin.kapt")
 }
 
-// 模块 build.gradle.kts
-plugins {
-    kotlin("kapt")
+kapt { // 与 android 同级
+    arguments {
+        arg("AROUTER_MODULE_NAME", project.name)
+        arg("AROUTER_GENERATE_DOC", "enable")
+    }
 }
 
 dependencies {
     implementation("com.alibaba:arouter-api:1.5.2")
     kapt("com.alibaba:arouter-compiler:1.5.2")
 }
-
-android {
-    kapt {
-        arguments {
-            arg("AROUTER_MODULE_NAME", project.name)
-            arg("AROUTER_GENERATE_DOC", "yes")
-        }
-    }
-}
 ```
+
+ARouter 1.5.2 通过注解处理器生成路由表，以下配置属于外置 Kotlin/KAPT 工具链。AGP 9 内置 Kotlin 工程使用支持的 KSP 处理器或 legacy-kapt 迁移路径，不能仅重命名配置就把 Javac 处理器变成 KSP 处理器。参考：[ARouter 1.5.2](https://github.com/alibaba/ARouter/blob/1.5.2/README_CN.md)、[内置 Kotlin 迁移](https://developer.android.com/build/migrate-to-built-in-kotlin)。
 
 **2. 初始化：**
 
@@ -770,7 +817,7 @@ bindService(intent, connection, Context.BIND_AUTO_CREATE)
 
 ### 7.1 目录结构
 
-```
+```text
 Project/
 ├── app/                          # 主工程（壳）
 │   ├── src/main/
@@ -817,75 +864,61 @@ Project/
 
 ### 7.2 Gradle 配置
 
-**方案一：isDebug 开关（简单常用）**
+**推荐用独立调试宿主，而不是把 library 的 debug 变体误认为 APK。** `com.android.library` 不生成可安装应用，没有 `applicationId`；`namespace` 位于 `android` 层级，不在 `defaultConfig`。原来的 `plugins.withId` 只注册回调，并不会切换插件；`debugApplicationIdSuffix` 也不是标准 Android DSL。
 
 ```kotlin
-// build.gradle.kts (module-user)
+// module-user/build.gradle.kts：始终是 library，AGP 9 使用内置 Kotlin。
+plugins { id("com.android.library") }
 android {
+    namespace = "com.example.user"
+    compileSdk = 37
+    defaultConfig { minSdk = 24 }
+}
+
+// debug-user-app/build.gradle.kts：独立、仅用于开发的宿主 application。
+// 插件版本由根工程提供；API 37 可参考 AGP 9.1.1/Gradle 9.3.1/JDK 17。
+plugins { id("com.android.application") }
+android {
+    namespace = "com.example.user.debughost"
+    compileSdk = 37
     defaultConfig {
-        applicationId = if (isDebug) "com.example.user" else "com.example.app.user"
-    }
-
-    buildFeatures {
-        buildConfig = true
+        applicationId = "com.example.user.debughost"
+        minSdk = 24
+        targetSdk = 37
     }
 }
-
-// 独立运行时
-if (isDebug) {
-    plugins.withId("com.android.application") {
-        configure<ApplicationExtension> {
-            defaultConfig.applicationId = "com.example.user"
-        }
-    }
-} else {
-    plugins.withId("com.android.library") {
-        configure<LibraryExtension> {
-            defaultConfig.namespace = "com.example.user"
-        }
-    }
-}
+dependencies { implementation(project(":module-user")) }
 ```
 
-**方案二：单独 Debug 变体（推荐）**
-
-```
-android {
-    // 对每个模块配置 debugApplicationIdSuffix
-    // 或在 app 中添加 sourceSets 依赖其他模块的 src/debug/
-}
-```
-
-**模块间依赖配置：**
+以上两段属于两个不同文件，不可合并成同一个脚本；`settings.gradle.kts` 需 include 两个模块。业务模块的接口应放入独立契约模块，不靠 `compileOnly(project(":module-user"))` 掩盖运行时耦合：
 
 ```kotlin
-// module-order 的 build.gradle.kts
+// module-order/build.gradle.kts
+// 假设 :lib-user-api 是工程实际创建并 include 的接口模块。
 dependencies {
-    // 只暴露接口，不暴露实现细节
-    api(project(":lib-common"))   // 上层可依赖
+    implementation(project(":lib-user-api"))
     implementation(project(":lib-network"))
-    implementation(project(":lib-image"))
-    compileOnly(project(":module-user"))  // 编译时依赖，运行时不需要
 }
+// app 组装层负责打包接口的真实实现，例如 implementation(project(":module-user"))。
+// 仅当接口类型出现在 library 的公共 API 中时，才需要 api(project(":lib-user-api"))。
 ```
+
+`implementation` 隔离消费者的**编译**类路径，不阻止依赖进入最终运行时；`compileOnly` 不负责打包，也不保证实现运行时存在。
+
+来源：[创建 Android library](https://developer.android.com/studio/projects/android-library)、[模块化模式](https://developer.android.com/topic/modularization/patterns)、[Gradle API/implementation](https://docs.gradle.org/9.3.1/userguide/java_library_plugin.html)、[AGP 9.1 支持矩阵](https://developer.android.com/build/releases/agp-9-1-0-release-notes)。
 
 ### 7.3 模块独立运行配置
 
-每个模块的 `src/main/AndroidManifest.xml` 在独立运行时有 Application 和 Launch Activity：
+启动入口放到调试宿主清单，不放业务 library 的 `src/main` 中，避免合并进正式应用；也不应靠 `tools:replace` 无条件覆盖宿主 Application。
 
 ```xml
-<!-- module-user/src/main/AndroidManifest.xml -->
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools">
-
-    <!-- 独立运行时生效 -->
-    <application
-        android:name=".UserApp"
-        tools:replace="android:name">
-
+<!-- debug-user-app/src/main/AndroidManifest.xml -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application android:label="User Debug Host">
+        <!-- DebugHostActivity 由调试宿主实现，组装业务页面与测试依赖。 -->
         <activity
-            android:name=".ui.LoginActivity"
-            tools:node="replace">
+            android:name=".DebugHostActivity"
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -894,6 +927,8 @@ dependencies {
     </application>
 </manifest>
 ```
+
+启动器入口需要允许外部启动，显式设置 `android:exported="true"`；内部页面不要因此一律导出。带 intent-filter 的组件在 targetSdk 31+ 需要明确 exported，Android 17 仍需遵守。来源：[Android 12 exported 要求](https://developer.android.com/about/versions/12/behavior-changes-12#exported)、[Activity 清单](https://developer.android.com/guide/topics/manifest/activity-element)。
 
 ### 7.4 资源冲突管理
 
@@ -1126,7 +1161,7 @@ ARouter.printAllRouteInfo(activity)
 
 #### 第一步：编译隔离、架构分层及层级访问限制
 
-```
+```text
 ┌─────────────────────────────────────────────────────────┐
 │                    编译隔离机制                          │
 ├─────────────────────────────────────────────────────────┤
@@ -1151,7 +1186,9 @@ ARouter.printAllRouteInfo(activity)
 - 没有防修改机制，业务侵入成本低
 - Github PR响应不及时
 
-**解决方案：** 所有三方库更新到最新版本并二进制化，差异部分运行时打补丁
+三方库先固定版本，再评估 API/ABI、minSdk、注解处理器、R8 与许可证变化。维护差异采用可追踪的源码补丁或内部发布构件；运行时修改库行为会扩大排错与平台升级成本，不作为常规依赖管理方式。
+
+来源：[Gradle 依赖锁定](https://docs.gradle.org/9.3.1/userguide/dependency_locking.html)、[Android 17 target 行为变化](https://developer.android.com/about/versions/17/behavior-changes-17)。例如反射 `MessageQueue` 私有结构的诊断/插桩组件需要单独排查，升级路由 API 本身不能证明它们已兼容。
 
 #### 第三步：运行时分发与隔离服务
 
@@ -1234,3 +1271,98 @@ ARouter.printAllRouteInfo(activity)
 ---
 
 *本文档由 OpenClaw 整理，持续更新*
+
+## 11. 可替换的组件契约与装配
+
+### 11.1 API 模块不暴露实现类型
+
+接口模块表达业务能力，不返回实现库的 Retrofit Response、数据库 Entity 或 Activity。下面是可独立编译的 API：
+
+```kotlin
+// :feature:profile-api，纯 Kotlin 类型。
+package example.profile.api
+
+data class Profile(val id: String, val displayName: String)
+sealed interface ProfileResult {
+    data class Found(val profile: Profile) : ProfileResult
+    data object NotFound : ProfileResult
+    data object Unavailable : ProfileResult
+}
+interface ProfileService { suspend fun find(id: String): ProfileResult }
+```
+
+`:feature:profile-impl` 依赖 api 并实现它；消费方依赖 api；宿主 app 同时依赖实现模块，在启动时完成装配。实现构造器也用接口接收网络/存储依赖，错误在实现层映射为契约类型；协程取消继续传播，不转换为 Unavailable。
+
+```kotlin
+// :feature:profile-impl 中的独立示例。
+class MemoryProfileService : example.profile.api.ProfileService {
+    private val profiles = mapOf("1" to example.profile.api.Profile("1", "Alice"))
+    override suspend fun find(id: String): example.profile.api.ProfileResult {
+        require(id.isNotBlank())
+        return profiles[id]?.let { example.profile.api.ProfileResult.Found(it) }
+            ?: example.profile.api.ProfileResult.NotFound
+    }
+}
+// :app 装配点；不持有 Activity。
+class AppServices {
+    val profiles: example.profile.api.ProfileService = MemoryProfileService()
+}
+```
+
+### 11.2 api 与 implementation 的传播
+
+```kotlin
+// profile-impl/build.gradle.kts：公开类签名实现 ProfileService，向消费者暴露该类型。
+dependencies {
+    api(project(":feature:profile-api"))
+    // 网络、数据库等实现依赖使用 implementation。
+}
+// 消费方 feature 模块：
+// implementation(project(":feature:profile-api"))
+// app 装配层：
+// implementation(project(":feature:profile-impl"))
+```
+
+`implementation` 隐藏消费者的编译类路径，不是运行时剔除。单独发布 AAR 时还需发布模块元数据/POM 才能传递外部依赖；直接复制一个 AAR 不会自动带齐其全部三方库。
+
+### 11.3 不依赖私有路由 API 的页面跳转
+
+在 app 装配层将业务导航意图转成显式 Intent。目标组件未注册、安装形态不包含目标模块或参数无效都需要失败分支；授权、登录等是业务进入条件，不只是字符串路径匹配。
+
+```kotlin
+sealed interface OpenProfileResult {
+    data object Opened : OpenProfileResult
+    data object InvalidId : OpenProfileResult
+    data object Unavailable : OpenProfileResult
+}
+// 由 app 将 destination 指向实际详情 Activity；示例不约定 ARouter 内部接口。
+fun openProfile(
+    context: android.content.Context,
+    destination: Class<out android.app.Activity>,
+    id: String
+): OpenProfileResult {
+    if (id.isBlank()) return OpenProfileResult.InvalidId
+    val intent = android.content.Intent(context, destination).putExtra("profileId", id)
+    if (context !is android.app.Activity) intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+    return try {
+        context.startActivity(intent)
+        OpenProfileResult.Opened
+    } catch (missing: android.content.ActivityNotFoundException) {
+        OpenProfileResult.Unavailable
+    } catch (denied: SecurityException) {
+        OpenProfileResult.Unavailable
+    }
+}
+```
+
+Activity 在清单中注册；仅供应用内使用的入口设置 `exported=false`，外部深链入口对参数、登录态和权限独立校验。动态特性模块应先完成安装再路由，不能把“类在源码中存在”当作运行时已安装。
+
+### 11.4 独立调试与启动顺序
+
+优先为 feature 建立小型 demo app，保持 feature 始终为 Android library，避免同一目录频繁切换 application/library DSL。demo 和正式 app 使用同一契约，仅替换装配实现。初始化图按依赖拓扑执行；允许延迟的服务按需创建，不能让所有模块都在 Application.onCreate 同步读盘和联网。
+
+### 11.5 Android 17 的组件边界
+
+运行时权限由可见宿主 UI 申请，业务模块通过结果回调或状态流接收授权结果。targetSdk 37 的本地网络访问权限、后台启动规则和 native 页大小要求影响最终应用，不能在每个 library 的清单里盲目添加权限。组件测试至少覆盖未装配服务、无效路由、取消请求、Activity 重建与 release/R8 路由表保留。
+
+参考：[模块化模式](https://developer.android.com/topic/modularization/patterns)、[Android library 发布依赖](https://developer.android.com/studio/projects/android-library)、[Gradle 9.3.1 API 分离](https://docs.gradle.org/9.3.1/userguide/java_library_plugin.html)、[Android 17 行为变化](https://developer.android.com/about/versions/17/behavior-changes-17)。

@@ -2497,5 +2497,32 @@ Column {
 ---
 
 **文档版本**：v2.0  
-**更新时间**：2026-03-11  
+**更新时间**：2026-09-09
 **适用版本**：Compose BOM 2024.02.00+
+
+## 19. 状态收集、取消和宿主兼容
+
+Compose Runtime 1.9.0 的 Snapshot State 由读取跟踪驱动重组；普通 `MutableList` 内部修改不会自动成为 Snapshot 写入，应使用不可变列表重新赋值或 `mutableStateListOf`。Lifecycle Compose 2.9.3 的 `collectAsStateWithLifecycle` 以 `repeatOnLifecycle(STARTED)` 收集，不代表 ViewModel 中所有请求都取消。
+
+```kotlin
+class ScreenModel : ViewModel() {
+    private val _ui = MutableStateFlow(UiState())
+    val ui = _ui.asStateFlow()
+    private var refreshJob: Job? = null
+    fun refresh(load: suspend () -> List<Row>) {
+        refreshJob?.cancel()
+        refreshJob = viewModelScope.launch {
+            try { _ui.value = UiState(rows = load()) }
+            catch (e: CancellationException) { throw e }
+            catch (e: IOException) { _ui.update { it.copy(error = "加载失败") } }
+        }
+    }
+}
+@Composable
+fun Screen(model: ScreenModel = viewModel()) {
+    val ui by model.ui.collectAsStateWithLifecycle()
+    LazyColumn { items(ui.rows, key = { it.id }) { Text(it.title) } }
+}
+```
+
+`Row` 是业务模型，`load` 是业务挂起接口，不是 Compose API。不要用 `runCatching` 吞掉 `CancellationException`。Fragment 使用 `ComposeView` 时设置 `DisposeOnViewTreeLifecycleDestroyed`；`AndroidView.factory` 创建一次，`update` 同步变化，`onRelease` 停止 WebView/播放器等资源。ComponentActivity、Fragment、RecyclerView item 和脱离窗口的自定义 View 不能统一套同一 Composition 策略。

@@ -1,118 +1,131 @@
 # Android 自定义 View 绘制完全指南
 
-> 作者：OpenClaw | 日期：2026-03-08
+> 源码版本：AOSP Android 17（API 37），`android-17.0.0_r1`。
+
+
+> 作者：OpenClaw | 初稿日期：2026-03-08
 
 ---
 
 ## 目录
 
-1. [概述](#1-概述)
-2. [Drawable 资源体系](#2-drawable-资源体系)
-   - 2.1 [Drawable 体系概述](#21-drawable-体系概述)
-   - 2.2 [ShapeDrawable 形状绘制](#22-shapedrawable-形状绘制)
-     - 2.2.1 [矩形 (Rectangle)](#221-矩形-rectangle---最常用)
-     - 2.2.2 [渐变矩形](#222-渐变矩形)
-     - 2.2.3 [椭圆 (Oval)](#223-椭圆-oval)
-     - 2.2.4 [环形 (Ring)](#224-环形-ring)
-   - 2.3 [LayerListDrawable 层叠绘制](#23-layerlistdrawable-层叠绘制)
-     - 2.3.1 [卡片阴影效果](#231-卡片阴影效果)
-   - 2.4 [SelectorDrawable 状态选择器](#24-selectordrawable-状态选择器)
-   - 2.5 [VectorDrawable 矢量图形](#25-vectordrawable-矢量图形)
-   - 2.6 [代码中创建 Drawable](#26-代码中创建-drawable)
-3. [View 绘制三大流程](#3-view-绘制三大流程)
-   - 3.1 [流程概述](#31-流程概述)
-   - 3.2 [Measure 测量阶段](#32-measure-测量阶段)
-     - 3.2.1 [MeasureSpec 测量规格](#321-measurespec-测量规格)
-     - 3.2.2 [onMeasure 核心逻辑](#322-onmeasure-核心逻辑)
-     - 3.2.3 [获取 View 尺寸的正确方式](#323-获取-view-尺寸的正确方式)
-   - 3.3 [Layout 布局阶段](#33-layout-布局阶段)
-   - 3.4 [Draw 绘制阶段](#34-draw-绘制阶段)
-4. [Canvas 画布详解](#4-canvas-画布详解)
-   - 4.1 [Canvas 核心功能](#41-canvas-核心功能)
-   - 4.2 [Canvas 基础绘制](#42-canvas-基础绘制)
-   - 4.3 [Canvas 变换操作](#43-canvas-变换操作)
-   - 4.4 [Canvas 裁剪操作](#44-canvas-裁剪操作)
-   - 4.5 [Path 高级绘制](#45-path-高级绘制)
-5. [Paint 画笔与效果](#5-paint-画笔与效果)
-   - 5.1 [Paint 核心属性](#51-paint-核心属性)
-   - 5.2 [Paint 高级效果](#52-paint-高级效果)
-     - 5.2.1 [阴影详解：setShadowLayer](#521-阴影详解setshadowlayer)
-     - 5.2.2 [BlurMaskFilter 模糊遮罩](#522-blurmaskfilter-模糊遮罩)
-     - 5.2.3 [View 的 elevation 和 translationZ](#523-view-的-elevation-和-translationz)
-     - 5.2.4 [阴影颜色设置](#524-阴影颜色设置)
-   - 5.3 [Xfermode 混合模式](#53-xfermode-混合模式)
-   - 5.4 [PathEffect 路径效果](#54-patheffect-路径效果)
-6. [渐变与色彩](#6-渐变与色彩)
-   - 6.1 [渐变类型详解](#61-渐变类型详解)
-   - 6.2 [颜色工具](#62-颜色工具)
-7. [自定义 View 实战](#7-自定义-view-实战)
-   - 7.1 [自定义属性](#71-自定义属性)
-   - 7.2 [完整示例：圆形进度条](#72-完整示例圆形进度条)
-8. [性能优化](#8-性能优化)
-   - 8.1 [绘制优化原则](#81-绘制优化原则)
-   - 8.2 [最佳实践](#82-最佳实践)
-9. [LayoutInflater 流程](#9-layoutinflater-流程)
-   - 9.1 [Inflation 完整流程](#91-inflation-完整流程)
-   - 9.2 [inflate() 方法解析](#92-inflate-方法解析)
-   - 9.3 [注意事项](#93-注意事项)
-10. [Merge、Include 与 ViewStub](#10-mergeinclude-与-viewstub)
-    - 10.1 [merge 标签](#101-merge-标签)
-    - 10.2 [include 标签](#102-include-标签)
-    - 10.3 [ViewStub 标签](#103-viewstub-标签)
-11. [Invalidate 与 RequestLayout](#11-invalidate-与-requestlayout)
-    - 11.1 [Invalidate - 重绘](#111-invalidate---重绘)
-    - 11.2 [RequestLayout - 重新布局](#112-requestlayout---重新布局)
-    - 11.3 [两者对比与选择](#113-两者对比与选择)
-    - 11.4 [forceLayout()](#114-forcelayout)
-12. [Draw 流程源码解析](#12-draw-流程源码解析)
-    - 12.1 [View.draw() 源码流程](#121-viewdraw-源码流程)
-    - 12.2 [DecorView.draw() 特殊流程](#122-decorviewdraw-特殊流程)
-    - 12.3 [ViewGroup.drawChild() 源码详解](#123-viewgroupdrawchild-源码详解)
-    - 12.4 [绘制顺序控制](#124-绘制顺序控制)
-13. [Canvas 高级用法](#13-canvas-高级用法)
-    - 13.1 [Canvas Save/Restore 详解](#131-canvas-saverestore-详解)
-    - 13.2 [Canvas saveLayer 详解](#132-canvas-savelayer-详解)
-    - 13.3 [Canvas 裁剪高级用法](#133-canvas-裁剪高级用法)
-    - 13.4 [PorterDuff 混合模式](#134-porterduff-混合模式)
-14. [View 与 ViewGroup 区别](#14-view-与-viewgroup-区别)
-    - 14.1 [核心区别](#141-核心区别)
-    - 14.2 [setWillNotDraw()](#142-setwillnotdraw)
-    - 14.3 [ViewGroup 绘制相关方法](#143-viewgroup-绘制相关方法)
-15. [常见问题](#15-常见问题)
-    - 15.1 [wrap_content 不生效问题](#151-wrap_content-不生效问题)
-      - 15.1.1 [问题原因](#1511-问题原因)
-      - 15.1.2 [解决方案](#1512-解决方案)
-    - 15.2 [获取 View 宽高的正确时机](#152-获取-view-宽高的正确时机)
-    - 15.3 [width/height 区别](#153-widthheight-区别)
-    - 15.4 [根视图的多次 Measure](#154-根视图的多次-measure)
-16. [线程与 UI 更新](#16-线程与-ui-更新)
-    - 16.1 [子线程不能更新 UI 的原因](#161-子线程不能更新-ui-的原因)
-    - 16.2 [更新 UI 的正确方式](#162-更新-ui-的正确方式)
-    - 16.3 [SurfaceView 特殊情况](#163-surfaceview-特殊情况)
-17. [自定义 View 类型与分类](#17-自定义-view-类型与分类)
-    - 17.1 [自定义 View 类型](#171-自定义-view-类型)
-      - 17.1.1 [继承 View 类](#1711-继承-view-类)
-      - 17.1.2 [组合控件](#1712-组合控件)
-      - 17.1.3 [继承 ViewGroup](#1713-继承-viewgroup)
-18. [核心生命周期方法详解](#18-核心生命周期方法详解)
-    - 18.1 [三大方法对比](#181-三大方法对比)
-    - 18.2 [MeasureSpec 三种模式处理](#182-measurespec-三种模式处理)
-    - 18.3 [处理 wrap_content 和 padding](#183-处理-wrap_content-和-padding)
-19. [自定义属性详解](#19-自定义属性详解)
-    - 19.1 [属性声明](#191-属性声明)
-    - 19.2 [属性解析](#192-属性解析)
-    - 19.3 [属性优先级](#193-属性优先级)
-    - 19.4 [在 XML 中使用](#194-在-xml-中使用)
-20. [事件处理与交互](#20-事件处理与交互)
-    - 20.1 [onTouchEvent](#201-ontouchevent)
-    - 20.2 [GestureDetector 手势处理](#202-gesturedetector-手势处理)
-    - 20.3 [滑动冲突解决](#203-滑动冲突解决)
-    - 20.4 [多点触控](#204-多点触控)
-21. [实战案例](#21-实战案例)
-    - 21.1 [圆形进度条](#211-圆形进度条)
-    - 21.2 [组合标题栏](#212-组合标题栏)
-    - 21.3 [钢琴键盘（多点触控）](#213-钢琴键盘多点触控)
-22. [完整知识体系总结](#22-完整知识体系总结)
+- [1. 概述](#1-概述)
+- [2. Drawable 资源体系](#2-drawable-资源体系)
+  - [2.1 Drawable 体系概述](#21-drawable-体系概述)
+  - [2.2 ShapeDrawable 形状绘制](#22-shapedrawable-形状绘制)
+    - [2.2.1 矩形 (Rectangle) - 最常用](#221-矩形-rectangle---最常用)
+    - [2.2.2 渐变矩形](#222-渐变矩形)
+    - [2.2.3 椭圆 (Oval)](#223-椭圆-oval)
+    - [2.2.4 环形 (Ring)](#224-环形-ring)
+  - [2.3 LayerListDrawable 层叠绘制](#23-layerlistdrawable-层叠绘制)
+    - [2.3.1 卡片阴影效果](#231-卡片阴影效果)
+  - [2.4 SelectorDrawable 状态选择器](#24-selectordrawable-状态选择器)
+  - [2.5 VectorDrawable 矢量图形](#25-vectordrawable-矢量图形)
+  - [2.6 Drawable 常用场景速查](#26-drawable-常用场景速查)
+  - [2.7 代码中创建 Drawable](#27-代码中创建-drawable)
+- [3. View 绘制三大流程](#3-view-绘制三大流程)
+  - [3.1 流程概述](#31-流程概述)
+  - [3.2 Measure 测量阶段](#32-measure-测量阶段)
+    - [3.2.1 MeasureSpec 测量规格](#321-measurespec-测量规格)
+    - [3.2.2 onMeasure 核心逻辑](#322-onmeasure-核心逻辑)
+    - [3.2.3 获取 View 尺寸的正确方式](#323-获取-view-尺寸的正确方式)
+  - [3.3 Layout 布局阶段](#33-layout-布局阶段)
+  - [3.4 Draw 绘制阶段](#34-draw-绘制阶段)
+- [4. Canvas 画布详解](#4-canvas-画布详解)
+  - [4.1 Canvas 核心功能](#41-canvas-核心功能)
+  - [4.2 Canvas 基础绘制](#42-canvas-基础绘制)
+  - [4.3 Canvas 变换操作](#43-canvas-变换操作)
+  - [4.4 Canvas 裁剪操作](#44-canvas-裁剪操作)
+  - [4.5 Path 高级绘制](#45-path-高级绘制)
+- [5. Paint 画笔与效果](#5-paint-画笔与效果)
+  - [5.1 Paint 核心属性](#51-paint-核心属性)
+  - [5.2 Paint 高级效果](#52-paint-高级效果)
+    - [5.2.1 阴影详解：setShadowLayer](#521-阴影详解setshadowlayer)
+    - [5.2.2 BlurMaskFilter 模糊遮罩](#522-blurmaskfilter-模糊遮罩)
+    - [5.2.3 View 的 elevation 和 translationZ](#523-view-的-elevation-和-translationz)
+    - [5.2.4 阴影颜色设置](#524-阴影颜色设置)
+  - [5.3 Xfermode 混合模式](#53-xfermode-混合模式)
+  - [5.4 PathEffect 路径效果](#54-patheffect-路径效果)
+- [6. 渐变与色彩](#6-渐变与色彩)
+  - [6.1 渐变类型详解](#61-渐变类型详解)
+  - [6.2 颜色工具](#62-颜色工具)
+- [7. 自定义 View 实战](#7-自定义-view-实战)
+  - [7.1 自定义属性](#71-自定义属性)
+  - [7.2 完整示例：圆形进度条](#72-完整示例圆形进度条)
+- [8. 性能优化](#8-性能优化)
+  - [8.1 绘制优化原则](#81-绘制优化原则)
+  - [8.2 最佳实践](#82-最佳实践)
+- [9. LayoutInflater 流程](#9-layoutinflater-流程)
+  - [9.1 Inflation 完整流程](#91-inflation-完整流程)
+  - [9.2 inflate() 方法解析](#92-inflate-方法解析)
+  - [9.3 注意事项](#93-注意事项)
+- [10. Merge、Include 与 ViewStub](#10-mergeinclude-与-viewstub)
+  - [10.1 <merge> 标签](#101--标签)
+  - [10.2 <include> 标签](#102--标签)
+  - [10.3 <ViewStub> 标签](#103--标签)
+- [11. Invalidate 与 RequestLayout](#11-invalidate-与-requestlayout)
+  - [11.1 Invalidate - 重绘](#111-invalidate---重绘)
+  - [11.2 RequestLayout - 重新布局](#112-requestlayout---重新布局)
+  - [11.3 两者对比与选择](#113-两者对比与选择)
+  - [11.4 forceLayout() 强制重新布局](#114-forcelayout-强制重新布局)
+- [12. Draw 流程源码解析](#12-draw-流程源码解析)
+  - [12.1 View.draw() 源码流程](#121-viewdraw-源码流程)
+  - [12.2 DecorView.draw() 特殊流程](#122-decorviewdraw-特殊流程)
+  - [12.3 ViewGroup.drawChild() 源码详解](#123-viewgroupdrawchild-源码详解)
+  - [12.4 绘制顺序控制](#124-绘制顺序控制)
+- [13. Canvas 高级用法](#13-canvas-高级用法)
+  - [13.1 Canvas Save/Restore 详解](#131-canvas-saverestore-详解)
+  - [13.2 Canvas saveLayer/RestoreToCount 详解](#132-canvas-savelayerrestoretocount-详解)
+  - [13.3 Canvas 裁剪高级用法](#133-canvas-裁剪高级用法)
+  - [13.4 混合模式 (PorterDuff) 详细解析](#134-混合模式-porterduff-详细解析)
+- [14. View 与 ViewGroup 区别](#14-view-与-viewgroup-区别)
+  - [14.1 核心区别](#141-核心区别)
+  - [14.2 setWillNotDraw()](#142-setwillnotdraw)
+  - [14.3 ViewGroup 绘制相关方法](#143-viewgroup-绘制相关方法)
+- [15. 常见问题](#15-常见问题)
+  - [15.1 wrap_content 不生效问题](#151-wrap_content-不生效问题)
+    - [15.1.1 问题原因](#1511-问题原因)
+    - [15.1.2 解决方案](#1512-解决方案)
+  - [15.2 获取 View 宽高的正确时机](#152-获取-view-宽高的正确时机)
+  - [16.1 为什么 onResume 中获取宽高返回 0](#161-为什么-onresume-中获取宽高返回-0)
+  - [16.2 View.post() 原理详解](#162-viewpost-原理详解)
+  - [16.3 其他获取宽高的正确方式](#163-其他获取宽高的正确方式)
+- [16. 线程与 UI 更新](#16-线程与-ui-更新)
+  - [16.1 子线程不能更新 UI 的原因](#161-子线程不能更新-ui-的原因)
+  - [16.2 更新 UI 的正确方式](#162-更新-ui-的正确方式)
+  - [16.3 特殊情况：SurfaceView](#163-特殊情况surfaceview)
+  - [15.3 width/height 区别](#153-widthheight-区别)
+  - [18.1 区别](#181-区别)
+  - [18.2 两者不一致的情况](#182-两者不一致的情况)
+  - [15.4 根视图的多次 Measure](#154-根视图的多次-measure)
+  - [19.1 多次 Measure 的原因](#191-多次-measure-的原因)
+  - [19.2 源码流程](#192-源码流程)
+  - [19.3 避免重复 Measure](#193-避免重复-measure)
+- [17. 自定义 View 类型与分类](#17-自定义-view-类型与分类)
+  - [17.1 自定义 View 类型](#171-自定义-view-类型)
+    - [17.1.1 继承 View 类](#1711-继承-view-类)
+    - [17.1.2 组合控件](#1712-组合控件)
+    - [17.1.3 继承 ViewGroup](#1713-继承-viewgroup)
+- [18. 核心生命周期方法详解](#18-核心生命周期方法详解)
+  - [18.1 三大方法对比](#181-三大方法对比)
+  - [18.2 MeasureSpec 三种模式处理](#182-measurespec-三种模式处理)
+  - [18.3 处理 wrap_content 和 padding](#183-处理-wrap_content-和-padding)
+- [19. 自定义属性详解](#19-自定义属性详解)
+  - [19.1 属性声明](#191-属性声明)
+  - [19.2 属性解析](#192-属性解析)
+  - [19.3 属性优先级](#193-属性优先级)
+  - [19.4 在 XML 中使用](#194-在-xml-中使用)
+- [20. 事件处理与交互](#20-事件处理与交互)
+  - [20.1 onTouchEvent](#201-ontouchevent)
+  - [20.2 GestureDetector 手势处理](#202-gesturedetector-手势处理)
+  - [20.3 滑动冲突解决](#203-滑动冲突解决)
+  - [20.4 多点触控](#204-多点触控)
+- [21. 实战案例](#21-实战案例)
+  - [21.1 圆形进度条](#211-圆形进度条)
+  - [21.2 组合标题栏](#212-组合标题栏)
+  - [21.3 钢琴键盘（多点触控）](#213-钢琴键盘多点触控)
+- [22. 完整知识体系总结](#22-完整知识体系总结)
+- [总结](#总结)
 
 ---
 
@@ -120,7 +133,7 @@
 
 自定义 View 是 Android 开发的核心技能之一。一个优秀的自定义 View 需要掌握以下知识体系：
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         自定义 View 知识体系                                 │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -154,7 +167,7 @@
 
 Drawable 是 Android 中可绘制图形的抽象基类，用于描述可渲染的视觉元素。
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         Drawable 分类体系                                   │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -367,7 +380,7 @@ fun createGradientBackground(): Drawable {
 
 View 的渲染分为三个核心阶段：Measure(测量) → Layout(布局) → Draw(绘制)。
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         View 渲染三大流程                                    │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -388,37 +401,29 @@ onMeasure()    onLayout()     onDraw()
 
 | 方法 | 触发流程 |
 |------|----------|
-| requestLayout() | Measure + Layout |
-| invalidate() | Draw |
-| requestFocus() | Draw |
+| requestLayout() | 请求布局遍历；重测和重画取决于标志及尺寸 |
+| invalidate() | 标记内容失效，安排后续绘制，不同步重画 |
+| requestFocus() | 请求焦点；不是通用绘制调度 API |
 
 ### 3.2 Measure 测量阶段
 
 #### 3.2.1 MeasureSpec 测量规格
 
+`MeasureSpec` 的 mode 在高两位，size 在低 30 位；不能自定义一个 `EXACTLY=1`、`AT_MOST=2` 的同名对象代替 SDK 类型。
+
 ```kotlin
-/**
- * MeasureSpec = MeasureSpec.makeMeasureSpec(size, mode)
- *
- * 模式 (Mode):
- * - EXACTLY: 精确值 (match_parent, 固定值)
- * - AT_MOST: 最大值 (wrap_content)
- * - UNSPECIFIED: 无限制
- */
-object MeasureSpec {
-    const val UNSPECIFIED = 0
-    const val EXACTLY = 1
-    const val AT_MOST = 2
-}
+val spec = View.MeasureSpec.makeMeasureSpec(300, View.MeasureSpec.AT_MOST)
+val mode = View.MeasureSpec.getMode(spec)
+val maxWidthPx = View.MeasureSpec.getSize(spec)
 ```
 
-**测量模式速查：**
+| 子 View LayoutParams | 父 EXACTLY（扣除 padding/margin 后） | 父 AT_MOST |
+|---|---|---|
+| 固定非负 px | EXACTLY，指定尺寸 | EXACTLY，指定尺寸 |
+| `MATCH_PARENT` | EXACTLY，可用尺寸 | AT_MOST，可用尺寸 |
+| `WRAP_CONTENT` | AT_MOST，可用尺寸 | AT_MOST，可用尺寸 |
 
-| 父容器属性 | MeasureSpec |
-|-----------|-------------|
-| `match_parent` | EXACTLY + parentSize |
-| `wrap_content` | AT_MOST + parentSize |
-| 固定 `100dp` | EXACTLY + 100dp |
+父 UNSPECIFIED 的 size 还有兼容分支，不能把 `wrap_content` 永远等同于 AT_MOST。约束来自父容器生成的 spec；自定义测量还需考虑 padding、suggestedMinimumWidth/Height 和测量状态。依据：[View.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/view/View.java)（`MeasureSpec`、`resolveSizeAndState`）、[ViewGroup.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/view/ViewGroup.java)（`getChildMeasureSpec`）。
 
 #### 3.2.2 onMeasure 核心逻辑
 
@@ -428,39 +433,19 @@ class CustomView @JvmOverloads constructor(
     attrs: AttributeSet? = null,
     defStyleAttr: Int = 0
 ) : View(context, attrs, defStyleAttr) {
-
-    private val DEFAULT_WIDTH = 200.dp2px()
-    private val DEFAULT_HEIGHT = 200.dp2px()
-
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-        super.onMeasure(widthMeasureSpec, heightMeasureSpec)
-
-        val widthMode = MeasureSpec.getMode(widthMeasureSpec)
-        val widthSize = MeasureSpec.getSize(widthMeasureSpec)
-        val heightMode = MeasureSpec.getMode(heightMeasureSpec)
-        val heightSize = MeasureSpec.getSize(heightMeasureSpec)
-
-        var resultWidth = DEFAULT_WIDTH
-        var resultHeight = DEFAULT_HEIGHT
-
-        when (widthMode) {
-            MeasureSpec.EXACTLY -> resultWidth = widthSize
-            MeasureSpec.AT_MOST -> resultWidth = minOf(DEFAULT_WIDTH, widthSize)
-            MeasureSpec.UNSPECIFIED -> resultWidth = DEFAULT_WIDTH
-        }
-
-        when (heightMode) {
-            MeasureSpec.EXACTLY -> resultHeight = heightSize
-            MeasureSpec.AT_MOST -> resultHeight = minOf(DEFAULT_HEIGHT, heightSize)
-            MeasureSpec.UNSPECIFIED -> resultHeight = DEFAULT_HEIGHT
-        }
-
-        setMeasuredDimension(resultWidth, resultHeight)
+        val contentPx = (200f * resources.displayMetrics.density).toInt()
+        val desiredWidth = maxOf(suggestedMinimumWidth, contentPx + paddingLeft + paddingRight)
+        val desiredHeight = maxOf(suggestedMinimumHeight, contentPx + paddingTop + paddingBottom)
+        setMeasuredDimension(
+            resolveSizeAndState(desiredWidth, widthMeasureSpec, 0),
+            resolveSizeAndState(desiredHeight, heightMeasureSpec, 0)
+        )
     }
-
-    private fun Int.dp2px(): Int = (this * resources.displayMetrics.density).toInt()
 }
 ```
+
+这是普通 View 示例。自定义 ViewGroup 还应测量子 View、处理 margin，并通过 `combineMeasuredStates` 汇总子项测量状态。
 
 #### 3.2.3 获取 View 尺寸的正确方式
 
@@ -477,9 +462,148 @@ override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
     super.onSizeChanged(w, h, oldw, oldh)
 }
 
-// ✅ 正确：使用 post
-view.post { val w = width }
+// 等待布局使用 AndroidX Core doOnLayout，不把任意 post 当作布局完成保证
+view.doOnLayout { laidOutView -> val w = laidOutView.width }
 ```
+
+#### 3.2.1 View.measure() 的外层协议
+
+父容器调用的是 final 方法 `measure()`，不是直接调用子项的 `onMeasure()`。外层协议统一管理测量缓存、RTL 属性解析、测量状态检查及布局标志；子类只实现尺寸计算。
+
+| 字段 / 标志 | 含义 |
+|---|---|
+| `mOldWidthMeasureSpec` / `mOldHeightMeasureSpec` | 上次传入的完整约束，包含 mode 和 size |
+| `mMeasureCache` | 以两个 MeasureSpec 组合成的 long 为键缓存宽高结果 |
+| `PFLAG_FORCE_LAYOUT` | 本次需要重新处理测量/布局；requestLayout、forceLayout 均会设置 |
+| `PFLAG_MEASURED_DIMENSION_SET` | onMeasure 必须通过 setMeasuredDimension 建立的完成标记 |
+| `PFLAG3_MEASURE_NEEDED_BEFORE_LAYOUT` | 命中测量缓存后，在 layout 前可能仍需补调 onMeasure |
+| `PFLAG_LAYOUT_REQUIRED` | 本次测量处理后需要进入布局回调 |
+
+源码精简节选（省略注释；[View.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/view/View.java)）：
+
+```java
+public final void measure(int widthMeasureSpec, int heightMeasureSpec) {
+    boolean optical = isLayoutModeOptical(this);
+    if (optical != isLayoutModeOptical(mParent)) {
+        Insets insets = getOpticalInsets();
+        int oWidth  = insets.left + insets.right;
+        int oHeight = insets.top  + insets.bottom;
+        widthMeasureSpec  = MeasureSpec.adjust(widthMeasureSpec,  optical ? -oWidth  : oWidth);
+        heightMeasureSpec = MeasureSpec.adjust(heightMeasureSpec, optical ? -oHeight : oHeight);
+    }
+    long key = (long) widthMeasureSpec << 32 | (long) heightMeasureSpec & 0xffffffffL;
+    if (mMeasureCache == null) mMeasureCache = new LongSparseLongArray(2);
+
+    final boolean forceLayout = (mPrivateFlags & PFLAG_FORCE_LAYOUT) == PFLAG_FORCE_LAYOUT;
+    final boolean specChanged = widthMeasureSpec != mOldWidthMeasureSpec
+            || heightMeasureSpec != mOldHeightMeasureSpec;
+    final boolean isSpecExactly = MeasureSpec.getMode(widthMeasureSpec) == MeasureSpec.EXACTLY
+            && MeasureSpec.getMode(heightMeasureSpec) == MeasureSpec.EXACTLY;
+    final boolean matchesSpecSize = getMeasuredWidth() == MeasureSpec.getSize(widthMeasureSpec)
+            && getMeasuredHeight() == MeasureSpec.getSize(heightMeasureSpec);
+    final boolean needsLayout = specChanged
+            && (sAlwaysRemeasureExactly || !isSpecExactly || !matchesSpecSize);
+
+    if (forceLayout || needsLayout) {
+        mPrivateFlags &= ~PFLAG_MEASURED_DIMENSION_SET;
+
+        resolveRtlPropertiesIfNeeded();
+
+        int cacheIndex;
+        if (sUseMeasureCacheDuringForceLayoutFlagValue) {
+            cacheIndex =  mMeasureCache.indexOfKey(key);
+        } else {
+            cacheIndex = forceLayout ? -1 : mMeasureCache.indexOfKey(key);
+        }
+
+        if (cacheIndex < 0) {
+            if (isTraversalTracingEnabled()) {
+                Trace.beginSection(mTracingStrings.onMeasure);
+            }
+            if (android.os.Flags.adpfMeasureDuringInputEventBoost()) {
+                final boolean notifyRenderer = hasExpensiveMeasuresDuringInputEvent();
+                if (notifyRenderer) {
+                    getViewRootImpl().notifyRendererOfExpensiveFrame(
+                            "ADPF_SendHint: hasExpensiveMeasuresDuringInputEvent");
+                }
+            }
+            onMeasure(widthMeasureSpec, heightMeasureSpec);
+            if (isTraversalTracingEnabled()) {
+                Trace.endSection();
+            }
+            mPrivateFlags3 &= ~PFLAG3_MEASURE_NEEDED_BEFORE_LAYOUT;
+        } else {
+            long value = mMeasureCache.valueAt(cacheIndex);
+            setMeasuredDimensionRaw((int) (value >> 32), (int) value);
+            mPrivateFlags3 |= PFLAG3_MEASURE_NEEDED_BEFORE_LAYOUT;
+        }
+        if ((mPrivateFlags & PFLAG_MEASURED_DIMENSION_SET) != PFLAG_MEASURED_DIMENSION_SET) {
+            throw new IllegalStateException("View with id " + getId() + ": "
+                    + getClass().getName() + "#onMeasure() did not set the"
+                    + " measured dimension by calling"
+                    + " setMeasuredDimension()");
+        }
+
+        mPrivateFlags |= PFLAG_LAYOUT_REQUIRED;
+    }
+
+    mOldWidthMeasureSpec = widthMeasureSpec;
+    mOldHeightMeasureSpec = heightMeasureSpec;
+
+    mMeasureCache.put(key, ((long) mMeasuredWidth) << 32 |
+            (long) mMeasuredHeight & 0xffffffffL); // suppress sign extension
+}
+```
+
+这个实现解释了三个常见现象：
+
+1. **调用 measure 不等于调用 onMeasure**。约束相同且没有强制布局时可以跳过；命中缓存也可以恢复测量值。
+2. **缓存不只是按宽高数值判断**。键包含完整 MeasureSpec，相同 size、不同 mode 不同义。强制布局期间是否使用缓存还取决于源码中的特性开关，而 `requestLayout()` 本身会清空本节点缓存。
+3. **测量可以发生多次**。ViewRootImpl 可能因窗口大小改变重新测量，父容器也可能为权重或 MATCH_PARENT 补测；不要在 onMeasure 中发请求、加载图片或累计不可逆状态。
+
+#### 3.2.2 默认尺寸与 resolveSizeAndState
+
+基类 View 的默认实现使用 `getDefaultSize(getSuggestedMinimumWidth(), widthMeasureSpec)`；AT_MOST 下它会取 spec 上限。因此简单继承 View 却不重写 onMeasure，wrap_content 常常表现为填满可用区域，而不是按自绘图形自动包裹。
+
+源码精简节选（省略注释；[View.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/view/View.java)）：
+
+```java
+protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+    setMeasuredDimension(getDefaultSize(getSuggestedMinimumWidth(), widthMeasureSpec),
+            getDefaultSize(getSuggestedMinimumHeight(), heightMeasureSpec));
+}
+```
+
+源码精简节选（省略注释；[View.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/view/View.java)）：
+
+```java
+public static int resolveSizeAndState(int size, int measureSpec, int childMeasuredState) {
+    final int specMode = MeasureSpec.getMode(measureSpec);
+    final int specSize = MeasureSpec.getSize(measureSpec);
+    final int result;
+    switch (specMode) {
+        case MeasureSpec.AT_MOST:
+            if (specSize < size) {
+                result = specSize | MEASURED_STATE_TOO_SMALL;
+            } else {
+                result = size;
+            }
+            break;
+        case MeasureSpec.EXACTLY:
+            result = specSize;
+            break;
+        case MeasureSpec.UNSPECIFIED:
+        default:
+            result = size;
+    }
+    return result | (childMeasuredState & MEASURED_STATE_MASK);
+}
+```
+
+`resolveSizeAndState()` 把期望尺寸与父约束合并：EXACTLY 服从父指定值；AT_MOST 下超限时截断并置 `MEASURED_STATE_TOO_SMALL`；UNSPECIFIED 使用期望值。返回值同时含尺寸位和状态位，不能把它当普通像素值继续做几何运算。
+
+例如圆形仪表盘内容希望占 120dp，左右 padding 各 16dp，则期望宽度是 152dp。父 AT_MOST 100dp 时得到 100dp 并带 TOO_SMALL；父 EXACTLY 200dp 时得到 200dp。圆形绘制可以在最终矩形内部取短边，但不能擅自把父要求的 200×100 改为 100×100。
+
 
 ### 3.3 Layout 布局阶段
 
@@ -507,40 +631,25 @@ override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
 
 ### 3.4 Draw 绘制阶段
 
+不要在自定义 `draw()` 内手动调用私有 `drawBackground()`，或重复分发整个框架流程。通常只重写内容回调：
+
 ```kotlin
-/**
- * View 绘制流程
- */
-class CustomView : View {
-
-    override fun draw(canvas: Canvas) {
-        // 1. 绘制背景
-        super.draw(canvas)
-
-        // 2. 绘制内容
-        onDraw(canvas)
-
-        // 3. 分发绘制给子 View (仅 ViewGroup)
-        dispatchDraw(canvas)
-
-        // 4. 绘制装饰
-        onDrawForeground(canvas)
-    }
-
+class ContentView(context: Context) : View(context) {
+    private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.BLUE }
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
-        // 在这里绘制自定义内容
+        canvas.drawCircle(width / 2f, height / 2f, minOf(width, height) / 4f, paint)
     }
 }
 ```
 
----
+背景、子项、Overlay、前景和焦点高亮由框架组织，见第 12 节。依据：[View.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/view/View.java)。
 
 ## 4. Canvas 画布详解
 
 ### 4.1 Canvas 核心功能
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                        Canvas API 分类                                     │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -771,7 +880,10 @@ override fun onDraw(canvas: Canvas) {
 
 #### 5.2.1 阴影详解：setShadowLayer
 
-```
+
+
+
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    Paint.setShadowLayer() 详解                              │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -789,10 +901,10 @@ override fun onDraw(canvas: Canvas) {
   关键点：
   ─────────────────────────────────────────────────────────────────────────────
 
-  1. 需要关闭硬件加速
+  1. 按 API 和操作区分支持范围
      ─────────────────────────────────────────────────────────────────────────
-     setLayerType(LAYER_TYPE_SOFTWARE, null);
-     // 或者在 AndroidManifest 中关闭硬件加速
+     // 官方表：非文字 setShadowLayer 自 API 28 支持硬件加速
+     // 不能为 Android 17 的所有阴影无条件关闭窗口硬件加速
 
   2. 阴影颜色建议使用带透明度的颜色
      ─────────────────────────────────────────────────────────────────────────
@@ -820,58 +932,29 @@ override fun onDraw(canvas: Canvas) {
 
 #### 5.2.2 BlurMaskFilter 模糊遮罩
 
+BlurMaskFilter 作用于 alpha 遮罩，不是 setShadowLayer 的更强版本。官方表将 Paint.setMaskFilter() 列为硬件渲染不支持；原文声称不需要软件路径的注释已纠正。
+
+| 类型 | 效果 |
+|---|---|
+| NORMAL | 内外模糊 |
+| SOLID | 内部保留，外部模糊 |
+| OUTER | 仅外侧模糊 |
+| INNER | 仅内部模糊 |
+
+```kotlin
+// 仅示范软件 Canvas / 经验证的软件层路径。
+val blurPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+    color = Color.BLUE
+    maskFilter = BlurMaskFilter(20f, BlurMaskFilter.Blur.NORMAL)
+}
+canvas.drawCircle(200f, 300f, 80f, blurPaint)
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                    BlurMaskFilter 详解                                     │
-└─────────────────────────────────────────────────────────────────────────────┘
 
-  BlurMaskFilter 提供更多模糊效果，是 setShadowLayer 的更强大版本
-
-  模糊类型：
-  ─────────────────────────────────────────────────────────────────────────────
-
-  ┌─────────────────────┬─────────────────────────────────────────────────┐
-  │ 类型                 │ 效果                                           │
-  ├─────────────────────┼─────────────────────────────────────────────────┤
-  │ Blur.NORMAL         │ 内外都模糊                                       │
-  │ Blur.SOLID          │ 内部正常，外部模糊（类似浮雕）                    │
-  │ Blur.OUTER          │ 仅外部模糊，内部透明                              │
-  │ Blur.INNER          │ 仅内部模糊                                       │
-  └─────────────────────┴─────────────────────────────────────────────────┘
-
-  使用示例：
-  ─────────────────────────────────────────────────────────────────────────────
-
-  val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-      color = Color.BLUE
-      // 创建模糊遮罩
-      maskFilter = BlurMaskFilter(20f, BlurMaskFilter.Blur.NORMAL)
-  }
-
-  // 绘制文字
-  paint.textSize = 60f
-  canvas.drawText("发光文字", 100f, 200f, paint)
-
-  // 绘制图形
-  canvas.drawCircle(200f, 300f, 80f, paint)
-
-  结合 setShadowLayer：
-  ─────────────────────────────────────────────────────────────────────────────
-
-  val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-      // 阴影（需要关闭硬件加速）
-      setShadowLayer(10f, 5f, 5f, Color.parseColor("#40000000"))
-      
-      // 模糊效果（不需要关闭硬件加速）
-      maskFilter = BlurMaskFilter(15f, BlurMaskFilter.Blur.NORMAL)
-  }
-
-  注意：setShadowLayer 和 maskFilter 不能同时使用！后设置的有效
-```
+只对确有需要的控件评估软件层，不关闭整个应用硬件加速。shadowLayer 与 maskFilter 后设置者覆盖前设置者并不是可依赖的通用契约，原断言已删除，组合效果需按后端验证。依据：[官方硬件加速表](https://developer.android.com/develop/ui/views/graphics/hardware-accel)。
 
 #### 5.2.3 View 的 elevation 和 translationZ
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    View 阴影：elevation vs translationZ                    │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -920,7 +1003,7 @@ override fun onDraw(canvas: Canvas) {
          override fun getOutline(view: View, outline: Outline) {
              // 圆形阴影
              outline.setOval(0, 0, view.width, view.height)
-             
+
              // 或者圆角矩形
              outline.setRoundRect(0, 0, view.width, view.height, 20f)
          }
@@ -949,7 +1032,7 @@ override fun onDraw(canvas: Canvas) {
 
 #### 5.2.4 阴影颜色设置
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    elevation 阴影颜色设置                                    │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1268,9 +1351,12 @@ class CircleProgressView @JvmOverloads constructor(
 
 ## 8. 性能优化
 
+**硬件层不等于开启硬件加速**：`LAYER_TYPE_HARDWARE` 只在已硬件加速的 View 树中提供离屏层缓存，不能把软件窗口切换为硬件窗口。缓存适合内容稳定、仅变换属性的场景；频繁改变内容则可能反复重建并增加显存开销。用 `Canvas.isHardwareAccelerated` 判断当前画布，不能只看 View 标志。`save()` 保存矩阵/裁剪；`saveLayer()` 才涉及离屏合成成本。依据：[官方硬件加速指南](https://developer.android.com/develop/ui/views/graphics/hardware-accel)。
+
+
 ### 8.1 绘制优化原则
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         绘制优化原则                                         │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1288,7 +1374,7 @@ class CircleProgressView @JvmOverloads constructor(
    - 合理使用 View 背景
 
 4. 优化动画
-   - 使用硬件层 (setLayerType)
+   - 仅在内容稳定且测量证明收益时使用临时硬件层 (setLayerType)
    - 使用 ValueAnimator 替代 ObjectAnimator
    - 开启硬件加速
 
@@ -1325,7 +1411,7 @@ override fun onDraw(canvas: Canvas) {
 
 ### 9.1 Inflation 完整流程
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         LayoutInflater 流程                                 │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1397,7 +1483,7 @@ val view = inflater.inflate(R.layout.xxx, parent, true)
 
 ### 10.1 \<merge\> 标签
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         \<merge\> 标签                                      │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1438,7 +1524,7 @@ merge 标签用于减少布局层级，将子 View 直接添加到目标父容�
 ```kotlin
 /**
  * merge 使用限制：
- * 
+ *
  * 1. 必须是布局文件的根元素
  * 2. 父容器类型必须匹配
  *    - <merge> 父容器必须是 FrameLayout 或其子类
@@ -1461,7 +1547,7 @@ class CustomFrameLayout : FrameLayout {
 ```kotlin
 // LayoutInflater 对 merge 的处理
 View rInflate(XmlPullParser parser, ViewGroup parent, Context context, AttributeSet attrs, boolean finishInflate) {
-    
+
     if (parser.getName().equals("merge")) {
         // 直接解析子 View，添加到 parent 中
         // 不创建 merge View
@@ -1476,7 +1562,7 @@ View rInflate(XmlPullParser parser, ViewGroup parent, Context context, Attribute
 
 ### 10.2 \<include\> 标签
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         \<include\> 标签                                    │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1524,15 +1610,15 @@ include 标签用于复用布局，提高代码复用性。
 ```kotlin
 /**
  * include 注意事项：
- * 
+ *
  * 1. id 覆盖
  *    - 如果 include 和原布局都有 id，以 include 的 id 为准
  *    - 可以通过 include.findViewById() 访问
- * 
+ *
  * 2. layout 属性覆盖
  *    - 只能覆盖根元素的 android:layout_* 属性
  *    - 其他属性（如 android:padding）无效
- * 
+ *
  * 3. 合并多个 include
  *    - 需要为每个 include 设置唯一 id
  */
@@ -1546,7 +1632,7 @@ val headerText = headerView?.findViewById<TextView>(R.id.tv_title)
 
 ### 10.3 \<ViewStub\> 标签
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         \<ViewStub\> 标签                                   │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1590,18 +1676,18 @@ val loadedView = findViewById<View>(R.id.stub_view)  // 或通过 inflate 返回
 ```kotlin
 /**
  * ViewStub 特点：
- * 
+ *
  * 1. 初始不占用资源
  *    - ViewStub 本身非常小（约 24 字节）
  *    - 不绘制，不参与布局
- * 
+ *
  * 2. 只能 inflate 一次
  *    - inflate 后，ViewStub 会从视图树中移除
  *    - 替换为实际的布局
- * 
+ *
  * 3. 无法动态修改布局
  *    - android:layout 属性必须在 XML 中定义
- * 
+ *
  * 4. 适合场景
  *    - 加载状态、空状态、错误状态
  *    - 不常用的复杂布局
@@ -1624,34 +1710,34 @@ class StateView @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null
 ) : LinearLayout(context, attrs) {
-    
+
     private val contentView: View
     private val loadingView: ViewStub
     private val emptyView: ViewStub
     private val errorView: ViewStub
-    
+
     enum class State { CONTENT, LOADING, EMPTY, ERROR }
-    
+
     init {
         orientation = VERTICAL
         // inflate 布局
         inflate(context, R.layout.state_view, this)
-        
+
         contentView = findViewById(R.id.content)
         loadingView = findViewById(R.id.stub_loading)
         emptyView = findViewById(R.id.stub_empty)
         errorView = findViewById(R.id.stub_error)
-        
+
         showState(State.CONTENT)
     }
-    
+
     fun showState(state: State) {
         // 先隐藏所有
         contentView.visibility = GONE
         loadingView.visibility = GONE
         emptyView.visibility = GONE
         errorView.visibility = GONE
-        
+
         when (state) {
             State.CONTENT -> contentView.visibility = VISIBLE
             State.LOADING -> loadingView.visibility = VISIBLE
@@ -1675,620 +1761,269 @@ class StateView @JvmOverloads constructor(
 
 ## 11. Invalidate 与 RequestLayout
 
-### 11.1 Invalidate - 重绘
+### 11.1 invalidate：从本地脏标记传播到根
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         Invalidate 流程                                     │
-└─────────────────────────────────────────────────────────────────────────────┘
+`invalidate()` 从 View 的内容失效开始。`invalidateInternal()` 处理 skipInvalidate、缓存有效性、dirty/invalidated 标记及父节点通知；根节点收到失效区域后安排遍历。它不直接递归调用每个子 View 的 onDraw。
 
-                         ┌─────────────────┐
-                         │  invalidate()   │
-                         └────────┬────────┘
-                                  │
-                                  ▼
-                    ┌───────────────────────────┐
-                    │  View.invalidate()       │
-                    │  (带参数: dirty 区域)    │
-                    └────────────┬────────────┘
-                                 │
-                                 ▼
-                    ┌───────────────────────────┐
-                    │  invalidate(true/false) │
-                    │  - true: 整个 View      │
-                    │  - false: 仅 dirty 区域 │
-                    └────────────┬────────────┘
-                                 │
-                                 ▼
-                    ┌───────────────────────────┐
-                    │  mParent.invalidateChild │
-                    │  (递归向上直到 ViewRoot) │
-                    └────────────┬────────────┘
-                                 │
-                                 ▼
-                    ┌───────────────────────────┐
-                    │  ViewRootImpl             │
-                    │  .invalidateChildInParent│
-                    └────────────┬────────────┘
-                                 │
-                                 ▼
-                    ┌───────────────────────────┐
-                    │  scheduleTraversals()    │
-                    │  (请求 VSync 信号)       │
-                    └────────────┬────────────┘
-                                 │
-                                 ▼
-                    ┌───────────────────────────┐
-                    │  Choreographer           │
-                    │  .postCallback()        │
-                    └────────────┬────────────┘
-                                 │
-                    ┌────────────┴────────────┐
-                    │      VSync 信号触发      │
-                    └────────────┬────────────┘
-                                 │
-                                 ▼
-                    ┌───────────────────────────┐
-                    │  doTraversal()           │
-                    │  → performDraw()         │
-                    │  → draw()                │
-                    │  → onDraw()              │
-                    └───────────────────────────┘
-```
+源码精简节选（省略注释；[View.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/view/View.java)）：
 
-**源码详解：**
-
-```kotlin
-// View.invalidate() 核心实现
-public void invalidate() {
-    invalidate(true);
-}
-
-public void invalidate(boolean invalidateCache) {
-    // 1. 检查是否在主线程
-    if (ViewDebug.DEBUG_INVARIANT_LEVELS) {
-        checkThread();
+```java
+void invalidateInternal(int l, int t, int r, int b, boolean invalidateCache,
+        boolean fullInvalidate) {
+    if (mGhostView != null) {
+        mGhostView.invalidate(true);
+        return;
     }
 
-    // 2. 只有可见的 View 才重绘
-    if ((mPrivateFlags & (DRAWN | DRAWN_MASK)) == 0 ||
-        (mPrivateFlags & DRAWING_CACHE_VALID) == 0 ||
-        (invalidateCache && mCachingFailed)) {
+    if (skipInvalidate()) {
+        return;
+    }
+    mPrivateFlags4 &= ~PFLAG4_CONTENT_CAPTURE_IMPORTANCE_MASK;
+    mContentCaptureSessionCached = false;
 
-        // 3. 设置标志位
-        mPrivateFlags |= DRAWN;
-        mPrivateFlags &= ~DRAWING_CACHE_VALID;
-        mPrivateFlags |= mCachingFailed ? 0 : DRAWN_MASK;
+    if ((mPrivateFlags & (PFLAG_DRAWN | PFLAG_HAS_BOUNDS)) == (PFLAG_DRAWN | PFLAG_HAS_BOUNDS)
+            || (invalidateCache && (mPrivateFlags & PFLAG_DRAWING_CACHE_VALID) == PFLAG_DRAWING_CACHE_VALID)
+            || (mPrivateFlags & PFLAG_INVALIDATED) != PFLAG_INVALIDATED
+            || (fullInvalidate && isOpaque() != mLastIsOpaque)) {
+        if (fullInvalidate) {
+            mLastIsOpaque = isOpaque();
+            mPrivateFlags &= ~PFLAG_DRAWN;
+        }
 
-        // 4. 递归向上通知父 View
-        if (mParent != null) {
-            mParent.invalidateChild(this, dirty);
+        mPrivateFlags |= PFLAG_DIRTY;
+
+        if (invalidateCache) {
+            mPrivateFlags |= PFLAG_INVALIDATED;
+            mPrivateFlags &= ~PFLAG_DRAWING_CACHE_VALID;
+        }
+        final AttachInfo ai = mAttachInfo;
+        final ViewParent p = mParent;
+        if (p != null && ai != null && l < r && t < b) {
+            final Rect damage = ai.mTmpInvalRect;
+            damage.set(l, t, r, b);
+            p.invalidateChild(this, damage);
+        }
+        if (mBackground != null && mBackground.isProjected()) {
+            final View receiver = getProjectionReceiver();
+            if (receiver != null) {
+                receiver.damageInParent();
+            }
         }
     }
 }
+```
 
-// ViewGroup.invalidateChild()
-public final void invalidateChild(View child, final DirtyRect dirty) {
-    final AttachInfo attachInfo = mAttachInfo;
-    if (attachInfo != null && mViewFlags != VISIBLE) {
-        return; // 不可见直接返回
+硬件加速下，ViewGroup 的 `invalidateChild()` 会转入 `onDescendantInvalidated()`，传播内容/动画脏状态；软件路径还会逐级处理矩形坐标和裁剪。因而不能把“逐层累加一个 dirty Rect”当成所有渲染模式共用的完整协议。
+
+源码精简节选（省略注释；[ViewGroup.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/view/ViewGroup.java)）：
+
+```java
+public void onDescendantInvalidated(@NonNull View child, @NonNull View target) {
+    mPrivateFlags |= (target.mPrivateFlags & PFLAG_DRAW_ANIMATION);
+
+    if ((target.mPrivateFlags & ~PFLAG_DIRTY_MASK) != 0) {
+        mPrivateFlags = (mPrivateFlags & ~PFLAG_DIRTY_MASK) | PFLAG_DIRTY;
+        mPrivateFlags &= ~PFLAG_DRAWING_CACHE_VALID;
+    }
+    if (mLayerType == LAYER_TYPE_SOFTWARE) {
+        mPrivateFlags |= PFLAG_INVALIDATED | PFLAG_DIRTY;
+        target = this;
     }
 
-    // 转换 dirty 坐标到父容器坐标系
-    final int[] location = attachInfo.mInvalidateChildLocation;
-    location[CHILD_LEFT_INDEX] = child.mLeft;
-    location[CHILD_TOP_INDEX] = child.mTop;
-
-    // 递归向上
-    if ((child.mPrivateFlags & DRAWN) == 0) {
-        child.mPrivateFlags |= DRAWN;
-    }
-
-    do {
-        View parent = this;
-        // 坐标变换
-        dirty.offset(location[CHILD_LEFT_INDEX], location[CHILD_TOP_INDEX]);
-
-        // 父容器也需要重绘
-        if ((parent.mViewFlags & FADING_EDGE_MASK) != 0 ||
-            parent.mCacheBitmap != null) {
-            parent.mPrivateFlags |= DRAWN;
-        }
-
-        parent = parent.mParent;
-    } while (parent != null);
-
-    // 最终通知 ViewRootImpl
-    attachInfo.mViewRootImpl.invalidate();
-}
-```
-
-**Invalidate 注意事项：**
-
-```kotlin
-// 1. 在主线程调用
-// ❌ 子线程调用会崩溃
-Thread {
-    view.invalidate() // 抛出异常
-}.start()
-
-// 2. View 必须可见且已 attached
-// ❌ 不可见时不生效
-view.visibility = View.INVISIBLE
-view.invalidate() // 无效
-
-// 3. 可以指定重绘区域（局部刷新）
-view.post {
-    // 只重绘左侧区域
-    view.invalidate(0, 0, view.width / 2, view.height)
-}
-
-// 4. 设置标志位组合
-// DRAWN: 已绘制
-// DRAWING_CACHE_VALID: 缓存有效
-// DRAWN_MASK: 绘制掩码
-```
-
-**特点：**
-- 只触发 **Draw** 流程（不重新 Measure 和 Layout）
-- 效率较高，支持局部刷新
-- 必须在主线程调用
-
-```kotlin
-// invalidate() 使用场景
-// 1. 修改了需要绘制的数据
-// 2. 颜色、状态变化
-// 3. 动画过程中
-// 4. 自定义 View 更新显示内容
-
-fun updateProgress(progress: Int) {
-    this.progress = progress
-    invalidate() // 只重绘，不需要重新测量布局
-}
-```
-
-### 11.2 RequestLayout - 重新布局
-
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                       RequestLayout 流程                                    │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-                         ┌─────────────────────┐
-                         │   requestLayout()   │
-                         └──────────┬──────────┘
-                                    │
-                                    ▼
-                    ┌─────────────────────────────────┐
-                    │  View.requestLayout()          │
-                    │  1. 检查线程                    │
-                    │  2. 清除布局缓存                 │
-                    │  3. 向上递归                    │
-                    └────────────┬────────────────────┘
-                                 │
-                                 ▼
-                    ┌─────────────────────────────────┐
-                    │  mParent.requestLayout()        │
-                    │  (递归向上直到 ViewRoot)        │
-                    └────────────┬────────────────────┘
-                                 │
-                                 ▼
-                    ┌─────────────────────────────────┐
-                    │  ViewRootImpl.requestLayout()   │
-                    │  mLayoutRequested = true        │
-                    └────────────┬────────────────────┘
-                                 │
-                                 ▼
-                    ┌─────────────────────────────────┐
-                    │  scheduleTraversals()           │
-                    │  (请求 VSync，触发完整遍历)    │
-                    └────────────┬────────────────────┘
-                                 │
-                    ┌────────────┴────────────┐
-                    │      VSync 信号触发      │
-                    └────────────┬────────────┘
-                                 │
-                                 ▼
-                    ┌─────────────────────────────────┐
-                    │  doTraversal()                 │
-                    │                                 │
-                    │  ┌───────────────────────────┐ │
-                    │  │ performMeasure()          │ │
-                    │  │   重新测量所有 View       │ │
-                    │  └────────────┬──────────────┘ │
-                    │               │                │
-                    │               ▼                │
-                    │  ┌───────────────────────────┐ │
-                    │  │ performLayout()          │ │
-                    │  │   重新布局所有 View      │ │
-                    │  └────────────┬──────────────┘ │
-                    │               │                │
-                    │               ▼                │
-                    │  ┌───────────────────────────┐ │
-                    │  │ performDraw()            │ │
-                    │  │   重新绘制所有 View      │ │
-                    │  └───────────────────────────┘ │
-                    └─────────────────────────────────┘
-```
-
-**源码详解：**
-
-```kotlin
-// View.requestLayout() 核心实现
-public void requestLayout() {
-    // 1. 检查线程
-    if (ViewDebug.DEBUG_INVARIANT_LEVELS) {
-        checkThread();
-    }
-
-    // 2. 清除布局缓存标志
-    mPrivateFlags &= ~DRAWN;
-    mPrivateFlags |= DRAWN_MASK;
-
-    // 3. 标记需要重新布局
-    mPrivateFlags |= FORCE_LAYOUT;
-    mPrivateFlags |= INVALIDATED;
-
-    // 4. 向上递归通知父容器
     if (mParent != null) {
+        mParent.onDescendantInvalidated(this, target);
+    }
+}
+```
+
+软件 layer 特别把自己标记为需要更新，因为子内容变化意味着该 layer 的位图内容需要重建。普通硬件 RenderNode 则可以让未变化的兄弟显示列表继续复用。绘制中的对象分配应尽量移到初始化或尺寸变化时，避免把失效频率和分配频率绑在一起。
+
+### 11.2 requestLayout：尺寸依赖沿父链传播
+
+源码精简节选（省略注释；[View.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/view/View.java)）：
+
+```java
+public void requestLayout() {
+    if (isRelayoutTracingEnabled()) {
+        Trace.instantForTrack(TRACE_TAG_APP, "requestLayoutTracing",
+                mTracingStrings.classSimpleName);
+        printStackStrace(mTracingStrings.requestLayoutStacktracePrefix);
+    }
+
+    if (mMeasureCache != null) mMeasureCache.clear();
+
+    if (mAttachInfo != null && mAttachInfo.mViewRequestingLayout == null) {
+        ViewRootImpl viewRoot = getViewRootImpl();
+        if (viewRoot != null && viewRoot.isInLayout()) {
+            if (!viewRoot.requestLayoutDuringLayout(this)) {
+                return;
+            }
+        }
+        mAttachInfo.mViewRequestingLayout = this;
+    }
+
+    mPrivateFlags |= PFLAG_FORCE_LAYOUT;
+    mPrivateFlags |= PFLAG_INVALIDATED;
+
+    if (mParent != null && !mParent.isLayoutRequested()) {
         mParent.requestLayout();
     }
-}
-
-// ViewRootImpl.requestLayout()
-public void requestLayout() {
-    if (!mHandlingLayoutInEditMode) {
-        // 检查是否在主线程
-        if (Thread.currentThread() == mThread) {
-            // 直接调度遍历
-            scheduleTraversals();
-        } else {
-            // 发送到主线程
-            mHandler.post(mTraversalRunnable);
-        }
+    if (mAttachInfo != null && mAttachInfo.mViewRequestingLayout == this) {
+        mAttachInfo.mViewRequestingLayout = null;
     }
 }
-
-// mTraversalRunnable
-final TraversalRunnable mTraversalRunnable = new TraversalRunnable();
-
-class TraversalRunnable implements Runnable {
-    @Override
-    public void run() {
-        doTraversal();
-    }
-}
-
-void doTraversal() {
-    // 完整的三流程
-    performMeasure(mWidth, mHeight);
-    performLayout(lp, mWidth, mHeight);
-    performDraw();
-}
 ```
 
-**触发 RequestLayout 的场景：**
+`requestLayout()` 清空本节点测量缓存，置 `PFLAG_FORCE_LAYOUT` 和 `PFLAG_INVALIDATED`，再向尚未请求布局的父节点传播。父节点已置位时停止向上传播是合并请求，不代表子节点自己的标记没有设置。
 
-```kotlin
-// 1. 尺寸变化
-textView.text = "很长很长的文本..." // 高度可能变化
-imageView.setImageBitmap(bitmap) // 尺寸变化
-
-// 2. 布局参数变化
-val params = view.layoutParams as ViewGroup.MarginLayoutParams
-params.width = ViewGroup.LayoutParams.MATCH_PARENT
-view.layoutParams = params // 会触发 requestLayout
-
-// 3. 添加/移除子 View
-parentView.addView(childView)
-parentView.removeView(childView)
-
-// 4. 调用 setLayoutParams()
-view.setLayoutParams(newLayoutParams)
-
-// 5. View.forceLayout() 强制重新布局
-view.forceLayout()
-view.requestLayout()
-```
-
-**⚠️ 注意事项：**
-
-```kotlin
-// ❌ 错误：onDraw 中调用 requestLayout
-override fun onDraw(canvas: Canvas) {
-    requestLayout() // 会导致无限循环！每次 draw 都会 requestLayout
-}
-
-// ✅ 正确：在数据变化时调用
-fun setNewData(newData: List<String>) {
-    this.data = newData
-    requestLayout() // 尺寸可能变化
-    invalidate()   // 内容也变化
-}
-
-// ⚠️ 连锁反应
-// requestLayout() 会触发整个 View 树的重新 measure + layout + draw
-// 性能开销较大，频繁调用会影响性能
-```
+布局过程中发起请求，会通过 `ViewRootImpl.requestLayoutDuringLayout()` 参与额外一轮布局与后续调度控制，而非立即递归测量。对于文本长度、padding、子项数变化，应在修改数据时调用 requestLayout；不要在 onDraw 内改变 LayoutParams。
 
 ### 11.3 两者对比与选择
 
-| 对比项 | invalidate() | requestLayout() |
-|--------|-------------|-----------------|
-| **触发流程** | Draw | Measure + Layout + Draw |
-| **性能** | 高（只重绘） | 低（完整遍历） |
-| **使用场景** | 内容/颜色/动画变化 | 尺寸/布局参数变化 |
-| **调用频率** | 可高频调用 | 避免频繁调用 |
-| **局部刷新** | 支持（dirty region） | 不支持（全树） |
+| 状态变化 | 处理 | 原因 |
+|---|---|---|
+| 颜色、进度比例、选择高亮 | invalidate | 内容变了，期望大小未变 |
+| 字体大小、固有图片大小、标签集合 | requestLayout，必要时 invalidate | 期望尺寸与内容都可能变化 |
+| translation、scale、alpha | 优先使用 View 属性 setter | setter 已封装对应 RenderNode 属性失效 |
+| 多个子项约束同时改变 | 更新后请求布局，由框架合并 | 不手动对整棵树反复 measure/layout |
 
-**选择原则：**
+例如进度条每帧只更新进度值即可重绘，不能每帧申请一个新的 LayoutParams 并 requestLayout。若进度文字变长会改变 wrap_content 大小，可以使用固定标签区，或只在期望大小真正改变时请求布局。
 
-```kotlin
-// ✅ 用 invalidate() 的场景
-fun updateColor(color: Int) {
-    this.color = color
-    invalidate() // 颜色变化，只需要重绘
-}
+### 11.4 forceLayout：只标本节点，不向上排程
 
-fun animateProgress(progress: Float) {
-    this.progress = progress
-    invalidate() // 动画过程中持续重绘
-}
+源码精简节选（省略注释；[View.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/view/View.java)）：
 
-// ✅ 用 requestLayout() 的场景
-fun setNewImage(bitmap: Bitmap) {
-    this.bitmap = bitmap
-    requestLayout() // 图片尺寸变化，需要重新测量
-    invalidate()   // 也需要重绘内容
-}
+```java
+public void forceLayout() {
+    if (mMeasureCache != null) mMeasureCache.clear();
 
-fun updateMargin(leftMargin: Int) {
-    val params = layoutParams as ViewGroup.MarginLayoutParams
-    params.leftMargin = leftMargin
-    layoutParams = params // 自动触发 requestLayout
-}
-
-// ⚠️ 两者都需要的场景
-fun updateContent(newContent: String, newWidth: Int) {
-    this.content = newContent
-    requestLayout() // 文本变化，宽度变化
-    invalidate()   // 内容变化，需要重绘
+    mPrivateFlags |= PFLAG_FORCE_LAYOUT;
+    mPrivateFlags |= PFLAG_INVALIDATED;
 }
 ```
 
-### 11.4 forceLayout() 强制重新布局
-
-```kotlin
-/**
- * forceLayout() - 强制标记 View 需要重新布局
- *
- * 与 requestLayout() 的区别：
- * - requestLayout(): 向上递归，通知父容器重新布局
- * - forceLayout(): 只标记当前 View，强制在下次布局时重新测量
- */
-
-// 使用场景：已知尺寸需要变化
-view.forceLayout()
-view.requestLayout() // 两者配合使用
-
-// 或者只标记，依赖父容器的 requestLayout 触发
-view.forceLayout()
-parent.requestLayout() // 父容器触发时会强制测量子 View
-```
-
----
+它与 requestLayout 都会清缓存和置位，但没有 `mParent.requestLayout()`。因此单独调用 forceLayout 不保证下一帧出现遍历；适合父容器已经控制测量周期时强制某个子节点参与，而不是业务层刷新 View 的替代品。
 
 ## 12. Draw 流程源码解析
 
-### 12.1 View.draw() 源码流程
+### 12.1 View.draw() 顺序
 
-```kotlin
-/**
- * View.draw() 完整流程
- */
-public void draw(Canvas canvas) {
-    // Step 1: 绘制背景
-    // 绘制 View 的背景（通常在 onDraw 之前）
+基类 `draw(Canvas)` 先更新脏标记，再按背景、内容、子项、装饰的顺序组织绘制。下面保留常见的无 fading edge 分支；有 fading edge 时会额外保存图层、绘制渐隐边缘并恢复，但内容前后关系不变。
+
+源码精简节选（省略注释；[View.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/view/View.java)）：
+
+```java
+public void draw(@NonNull Canvas canvas) {
+    final int privateFlags = mPrivateFlags;
+    mPrivateFlags = (privateFlags & ~PFLAG_DIRTY_MASK) | PFLAG_DRAWN;
+    int saveCount;
+
     drawBackground(canvas);
-
-    // Step 2: 绘制主体内容
-    // 子类重写此方法实现自定义绘制
-    onDraw(canvas);
-
-    // Step 3: 绘制子 View (仅 ViewGroup)
-    // ViewGroup 重写，分发给子 View 绘制
-    dispatchDraw(canvas);
-
-    // Step 4: 绘制装饰
-    // 滚动条、前景等
-    onDrawForeground(canvas);
-}
-
-// draw() 完整源码简化
-public void draw(Canvas canvas) {
-    // 1. 绘制背景
-    if (!dirtyOpaque) {
-        drawBackground(canvas);
-    }
-
-    // 2. 绘制内容
-    if (!dirtyOpaque) {
+    final int viewFlags = mViewFlags;
+    boolean horizontalEdges = (viewFlags & FADING_EDGE_HORIZONTAL) != 0;
+    boolean verticalEdges = (viewFlags & FADING_EDGE_VERTICAL) != 0;
+    if (!verticalEdges && !horizontalEdges) {
         onDraw(canvas);
-    }
+        dispatchDraw(canvas);
 
-    // 3. 绘制滚动条等装饰
-    onDrawForeground(canvas);
-
-    // 4. 对于 ViewGroup，分发绘制子 View
-    // (由 ViewGroup 重写)
-}
-```
-
-### 12.2 DecorView.draw() 特殊流程
-
-```kotlin
-/**
- * DecorView 是 Activity 的根 View，继承自 FrameLayout
- * 绘制流程有特殊处理
- */
-public class DecorView extends FrameLayout {
-
-    private Drawable mWindowBackground;
-
-    @Override
-    public void draw(Canvas canvas) {
-        // 1. 先调用父类 FrameLayout 的 draw
-        super.draw(canvas);
-
-        // 2. 额外绘制：Window 背景
-        // 这是 Activity 窗口背景，通常是一张图片或颜色
-        if (mWindowBackground != null) {
-            mWindowBackground.draw(canvas);
+        drawAutofilledHighlight(canvas);
+        if (mOverlay != null && !mOverlay.isEmpty()) {
+            mOverlay.getOverlayView().dispatchDraw(canvas);
         }
-    }
-}
+        onDrawForeground(canvas);
+        drawDefaultFocusHighlight(canvas);
 
-/**
- * Activity 窗口背景设置流程
- */
-public void setContentView(int resId) {
-    // 1. 创建 DecorView
-    // 2. 设置窗口背景
-    getWindow().setBackgroundDrawable(new BitmapDrawable());
+        if (isShowingLayoutBounds()) {
+            debugDrawFocus(canvas);
+        }
+        return;
+    }
+
+    boolean drawTop = false;
+    boolean drawBottom = false;
+    boolean drawLeft = false;
+    boolean drawRight = false;
+
+    float topFadeStrength = 0.0f;
+    float bottomFadeStrength = 0.0f;
+    float leftFadeStrength = 0.0f;
+    float rightFadeStrength = 0.0f;
+```
+
+从代码可直接读出：`onDraw()` 不是绘制全部内容的唯一入口。子项在 `dispatchDraw()` 中绘制；autofill highlight 在子项之后；Overlay 在 foreground 之前；最后还可能有默认焦点高亮和布局边界调试绘制。重写 `draw()` 后不调用 super，会同时绕过这些框架行为。
+
+### 12.2 ViewGroup.drawChild() 与硬件显示列表
+
+源码精简节选（省略注释；[ViewGroup.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/view/ViewGroup.java)）：
+
+```java
+protected boolean drawChild(@NonNull Canvas canvas, View child, long drawingTime) {
+    return child.draw(canvas, this, drawingTime);
 }
 ```
 
-### 12.3 ViewGroup.drawChild() 源码详解
+`drawChild()` 委托给 View 面向父容器的 draw 重载。该重载处理滚动、矩阵、alpha、裁剪、传统 Animation 与硬件 RenderNode；并不是在每一帧都直接执行 `child.onDraw()`。硬件路径可以引用未失效子树的显示列表，只更新节点属性或重录真正变脏的部分。
+
+| 扩展点 | 应承担的职责 | 典型例子 |
+|---|---|---|
+| `onDraw(Canvas)` | 自己的内容 | 仪表盘刻度、进度弧、文字 |
+| `dispatchDraw(Canvas)` | 子 View 绘制前后的附加内容 | 子项背后的连线、子项上方的选择框 |
+| `onDrawForeground(Canvas)` | 前景、滚动条等装饰层 | 覆盖内容的边框；调用 super 保留默认装饰 |
+| `drawChild(Canvas, View, long)` | 单个子项绘制包装 | 配合 save/restore 的逐项裁剪 |
+
+只在 dispatchDraw 的 super 调用之后画内容，会盖住子项，但仍可能在 foreground 和 Overlay 相关层次之下；需要跨层覆盖时应先确定要覆盖哪一层，而不是不断提高 elevation。
+
+### 12.3 属性失效与内容重录的区别
+
+`setTranslationX()` 走的是 RenderNode 属性更新，通常无需执行 onMeasure 或重录该 View 的静态绘制命令；`setText()`、更改自绘 Path 则可能改变内容显示列表，有时还改变期望尺寸。
 
 ```kotlin
-/**
- * ViewGroup.drawChild() - 绘制子 View
- *
- * 这是 ViewGroup 绘制子 View 的核心方法
- * 控制每个子 View 的绘制时机和方式
- */
-protected boolean drawChild(Canvas canvas, View child, long drawingTime) {
-    // 1. 保存当前 Canvas 状态
-    // 每个子 View 都有独立的 Canvas 状态
-    final int clipLeft = canvas.getSaveCount();
-
-    // 2. 计算子 View 的渲染时间
-    // 用于动画等基于时间的绘制
-    child.mPrivateFlags |= DRAW_ANIMATION;
-
-    // 3. 获取子 View 之前是否已计算过
-    final boolean childDrawDone = child.mPrivateFlags & DRAW_COMPLETE;
-
-    // 4. 清理子 View 的缓存标志
-    child.mPrivateFlags &= ~DRAWING_CACHE_VALID;
-
-    // 5. 执行子 View 的 draw() 方法
-    // 传递 drawingTime 用于动画时间计算
-    final boolean more = child.draw(canvas, drawingTime, true);
-
-    // 6. 恢复 Canvas 状态
-    // 确保子 View 的绘制不影响后续绘制
-    canvas.restoreToCount(clipLeft);
-
-    // 7. 如果子 View 正在动画，继续后续处理
-    if (more) {
-        // 动画相关处理
+// 自定义 View 内的应用代码：绘制内容变化与几何变化分别处理。
+var lineColor: Int = Color.BLACK
+    set(value) {
+        if (field == value) return
+        field = value
+        paint.color = value
+        invalidate()
     }
 
-    return more;
-}
-
-/**
- * drawChild 完整流程图
- */
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                     drawChild 流程                                          │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-     ViewGroup.drawChild(canvas, child, drawingTime)
-                    │
-                    ▼
-     ┌─────────────────────────────────────────┐
-     │ canvas.save()                           │
-     │   保存当前 Canvas 状态                  │
-     └────────────────┬────────────────────────┘
-                    │
-                    ▼
-     ┌─────────────────────────────────────────┐
-     │ 计算子 View 渲染参数                     │
-     │   - drawingTime (动画时间)             │
-     │   - mPrivateFlags 标志位               │
-     └────────────────┬────────────────────────┘
-                    │
-                    ▼
-     ┌─────────────────────────────────────────┐
-     │ child.draw(canvas, drawingTime)         │
-     │   调用子 View 的 draw 方法              │
-     │   ├─ drawBackground()                  │
-     │   ├─ onDraw()                          │
-     │   ├─ dispatchDraw() (如果是 ViewGroup)│
-     │   └─ onDrawForeground()                │
-     └────────────────┬────────────────────────┘
-                    │
-                    ▼
-     ┌─────────────────────────────────────────┐
-     │ canvas.restoreToCount(clipLeft)         │
-     │   恢复 Canvas 状态                      │
-     └────────────────┬────────────────────────┘
-                    │
-                    ▼
-               返回是否需要继续绘制
+var preferredRadiusPx: Float = 60f
+    set(value) {
+        require(value.isFinite() && value >= 0f)
+        if (field == value) return
+        field = value
+        requestLayout() // onMeasure 的期望尺寸依赖此值
+        invalidate()    // onDraw 的内容也依赖此值
+    }
 ```
 
-### 12.4 绘制顺序控制
+`invalidate()` 表示“已有内容不再有效”，不是“立即调用 onDraw”；`requestLayout()` 表示“布局约束需要重新求解”，也不是“此树所有节点必定重测”。外层遍历仍会合并请求并复用可用结果。
 
-```kotlin
-/**
- * ViewGroup 默认绘制顺序：先添加的先绘制（底层）
- *
- * 控制绘制顺序的方式：
- */
+### 12.4 DecorView 与子项绘制顺序
 
-// 方式1：复写 getChildDrawingOrder()
-class CustomViewGroup : ViewGroup {
+DecorView 是窗口装饰根节点。其 draw 会在 super.draw 之后绘制菜单背景等窗口装饰；它不是直接跳过 View.draw 的特殊渲染器。
 
-    // 启用自定义绘制顺序
-    init {
-        childrenDrawingOrderEnabled = true
-    }
+源码精简节选（省略注释；[DecorView.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/com/android/internal/policy/DecorView.java)）：
 
-    override fun getChildDrawingOrder(childCount: Int, i: Int): Int {
-        // 逆序绘制：最后面的先绘制
-        return childCount - 1 - i
+```java
+public void draw(Canvas canvas) {
+    super.draw(canvas);
+
+    if (mMenuBackground != null) {
+        mMenuBackground.draw(canvas);
     }
 }
-
-// 方式2：使用 bringToFront() 改变 Z 轴顺序
-childView1.bringToFront() // 移到最上层
-
-// 方式3：控制子 View 添加顺序
-// 先添加的在下面，后添加的在上面
-
-// XML 中的控制
-android:childrenDrawingOrderEnabled="true"
 ```
 
-```xml
-<!-- android:childrenDrawingOrderEnabled="true" -->
-<!-- 复写 getChildDrawingOrder() 控制绘制顺序 -->
+ViewGroup 的子项顺序还考虑 Z 与自定义 drawing order。`setChildrenDrawingOrderEnabled(true)` 只开启自定义索引能力；存在非零 Z 时还会由有序列表处理叠放关系。硬件路径的 RenderNode 重排与触摸路径的命中排序也应共同考虑，不能只凭数组下标判断“最上层”。
 
-<!-- z-order 控制 -->
-<!-- 1. 先添加的 View 在后面 (底层) -->
-<!-- 2. bringToFront() 移到最前 -->
-```
-
----
+在自定义容器的 onDraw 中画背景性内容时，记得 `setWillNotDraw(false)`。若只重写 dispatchDraw 增加子项之间的连线，则应把每次坐标变换限制在 save/restore 范围内，防止污染后续子项。
 
 ## 13. Canvas 高级用法
 
-### 13.1 Canvas Save/Restore 详解 详解
+### 13.1 Canvas Save/Restore 详解
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                     Canvas 状态管理                                          │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -2312,7 +2047,7 @@ Canvas 维护一个状态栈，save() 入栈，restore() 出栈。
 └─────────────────────────────────────────────────────────────────────────────┘
 
        canvas.restore()  ──► 恢复到 Level 2
-       canvas.restore()  ──► 恢复到 Level 1  
+       canvas.restore()  ──► 恢复到 Level 1
        canvas.restore()  ──► 恢复到 Level 0
 ```
 
@@ -2321,37 +2056,37 @@ Canvas 维护一个状态栈，save() 入栈，restore() 出栈。
 ```kotlin
 /**
  * Canvas.save() 保存的内容：
- * 
+ *
  * 1. 矩阵变换 (Matrix)
  *    - translate() 平移
  *    - rotate() 旋转
  *    - scale() 缩放
  *    - skew() 倾斜
  *    - setMatrix() 直接设置
- * 
+ *
  * 2. 裁剪区域 (Clip)
  *    - clipRect()
  *    - clipPath()
  *    - clipRegion()
  *    - clipBounds()
- * 
+ *
  * 3. Canvas 特有状态
  *    - 当前 save 点的位置
  *    - 离屏渲染目标 (saveLayer)
- * 
+ *
  * ⚠️ 注意：save() 不保存 Paint 对象！
  */
 ```
 
 **restore() 恢复的状态：**
 
-```kotlin
+```text
 /**
  * Canvas.restore() 恢复的内容：
- * 
+ *
  * - 恢复到最近一次 save() 前的状态
  * - 包括：矩阵、裁剪区域、离屏渲染目标
- * 
+ *
  * ⚠️ 注意：Paint 属性不会恢复！
  *       如果需要保存 Paint 状态，需要手动保存/恢复
  */
@@ -2376,18 +2111,18 @@ canvas.restore()
 ```kotlin
 override fun onDraw(canvas: Canvas) {
     super.onDraw(canvas)
-    
+
     // ========== 场景1: 隔离变换操作 ==========
     // 旋转只影响圆形，不影响矩形
     canvas.drawRect(10f, 10f, 100f, 100f, paint) // 正常
-    
+
     canvas.save()
     canvas.rotate(45f, 55f, 55f) // 围绕中心旋转
     canvas.drawCircle(55f, 55f, 40f, paint)
     canvas.restore()
-    
+
     canvas.drawRect(120f, 10f, 210f, 100f, paint) // 不受影响
-    
+
     // ========== 场景2: 多次变换叠加 ==========
     canvas.save()
     canvas.translate(100f, 0f)
@@ -2395,7 +2130,7 @@ override fun onDraw(canvas: Canvas) {
     canvas.scale(1.5f, 1.5f)
     drawComplexContent(canvas)
     canvas.restore()
-    
+
     // ========== 场景3: 嵌套使用 ==========
     canvas.save() // Level 1
     canvas.translate(x1, y1)
@@ -2406,7 +2141,7 @@ override fun onDraw(canvas: Canvas) {
         canvas.restore() // 恢复到 Level 1
     drawPart3(canvas)
     canvas.restore() // 恢复到 Level 0
-    
+
     // ========== 场景4: restoreToCount 指定恢复 ==========
     val saveCount = canvas.save()
     canvas.translate(100f, 100f)
@@ -2418,7 +2153,7 @@ override fun onDraw(canvas: Canvas) {
 
 ### 13.2 Canvas saveLayer/RestoreToCount 详解
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                     Canvas 离屏渲染                                          │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -2441,12 +2176,12 @@ saveLayer() 与 save() 的区别：
 ```kotlin
 /**
  * saveLayer() 创建一个新的离屏渲染层（Off-screen Buffer）
- * 
+ *
  * 原理：
  * 1. 创建一个与指定区域大小相同的 Bitmap
  * 2. 所有后续绘制先画到这个 Bitmap 上
  * 3. restoreToCount() 时将结果合并回原 Canvas
- * 
+ *
  * 应用场景：
  * 1. 复杂效果需要完整图层
  * 2. 临时缓存绘制结果
@@ -2479,18 +2214,18 @@ public int saveLayer(float left, float top, float right, float bottom, Paint pai
 ```kotlin
 override fun onDraw(canvas: Canvas) {
     super.onDraw(canvas)
-    
+
     // ========== 场景1: 基础离屏渲染 ==========
     // 绘制到一个新的层，最后合并
     val layerId = canvas.saveLayer(0f, 0f, width.toFloat(), height.toFloat(), null)
-    
+
     // 在这个层上绘制
     canvas.drawColor(Color.RED) // 整个层变红
     canvas.drawCircle(100f, 100f, 50f, paint)
-    
+
     // 恢复到原 Canvas，结果会合并
     canvas.restoreToCount(layerId)
-    
+
     // ========== 场景2: 带 Paint 的离屏渲染 ==========
     // Paint 可以设置混合模式、透明度等
     val layerPaint = Paint().apply {
@@ -2500,27 +2235,27 @@ override fun onDraw(canvas: Canvas) {
     val layerId2 = canvas.saveLayer(0f, 0f, width.toFloat(), height.toFloat(), layerPaint)
     canvas.drawBitmap(bitmap, 0f, 0f, paint)
     canvas.restoreToCount(layerId2)
-    
+
     // ========== 场景3: 圆形遮罩效果 ==========
     // 创建圆形 Bitmap
     val maskBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
     val maskCanvas = Canvas(maskBitmap)
     maskCanvas.drawCircle(width/2f, height/2f, width/3f, Paint().apply { color = Color.WHITE })
-    
+
     // 绘制内容到离屏层
     val saved = canvas.saveLayer(0f, 0f, width.toFloat(), height.toFloat(), null)
     canvas.drawBitmap(contentBitmap, 0f, 0f, paint) // 绘制原始内容
-    
+
     // 使用 DST_IN 混合模式实现遮罩
     paint.xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_IN)
     canvas.drawBitmap(maskBitmap, 0f, 0f, paint) // 只保留交集
-    
+
     paint.xfermode = null
     canvas.restoreToCount(saved)
-    
+
     // ========== 场景4: 抗锯齿处理 ==========
     // 某些效果需要离屏渲染才能正确实现抗锯齿
-    val antiAliasLayer = canvas.saveLayer(0f, 0f, width.toFloat(), height.toFloat(), 
+    val antiAliasLayer = canvas.saveLayer(0f, 0f, width.toFloat(), height.toFloat(),
         Paint(Paint.ANTI_ALIAS_FLAG))
     canvas.drawCircle(cx, cy, radius, paint)
     canvas.restoreToCount(antiAliasLayer)
@@ -2563,7 +2298,7 @@ canvas.restore() // 恢复到初始状态
 
 ### 13.3 Canvas 裁剪高级用法
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                     Canvas 裁剪操作                                          │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -2575,7 +2310,7 @@ canvas.restore() // 恢复到初始状态
 └─────────────────────────────────────────────────────────────────────────────┘
 
 1. clipRect()   - 矩形裁剪
-2. clipPath()   - 路径裁剪  
+2. clipPath()   - 路径裁剪
 3. clipRegion() - 区域裁剪
 4. clipBounds() - 边界裁剪
 ```
@@ -2585,7 +2320,7 @@ canvas.restore() // 恢复到初始状态
 ```kotlin
 override fun onDraw(canvas: Canvas) {
     super.onDraw(canvas)
-    
+
     // ========== 1. 矩形裁剪 ==========
     canvas.save()
     // 裁剪左上区域
@@ -2593,7 +2328,7 @@ override fun onDraw(canvas: Canvas) {
     // 超出裁剪区域的内容不会绘制
     canvas.drawColor(Color.RED)
     canvas.restore()
-    
+
     // ========== 2. 路径裁剪 ==========
     canvas.save()
     // 创建圆形路径
@@ -2603,7 +2338,7 @@ override fun onDraw(canvas: Canvas) {
     canvas.clipPath(path)
     canvas.drawColor(Color.BLUE)
     canvas.restore()
-    
+
     // ========== 3. 复杂形状裁剪 ==========
     canvas.save()
     val complexPath = Path().apply {
@@ -2623,17 +2358,17 @@ override fun onDraw(canvas: Canvas) {
 ```kotlin
 /**
  * Region.Op - 裁剪区域的集合运算
- * 
+ *
  * 用于实现复杂的裁剪效果
  */
 override fun onDraw(canvas: Canvas) {
     super.onDraw(canvas)
-    
+
     // 裁剪区域 A
     val regionA = Region(100, 100, 300, 300)
     // 裁剪区域 B
     val regionB = Region(200, 200, 400, 400)
-    
+
     // ========== 1. DIFFERENCE - A 减去 B ==========
     // A - B = A 中减去 B 的部分
     canvas.save()
@@ -2641,21 +2376,21 @@ override fun onDraw(canvas: Canvas) {
     diffRegion.op(regionB, Region.Op.DIFFERENCE)
     drawRegion(canvas, diffRegion, Color.RED)
     canvas.restore()
-    
+
     // ========== 2. INTERSECT - A 和 B 的交集 ==========
     canvas.save()
     val intersectRegion = Region(regionA)
     intersectRegion.op(regionB, Region.Op.INTERSECT)
     drawRegion(canvas, intersectRegion, Color.GREEN)
     canvas.restore()
-    
+
     // ========== 3. UNION - A 和 B 的并集 ==========
     canvas.save()
     val unionRegion = Region(regionA)
     unionRegion.op(regionB, Region.Op.UNION)
     drawRegion(canvas, unionRegion, Color.BLUE)
     canvas.restore()
-    
+
     // ========== 4. XOR - A 和 B 的异或 ==========
     // 只保留不重叠的部分
     canvas.save()
@@ -2663,7 +2398,7 @@ override fun onDraw(canvas: Canvas) {
     xorRegion.op(regionB, Region.Op.XOR)
     drawRegion(canvas, xorRegion, Color.YELLOW)
     canvas.restore()
-    
+
     // ========== 5. REPLACE - 只保留 B ==========
     canvas.save()
     val replaceRegion = Region(regionA)
@@ -2688,7 +2423,7 @@ private fun drawRegion(canvas: Canvas, region: Region, color: Int) {
 
 **Region Op 图解：**
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                     Region.Op 效果图解                                      │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -2738,7 +2473,7 @@ private fun drawRegion(canvas: Canvas, region: Region, color: Int) {
 
 ### 13.4 混合模式 (PorterDuff) 详细解析
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                     PorterDuff 混合模式                                      │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -2760,7 +2495,7 @@ PorterDuff 混合模式描述了：源图像（Src）如何与目标图像（Dst
 enum class Mode {
     // 清除类
     CLEAR,      // 清除目标（全部透明）
-    
+
     // 替换类
     SRC,        // 只显示源
     DST,        // 只显示目标
@@ -2770,12 +2505,12 @@ enum class Mode {
     DST_IN,     // 目标与源交集
     SRC_OUT,    // 源与目标差集
     DST_OUT,    // 目标与源差集
-    
+
     // 特殊类
     SRC_ATOP,   // 目标内显示源
     DST_ATOP,   // 源内显示目标
     XOR,        // 异或（不重叠部分）
-    
+
     // 组合类
     MULTIPLY,   // 源乘以目标（变暗）
     SCREEN,     // 源+目标-源*目标（变亮）
@@ -2794,13 +2529,13 @@ enum class Mode {
 
 **视觉效果图解：**
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                     混合模式视觉效果                                          │
 └─────────────────────────────────────────────────────────────────────────────┘
 
                     源 (圆形)           目标 (方形)           结果
-                    
+
 ┌─────────────────┬─────────────────┬─────────────────┬─────────────────────┐
 │     模式        │     Src         │     Dst         │      结果           │
 ├─────────────────┼─────────────────┼─────────────────┼─────────────────────┤
@@ -2852,19 +2587,19 @@ enum class Mode {
 fun createCircularBitmap(src: Bitmap): Bitmap {
     val output = Bitmap.createBitmap(src.width, src.height, Bitmap.Config.ARGB_8888)
     val canvas = Canvas(output)
-    
+
     val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-    
+
     // 1. 绘制圆形遮罩（作为目标）
     val rect = RectF(0f, 0f, src.width.toFloat(), src.height.toFloat())
     canvas.drawOval(rect, paint) // DST
-    
+
     // 2. 设置混合模式
     paint.xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_IN)
-    
+
     // 3. 绘制源图像（只保留与圆形交集的部分）
     canvas.drawBitmap(src, 0f, 0f, paint)
-    
+
     return output
 }
 
@@ -2872,19 +2607,19 @@ fun createCircularBitmap(src: Bitmap): Bitmap {
 fun createRoundedBitmap(src: Bitmap, cornerRadius: Float): Bitmap {
     val output = Bitmap.createBitmap(src.width, src.height, Bitmap.Config.ARGB_8888)
     val canvas = Canvas(output)
-    
+
     val paint = Paint(Paint.ANTI_ALIAS_FLAG)
     val rect = RectF(0f, 0f, src.width.toFloat(), src.height.toFloat())
-    
+
     // 1. 绘制圆角矩形
     canvas.drawRoundRect(rect, cornerRadius, cornerRadius, paint)
-    
+
     // 2. 裁剪
     paint.xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_IN)
-    
+
     // 3. 绘制源
     canvas.drawBitmap(src, 0f, 0f, paint)
-    
+
     return output
 }
 
@@ -2892,18 +2627,18 @@ fun createRoundedBitmap(src: Bitmap, cornerRadius: Float): Bitmap {
 fun overlayColor(src: Bitmap, overlayColor: Int): Bitmap {
     val output = Bitmap.createBitmap(src.width, src.height, Bitmap.Config.ARGB_8888)
     val canvas = Canvas(output)
-    
+
     // 1. 绘制原图
     canvas.drawBitmap(src, 0f, 0f, null)
-    
+
     // 2. 设置叠加颜色
     val paint = Paint()
     paint.color = overlayColor
     paint.xfermode = PorterDuffXfermode(PorterDuff.Mode.ADD)
-    
+
     // 3. 叠加颜色
     canvas.drawRect(0f, 0f, src.width.toFloat(), src.height.toFloat(), paint)
-    
+
     return output
 }
 
@@ -2911,17 +2646,17 @@ fun overlayColor(src: Bitmap, overlayColor: Int): Bitmap {
 fun eraseWatermark(bitmap: Bitmap, watermarkRegion: RectF): Bitmap {
     val output = Bitmap.createBitmap(bitmap.width, bitmap.height, Bitmap.Config.ARGB_8888)
     val canvas = Canvas(output)
-    
+
     // 1. 绘制原图
     canvas.drawBitmap(bitmap, 0f, 0f, null)
-    
+
     // 2. 设置清除模式
     val paint = Paint()
     paint.xfermode = PorterDuffXfermode(PorterDuff.Mode.CLEAR)
-    
+
     // 3. 擦除指定区域
     canvas.drawRect(watermarkRegion, paint)
-    
+
     return output
 }
 
@@ -2929,18 +2664,18 @@ fun eraseWatermark(bitmap: Bitmap, watermarkRegion: RectF): Bitmap {
 fun fadeIn(bitmap: Bitmap, progress: Float): Bitmap {
     val output = Bitmap.createBitmap(bitmap.width, bitmap.height, Bitmap.Config.ARGB_8888)
     val canvas = Canvas(output)
-    
+
     // 绘制源
     canvas.drawBitmap(bitmap, 0f, 0f, null)
-    
+
     // 叠加白色淡入
     val paint = Paint()
     paint.color = Color.WHITE
     paint.alpha = (progress * 255).toInt()
     paint.xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_OVER)
-    
+
     canvas.drawRect(0f, 0f, bitmap.width.toFloat(), bitmap.height.toFloat(), paint)
-    
+
     return output
 }
 ```
@@ -2950,7 +2685,7 @@ fun fadeIn(bitmap: Bitmap, progress: Float): Bitmap {
 ```kotlin
 /**
  * ⚠️ 重要：使用 Xfermode 时最好配合 saveLayer
- * 
+ *
  * 原因：某些模式需要完整的层才能正确计算
  *       否则可能出现不可预期的边缘效果
  */
@@ -2963,18 +2698,18 @@ canvas.drawBitmap(src, 0f, 0f, paint) // 没有创建层
 // ✅ 正确：使用 saveLayer
 override fun onDraw(canvas: Canvas) {
     super.onDraw(canvas)
-    
+
     // 创建离屏层
     val saveCount = canvas.saveLayer(0f, 0f, width.toFloat(), height.toFloat(), null)
-    
+
     // 绘制目标
     canvas.drawOval(rect, dstPaint)
-    
+
     // 设置混合模式并绘制源
     srcPaint.xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_IN)
     canvas.drawBitmap(src, 0f, 0f, srcPaint)
     srcPaint.xfermode = null
-    
+
     // 恢复
     canvas.restoreToCount(saveCount)
 }
@@ -2986,7 +2721,7 @@ override fun onDraw(canvas: Canvas) {
 
 ### 14.1 核心区别
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                      View vs ViewGroup 区别                                 │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -3039,34 +2774,27 @@ class CustomViewGroup @JvmOverloads constructor(
 
 ### 14.3 ViewGroup 绘制相关方法
 
+`View.drawBackground(Canvas)` 是私有实现，应用不能 override 或调用 `super.drawBackground()`。设置背景用 `background` / `setBackgroundColor()`，绘制扩展使用公开或 protected 回调。
+
 ```kotlin
-class CustomViewGroup : ViewGroup {
+// 由 FrameLayout 负责测量和布局，避免缺少测量实现的裸 ViewGroup 示例。
+class DecoratedContainer(context: Context) : FrameLayout(context) {
+    private val linePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.GRAY }
+    init { setWillNotDraw(false) }
 
-    // 1. 绘制背景（默认会调用）
-    override fun drawBackground(canvas: Canvas) {
-        super.drawBackground(canvas)
-    }
-
-    // 2. 绘制自身内容
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
-        // ViewGroup 默认不执行这里，除非 setWillNotDraw(false)
+        // 自身内容，位于子项之前。
     }
 
-    // 3. 分发给子 View 绘制
     override fun dispatchDraw(canvas: Canvas) {
         super.dispatchDraw(canvas)
-        // 在这里可以绘制子 View 上层的内容
-    }
-
-    // 4. 绘制前景
-    override fun onDrawForeground(canvas: Canvas) {
-        super.onDrawForeground(canvas)
+        canvas.drawLine(0f, 0f, width.toFloat(), 0f, linePaint)
     }
 }
 ```
 
----
+依据：[View.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/view/View.java)、[ViewGroup.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/view/ViewGroup.java)。
 
 ## 15. 常见问题
 
@@ -3187,7 +2915,7 @@ class MainActivity : AppCompatActivity() {
 
 ### 16.2 View.post() 原理详解
 
-```kotlin
+```text
 /**
  * View.post(Runnable) 为什么能获取到宽高？
  *
@@ -3260,7 +2988,7 @@ override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
 
 ### 16.1 子线程不能更新 UI 的原因
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                      为什么子线程不能更新 UI                                 │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -3271,11 +2999,11 @@ override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
 
 2. ViewRootImpl 检查线程
    - ViewRootImpl 在构造时绑定创建线程
-   - 所有 UI 操作都会验证线程身份
+   - 部分关键路径会检查线程；不是所有 setter 都同步抛异常
 
-3. Surface 不是线程安全的
-   - UI 最终绘制到 Surface
-   - 多线程绘制会导致画面撕裂
+3. Surface 绘制有独立协议
+   - SurfaceHolder 的锁定、提交和生命周期必须协调
+   - 它不能作为后台线程任意修改 View 树的许可
 
 // ViewRootImpl 线程检查
 void checkThread() {
@@ -3323,7 +3051,7 @@ class MyActivity : AppCompatActivity() {
 
 // ❌ 错误：子线程直接更新 UI
 Thread {
-    textView.text = "Crash!" // 会崩溃
+    textView.text = "Unsafe" // 非线程安全；是否当场抛异常取决于调用路径
 }.start()
 ```
 
@@ -3335,7 +3063,7 @@ Thread {
  *
  * 原因：
  * 1. SurfaceView 有独立的 Surface
- * 2. Surface 在子线程创建和管理
+ * 2. 工作线程绘制需与 surfaceCreated/surfaceDestroyed 生命周期协调
  * 3. 通过 lockCanvas/unlockCanvasAndPost 绘制
  */
 
@@ -3370,7 +3098,7 @@ class MySurfaceView : SurfaceView, Runnable {
 
 ### 18.1 区别
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │              width/height vs measuredWidth/measuredHeight                  │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -3431,7 +3159,7 @@ class MyViewGroup : ViewGroup {
 
 ### 19.1 多次 Measure 的原因
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         根视图多次 Measure                                   │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -3476,7 +3204,7 @@ void performMeasure(int widthMeasureSpec, int heightMeasureSpec) {
 
 ### 19.3 避免重复 Measure
 
-```kotlin
+```text
 /**
  * 优化技巧：
  * 1. 在 onMeasure 中做缓存
@@ -3522,7 +3250,7 @@ class OptimizedView : View {
 
 ### 17.1 自定义 View 类型
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         自定义 View 类型                                     │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -3564,7 +3292,7 @@ class CircleView @JvmOverloads constructor(
 
 #### 17.1.2 组合控件
 
-```kotlin
+```text
 /**
  * 场景：复用现有控件（如标题栏、搜索栏）
  * 关键：使用 LayoutInflater 加载 XML
@@ -3588,7 +3316,7 @@ class TitleBarView @JvmOverloads constructor(
 
 #### 17.1.3 继承 ViewGroup
 
-```kotlin
+```text
 /**
  * 场景：管理子 View 布局（如流式布局、瀑布流）
  * 关键：重写 onMeasure() 和 onLayout()
@@ -3621,7 +3349,7 @@ class FlowLayout @JvmOverloads constructor(
 
 ### 18.1 三大方法对比
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    核心生命周期方法                                          │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -3759,7 +3487,7 @@ class CustomView : View {
 
 ### 19.2 属性解析
 
-```kotlin
+```text
 class CustomView @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null,
@@ -3800,7 +3528,7 @@ class CustomView @JvmOverloads constructor(
 
 ### 19.3 属性优先级
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         属性优先级                                          │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -4208,7 +3936,7 @@ class TitleBarView @JvmOverloads constructor(
 
 ### 21.3 钢琴键盘（多点触控）
 
-```kotlin
+```text
 class PianoView @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null
@@ -4365,7 +4093,7 @@ class PianoView @JvmOverloads constructor(
 
 ## 22. 完整知识体系总结
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    自定义 View 完整知识体系                                  │
 └─────────────────────────────────────────────────────────────────────────────┘

@@ -2056,6 +2056,31 @@ Systrace 中看不到应用的 Trace 信息
 
 ---
 
+## 12.4 Perfetto 完整采集与 SQL 归因
+
+```textproto
+buffers { size_kb: 32768 fill_policy: RING_BUFFER }
+duration_ms: 20000
+data_sources { config { name: "linux.ftrace" ftrace_config {
+  ftrace_events: "sched/sched_switch"
+  ftrace_events: "binder/binder_transaction"
+  atrace_categories: "am" atrace_categories: "wm"
+  atrace_categories: "gfx" atrace_categories: "view"
+  atrace_apps: "com.example.app"
+} } }
+data_sources { config { name: "android.surfaceflinger.frametimeline" } }
+```
+
+```powershell
+adb push .\feed.pbtxt /data/local/tmp/feed.pbtxt
+adb shell perfetto --txt -c /data/local/tmp/feed.pbtxt -o /data/misc/perfetto-traces/feed.perfetto-trace
+# 在另一个终端只执行一次目标操作
+adb shell am start -W -n com.example.app/.MainActivity
+adb pull /data/misc/perfetto-traces/feed.perfetto-trace .\feed.perfetto-trace
+```
+
+在 UI 先找 `Feed.load`，再用 `slice` 和 `thread_state` 交叉验证是计算、调度、Binder、锁还是渲染阶段。`actual_frame_timeline_slice` 的 jank 类型和 expected/actual 时间用于判断帧期限；不能统一用 16.67 ms 覆盖 90/120 Hz。
+
 ## 15. 知识体系总结
 
 ```

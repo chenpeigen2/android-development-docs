@@ -1824,6 +1824,33 @@ try {
 
 ---
 
+## 3.6 Android 17 定时器到 ANR 的完整调用链
+
+AOSP `android-17.0.0_r1` 不用一个全局 Handler 消息判断所有 ANR。`AnrTimer<V>` 以业务对象为 key，Native timer 到期后通过 `expire()` 向指定 Handler 投递消息；业务处理再决定 `cancel`、`accept` 或 `discard`。
+
+```text
+Service lifecycle callback
+ -> ActiveServices.bumpServiceExecutingLocked
+ -> scheduleServiceTimeoutLocked
+ -> mActiveServiceAnrTimer.start(ProcessRecord, delay)
+ -> SERVICE_TIMEOUT_MSG -> serviceTimeout
+ -> 复查 executingStart / thread / killed 状态
+ -> accept(TimeoutRecord.forServiceExec) -> appNotResponding
+
+Broadcast receiver
+ -> calculateBroadcastTimeout
+ -> mAnrTimer.start(BroadcastProcessQueue, timeout)
+ -> finishReceiverLocked -> cancel
+ -> MSG_DELIVERY_TIMEOUT -> deliveryTimeoutLocked
+ -> accept(TimeoutRecord.forBroadcastReceiver) -> appNotResponding
+```
+
+`ActiveServices.ProcessAnrTimer` 内部类从 `ProcessRecord` 提取 PID/UID。服务回调完成后只有 executing 集合清空才取消进程计时器；前台服务转前台的期限由 `mServiceFGAnrTimer` 独立管理。广播计时器使用 `extend(true)`，前后台基值来自 `BroadcastConstants`。`goAsync()` 延迟的是 `finish()`，不是取消期限。
+
+`AnrHelper.appNotResponding()` 先按 PID 去重、提交 early dump，再把 `AnrRecord` 放入 `mAnrRecords`，由 `AnrConsumerThread` 串行消费；早期堆栈、报告生成、进程退出不是同一时刻。排查应把 InputDispatcher 的事件 deadline、应用主线程、Binder 服务端和锁持有线程放在同一时间线上。
+
+源码：`services/core/java/com/android/server/utils/AnrTimer.java`、`services/core/java/com/android/server/am/ActiveServices.java`、`BroadcastQueueImpl.java`、`AnrHelper.java`。
+
 ## 附录：源码索引
 
 | 功能 | 源码文件 | 关键行号 |

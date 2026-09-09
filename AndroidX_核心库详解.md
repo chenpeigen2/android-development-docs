@@ -1,27 +1,121 @@
 # AndroidX 核心库详解
 
+> 适用环境：Android 17（API 37）；Lifecycle、Room、Paging 等 AndroidX 库按各自 Maven 版本发布，文中的 AndroidX 机制以各节官方 API 为准。
+
 > 作者：OpenClaw | 日期：2026-03-09
 
 ---
 
 ## 目录
 
-1. [概述](#1-概述)
-2. [Lifecycle](#2-lifecycle)
-3. [ViewModel](#3-viewmodel)
-4. [LiveData](#4-livedata)
-5. [Room](#5-room)
-6. [WorkManager](#6-workmanager)
-7. [Navigation](#7-navigation)
-8. [DataStore](#8-datastore)
-9. [Paging](#9-paging)
-10. [RecyclerView](#10-recyclerview)
-11. [ViewPager2](#11-viewpager2)
-12. [Fragment](#12-fragment)
-13. [核心库对比](#13-核心库对比)
-14. [ConstraintLayout](#14-constraintlayout)
-15. [面试常见问题](#15-面试常见问题)
-16. [知识体系总结](#16-知识体系总结)
+- [1. 概述](#1-概述)
+- [2. Lifecycle](#2-lifecycle)
+  - [2.1 Lifecycle 是什么](#21-lifecycle-是什么)
+  - [2.2 生命周期状态和事件](#22-生命周期状态和事件)
+  - [2.3 Lifecycle 使用](#23-lifecycle-使用)
+  - [2.4 自定义 LifecycleOwner](#24-自定义-lifecycleowner)
+  - [2.5 Lifecycle-aware 组件](#25-lifecycle-aware-组件)
+- [3. ViewModel](#3-viewmodel)
+  - [3.1 ViewModel 是什么](#31-viewmodel-是什么)
+  - [3.2 ViewModel 使用](#32-viewmodel-使用)
+  - [3.3 ViewModel 传参](#33-viewmodel-传参)
+  - [3.4 ViewModelScope](#34-viewmodelscope)
+- [4. LiveData](#4-livedata)
+  - [4.1 LiveData 是什么](#41-livedata-是什么)
+  - [4.2 LiveData 使用](#42-livedata-使用)
+  - [4.3 LiveData 转换](#43-livedata-转换)
+  - [4.4 setValue vs postValue](#44-setvalue-vs-postvalue)
+- [5. Room](#5-room)
+  - [5.1 Room 是什么](#51-room-是什么)
+  - [5.2 Entity 实体类](#52-entity-实体类)
+  - [5.3 DAO 数据访问](#53-dao-数据访问)
+  - [5.4 Database 数据库](#54-database-数据库)
+  - [5.5 数据库迁移](#55-数据库迁移)
+- [6. WorkManager](#6-workmanager)
+  - [6.1 WorkManager 是什么](#61-workmanager-是什么)
+  - [6.2 Worker 定义](#62-worker-定义)
+  - [6.3 任务调度](#63-任务调度)
+- [7. Navigation](#7-navigation)
+  - [7.1 Navigation 是什么](#71-navigation-是什么)
+  - [7.2 Navigation Graph](#72-navigation-graph)
+  - [7.3 NavController 使用](#73-navcontroller-使用)
+  - [7.4 Safe Args](#74-safe-args)
+- [8. DataStore](#8-datastore)
+  - [8.1 DataStore 是什么](#81-datastore-是什么)
+  - [8.2 Preferences DataStore](#82-preferences-datastore)
+  - [8.3 Proto DataStore](#83-proto-datastore)
+- [9. Paging](#9-paging)
+  - [9.1 Paging 是什么](#91-paging-是什么)
+  - [9.2 PagingSource](#92-pagingsource)
+  - [9.3 Pager 和 ViewModel](#93-pager-和-viewmodel)
+  - [9.4 PagingDataAdapter](#94-pagingdataadapter)
+- [10. RecyclerView](#10-recyclerview)
+  - [10.1 RecyclerView 是什么](#101-recyclerview-是什么)
+  - [10.2 缓存机制详解](#102-缓存机制详解)
+  - [10.3 LayoutManager 优化](#103-layoutmanager-优化)
+  - [10.4 Adapter 优化](#104-adapter-优化)
+  - [10.5 刷新优化](#105-刷新优化)
+  - [10.6 图片加载与复用](#106-图片加载与复用)
+  - [10.7 嵌套 RecyclerView 优化](#107-嵌套-recyclerview-优化)
+  - [10.8 ItemDecoration 优化](#108-itemdecoration-优化)
+  - [10.9 性能检测工具](#109-性能检测工具)
+  - [10.10 面试高频追问](#1010-面试高频追问)
+- [11. ViewPager2](#11-viewpager2)
+  - [11.1 ViewPager2 是什么](#111-viewpager2-是什么)
+  - [11.2 基本使用](#112-基本使用)
+  - [11.3 页面切换监听](#113-页面切换监听)
+  - [11.4 与 TabLayout 联动](#114-与-tablayout-联动)
+  - [11.5 垂直滑动](#115-垂直滑动)
+  - [11.6 禁用滑动](#116-禁用滑动)
+  - [11.7 动态更新数据](#117-动态更新数据)
+  - [11.8 ViewPager2 + Fragment 生命周期](#118-viewpager2--fragment-生命周期)
+  - [11.9 Transformer 动画](#119-transformer-动画)
+  - [11.10 ViewPager2 常见问题](#1110-viewpager2-常见问题)
+- [12. Fragment](#12-fragment)
+  - [12.1 Fragment 是什么](#121-fragment-是什么)
+  - [12.2 Fragment 生命周期](#122-fragment-生命周期)
+  - [12.3 创建 Fragment](#123-创建-fragment)
+  - [12.4 FragmentManager 和事务](#124-fragmentmanager-和事务)
+  - [12.5 Fragment 返回栈](#125-fragment-返回栈)
+  - [12.6 Fragment 通信](#126-fragment-通信)
+  - [12.7 Fragment 懒加载](#127-fragment-懒加载)
+  - [12.8 DialogFragment](#128-dialogfragment)
+  - [12.9 Fragment 状态保存与恢复](#129-fragment-状态保存与恢复)
+  - [12.10 Fragment 常见问题](#1210-fragment-常见问题)
+- [13. 核心库对比](#13-核心库对比)
+- [14. ConstraintLayout](#14-constraintlayout)
+  - [14.1 ConstraintLayout 是什么](#141-constraintlayout-是什么)
+  - [14.2 相对定位](#142-相对定位)
+  - [14.3 居中和偏移](#143-居中和偏移)
+  - [14.4 尺寸约束](#144-尺寸约束)
+  - [14.5 Chain 链](#145-chain-链)
+  - [14.6 Guideline 辅助线](#146-guideline-辅助线)
+  - [14.7 Barrier 屏障](#147-barrier-屏障)
+  - [14.8 Group 分组](#148-group-分组)
+  - [14.9 Flow 流式布局](#149-flow-流式布局)
+  - [14.10 Layer 图层](#1410-layer-图层)
+  - [14.11 ConstraintLayout 常见问题](#1411-constraintlayout-常见问题)
+- [15. 面试常见问题](#15-面试常见问题)
+  - [15.1 Lifecycle 相关](#151-lifecycle-相关)
+  - [15.2 ViewModel 相关](#152-viewmodel-相关)
+  - [15.3 LiveData 相关](#153-livedata-相关)
+  - [15.4 Room 相关](#154-room-相关)
+  - [15.5 WorkManager 相关](#155-workmanager-相关)
+  - [15.6 Navigation 相关](#156-navigation-相关)
+  - [15.7 DataStore 相关](#157-datastore-相关)
+  - [15.8 Paging 相关](#158-paging-相关)
+  - [15.9 RecyclerView 相关](#159-recyclerview-相关)
+  - [15.10 ViewPager2 相关](#1510-viewpager2-相关)
+  - [15.11 Fragment 相关](#1511-fragment-相关)
+  - [15.12 ConstraintLayout 相关](#1512-constraintlayout-相关)
+  - [15.13 综合面试题](#1513-综合面试题)
+- [16. 知识体系总结](#16-知识体系总结)
+- [17. 数据一致性、恢复与 Android 17 集成](#17-数据一致性恢复与-android-17-集成)
+  - [17.1 Lifecycle 的两个所有者](#171-lifecycle-的两个所有者)
+  - [17.2 Room 迁移与事务](#172-room-迁移与事务)
+  - [17.3 DataStore 的读失败与写失败](#173-datastore-的读失败与写失败)
+  - [17.4 Paging 的错误与缓存归属](#174-paging-的错误与缓存归属)
+  - [17.5 WorkManager 与平台调度](#175-workmanager-与平台调度)
 
 ---
 
@@ -29,7 +123,7 @@
 
 AndroidX 是 Android Jetpack 的核心组件库，提供了一系列向后兼容、独立更新的库，帮助开发者构建稳定、高效、可维护的应用。
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         AndroidX 核心库                                    │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -70,7 +164,7 @@ AndroidX 是 Android Jetpack 的核心组件库，提供了一系列向后兼容
 
 ### 2.1 Lifecycle 是什么
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         Lifecycle 定义                                      │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -95,7 +189,7 @@ AndroidX 是 Android Jetpack 的核心组件库，提供了一系列向后兼容
 
 ### 2.2 生命周期状态和事件
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         生命周期状态                                        │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -110,7 +204,7 @@ AndroidX 是 Android Jetpack 的核心组件库，提供了一系列向后兼容
 
   状态与事件对应：
   ─────────────────────────────────────────────────────────────────────────
-  
+
        ON_CREATE          ON_START          ON_RESUME
           │                  │                  │
           ▼                  ▼                  ▼
@@ -135,27 +229,27 @@ AndroidX 是 Android Jetpack 的核心组件库，提供了一系列向后兼容
 ```kotlin
 // ==================== 方式1：实现 DefaultLifecycleObserver ====================
 class MyObserver : DefaultLifecycleObserver {
-    
+
     override fun onCreate(owner: LifecycleOwner) {
         // onCreate 时执行
     }
-    
+
     override fun onStart(owner: LifecycleOwner) {
         // onStart 时执行
     }
-    
+
     override fun onResume(owner: LifecycleOwner) {
         // onResume 时执行
     }
-    
+
     override fun onPause(owner: LifecycleOwner) {
         // onPause 时执行
     }
-    
+
     override fun onStop(owner: LifecycleOwner) {
         // onStop 时执行
     }
-    
+
     override fun onDestroy(owner: LifecycleOwner) {
         // onDestroy 时执行
     }
@@ -174,12 +268,12 @@ class MainActivity : AppCompatActivity() {
 // ==================== 方式2：使用 @OnLifecycleEvent 注解（已废弃）====================
 @Deprecated("Use DefaultLifecycleObserver instead")
 class MyObserver : LifecycleObserver {
-    
+
     @OnLifecycleEvent(Lifecycle.Event.ON_CREATE)
     fun onCreate() {
         // onCreate 时执行
     }
-    
+
     @OnLifecycleEvent(Lifecycle.Event.ON_START)
     fun onStart() {
         // onStart 时执行
@@ -192,27 +286,27 @@ class MyObserver : LifecycleObserver {
 ```kotlin
 // ==================== 自定义 LifecycleOwner ====================
 class MyActivity : Activity(), LifecycleOwner {
-    
+
     private val lifecycleRegistry = LifecycleRegistry(this)
-    
+
     override val lifecycle: Lifecycle
         get() = lifecycleRegistry
-    
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         lifecycleRegistry.currentState = Lifecycle.State.CREATED
     }
-    
+
     override fun onStart() {
         super.onStart()
         lifecycleRegistry.currentState = Lifecycle.State.STARTED
     }
-    
+
     override fun onResume() {
         super.onResume()
         lifecycleRegistry.currentState = Lifecycle.State.RESUMED
     }
-    
+
     override fun onDestroy() {
         super.onDestroy()
         lifecycleRegistry.currentState = Lifecycle.State.DESTROYED
@@ -222,26 +316,30 @@ class MyActivity : Activity(), LifecycleOwner {
 
 ### 2.5 Lifecycle-aware 组件
 
+本例避免把自定义观察者也命名为 `LocationManager`，否则字段可能指向自身而非平台服务。以下仅展示启停位置监听的生命周期骨架，**没有实现权限申请或定位监听**；`getSystemService(Class)` 片段要求 API 23+，更低版本需兼容获取服务。Android 17 不意味着 AndroidX 或定位权限自动升级。
+
+服务类型使用 `android.location.LocationManager`，避免与示例辅助类同名；定位权限由宿主在开始监听前申请。参考：[Context.getSystemService](https://developer.android.com/reference/android/content/Context#getSystemService(java.lang.Class))。
+
 ```kotlin
 // ==================== 生命周期感知的 LocationManager ====================
-class LocationManager(private val context: Context) : DefaultLifecycleObserver {
-    
-    private var locationManager: LocationManager? = null
-    
+class LocationLifecycleObserver(private val context: Context) : DefaultLifecycleObserver {
+
+    private val locationManager = context.getSystemService(android.location.LocationManager::class.java)
+
     override fun onStart(owner: LifecycleOwner) {
         // 开始获取位置
         startLocationUpdates()
     }
-    
+
     override fun onStop(owner: LifecycleOwner) {
         // 停止获取位置，节省电量
         stopLocationUpdates()
     }
-    
+
     private fun startLocationUpdates() {
         // 启动位置监听
     }
-    
+
     private fun stopLocationUpdates() {
         // 停止位置监听
     }
@@ -251,7 +349,7 @@ class LocationManager(private val context: Context) : DefaultLifecycleObserver {
 class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        lifecycle.addObserver(LocationManager(this))
+        lifecycle.addObserver(LocationLifecycleObserver(this))
     }
 }
 ```
@@ -262,7 +360,7 @@ class MainActivity : AppCompatActivity() {
 
 ### 3.1 ViewModel 是什么
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         ViewModel 定义                                      │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -279,7 +377,7 @@ class MainActivity : AppCompatActivity() {
 
   生命周期：
   ─────────────────────────────────────────────────────────────────────────
-  
+
   Activity 生命周期：       ViewModel 生命周期：
   ─────────────────────     ─────────────────────
   onCreate()                │
@@ -301,13 +399,13 @@ class MainActivity : AppCompatActivity() {
 ```kotlin
 // ==================== 基本 ViewModel ====================
 class UserViewModel : ViewModel() {
-    
+
     private val _users = MutableStateFlow<List<User>>(emptyList())
     val users: StateFlow<List<User>> = _users.asStateFlow()
-    
+
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
-    
+
     fun loadUsers() {
         viewModelScope.launch {
             _isLoading.value = true
@@ -315,7 +413,7 @@ class UserViewModel : ViewModel() {
             _isLoading.value = false
         }
     }
-    
+
     override fun onCleared() {
         super.onCleared()
         // 清理资源
@@ -326,10 +424,10 @@ class UserViewModel : ViewModel() {
 class MainActivity : AppCompatActivity() {
     // 方式1：by viewModels()
     private val viewModel: UserViewModel by viewModels()
-    
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        
+
         lifecycleScope.launch {
             viewModel.users.collect { users ->
                 // 更新 UI
@@ -342,10 +440,10 @@ class MainActivity : AppCompatActivity() {
 class UserFragment : Fragment() {
     // 方式1：与 Activity 共享 ViewModel
     private val activityViewModel: UserViewModel by activityViewModels()
-    
+
     // 方式2：Fragment 独有的 ViewModel
     private val fragmentViewModel: UserViewModel by viewModels()
-    
+
     // 方式3：带 Factory 的 ViewModel
     private val viewModel: UserViewModel by viewModels {
         UserViewModelFactory(userId)
@@ -377,15 +475,15 @@ val viewModel: UserViewModel by viewModels { UserViewModelFactory("123") }
 class UserViewModel(
     private val savedStateHandle: SavedStateHandle
 ) : ViewModel() {
-    
+
     // 从 SavedStateHandle 获取参数
     private val userId: String = savedStateHandle["userId"] ?: ""
-    
+
     // 也可以保存数据
     fun saveData(data: String) {
         savedStateHandle["data"] = data
     }
-    
+
     fun getData(): String? {
         return savedStateHandle["data"]
     }
@@ -413,7 +511,7 @@ class MainActivity : AppCompatActivity() {
 
 ### 3.4 ViewModelScope
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         viewModelScope                                      │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -434,15 +532,15 @@ class MainActivity : AppCompatActivity() {
 
 ```kotlin
 class UserViewModel(private val repository: UserRepository) : ViewModel() {
-    
+
     private val _state = MutableStateFlow(UiState())
     val state: StateFlow<UiState> = _state.asStateFlow()
-    
+
     fun loadData() {
         // viewModelScope 自动管理生命周期
         viewModelScope.launch {
             _state.update { it.copy(isLoading = true) }
-            
+
             repository.getData()
                 .onSuccess { data ->
                     _state.update { it.copy(data = data, isLoading = false) }
@@ -452,7 +550,7 @@ class UserViewModel(private val repository: UserRepository) : ViewModel() {
                 }
         }
     }
-    
+
     // 切换线程
     fun loadDataWithIo() {
         viewModelScope.launch(Dispatchers.IO) {
@@ -473,7 +571,7 @@ class UserViewModel(private val repository: UserRepository) : ViewModel() {
 
 ### 4.1 LiveData 是什么
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         LiveData 定义                                       │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -500,18 +598,18 @@ class UserViewModel(private val repository: UserRepository) : ViewModel() {
 ```kotlin
 // ==================== 基本 LiveData ====================
 class UserViewModel : ViewModel() {
-    
+
     // 私有 MutableLiveData
     private val _users = MutableLiveData<List<User>>()
     // 公开 LiveData（不可变）
     val users: LiveData<List<User>> = _users
-    
+
     private val _isLoading = MutableLiveData<Boolean>()
     val isLoading: LiveData<Boolean> = _isLoading
-    
+
     fun loadUsers() {
         _isLoading.value = true
-        
+
         viewModelScope.launch {
             repository.getUsers()
                 .onSuccess { users ->
@@ -523,7 +621,7 @@ class UserViewModel : ViewModel() {
                 }
         }
     }
-    
+
     fun loadUsersInBackground() {
         viewModelScope.launch(Dispatchers.IO) {
             val users = repository.getUsersFromDb()
@@ -535,16 +633,16 @@ class UserViewModel : ViewModel() {
 // ==================== 观察 LiveData ====================
 class MainActivity : AppCompatActivity() {
     private val viewModel: UserViewModel by viewModels()
-    
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        
+
         // 观察 LiveData
         viewModel.users.observe(this) { users ->
             // 只在活跃状态接收
             adapter.submitList(users)
         }
-        
+
         viewModel.isLoading.observe(this) { isLoading ->
             binding.progressBar.isVisible = isLoading
         }
@@ -559,12 +657,12 @@ class MainActivity : AppCompatActivity() {
 class UserViewModel : ViewModel() {
     private val _userId = MutableLiveData<String>()
     val userId: LiveData<String> = _userId
-    
+
     // 转换：根据 userId 获取用户名
     val userName: LiveData<String> = Transformations.map(_userId) { id ->
         "User-$id"
     }
-    
+
     // 转换：格式化显示
     val formattedId: LiveData<String> = _userId.map { id ->
         "ID: $id"
@@ -573,14 +671,14 @@ class UserViewModel : ViewModel() {
 
 // ==================== Transformations.switchMap ====================
 class UserViewModel(private val repository: UserRepository) : ViewModel() {
-    
+
     private val _userId = MutableLiveData<String>()
-    
+
     // switchMap：根据输入切换 LiveData 源
     val user: LiveData<User> = _userId.switchMap { id ->
         repository.getUserLiveData(id)
     }
-    
+
     fun setUserId(id: String) {
         _userId.value = id
     }
@@ -588,16 +686,16 @@ class UserViewModel(private val repository: UserRepository) : ViewModel() {
 
 // ==================== MediatorLiveData ====================
 class FormViewModel : ViewModel() {
-    
+
     val name = MutableLiveData<String>()
     val email = MutableLiveData<String>()
-    
+
     // 合并多个 LiveData
     val isFormValid: MediatorLiveData<Boolean> = MediatorLiveData<Boolean>().apply {
         addSource(name) { checkFormValidity() }
         addSource(email) { checkFormValidity() }
     }
-    
+
     private fun checkFormValidity() {
         val nameValid = !name.value.isNullOrBlank()
         val emailValid = !email.value.isNullOrBlank() && email.value!!.contains("@")
@@ -608,7 +706,7 @@ class FormViewModel : ViewModel() {
 
 ### 4.4 setValue vs postValue
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    setValue vs postValue                                    │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -653,7 +751,7 @@ class FormViewModel : ViewModel() {
 
 ### 5.1 Room 是什么
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         Room 定义                                           │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -684,13 +782,13 @@ class FormViewModel : ViewModel() {
 data class User(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
-    
+
     @ColumnInfo(name = "name")
     val name: String,
-    
+
     @ColumnInfo(name = "email")
     val email: String,
-    
+
     @ColumnInfo(name = "created_at")
     val createdAt: Long = System.currentTimeMillis()
 )
@@ -700,7 +798,7 @@ data class User(
 data class UserRole(
     @ColumnInfo(name = "user_id")
     val userId: Long,
-    
+
     @ColumnInfo(name = "role_id")
     val roleId: Long
 )
@@ -710,9 +808,9 @@ data class UserRole(
 data class Article(
     @PrimaryKey
     val id: Long,
-    
+
     val title: String,
-    
+
     @Embedded
     val author: Author
 )
@@ -749,17 +847,17 @@ class Converters {
     fun fromTimestamp(value: Long?): Date? {
         return value?.let { Date(it) }
     }
-    
+
     @TypeConverter
     fun dateToTimestamp(date: Date?): Long? {
         return date?.time
     }
-    
+
     @TypeConverter
     fun fromString(value: String?): List<String> {
         return value?.split(",") ?: emptyList()
     }
-    
+
     @TypeConverter
     fun listToString(list: List<String>?): String? {
         return list?.joinToString(",")
@@ -773,54 +871,54 @@ class Converters {
 // ==================== DAO 接口 ====================
 @Dao
 interface UserDao {
-    
+
     // 插入
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(user: User): Long
-    
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(users: List<User>)
-    
+
     // 更新
     @Update
     suspend fun update(user: User): Int
-    
+
     // 删除
     @Delete
     suspend fun delete(user: User): Int
-    
+
     @Query("DELETE FROM users WHERE id = :userId")
     suspend fun deleteById(userId: Long): Int
-    
+
     @Query("DELETE FROM users")
     suspend fun deleteAll()
-    
+
     // 查询
     @Query("SELECT * FROM users")
     suspend fun getAll(): List<User>
-    
+
     @Query("SELECT * FROM users WHERE id = :userId")
     suspend fun getById(userId: Long): User?
-    
+
     @Query("SELECT * FROM users WHERE name LIKE '%' || :keyword || '%'")
     suspend fun searchByName(keyword: String): List<User>
-    
+
     // 返回 LiveData（自动更新）
     @Query("SELECT * FROM users ORDER BY created_at DESC")
     fun getAllLiveData(): LiveData<List<User>>
-    
+
     // 返回 Flow（自动更新）
     @Query("SELECT * FROM users ORDER BY created_at DESC")
     fun getAllFlow(): Flow<List<User>>
-    
+
     // 分页查询
     @Query("SELECT * FROM users LIMIT :limit OFFSET :offset")
     suspend fun getPage(limit: Int, offset: Int): List<User>
-    
+
     // 统计
     @Query("SELECT COUNT(*) FROM users")
     suspend fun getCount(): Int
-    
+
     // 事务
     @Transaction
     @Query("SELECT * FROM users WHERE id = :userId")
@@ -857,7 +955,7 @@ abstract class AppDatabase : RoomDatabase() {
 object DatabaseProvider {
     @Volatile
     private var INSTANCE: AppDatabase? = null
-    
+
     fun getDatabase(context: Context): AppDatabase {
         return INSTANCE ?: synchronized(this) {
             INSTANCE ?: Room.databaseBuilder(
@@ -880,7 +978,7 @@ object DatabaseProvider {
 @Module
 @InstallIn(SingletonComponent::class)
 object DatabaseModule {
-    
+
     @Provides
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): AppDatabase {
@@ -890,7 +988,7 @@ object DatabaseModule {
             "app_database"
         ).build()
     }
-    
+
     @Provides
     fun provideUserDao(database: AppDatabase): UserDao {
         return database.userDao()
@@ -948,7 +1046,7 @@ Room.databaseBuilder(context, AppDatabase::class.java, "app_database")
 
 ### 6.1 WorkManager 是什么
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         WorkManager 定义                                    │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -980,15 +1078,15 @@ class SyncWorker(
     context: Context,
     params: WorkerParameters
 ) : Worker(context, params) {
-    
+
     override fun doWork(): Result {
         return try {
             // 执行任务
             val data = inputData.getString("key")
-            
+
             // 同步数据
             syncData()
-            
+
             // 返回结果
             val outputData = workDataOf("result" to "success")
             Result.success(outputData)
@@ -1003,21 +1101,24 @@ class SyncWorker(
     context: Context,
     params: WorkerParameters
 ) : CoroutineWorker(context, params) {
-    
+
     override suspend fun doWork(): Result {
         return try {
             // 可以使用协程
             val data = withContext(Dispatchers.IO) {
                 fetchData()
             }
-            
-            // 显示进度（Android 11+）
+
+            // 写入中间进度，UI 通过 WorkInfo.progress 观察；不是 Android 11+ 专属 API
             setProgress(workDataOf("progress" to 50))
-            
+
             Result.success(workDataOf("data" to data))
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e // 保留取消，不能把已停止的工作变成业务重试
+        } catch (e: java.io.IOException) {
+            Result.retry() // 仅示例瞬态 I/O 故障；还需配置退避并限制业务重试
         } catch (e: Exception) {
-            Result.retry()  // 重试
-            // 或 Result.failure()
+            Result.failure() // 参数/永久失败按业务分类
         }
     }
 }
@@ -1027,7 +1128,7 @@ class RxSyncWorker(
     context: Context,
     params: WorkerParameters
 ) : RxWorker(context, params) {
-    
+
     override fun createWork(): Single<Result> {
         return fetchData()
             .map { Result.success() }
@@ -1035,6 +1136,10 @@ class RxSyncWorker(
     }
 }
 ```
+
+**进度与平台限制（2026-09-09）**：进度是 WorkManager 库的能力，只有 Worker 运行期间更新有效，并非自动显示通知。从 Android 16 开始，长时间运行的 Worker 即便通过前台服务执行，也可能消耗 JobScheduler 配额；Android 17 不能假定它绕过配额或前台服务限制。用户主动的大文件传输应评估 user-initiated data transfer job，而不是无限 `Result.retry()`。
+
+来源：[观察 Worker 进度](https://developer.android.com/develop/background-work/background-tasks/persistent/how-to/observe)、[长时间运行 Worker 与配额](https://developer.android.com/topic/libraries/architecture/workmanager/advanced/long-running)、[协程取消](https://kotlinlang.org/docs/cancellation-and-timeouts.html)。
 
 ### 6.3 任务调度
 
@@ -1099,7 +1204,7 @@ WorkManager.getInstance(context)
         when (workInfo?.state) {
             WorkInfo.State.ENQUEUED -> { /* 等待中 */ }
             WorkInfo.State.RUNNING -> { /* 运行中 */ }
-            WorkInfo.State.SUCCEEDED -> { 
+            WorkInfo.State.SUCCEEDED -> {
                 val result = workInfo.outputData.getString("result")
             }
             WorkInfo.State.FAILED -> { /* 失败 */ }
@@ -1126,7 +1231,7 @@ WorkManager.getInstance(context).cancelUniqueWork("unique_work")
 
 ### 7.1 Navigation 是什么
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         Navigation 定义                                     │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1161,20 +1266,20 @@ WorkManager.getInstance(context).cancelUniqueWork("unique_work")
     xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/nav_graph"
     app:startDestination="@id/homeFragment">
-    
+
     <!-- Home Fragment -->
     <fragment
         android:id="@+id/homeFragment"
         android:name="com.example.HomeFragment"
         android:label="Home"
         tools:layout="@layout/fragment_home">
-        
+
         <!-- 参数定义 -->
         <argument
             android:name="userId"
             app:argType="string"
             app:nullable="true" />
-        
+
         <!-- 动作 -->
         <action
             android:id="@+id/action_home_to_detail"
@@ -1184,28 +1289,28 @@ WorkManager.getInstance(context).cancelUniqueWork("unique_work")
             app:popEnterAnim="@anim/slide_in_left"
             app:popExitAnim="@anim/slide_out_right" />
     </fragment>
-    
+
     <!-- Detail Fragment -->
     <fragment
         android:id="@+id/detailFragment"
         android:name="com.example.DetailFragment"
         android:label="Detail"
         tools:layout="@layout/fragment_detail">
-        
+
         <argument
             android:name="itemId"
             app:argType="string" />
     </fragment>
-    
+
     <!-- Activity 目的地 -->
     <activity
         android:id="@+id/settingsActivity"
         android:name="com.example.SettingsActivity"
         android:label="Settings" />
-    
+
     <!-- 深度链接 -->
     <deepLink app:uri="example.com/detail/{itemId}" />
-    
+
 </navigation>
 ```
 
@@ -1217,18 +1322,18 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
-        
+
         // 获取 NavController
         val navController = findNavController(R.id.nav_host_fragment)
-        
+
         // 设置 ActionBar
         setupActionBarWithNavController(navController)
-        
+
         // 设置 BottomNavigationView
         val bottomNav = findViewById<BottomNavigationView>(R.id.bottom_nav)
         bottomNav.setupWithNavController(navController)
     }
-    
+
     override fun onSupportNavigateUp(): Boolean {
         val navController = findNavController(R.id.nav_host_fragment)
         return navController.navigateUp() || super.onSupportNavigateUp()
@@ -1237,20 +1342,20 @@ class MainActivity : AppCompatActivity() {
 
 // ==================== 在 Fragment 中导航 ====================
 class HomeFragment : Fragment() {
-    
+
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        
+
         // 导航到 Detail
         binding.btnDetail.setOnClickListener {
             // 方式1：使用 Action
             findNavController().navigate(R.id.action_home_to_detail)
-            
+
             // 方式2：带参数
             findNavController().navigate(
                 R.id.action_home_to                bundleOf("itemId" to "123")
             )
-            
+
             // 方式3：使用 Directions（Safe Args）
             val direction = HomeFragmentDirections.actionHomeToDetail("123")
             findNavController().navigate(direction)
@@ -1294,7 +1399,7 @@ findNavController().navigate(direction)
 // 接收方（自动生成的 Args 类）
 class DetailFragment : Fragment() {
     private val args: DetailFragmentArgs by navArgs()
-    
+
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         val itemId = args.itemId
     }
@@ -1307,7 +1412,7 @@ class DetailFragment : Fragment() {
 
 ### 8.1 DataStore 是什么
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         DataStore 定义                                      │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1349,21 +1454,21 @@ object DataStoreModule {
 
 // ==================== 读写数据 ====================
 class SettingsRepository(private val dataStore: DataStore<Preferences>) {
-    
+
     // 定义 Key
     private object PreferencesKeys {
         val DARK_MODE = booleanPreferencesKey("dark_mode")
         val USER_ID = stringPreferencesKey("user_id")
         val FONT_SIZE = intPreferencesKey("font_size")
     }
-    
+
     // 读取数据
     val darkMode: Flow<Boolean> = dataStore.data
         .map { preferences -> preferences[PreferencesKeys.DARK_MODE] ?: false }
-    
+
     val userId: Flow<String?> = dataStore.data
         .map { preferences -> preferences[PreferencesKeys.USER_ID] }
-    
+
     // 读取多个值
     val settings: Flow<Settings> = dataStore.data
         .map { preferences ->
@@ -1372,27 +1477,27 @@ class SettingsRepository(private val dataStore: DataStore<Preferences>) {
                 fontSize = preferences[PreferencesKeys.FONT_SIZE] ?: 14
             )
         }
-    
+
     // 写入数据
     suspend fun setDarkMode(enabled: Boolean) {
         dataStore.edit { preferences ->
             preferences[PreferencesKeys.DARK_MODE] = enabled
         }
     }
-    
+
     suspend fun setUserId(id: String) {
         dataStore.edit { preferences ->
             preferences[PreferencesKeys.USER_ID] = id
         }
     }
-    
+
     // 删除数据
     suspend fun clearUserId() {
         dataStore.edit { preferences ->
             preferences.remove(PreferencesKeys.USER_ID)
         }
     }
-    
+
     // 清空所有
     suspend fun clearAll() {
         dataStore.edit { preferences ->
@@ -1404,7 +1509,7 @@ class SettingsRepository(private val dataStore: DataStore<Preferences>) {
 // ==================== 使用 ====================
 class SettingsViewModel(private val repository: SettingsRepository) : ViewModel() {
     val darkMode: Flow<Boolean> = repository.darkMode
-    
+
     fun setDarkMode(enabled: Boolean) {
         viewModelScope.launch {
             repository.setDarkMode(enabled)
@@ -1414,6 +1519,10 @@ class SettingsViewModel(private val repository: SettingsRepository) : ViewModel(
 ```
 
 ### 8.3 Proto DataStore
+
+不要把损坏的 protobuf 静默当作默认配置返回：`Serializer.readFrom` 应抛出 `CorruptionException`。只有产品明确允许丢弃损坏数据时，才配置 `ReplaceFileCorruptionHandler`；默认值不等于恢复策略。同一进程、同一文件只能有一个活跃 DataStore 实例；需要跨进程共享时使用多进程实现，不混用单进程/多进程实例访问同一文件。
+
+来源：[DataStore 创建约束、Serializer 与损坏恢复](https://developer.android.com/topic/libraries/architecture/datastore)。
 
 ```protobuf
 // proto/settings.proto
@@ -1433,15 +1542,15 @@ message Settings {
 // ==================== Serializer ====================
 object SettingsSerializer : Serializer<Settings> {
     override val defaultValue: Settings = Settings.getDefaultInstance()
-    
+
     override suspend fun readFrom(input: InputStream): Settings {
         return try {
             Settings.parseFrom(input)
         } catch (e: InvalidProtocolBufferException) {
-            defaultValue
+            throw androidx.datastore.core.CorruptionException("Cannot read settings proto", e)
         }
     }
-    
+
     override suspend fun writeTo(t: Settings, output: OutputStream) {
         t.writeTo(output)
     }
@@ -1455,9 +1564,9 @@ private val Context.settingsDataStore: DataStore<Settings> by dataStore(
 
 // ==================== 读写 ====================
 class SettingsRepository(private val dataStore: DataStore<Settings>) {
-    
+
     val settings: Flow<Settings> = dataStore.data
-    
+
     suspend fun updateDarkMode(enabled: Boolean) {
         dataStore.updateData { currentSettings ->
             currentSettings.toBuilder()
@@ -1465,7 +1574,7 @@ class SettingsRepository(private val dataStore: DataStore<Settings>) {
                 .build()
         }
     }
-    
+
     suspend fun updateSettings(settings: Settings) {
         dataStore.updateData { settings }
     }
@@ -1478,7 +1587,7 @@ class SettingsRepository(private val dataStore: DataStore<Settings>) {
 
 ### 9.1 Paging 是什么
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         Paging 定义                                         │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1504,29 +1613,35 @@ class SettingsRepository(private val dataStore: DataStore<Settings>) {
 
 ### 9.2 PagingSource
 
+本例假设后端页码从 1 开始、每页固定 20 条。如果把变化的 `params.loadSize` 直接传为后端 pageSize，又固定 `page + 1`，当初次加载 40 条、后续加载 20 条时可能重复或漏数据。这里固定网络页大小；若服务端采用 offset/cursor，则应以实际偏移或返回游标生成 key，不能照搬页码公式。Paging 允许实际返回量不同于请求的 loadSize。取消异常应继续传播。
+
+来源：[PagingSource.LoadParams.loadSize](https://developer.android.com/reference/kotlin/androidx/paging/PagingSource.LoadParams)、[协程取消](https://kotlinlang.org/docs/cancellation-and-timeouts.html)。
+
 ```kotlin
 // ==================== 网络数据源 ====================
 class UserPagingSource(
     private val apiService: ApiService
 ) : PagingSource<Int, User>() {
-    
+
     override suspend fun load(params: LoadParams<Int>): LoadResult<Int, User> {
         return try {
             val page = params.key ?: 1
-            val pageSize = params.loadSize
-            
+            val pageSize = 20 // 页码型后端固定 pageSize；不随 initialLoadSize 改变偏移
+
             val response = apiService.getUsers(page, pageSize)
-            
+
             LoadResult.Page(
                 data = response.users,
                 prevKey = if (page == 1) null else page - 1,
                 nextKey = if (response.users.isEmpty()) null else page + 1
             )
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
             LoadResult.Error(e)
         }
     }
-    
+
     override fun getRefreshKey(state: PagingState<Int, User>): Int? {
         return state.anchorPosition?.let { anchorPosition ->
             state.closestPageToPosition(anchorPosition)?.prevKey?.plus(1)
@@ -1548,7 +1663,7 @@ interface UserDao {
 ```kotlin
 // ==================== Repository ====================
 class UserRepository(private val apiService: ApiService, private val userDao: UserDao) {
-    
+
     fun getUsersPaging(): Flow<PagingData<User>> {
         return Pager(
             config = PagingConfig(
@@ -1560,7 +1675,7 @@ class UserRepository(private val apiService: ApiService, private val userDao: Us
             pagingSourceFactory = { UserPagingSource(apiService) }
         ).flow
     }
-    
+
     fun getUsersFromDb(): Flow<PagingData<User>> {
         return Pager(
             config = PagingConfig(pageSize = 20),
@@ -1571,14 +1686,14 @@ class UserRepository(private val apiService: ApiService, private val userDao: Us
 
 // ==================== ViewModel ====================
 class UserViewModel(private val repository: UserRepository) : ViewModel() {
-    
+
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery
-    
+
     // 使用 cachedIn 缓存分页数据
     val users: Flow<PagingData<User>> = repository.getUsersPaging()
         .cachedIn(viewModelScope)
-    
+
     // 带搜索参数的分页
     fun searchUsers(query: String) {
         _searchQuery.value = query
@@ -1605,7 +1720,7 @@ class UserDiffCallback : DiffUtil.ItemCallback<User>() {
     override fun areItemsTheSame(oldItem: User, newItem: User): Boolean {
         return oldItem.id == newItem.id
     }
-    
+
     override fun areContentsTheSame(oldItem: User, newItem: User): Boolean {
         return oldItem == newItem
     }
@@ -1613,7 +1728,7 @@ class UserDiffCallback : DiffUtil.ItemCallback<User>() {
 
 // ==================== Adapter ====================
 class UserPagingAdapter : PagingDataAdapter<User, UserViewHolder>(UserDiffCallback()) {
-    
+
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): UserViewHolder {
         return UserViewHolder(
             ItemUserBinding.inflate(
@@ -1623,7 +1738,7 @@ class UserPagingAdapter : PagingDataAdapter<User, UserViewHolder>(UserDiffCallba
             )
         )
     }
-    
+
     override fun onBindViewHolder(holder: UserViewHolder, position: Int) {
         val user = getItem(position)
         holder.bind(user)
@@ -1634,23 +1749,23 @@ class UserPagingAdapter : PagingDataAdapter<User, UserViewHolder>(UserDiffCallba
 class UserFragment : Fragment() {
     private val viewModel: UserViewModel by viewModels()
     private lateinit var adapter: UserPagingAdapter
-    
+
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        
+
         adapter = UserPagingAdapter()
         binding.recyclerView.adapter = adapter.withLoadStateHeaderAndFooter(
             header = LoadingStateAdapter { adapter.retry() },
             footer = LoadingStateAdapter { adapter.retry() }
         )
-        
+
         // 收集分页数据
         viewLifecycleOwner.lifecycleScope.launch {
             viewModel.users.collectLatest { pagingData ->
                 adapter.submitData(pagingData)
             }
         }
-        
+
         // 监听加载状态
         adapter.addLoadStateListener { loadState ->
             when (loadState.refresh) {
@@ -1677,7 +1792,7 @@ class UserFragment : Fragment() {
 
 ### 10.1 RecyclerView 是什么
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         RecyclerView 定义                                   │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1715,7 +1830,7 @@ class UserFragment : Fragment() {
 
 ### 10.2 缓存机制详解
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         RecyclerView 缓存层级                                │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1778,7 +1893,7 @@ recyclerView.setHasFixedSize(true)
 layoutManager.extraLayoutSpace = Resources.getSystem().displayMetrics.heightPixels
 ```
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    LayoutManager 选择                                        │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1905,7 +2020,7 @@ class DividerDecoration(private val divider: Drawable) : RecyclerView.ItemDecora
             // 只在必要位置绘制分割线
         }
     }
-    
+
     override fun getItemOffsets(outRect: Rect, view: View, parent: RecyclerView, state: RecyclerView.State) {
         outRect.set(0, 0, 0, divider.intrinsicHeight)
     }
@@ -1922,7 +2037,7 @@ adb shell setprop log.tag.RecyclerView VERBOSE
 python -m systrace -a com.example.app -o trace.html
 ```
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    优化 Checklist                                           │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1947,10 +2062,10 @@ python -m systrace -a com.example.app -o trace.html
 
 ### 10.10 面试高频追问
 
-```
+```text
 Q1: RecyclerView 与 ListView 区别？
 ─────────────────────────────────────────────────────────────────────────
-A: 
+A:
    - RecyclerView 强制 ViewHolder，ListView 可选
    - RecyclerView 4级缓存更精细，ListView 只有 1级
    - RecyclerView 局部刷新更高效（DiffUtil）
@@ -1962,7 +2077,7 @@ A: 触发完整 rebind 和重排，无法利用缓存
 
 Q3: RecyclerView 嵌套 RecyclerView 怎么优化？
 ─────────────────────────────────────────────────────────────────────────
-A: 
+A:
    - setNestedScrollingEnabled(false)
    - 使用 SharedViewPool 共享缓存池
 
@@ -1985,7 +2100,7 @@ A: 重写 getChangePayload() 返回 payload 对象，onBindViewHolder 接收并�
 
 ### 11.1 ViewPager2 是什么
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         ViewPager2 定义                                     │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -2036,15 +2151,15 @@ A: 重写 getChangePayload() 返回 payload 对象，onBindViewHolder 接收并�
 class ViewPagerAdapter(
     activity: FragmentActivity
 ) : FragmentStateAdapter(activity) {
-    
+
     private val fragments = listOf(
         HomeFragment(),
         DiscoverFragment(),
         ProfileFragment()
     )
-    
+
     override fun getItemCount(): Int = fragments.size
-    
+
     override fun createFragment(position: Int): Fragment {
         return fragments[position]
     }
@@ -2052,20 +2167,20 @@ class ViewPagerAdapter(
 
 // ==================== Activity 中使用 ====================
 class MainActivity : AppCompatActivity() {
-    
+
     private lateinit var binding: ActivityMainBinding
-    
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
-        
+
         // 设置 Adapter
         binding.viewPager.adapter = ViewPagerAdapter(this)
-        
+
         // 设置初始页面
         binding.viewPager.currentItem = 0
-        
+
         // 设置离屏页面限制（预加载）
         binding.viewPager.offscreenPageLimit = 1
     }
@@ -2077,12 +2192,12 @@ class MainActivity : AppCompatActivity() {
 ```kotlin
 // ==================== 页面切换回调 ====================
 binding.viewPager.registerOnPageChangeCallback(object : ViewPager2.OnPageChangeCallback() {
-    
+
     override fun onPageSelected(position: Int) {
         // 页面被选中
         Log.d("ViewPager", "Selected: $position")
     }
-    
+
     override fun onPageScrolled(
         position: Int,
         positionOffset: Float,
@@ -2091,7 +2206,7 @@ binding.viewPager.registerOnPageChangeCallback(object : ViewPager2.OnPageChangeC
         // 页面滚动中
         // positionOffset: 0.0 ~ 1.0，表示滚动进度
     }
-    
+
     override fun onPageScrollStateChanged(state: Int) {
         // 滚动状态变化
         when (state) {
@@ -2172,18 +2287,18 @@ binding.viewPager.isUserInputEnabled = true   // 启用滑动
 class DynamicPagerAdapter(
     fragment: Fragment
 ) : FragmentStateAdapter(fragment) {
-    
+
     private var items: List<PageItem> = emptyList()
-    
+
     fun submitList(newItems: List<PageItem>) {
         val oldList = items
         items = newItems
         // 自动使用 DiffUtil
         notifyItemRangeChanged(0, newItems.size)
     }
-    
+
     override fun getItemCount(): Int = items.size
-    
+
     override fun createFragment(position: Int): Fragment {
         return PageFragment.newInstance(items[position])
     }
@@ -2194,7 +2309,7 @@ class DynamicPagerAdapter(
 
 ### 11.8 ViewPager2 + Fragment 生命周期
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    ViewPager2 Fragment 生命周期                             │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -2213,7 +2328,7 @@ class DynamicPagerAdapter(
 
   生命周期流程：
   ─────────────────────────────────────────────────────────────────────────
-  
+
   滑入页面：
   Fragment → onAttach → onCreate → onCreateView → onViewCreated
           → onStart → onResume
@@ -2231,12 +2346,12 @@ class DynamicPagerAdapter(
 class ViewPagerAdapter(
     activity: FragmentActivity
 ) : FragmentStateAdapter(activity) {
-    
+
     // 默认行为：只有当前页处于 RESUMED 状态
     // 其他页处于 STARTED 状态（不会 onResume）
-    
+
     override fun getItemCount(): Int = 3
-    
+
     override fun createFragment(position: Int): Fragment {
         return when (position) {
             0 -> HomeFragment()
@@ -2248,13 +2363,13 @@ class ViewPagerAdapter(
 
 // Fragment 中处理可见性
 class HomeFragment : Fragment() {
-    
+
     override fun onResume() {
         super.onResume()
         // 页面可见时执行
         loadData()
     }
-    
+
     override fun onPause() {
         super.onPause()
         // 页面不可见时暂停
@@ -2275,14 +2390,14 @@ binding.viewPager.setPageTransformer(DepthPageTransformer())
 
 // ==================== 自定义 Transformer ====================
 class ZoomOutPageTransformer : ViewPager2.PageTransformer {
-    
+
     private val minScale = 0.85f
     private val minAlpha = 0.5f
-    
+
     override fun transformPage(page: View, position: Float) {
         val pageWidth = page.width
         val pageHeight = page.height
-        
+
         when {
             position < -1 -> {  // [-Infinity,-1)
                 page.alpha = 0f
@@ -2291,13 +2406,13 @@ class ZoomOutPageTransformer : ViewPager2.PageTransformer {
                 val scaleFactor = max(minScale, 1 - Math.abs(position))
                 val vertMargin = pageHeight * (1 - scaleFactor) / 2
                 val horzMargin = pageWidth * (1 - scaleFactor) / 2
-                
+
                 page.translationX = if (position < 0) {
                     horzMargin - vertMargin / 2
                 } else {
                     horzMargin + vertMargin / 2
                 }
-                
+
                 page.scaleX = scaleFactor
                 page.scaleY = scaleFactor
                 page.alpha = minAlpha + (scaleFactor - minScale) / (1 - minScale) * (1 - minAlpha)
@@ -2311,10 +2426,10 @@ class ZoomOutPageTransformer : ViewPager2.PageTransformer {
 
 // ==================== 3D 翻转效果 ====================
 class CubeTransformer : ViewPager2.PageTransformer {
-    
+
     override fun transformPage(page: View, position: Float) {
         page.cameraDistance = 20000f
-        
+
         when {
             position < -1 -> {
                 page.alpha = 0f
@@ -2339,10 +2454,10 @@ class CubeTransformer : ViewPager2.PageTransformer {
 
 ### 11.10 ViewPager2 常见问题
 
-```
+```text
 Q1: ViewPager2 中 Fragment 如何刷新数据？
 ─────────────────────────────────────────────────────────────────────────
-A: 
+A:
    1. 使用 LiveData/Flow 自动刷新
    2. Fragment 实现 Lazy 初始化，在 onResume 加载数据
    3. 使用 FragmentResultListener 传递数据
@@ -2352,12 +2467,12 @@ Q2: 如何实现无限轮播？
 A: 方案：getItemCount 返回 Int.MAX_VALUE，position % realCount 取模
 
    override fun getItemCount(): Int = Int.MAX_VALUE
-   
+
    override fun createFragment(position: Int): Fragment {
        val realPosition = position % realCount
        return fragments[realPosition]
    }
-   
+
    // 初始位置设置为中间
    viewPager.currentItem = Int.MAX_VALUE / 2
 
@@ -2368,7 +2483,7 @@ A: ViewPager2 无法完全禁止预加载，最小 offscreenPageLimit = 1
 
 Q4: FragmentStateAdapter vs FragmentPagerAdapter？
 ─────────────────────────────────────────────────────────────────────────
-A: 
+A:
    - FragmentPagerAdapter（已废弃）：所有 Fragment 保留在内存
    - FragmentStateAdapter（推荐）：只保留当前页，自动回收
 ```
@@ -2379,7 +2494,7 @@ A:
 
 ### 12.1 Fragment 是什么
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         Fragment 定义                                       │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -2405,14 +2520,14 @@ A:
 
 ### 12.2 Fragment 生命周期
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         Fragment 生命周期                                   │
 └─────────────────────────────────────────────────────────────────────────────┘
 
   完整生命周期：
   ─────────────────────────────────────────────────────────────────────────
-  
+
   ┌─────────────────────────────────────────────────────────────────────────┐
   │                                                                         │
   │  onAttach()           Fragment 与 Activity 关联                         │
@@ -2454,7 +2569,7 @@ A:
 
   与 Activity 生命周期的关系：
   ─────────────────────────────────────────────────────────────────────────
-  
+
   Activity              Fragment
   ─────────────────────────────────────
   onCreate()      →     onAttach()
@@ -2462,15 +2577,15 @@ A:
                        → onCreateView()
                        → onViewCreated()
                        → onViewStateRestored()
-  
+
   onStart()       →     onStart()
-  
+
   onResume()      →     onResume()
-  
+
   onPause()       →     onPause()
-  
+
   onStop()        →     onStop()
-  
+
   onDestroy()     →     onDestroyView()
                        → onDestroy()
                        → onDetach()
@@ -2487,28 +2602,28 @@ A:
 ```kotlin
 // ==================== 基本 Fragment ====================
 class HomeFragment : Fragment(R.layout.fragment_home) {
-    
+
     private var _binding: FragmentHomeBinding? = null
     private val binding get() = _binding!!
-    
+
     // 方式1：使用 viewBinding delegate（推荐）
     // class HomeFragment : Fragment() {
     //     private val binding by viewBinding(FragmentHomeBinding::bind)
     // }
-    
+
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         _binding = FragmentHomeBinding.bind(view)
-        
+
         // 初始化视图
         binding.textView.text = "Hello"
-        
+
         // 设置点击事件
         binding.button.setOnClickListener {
             // 处理点击
         }
     }
-    
+
     override fun onDestroyView() {
         super.onDestroyView()
         _binding = null  // 避免内存泄漏
@@ -2517,18 +2632,18 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
 
 // ==================== 带参数的 Fragment ====================
 class DetailFragment : Fragment(R.layout.fragment_detail) {
-    
+
     private val args: DetailFragmentArgs by navArgs()
-    
+
     // 或手动获取参数
     private var itemId: String? = null
-    
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // 获取参数
         itemId = arguments?.getString("itemId")
     }
-    
+
     companion object {
         fun newInstance(itemId: String): DetailFragment {
             return DetailFragment().apply {
@@ -2554,16 +2669,16 @@ val parentFragmentManager = parentFragmentManager
 
 // ==================== FragmentTransaction ====================
 class MainActivity : AppCompatActivity() {
-    
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        
+
         // 方式1：使用 supportFragmentManager
         supportFragmentManager.commit {
             replace(R.id.container, HomeFragment())
             addToBackStack("home")
         }
-        
+
         // 方式2：传统方式
         supportFragmentManager.beginTransaction()
             .replace(R.id.container, HomeFragment())
@@ -2648,10 +2763,10 @@ override fun onBackPressed() {
 
 // 使用 OnBackPressedDispatcher（推荐）
 class MainActivity : AppCompatActivity() {
-    
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        
+
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
                 if (supportFragmentManager.backStackEntryCount > 0) {
@@ -2694,7 +2809,7 @@ supportFragmentManager.addOnBackStackChangedListener {
 class SharedViewModel : ViewModel() {
     private val _selectedItem = MutableStateFlow<Item?>(null)
     val selectedItem: StateFlow<Item?> = _selectedItem
-    
+
     fun selectItem(item: Item) {
         _selectedItem.value = item
     }
@@ -2708,7 +2823,7 @@ class ListFragment : Fragment() {
 
 class DetailFragment : Fragment() {
     private val viewModel: SharedViewModel by activityViewModels()
-    
+
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         viewLifecycleOwner.lifecycleScope.launch {
             viewModel.selectedItem.collect { item ->
@@ -2745,17 +2860,17 @@ interface OnItemSelectedListener {
 
 class ListFragment : Fragment() {
     private var listener: OnItemSelectedListener? = null
-    
+
     override fun onAttach(context: Context) {
         super.onAttach(context)
         listener = context as? OnItemSelectedListener
     }
-    
+
     override fun onDetach() {
         super.onDetach()
         listener = null
     }
-    
+
     private fun onItemClick(item: Item) {
         listener?.onItemSelected(item)
     }
@@ -2784,9 +2899,9 @@ class MyFragment : Fragment() {
 // 只有当前可见的 Fragment 会执行 onResume
 
 class LazyFragment : Fragment() {
-    
+
     private var isLoaded = false
-    
+
     override fun onResume() {
         super.onResume()
         if (!isLoaded) {
@@ -2794,7 +2909,7 @@ class LazyFragment : Fragment() {
             loadData()
         }
     }
-    
+
     private fun loadData() {
         // 只加载一次
     }
@@ -2802,16 +2917,16 @@ class LazyFragment : Fragment() {
 
 // ==================== 方式2：使用 Lifecycle 观察可见性 ====================
 class LazyFragment : Fragment() {
-    
+
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        
+
         viewLifecycleOwner.lifecycle.addObserver(object : DefaultLifecycleObserver {
             override fun onResume(owner: LifecycleOwner) {
                 // 页面可见时加载
                 loadData()
             }
-            
+
             override fun onPause(owner: LifecycleOwner) {
                 // 页面不可见时暂停
             }
@@ -2832,7 +2947,7 @@ fun Fragment.doWhenResumed(block: () -> Unit) {
 class MyFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        
+
         doWhenResumed {
             // 只有在 RESUMED 状态才执行
             loadData()
@@ -2846,10 +2961,10 @@ class MyFragment : Fragment() {
 ```kotlin
 // ==================== 基本 DialogFragment ====================
 class MyDialogFragment : DialogFragment() {
-    
+
     private var _binding: DialogMyBinding? = null
     private val binding get() = _binding!!
-    
+
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
@@ -2858,17 +2973,17 @@ class MyDialogFragment : DialogFragment() {
         _binding = DialogMyBinding.inflate(inflater, container, false)
         return binding.root
     }
-    
+
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        
+
         // 设置对话框样式
         dialog?.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
         dialog?.window?.setLayout(
             WindowManager.LayoutParams.MATCH_PARENT,
             WindowManager.LayoutParams.WRAP_CONTENT
         )
-        
+
         binding.btnCancel.setOnClickListener { dismiss() }
         binding.btnConfirm.setOnClickListener {
             // 返回结果
@@ -2876,7 +2991,7 @@ class MyDialogFragment : DialogFragment() {
             dismiss()
         }
     }
-    
+
     override fun onDestroyView() {
         super.onDestroyView()
         _binding = null
@@ -2888,12 +3003,12 @@ MyDialogFragment().show(parentFragmentManager, "my_dialog")
 
 // ==================== 全屏 Dialog ====================
 class FullScreenDialog : DialogFragment() {
-    
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setStyle(STYLE_NORMAL, R.style.FullScreenDialog)
     }
-    
+
     override fun onCreateView(...): View {
         return FragmentFullScreenBinding.inflate(inflater, container, false).root
     }
@@ -2908,14 +3023,14 @@ class FullScreenDialog : DialogFragment() {
 
 // ==================== 底部弹窗 BottomSheetDialogFragment ====================
 class MyBottomSheet : BottomSheetDialogFragment() {
-    
+
     override fun onCreateView(...): View {
         return BottomSheetMyBinding.inflate(inflater, container, false).root
     }
-    
+
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        
+
         // 设置展开高度
         (view.parent as View).layoutParams.height = ViewGroup.LayoutParams.MATCH_PARENT
     }
@@ -2927,14 +3042,14 @@ class MyBottomSheet : BottomSheetDialogFragment() {
 ```kotlin
 // ==================== 保存状态 ====================
 class MyFragment : Fragment() {
-    
+
     private var myData: String? = null
-    
+
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
         outState.putString("myData", myData)
     }
-    
+
     override fun onViewStateRestored(savedInstanceState: Bundle?) {
         super.onViewStateRestored(savedInstanceState)
         myData = savedInstanceState?.getString("myData")
@@ -2945,7 +3060,7 @@ class MyFragment : Fragment() {
 class MyViewModel(
     private val savedStateHandle: SavedStateHandle
 ) : ViewModel() {
-    
+
     var myData: String?
         get() = savedStateHandle["myData"]
         set(value) {
@@ -2957,7 +3072,7 @@ class MyViewModel(
 // 在 Activity 的 onCreate 中检查 savedInstanceState
 override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
-    
+
     if (savedInstanceState == null) {
         // 首次创建
         supportFragmentManager.commit {
@@ -2970,7 +3085,7 @@ override fun onCreate(savedInstanceState: Bundle?) {
 
 ### 12.10 Fragment 常见问题
 
-```
+```text
 Q1: Fragment 重叠问题？
 ─────────────────────────────────────────────────────────────────────────
 A: 原因：Activity 重建时 Fragment 自动恢复，又手动添加了一次
@@ -3028,7 +3143,7 @@ A:
 
 ## 13. 核心库对比
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         AndroidX 核心库对比                                 │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -3072,7 +3187,7 @@ A:
 
 ### 14.1 ConstraintLayout 是什么
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    ConstraintLayout 定义                                    │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -3098,7 +3213,7 @@ A:
 
 ### 14.2 相对定位
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         相对定位约束                                        │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -3129,7 +3244,7 @@ A:
 <androidx.constraintlayout.widget.ConstraintLayout
     android:layout_width="match_parent"
     android:layout_height="match_parent">
-    
+
     <!-- A 在左上角 -->
     <TextView
         android:id="@+id/tvA"
@@ -3138,7 +3253,7 @@ A:
         android:text="A"
         app:layout_constraintLeft_toLeftOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
-    
+
     <!-- B 在 A 的右边 -->
     <TextView
         android:id="@+id/tvB"
@@ -3147,7 +3262,7 @@ A:
         android:text="B"
         app:layout_constraintLeft_toRightOf="@id/tvA"
         app:layout_constraintTop_toTopOf="@id/tvA" />
-    
+
     <!-- C 在 A 的下面 -->
     <TextView
         android:id="@+id/tvC"
@@ -3156,7 +3271,7 @@ A:
         android:text="C"
         app:layout_constraintLeft_toLeftOf="@id/tvA"
         app:layout_constraintTop_toBottomOf="@id/tvA" />
-    
+
 </androidx.constraintlayout.widget.ConstraintLayout>
 ```
 
@@ -3199,7 +3314,7 @@ A:
 
 ### 14.4 尺寸约束
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         尺寸约束                                            │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -3268,7 +3383,7 @@ A:
 
 ### 14.5 Chain 链
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         Chain 链                                            │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -3290,7 +3405,7 @@ A:
 <androidx.constraintlayout.widget.ConstraintLayout
     android:layout_width="match_parent"
     android:layout_height="match_parent">
-    
+
     <TextView
         android:id="@+id/tv1"
         android:layout_width="wrap_content"
@@ -3299,7 +3414,7 @@ A:
         app:layout_constraintHorizontal_chainStyle="spread"
         app:layout_constraintLeft_toLeftOf="parent"
         app:layout_constraintRight_toLeftOf="@id/tv2" />
-    
+
     <TextView
         android:id="@+id/tv2"
         android:layout_width="wrap_content"
@@ -3307,7 +3422,7 @@ A:
         android:text="2"
         app:layout_constraintLeft_toRightOf="@id/tv1"
         app:layout_constraintRight_toLeftOf="@id/tv3" />
-    
+
     <TextView
         android:id="@+id/tv3"
         android:layout_width="wrap_content"
@@ -3315,7 +3430,7 @@ A:
         android:text="3"
         app:layout_constraintLeft_toRightOf="@id/tv2"
         app:layout_constraintRight_toRightOf="parent" />
-    
+
 </androidx.constraintlayout.widget.ConstraintLayout>
 
 <!-- ==================== Weighted Chain（按权重分配）==================== -->
@@ -3345,20 +3460,20 @@ A:
 <!-- 整体靠左偏移 20% -->
 ```
 
-```
+```text
   链模式图示：
   ─────────────────────────────────────────────────────────────────────────
-  
+
   CHAIN_SPREAD（均匀分布）：
   |   A   |   B   |   C   |
   |  ↑    |  ↑    |  ↑    |
   | 等间距分布                |
-  
+
   CHAIN_SPREAD_INSIDE（两端贴边）：
   |A     B     C|
   |↑            ↑|
   |两端贴边，中间等间距        |
-  
+
   CHAIN_PACKED（紧密排列）：
   |  ABC         |
   |  ↑           |
@@ -3372,7 +3487,7 @@ A:
 <androidx.constraintlayout.widget.ConstraintLayout
     android:layout_width="match_parent"
     android:layout_height="match_parent">
-    
+
     <!-- 垂直辅助线，距左边 100dp -->
     <androidx.constraintlayout.widget.Guideline
         android:id="@+id/guideVertical"
@@ -3380,7 +3495,7 @@ A:
         android:layout_height="wrap_content"
         android:orientation="vertical"
         app:layout_constraintGuide_begin="100dp" />
-    
+
     <!-- 水平辅助线，距顶部 30% -->
     <androidx.constraintlayout.widget.Guideline
         android:id="@+id/guideHorizontal"
@@ -3388,13 +3503,13 @@ A:
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         app:layout_constraintGuide_percent="0.3" />
-    
+
     <!-- 距右边 50dp -->
     <androidx.constraintlayout.widget.Guideline
         android:id="@+id/guideEnd"
         android:orientation="vertical"
         app:layout_constraintGuide_end="50dp" />
-    
+
     <!-- 使用辅助线定位 -->
     <TextView
         android:layout_width="0dp"
@@ -3403,7 +3518,7 @@ A:
         app:layout_constraintTop_toTopOf="@id/guideHorizontal"
         app:layout_constraintRight_toRightOf="parent"
         app:layout_constraintBottom_toBottomOf="parent" />
-    
+
 </androidx.constraintlayout.widget.ConstraintLayout>
 ```
 
@@ -3415,7 +3530,7 @@ A:
 <androidx.constraintlayout.widget.ConstraintLayout
     android:layout_width="match_parent"
     android:layout_height="wrap_content">
-    
+
     <TextView
         android:id="@+id/tvLabel1"
         android:layout_width="wrap_content"
@@ -3423,7 +3538,7 @@ A:
         android:text="Label 1"
         app:layout_constraintLeft_toLeftOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
-    
+
     <TextView
         android:id="@+id/tvLabel2"
         android:layout_width="wrap_content"
@@ -3431,7 +3546,7 @@ A:
         android:text="Longer Label 2"
         app:layout_constraintLeft_toLeftOf="parent"
         app:layout_constraintTop_toBottomOf="@id/tvLabel1" />
-    
+
     <!-- Barrier 在最长的 Label 右边 -->
     <androidx.constraintlayout.widget.Barrier
         android:id="@+id/barrier"
@@ -3439,7 +3554,7 @@ A:
         android:layout_height="wrap_content"
         app:barrierDirection="end"
         app:constraint_referenced_ids="tvLabel1,tvLabel2" />
-    
+
     <!-- 输入框始终在最长 Label 右边 -->
     <EditText
         android:layout_width="0dp"
@@ -3447,7 +3562,7 @@ A:
         app:layout_constraintLeft_toRightOf="@id/barrier"
         app:layout_constraintRight_toRightOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
-    
+
 </androidx.constraintlayout.widget.ConstraintLayout>
 ```
 
@@ -3459,18 +3574,18 @@ A:
 <androidx.constraintlayout.widget.ConstraintLayout
     android:layout_width="match_parent"
     android:layout_height="match_parent">
-    
+
     <TextView android:id="@+id/tv1" ... />
     <TextView android:id="@+id/tv2" ... />
     <TextView android:id="@+id/tv3" ... />
-    
+
     <!-- 分组 -->
     <androidx.constraintlayout.widget.Group
         android:id="@+id/group"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         app:constraint_referenced_ids="tv1,tv2,tv3" />
-    
+
 </androidx.constraintlayout.widget.ConstraintLayout>
 
 // 代码中控制
@@ -3485,7 +3600,7 @@ binding.group.visibility = View.GONE  // 同时隐藏 tv1, tv2, tv3
 <androidx.constraintlayout.widget.ConstraintLayout
     android:layout_width="match_parent"
     android:layout_height="match_parent">
-    
+
     <androidx.constraintlayout.helper.widget.Flow
         android:layout_width="0dp"
         android:layout_height="wrap_content"
@@ -3498,13 +3613,13 @@ binding.group.visibility = View.GONE  // 同时隐藏 tv1, tv2, tv3
         app:layout_constraintLeft_toLeftOf="parent"
         app:layout_constraintRight_toRightOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
-    
+
     <TextView android:id="@+id/tv1" ... />
     <TextView android:id="@+id/tv2" ... />
     <TextView android:id="@+id/tv3" ... />
     <TextView android:id="@+id/tv4" ... />
     <TextView android:id="@+id/tv5" ... />
-    
+
 </androidx.constraintlayout.widget.ConstraintLayout>
 
 <!-- flow_wrapMode 取值：
@@ -3522,23 +3637,23 @@ binding.group.visibility = View.GONE  // 同时隐藏 tv1, tv2, tv3
 <androidx.constraintlayout.widget.ConstraintLayout
     android:layout_width="match_parent"
     android:layout_height="match_parent">
-    
+
     <androidx.constraintlayout.helper.widget.Layer
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:background="@drawable/bg_rounded"
         android:padding="16dp"
         app:constraint_referenced_ids="tv1,tv2" />
-    
+
     <TextView android:id="@+id/tv1" ... />
     <TextView android:id="@+id/tv2" ... />
-    
+
 </androidx.constraintlayout.widget.ConstraintLayout>
 ```
 
 ### 14.11 ConstraintLayout 常见问题
 
-```
+```text
 Q1: 为什么设置约束后 View 还是在左上角？
 ─────────────────────────────────────────────────────────────────────────
 A: 需要同时设置水平和垂直两个方向的约束：
@@ -3555,7 +3670,7 @@ A: 都设置为 0dp，使用 chain 或设置相同 weight
 
 Q4: ConstraintLayout 性能真的更好吗？
 ─────────────────────────────────────────────────────────────────────────
-A: 
+A:
    - 减少嵌套层级 → 减少 Measure 次数
    - 复杂布局效果明显
    - 简单布局差异不大
@@ -3569,7 +3684,7 @@ A:
 
 **Q1：Lifecycle 的实现原理是什么？**
 
-```
+```text
 核心机制：利用 ReportFragment（无 UI 的 Fragment）注入 Activity 生命周期
 
 实现流程：
@@ -3581,21 +3696,20 @@ A:
             → LifecycleRegistry.handleLifecycleEvent()
               → 同步状态到所有 Observer
 
-  关键源码路径：
-  frameworks/support/lifecycle/runtime/src/main/java/androidx/lifecycle/
-  ├── ReportFragment.java        ← 生命周期分发入口
-  ├── LifecycleRegistry.java     ← 状态管理核心
-  └── Lifecycling.java           ← 类型适配（注解/接口）
+  源码定位：AndroidX 仓库（不是 Android 17 frameworks/base 内置类）
+  lifecycle/lifecycle-runtime/src/androidMain/kotlin/androidx/lifecycle/
+  └── ReportFragment / ActivityLifecycleCallbacks ← AndroidX 的生命周期分发桥接
 
   Android 10+ 优化：
   ─────────────────────────────────────────────────────────────────────────
-  使用 LifecycleObserver.onStateChanged() 直接回调，不再依赖 Fragment
-  通过 Application.ActivityLifecycleCallbacks 全局监听
+  在具体 Activity 上注册 ActivityLifecycleCallbacks，使用 API 29 的 pre/post 回调分发
+  不是 LifecycleObserver.onStateChanged()；onStateChanged 属于 LifecycleEventObserver
+  较低 API 使用 ReportFragment 路径；不能把 AndroidX 主分支当作全部已发布版本
 ```
 
 **Q2：Lifecycle 的状态和事件有什么关系？**
 
-```
+```text
 状态（State）和事件（Event）的关系：
 
   Event 触发 State 变迁：
@@ -3606,22 +3720,22 @@ A:
   ON_PAUSE   → STARTED
   ON_STOP    → CREATED
   ON_DESTROY → DESTROYED
-  ON_ANY     → 不改变状态（用于监听所有事件）
+  ON_ANY     → 旧注解匹配用途，不是可向 LifecycleRegistry 分发的具体事件
 
   状态回退规则：
   ─────────────────────────────────────────────────────────────────────────
-  State 只能单调前进（向后兼容：DESTROYED < CREATED < STARTED < RESUMED）
-  但 Event 可以前进和后退（ON_CREATE → ON_START → ON_RESUME → ON_PAUSE → ...）
+  状态可以前进或后退，例如 RESUMED → STARTED → CREATED（暂停/停止）
+  DESTROYED 是终态，不代表后台；新建组件应使用新的 owner
 
   面试要点：
   - State 是离散的 5 个值，Event 是 7 个值（含 ON_ANY）
-  - Observer 可能跳过中间状态（如后台直接到前台：DESTROYED → RESUMED）
+  - 后台到前台通常从 CREATED/STARTED 回到 RESUMED，不是 DESTROYED → RESUMED
   - LifecycleRegistry 会自动补齐中间状态
 ```
 
 **Q3：@OnLifecycleEvent 注解和 DefaultLifecycleObserver 有什么区别？**
 
-```
+```text
 DefaultLifecycleObserver（推荐）：
   - 基于接口，Java 8 default method
   - 性能更好（直接方法调用）
@@ -3635,16 +3749,18 @@ DefaultLifecycleObserver（推荐）：
   面试回答要点：
   ─────────────────────────────────────────────────────────────────────────
   新项目使用 DefaultLifecycleObserver（或 LifecycleEventObserver），
-  避免反射开销。如果项目 minSdk >= 26，直接用即可。
+  避免反射开销；不能由该接口推导必须 minSdk >= 26，应查所选库的最低 SDK 与脱糖配置。
 ```
 
 ---
+
+本节证据：[ReportFragment.android.kt（AndroidX 一手源码）](https://developer.android.com/reference/androidx/lifecycle/ReportFragment)、[Lifecycle.State](https://developer.android.com/reference/androidx/lifecycle/Lifecycle.State)。上述源码只用于说明分发机制，未锁定整个 AndroidX 依赖集合。
 
 ### 15.2 ViewModel 相关
 
 **Q4：ViewModel 为什么能在屏幕旋转后保留数据？原理是什么？**
 
-```
+```text
 核心原理：ViewModelStore 持有 ViewModel 引用
 
   配置更改流程：
@@ -3672,7 +3788,7 @@ DefaultLifecycleObserver（推荐）：
 
 **Q5：ViewModel 的 onCleared 什么时候调用？**
 
-```
+```text
 调用时机：
   ─────────────────────────────────────────────────────────────────────────
   1. Activity finish（非配置更改）
@@ -3696,7 +3812,7 @@ DefaultLifecycleObserver（推荐）：
 
 **Q6：ViewModel 和 onSaveInstanceState 的区别？**
 
-```
+```text
 ┌──────────────────┬────────────────────┬──────────────────────────┐
 │       特性        │     ViewModel      │  onSaveInstanceState    │
 ├──────────────────┼────────────────────┼──────────────────────────┤
@@ -3721,7 +3837,7 @@ DefaultLifecycleObserver（推荐）：
 
 **Q7：LiveData 的粘性事件问题是什么？怎么解决？**
 
-```
+```text
 问题描述：
   ─────────────────────────────────────────────────────────────────────────
   新 Observer 注册时，会立即收到最后一次的值（即使该值是在注册前发出的）
@@ -3768,7 +3884,7 @@ DefaultLifecycleObserver（推荐）：
 
 **Q8：LiveData 的 observe 和 observeForever 有什么区别？**
 
-```
+```text
 ┌──────────────────┬──────────────────────┬──────────────────────────┐
 │       特性        │     observe()        │   observeForever()      │
 ├──────────────────┼──────────────────────┼──────────────────────────┤
@@ -3788,7 +3904,7 @@ DefaultLifecycleObserver（推荐）：
 
 **Q9：LiveData 的 postValue 和 setValue 有什么区别？**
 
-```
+```text
 ┌──────────────────┬──────────────────────┬──────────────────────────┐
 │       特性        │     setValue()       │   postValue()           │
 ├──────────────────┼──────────────────────┼──────────────────────────┤
@@ -3816,7 +3932,7 @@ DefaultLifecycleObserver（推荐）：
 
 **Q10：Room 的编译期检查是怎么实现的？**
 
-```
+```text
 Room 使用 Annotation Processor（注解处理器）在编译期验证 SQL：
 
   编译期检查内容：
@@ -3843,7 +3959,7 @@ Room 使用 Annotation Processor（注解处理器）在编译期验证 SQL：
 
 **Q11：Room 的数据库迁移怎么做？**
 
-```
+```text
 迁移机制：Migration 类指定 version 范围 + SQL 右异操作
 
   基本用法：
@@ -3874,7 +3990,7 @@ Room 使用 Annotation Processor（注解处理器）在编译期验证 SQL：
 
 **Q12：Room 的 TypeConverter 有什么用？**
 
-```
+```text
 作用：将 Room 不支持的类型转换为支持的类型（基本类型/String）
 
   示例：
@@ -3906,7 +4022,7 @@ Room 使用 Annotation Processor（注解处理器）在编译期验证 SQL：
 
 **Q13：WorkManager 和 JobScheduler/AlarmManager 有什么区别？**
 
-```
+```text
 ┌──────────────────┬──────────────────────┬──────────────────────┬──────────────────┐
 │       特性        │    WorkManager       │   JobScheduler       │  AlarmManager    │
 ├──────────────────┼──────────────────────┼──────────────────────┼──────────────────┤
@@ -3936,7 +4052,7 @@ Room 使用 Annotation Processor（注解处理器）在编译期验证 SQL：
 
 **Q14：WorkManager 的 Worker 有哪几种？怎么选？**
 
-```
+```text
 ┌──────────────────────┬──────────────────────────────────────────────────────┐
 │       Worker 类型      │                    适用场景                          │
 ├──────────────────────┼──────────────────────────────────────────────────────┤
@@ -3967,7 +4083,7 @@ Room 使用 Annotation Processor（注解处理器）在编译期验证 SQL：
 
 **Q15：WorkManager 如何实现链式任务？**
 
-```
+```text
 链式任务 API：
   ─────────────────────────────────────────────────────────────────────────
   WorkManager.getInstance(context)
@@ -4002,7 +4118,7 @@ Room 使用 Annotation Processor（注解处理器）在编译期验证 SQL：
 
 **Q16：Navigation 的安全参数传递是怎么做的？**
 
-```
+```text
 传统方式（不安全）：
   ─────────────────────────────────────────────────────────────────────────
   val bundle = Bundle().apply { putString("name", "test") }
@@ -4033,7 +4149,7 @@ Room 使用 Annotation Processor（注解处理器）在编译期验证 SQL：
 
 **Q17：Navigation 的 Deep Link 是怎么实现的？**
 
-```
+```text
 显式 Deep Link（代码创建）：
   ─────────────────────────────────────────────────────────────────────────
   val pendingIntent = NavDeepLinkBuilder(context)
@@ -4061,7 +4177,7 @@ Room 使用 Annotation Processor（注解处理器）在编译期验证 SQL：
 
 **Q18：DataStore 和 SharedPreferences 的区别？**
 
-```
+```text
 ┌──────────────────┬──────────────────────┬──────────────────────────┐
 │       特性        │     DataStore        │   SharedPreferences     │
 ├──────────────────┼──────────────────────┼──────────────────────────┤
@@ -4089,7 +4205,7 @@ Room 使用 Annotation Processor（注解处理器）在编译期验证 SQL：
 
 **Q19：DataStore 如何从 SharedPreferences 迁移？**
 
-```
+```text
 一行代码迁移：
   ─────────────────────────────────────────────────────────────────────────
   val dataStore: DataStore<Preferences> = PreferenceDataStoreFactory.create(
@@ -4122,7 +4238,7 @@ Room 使用 Annotation Processor（注解处理器）在编译期验证 SQL：
 
 **Q20：Paging 3 的核心组件有哪些？**
 
-```
+```text
 Paging 3 核心架构：
   ─────────────────────────────────────────────────────────────────────────
   ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
@@ -4161,7 +4277,7 @@ Paging 3 核心架构：
 
 **Q21：Paging 的 loadState 包含哪些状态？**
 
-```
+```text
 三种 LoadState：
   ─────────────────────────────────────────────────────────────────────────
   LoadState.NotLoading  → 空闲，无加载操作
@@ -4197,7 +4313,7 @@ Paging 3 核心架构：
 
 **Q22：RecyclerView 的缓存机制是什么？**
 
-```
+```text
 四级缓存结构：
   ─────────────────────────────────────────────────────────────────────────
   ┌──────────────────────────────────────────────────────────────────────┐
@@ -4232,7 +4348,7 @@ Paging 3 核心架构：
 
 **Q23：RecyclerView 的 DiffUtil 是怎么工作的？**
 
-```
+```text
 DiffUtil 使用 Eugene W. Myers 差分算法计算两个列表的最小差异：
 
   核心流程：
@@ -4260,7 +4376,7 @@ DiffUtil 使用 Eugene W. Myers 差分算法计算两个列表的最小差异：
 
 **Q24：RecyclerView 为什么比 ListView 好？**
 
-```
+```text
 ┌──────────────────┬──────────────────────┬──────────────────────────┐
 │       特性        │    RecyclerView      │       ListView           │
 ├──────────────────┼──────────────────────┼──────────────────────────┤
@@ -4286,7 +4402,7 @@ DiffUtil 使用 Eugene W. Myers 差分算法计算两个列表的最小差异：
 
 **Q25：ViewPager2 相比 ViewPager 有什么改进？**
 
-```
+```text
 ┌──────────────────┬──────────────────────┬──────────────────────────┐
 │       特性        │    ViewPager2        │       ViewPager          │
 ├──────────────────┼──────────────────────┼──────────────────────────┤
@@ -4311,7 +4427,7 @@ DiffUtil 使用 Eugene W. Myers 差分算法计算两个列表的最小差异：
 
 **Q26：ViewPager2 的离屏加载和生命周期怎么管理？**
 
-```
+```text
 离屏加载机制：
   ─────────────────────────────────────────────────────────────────────────
   viewPager.offscreenPageLimit = 1  // 默认值
@@ -4342,7 +4458,7 @@ DiffUtil 使用 Eugene W. Myers 差分算法计算两个列表的最小差异：
 
 **Q27：Fragment 的生命周期和 Activity 生命周期什么关系？**
 
-```
+```text
 Fragment 生命周期依附于 Activity：
 
   Activity           Fragment
@@ -4371,7 +4487,7 @@ Fragment 生命周期依附于 Activity：
 
 **Q28：Fragment 的 add/replace/hide/show 有什么区别？**
 
-```
+```text
 ┌──────────────────┬──────────────────────────────────────────────────────┐
 │       操作        │                    行为                              │
 ├──────────────────┼──────────────────────────────────────────────────────┤
@@ -4400,7 +4516,7 @@ Fragment 生命周期依附于 Activity：
 
 **Q29：Fragment 之间如何通信？**
 
-```
+```text
 方案一：共享 ViewModel（推荐）
   ─────────────────────────────────────────────────────────────────────────
   // 两个 Fragment 获取同一个 Activity 级别的 ViewModel
@@ -4445,7 +4561,7 @@ Fragment 生命周期依附于 Activity：
 
 **Q30：ConstraintLayout 的性能为什么比 RelativeLayout/LinearLayout 好？**
 
-```
+```text
 性能对比：
   ─────────────────────────────────────────────────────────────────────────
   LinearLayout（多层嵌套）：
@@ -4490,7 +4606,7 @@ Fragment 生命周期依附于 Activity：
 
 **Q31：如何选择 AndroidX 架构组件来搭建项目架构？**
 
-```
+```text
 推荐架构（MVVM + Jetpack）：
   ─────────────────────────────────────────────────────────────────────────
   ┌─────────┐    ┌───────────┐    ┌──────────────┐    ┌────────────┐
@@ -4524,7 +4640,7 @@ Fragment 生命周期依附于 Activity：
 
 **Q32：LiveData 和 StateFlow/SharedFlow 怎么选？**
 
-```
+```text
 ┌──────────────────┬──────────────────────┬──────────────────────────┬──────────────────┐
 │       特性        │     LiveData         │    StateFlow             │  SharedFlow      │
 ├──────────────────┼──────────────────────┼──────────────────────────┼──────────────────┤
@@ -4547,7 +4663,7 @@ Fragment 生命周期依附于 Activity：
 
 **Q33：如何优化 RecyclerView 的性能？**
 
-```
+```text
 优化清单：
   ─────────────────────────────────────────────────────────────────────────
   1. ViewHolder 复用
@@ -4585,7 +4701,7 @@ Fragment 生命周期依附于 Activity：
 
 **Q34：SavedStateHandle 是什么？解决了什么问题？**
 
-```
+```text
 问题背景：
   ─────────────────────────────────────────────────────────────────────────
   ViewModel 在配置更改时保留，但进程被系统杀死时会丢失
@@ -4619,7 +4735,7 @@ Fragment 生命周期依附于 Activity：
 
 **Q35：Fragment 的回退栈是什么？怎么管理？**
 
-```
+```text
 回退栈（Back Stack）：
   ─────────────────────────────────────────────────────────────────────────
   FragmentTransaction.addToBackStack("tag")
@@ -4654,7 +4770,7 @@ Fragment 生命周期依附于 Activity：
 
 ## 16. 知识体系总结
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         AndroidX 核心库知识体系                             │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -4690,3 +4806,120 @@ Fragment 生命周期依附于 Activity：
 ---
 
 > 作者：OpenClaw | 日期：2026-03-09
+
+## 17. 数据一致性、恢复与 Android 17 集成
+
+### 17.1 Lifecycle 的两个所有者
+
+Lifecycle 把宿主回调映射为状态并通知观察者；它不自动赋予任意异步任务正确的存活时间。Fragment 实例和它的 View 分别有生命周期：`onDestroyView` 后 Fragment 可能仍在返回栈，因而观察 UI 必须使用 `viewLifecycleOwner`。
+
+```kotlin
+// Fragment.onViewCreated 内；model 由 ViewModelProvider/DI 创建。
+viewLifecycleOwner.lifecycleScope.launch {
+    viewLifecycleOwner.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
+        launch { model.uiState.collect(::render) }
+        launch { model.workProgress.collect(::renderProgress) }
+    }
+}
+```
+
+两个无限 Flow 要分开 launch，否则第二个 collect 永远无法执行。每次进入 STARTED 会重新启动 block，所以不要把不可重复的业务提交放在收集 block 开头。ViewModel 中的 StateFlow 保留最近状态，重新收集可立即恢复画面。
+
+### 17.2 Room 迁移与事务
+
+Room 生成 DAO 实现并校验 schema，数据库升级则需要把旧文件结构转为新结构。下面将 version 1 的 `notes(id,title)` 升级为 version 2，新增非空 archived 列；迁移的 SQL 默认值与 Entity 默认值必须一致。
+
+```kotlin
+import androidx.room.*
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
+
+@Entity(tableName = "notes")
+data class Note(
+    @PrimaryKey val id: Long,
+    val title: String,
+    @ColumnInfo(defaultValue = "0") val archived: Boolean = false
+)
+@Dao
+interface NoteDao {
+    @Query("SELECT * FROM notes ORDER BY id")
+    fun observeAll(): kotlinx.coroutines.flow.Flow<List<Note>>
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(notes: List<Note>)
+    @Query("DELETE FROM notes")
+    suspend fun deleteAll()
+}
+@Database(entities = [Note::class], version = 2, exportSchema = true)
+abstract class NoteDatabase : RoomDatabase() {
+    abstract fun notes(): NoteDao
+}
+val MIGRATION_1_2 = object : Migration(1, 2) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE notes ADD COLUMN archived INTEGER NOT NULL DEFAULT 0")
+    }
+}
+fun createNotes(context: android.content.Context): NoteDatabase =
+    Room.databaseBuilder(context.applicationContext, NoteDatabase::class.java, "notes.db")
+        .addMigrations(MIGRATION_1_2)
+        .build()
+
+suspend fun replaceSnapshot(db: NoteDatabase, remote: List<Note>) {
+    db.withTransaction {
+        db.notes().deleteAll()
+        db.notes().insertAll(remote)
+    }
+}
+```
+
+事务内任一步骤失败或协程取消都会回滚，避免 UI 观察到永久的“只删除未插入”结果；网络请求放在事务外，避免长期占锁。`createNotes` 由应用容器调用一次并复用，不在每次 render 时创建数据库。将导出 schema 纳入版本控制，用 MigrationTestHelper 从旧版本建库并校验迁移后数据；破坏性迁移只适合可重建缓存，不适合用户笔记。
+
+### 17.3 DataStore 的读失败与写失败
+
+`updateData`/`edit` 是串行化更新，不要用“先读取 first()，稍后另行写回”的方式实现计数递增，否则会覆盖并发修改。损坏文件与临时 I/O 错误也不同：CorruptionException 表示内容无法解析，IOException 可能表示存储不可用。
+
+```kotlin
+sealed interface PreferencesUi {
+    data class Ready(val dark: Boolean) : PreferencesUi
+    data object Unavailable : PreferencesUi
+}
+// 使用 kotlinx.coroutines.flow.map/catch 扩展。
+fun preferenceState(store: androidx.datastore.core.DataStore<androidx.datastore.preferences.core.Preferences>) =
+    store.data.map<androidx.datastore.preferences.core.Preferences, PreferencesUi> { prefs ->
+        PreferencesUi.Ready(prefs[androidx.datastore.preferences.core.booleanPreferencesKey("dark")] ?: false)
+    }.catch { error ->
+        if (error is java.io.IOException) emit(PreferencesUi.Unavailable) else throw error
+    }
+```
+
+此处暴露不可用状态，而不是把所有读失败伪装成用户关闭了深色模式。catch 发出回退值后上游流结束，重试应重新订阅或在 catch 前定义受限 retryWhen；写失败则保留旧 UI 状态并显示重试入口，不在 finally 中强行显示成功。
+
+### 17.4 Paging 的错误与缓存归属
+
+`LoadResult.Error` 交给 adapter 的 loadState 呈现错误；`retry()` 重试失败加载，`refresh()` 创建新一代 PagingSource，并不是同义操作。`cachedIn(viewModelScope)` 共享一代分页流，Fragment 用 `collectLatest` 提交到 adapter。
+
+```kotlin
+// Fragment.onViewCreated 内，adapter 为本页 PagingDataAdapter。
+viewLifecycleOwner.lifecycleScope.launch {
+    viewLifecycleOwner.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
+        launch { model.pages.collectLatest { adapter.submitData(it) } }
+        launch {
+            adapter.loadStateFlow.collectLatest { states ->
+                val failure = states.refresh as? androidx.paging.LoadState.Error
+                binding.retry.isVisible = failure != null
+                binding.progress.isVisible = states.refresh is androidx.paging.LoadState.Loading
+            }
+        }
+    }
+}
+binding.retry.setOnClickListener { adapter.retry() }
+```
+
+Room + RemoteMediator 使用数据库作为单一数据源，远端页和 remote keys 在同一事务内更新。服务端游标不能从本地列表长度推算；删除、过滤和去重都会破坏这种假设。
+
+### 17.5 WorkManager 与平台调度
+
+WorkManager 把可延迟、需持久调度的工作记录到数据库，再委托系统调度；它不是精确计时器。CoroutineWorker 捕获取消时重新抛出，临时网络故障返回 retry，参数无效返回 failure。唯一工作用于约束重复调度，但业务写入仍须幂等。
+
+Android 17 的行为开关由 targetSdk 决定。长期运行 Worker 使用前台服务时仍受前台服务类型、启动限制及 JobScheduler 配额约束，不能通过“用了 Jetpack”绕过系统规则。升级监控依赖时使用公开调度/Trace 接口，不读取新无锁 MessageQueue 的私有结构。
+
+参考：[生命周期协程](https://developer.android.com/topic/libraries/architecture/coroutines)、[Room 迁移](https://developer.android.com/training/data-storage/room/migrating-db-versions)、[DataStore](https://developer.android.com/topic/libraries/architecture/datastore)、[Paging 加载状态](https://developer.android.com/topic/libraries/architecture/paging/load-state)、[长期 Worker](https://developer.android.com/develop/background-work/background-tasks/persistent/how-to/long-running)、[Android 17 行为变化](https://developer.android.com/about/versions/17/behavior-changes-17)。

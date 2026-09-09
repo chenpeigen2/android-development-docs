@@ -1964,6 +1964,21 @@ Perfetto 是 Systrace 的继任者，功能更强大：
 
 ---
 
+## 14.3 ADB、adbd 与 run-as 的权限边界
+
+ADB client 经主机 server 连接设备上的 adbd；`adb shell` 是 shell UID，不能读取任意应用目录。Android 17 的 adbd 根据 user/userdebug/eng 和调试属性决定是否降权；`run-as` 还会检查包存在且 debuggable，再切到目标应用 UID。profileable 允许部分性能采样，不等于可调试或可读私有数据。
+
+```powershell
+$serial = 'DEVICE_SERIAL'; $pkg = 'com.example.app'
+adb -s $serial getprop ro.build.fingerprint
+adb -s $serial shell getconf PAGE_SIZE
+adb -s $serial shell dumpsys meminfo $pkg
+adb -s $serial shell dumpsys activity exit-info $pkg
+adb -s $serial shell run-as $pkg ls files
+```
+
+量产 user 设备不能读取完整 `/data/anr` 或任意 HPROF；bugreport、公开 dumpsys、应用主动导出的诊断数据是不同权限入口。日志、bugreport、退出描述可能含账号和路径，拉取后应限制访问并脱敏。
+
 ## 15. Android Studio 调试工具
 
 ### 15.1 Layout Inspector

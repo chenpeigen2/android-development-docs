@@ -1,20 +1,55 @@
 # Android JSON 解析详解
 
+> 适用环境：Android 17（API 37）；示例采用 Gson 2.10.1、Moshi 1.15.0 和各节标注的 Jackson 版本，三方解析器不属于 AOSP 平台版本。
+
 > 作者：OpenClaw | 日期：2026-03-13
 
 ---
 
 ## 目录
 
-1. [概述](#1-概述)
-2. [org.json 原生解析](#2-orgjson-原生解析)
-3. [Gson 解析库](#3-gson-解析库)
-4. [Moshi 解析库](#4-moshi-解析库)
-5. [Jackson 解析库](#5-jackson-解析库)
-6. [性能对比](#6-性能对比)
-7. [最佳实践](#7-最佳实践)
-8. [常见问题](#8-常见问题)
-9. [知识体系总结](#9-知识体系总结)
+- [1. 概述](#1-概述)
+  - [1.1 JSON 是什么](#11-json-是什么)
+  - [1.2 Android JSON 解析方案](#12-android-json-解析方案)
+- [2. org.json 原生解析](#2-orgjson-原生解析)
+  - [2.1 JSONObject 和 JSONArray](#21-jsonobject-和-jsonarray)
+  - [2.2 解析 JSON 字符串](#22-解析-json-字符串)
+  - [2.3 构建 JSON](#23-构建-json)
+  - [2.4 遍历 JSON](#24-遍历-json)
+  - [2.5 复杂 JSON 解析示例](#25-复杂-json-解析示例)
+  - [2.6 org.json 工具类封装](#26-orgjson-工具类封装)
+- [3. Gson 解析库](#3-gson-解析库)
+  - [3.1 Gson 简介](#31-gson-简介)
+  - [3.2 基本使用](#32-基本使用)
+  - [3.3 注解详解](#33-注解详解)
+  - [3.4 GsonBuilder 配置](#34-gsonbuilder-配置)
+  - [3.5 泛型处理](#35-泛型处理)
+  - [3.6 自定义序列化器](#36-自定义序列化器)
+  - [3.7 处理复杂场景](#37-处理复杂场景)
+  - [3.8 与 Retrofit 集成](#38-与-retrofit-集成)
+- [4. Moshi 解析库](#4-moshi-解析库)
+  - [4.1 Moshi 简介](#41-moshi-简介)
+  - [4.2 基本使用](#42-基本使用)
+  - [4.3 Kotlin 特性支持](#43-kotlin-特性支持)
+  - [4.4 自定义适配器](#44-自定义适配器)
+  - [4.5 Moshi 工具类](#45-moshi-工具类)
+- [5. Jackson 解析库](#5-jackson-解析库)
+  - [5.1 Jackson 简介](#51-jackson-简介)
+  - [5.2 基本使用](#52-基本使用)
+  - [5.3 注解](#53-注解)
+- [6. 性能测量与选型](#6-性能测量与选型)
+- [7. 最佳实践](#7-最佳实践)
+  - [7.1 统一响应封装](#71-统一响应封装)
+  - [7.2 错误处理](#72-错误处理)
+  - [7.3 缓存适配器](#73-缓存适配器)
+- [8. 常见问题](#8-常见问题)
+- [9. 知识体系总结](#9-知识体系总结)
+- [10. 严格的数据边界与生命周期](#10-严格的数据边界与生命周期)
+  - [10.1 org.json：缺失、null 与类型转换](#101-orgjson缺失null-与类型转换)
+  - [10.2 Moshi：代码生成和错误分类](#102-moshi代码生成和错误分类)
+  - [10.3 泛型、R8 与适配器复用](#103-泛型r8-与适配器复用)
+  - [10.4 有界输入与取消](#104-有界输入与取消)
+  - [10.5 性能实验的可重复步骤](#105-性能实验的可重复步骤)
 
 ---
 
@@ -22,7 +57,7 @@
 
 ### 1.1 JSON 是什么
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         JSON 定义                                           │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -60,7 +95,7 @@
 
 ### 1.2 Android JSON 解析方案
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         JSON 解析方案对比                                   │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -93,7 +128,7 @@
 
 ### 2.1 JSONObject 和 JSONArray
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         org.json 核心类                                     │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -134,32 +169,32 @@ val jsonString = """
 
 try {
     val jsonObject = JSONObject(jsonString)
-    
+
     // 获取基本类型
     val name: String = jsonObject.getString("name")
     val age: Int = jsonObject.getInt("age")
     val isStudent: Boolean = jsonObject.getBoolean("isStudent")
     val score: Double = jsonObject.getDouble("score")
-    
+
     // 可空获取（不存在返回默认值）
     val nickname: String = jsonObject.optString("nickname", "无昵称")
     val level: Int = jsonObject.optInt("level", 1)
     val vip: Boolean = jsonObject.optBoolean("vip", false)
-    
+
     // 检查 key 是否存在
     if (jsonObject.has("address")) {
         val address: JSONObject = jsonObject.getJSONObject("address")
         val city: String = address.getString("city")
         val district: String = address.getString("district")
     }
-    
+
     // 获取数组
     val hobbies: JSONArray = jsonObject.getJSONArray("hobbies")
     for (i in 0 until hobbies.length()) {
         val hobby: String = hobbies.getString(i)
         println("Hobby $i: $hobby")
     }
-    
+
 } catch (e: JSONException) {
     e.printStackTrace()
 }
@@ -175,7 +210,7 @@ val jsonArrayString = """
 
 try {
     val jsonArray = JSONArray(jsonArrayString)
-    
+
     val users = mutableListOf<User>()
     for (i in 0 until jsonArray.length()) {
         val item: JSONObject = jsonArray.getJSONObject(i)
@@ -183,7 +218,7 @@ try {
         val name: String = item.getString("name")
         users.add(User(id, name))
     }
-    
+
 } catch (e: JSONException) {
     e.printStackTrace()
 }
@@ -360,9 +395,9 @@ fun parseApiResponse(jsonString: String): ApiResponse? {
         val root = JSONObject(jsonString)
         val code = root.getInt("code")
         val message = root.getString("message")
-        
+
         val data = root.getJSONObject("data")
-        
+
         // 解析 user
         val userJson = data.optJSONObject("user")
         val user = userJson?.let {
@@ -373,7 +408,7 @@ fun parseApiResponse(jsonString: String): ApiResponse? {
                 vip = it.getBoolean("vip")
             )
         }
-        
+
         // 解析 orders
         val ordersJson = data.getJSONArray("orders")
         val orders = mutableListOf<Order>()
@@ -381,7 +416,7 @@ fun parseApiResponse(jsonString: String): ApiResponse? {
             val orderJson = ordersJson.getJSONObject(i)
             val itemsJson = orderJson.getJSONArray("items")
             val items = mutableListOf<OrderItem>()
-            
+
             for (j in 0 until itemsJson.length()) {
                 val itemJson = itemsJson.getJSONObject(j)
                 items.add(
@@ -392,7 +427,7 @@ fun parseApiResponse(jsonString: String): ApiResponse? {
                     )
                 )
             }
-            
+
             orders.add(
                 Order(
                     orderId = orderJson.getString("orderId"),
@@ -402,7 +437,7 @@ fun parseApiResponse(jsonString: String): ApiResponse? {
                 )
             )
         }
-        
+
         // 解析 pagination
         val paginationJson = data.getJSONObject("pagination")
         val pagination = Pagination(
@@ -410,9 +445,9 @@ fun parseApiResponse(jsonString: String): ApiResponse? {
             pageSize = paginationJson.getInt("pageSize"),
             total = paginationJson.getInt("total")
         )
-        
+
         ApiResponse(code, message, user, orders, pagination)
-        
+
     } catch (e: JSONException) {
         e.printStackTrace()
         null
@@ -425,7 +460,7 @@ fun parseApiResponse(jsonString: String): ApiResponse? {
 ```kotlin
 // ==================== JSON 解析工具类 ====================
 object JsonUtils {
-    
+
     /**
      * 安全获取 String
      */
@@ -436,7 +471,7 @@ object JsonUtils {
             null
         }
     }
-    
+
     /**
      * 安全获取 Int
      */
@@ -447,7 +482,7 @@ object JsonUtils {
             null
         }
     }
-    
+
     /**
      * 安全获取 Long
      */
@@ -458,7 +493,7 @@ object JsonUtils {
             null
         }
     }
-    
+
     /**
      * 安全获取 Double
      */
@@ -469,7 +504,7 @@ object JsonUtils {
             null
         }
     }
-    
+
     /**
      * 安全获取 Boolean
      */
@@ -480,7 +515,7 @@ object JsonUtils {
             null
         }
     }
-    
+
     /**
      * 解析 JSON 数组到 List
      */
@@ -499,7 +534,7 @@ object JsonUtils {
         }
         return list
     }
-    
+
     /**
      * List 转 JSONArray
      */
@@ -533,7 +568,11 @@ val orders: List<Order> = JsonUtils.parseArray(jsonArray) { item ->
 
 ### 3.1 Gson 简介
 
-```
+**模型与反射**：Gson 主要通过 Java 反射处理模型；开放式反射与 R8 优化存在冲突，Kotlin 非空类型及默认构造参数也不在它的语言保证内。`data class` 声明非空不能防止 Gson 反射写入 null。已有 Gson 工程应验证数据契约、泛型与 release 混淆，再决定保留或迁移；不能仅因 Android 17 就改所有 JSON 依赖号。
+
+来源：[Gson 一手 README](https://github.com/google/gson/blob/main/README.md)、[Gson 故障排查](https://github.com/google/gson/blob/main/Troubleshooting.md)。以下示例固定使用 Gson 2.10.1；`Strictness.STRICT` 不属于该版本 API。
+
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         Gson 简介                                           │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -606,10 +645,10 @@ val text: String = gson.fromJson("\"hello\"", String::class.java)
 data class User(
     @SerializedName("user_id")
     val id: Int,
-    
+
     @SerializedName("user_name")
     val name: String,
-    
+
     // 多个别名（解析时按顺序匹配）
     @SerializedName(value = "user_age", alternate = ["age", "userAge"])
     val age: Int
@@ -654,56 +693,24 @@ data class User(
 
 ### 3.4 GsonBuilder 配置
 
-```kotlin
-// ==================== GsonBuilder 常用配置 ====================
-val gson = GsonBuilder()
-    // 美化输出（带缩进）
-    .setPrettyPrinting()
-    
-    // 宽松模式（允许特殊字符）
-    .setLenient()
-    
-    // 序列化 null 值
-    .serializeNulls()
-    
-    // 日期格式
-    .setDateFormat("yyyy-MM-dd HH:mm:ss")
-    
-    // 版本控制
-    .setVersion(1.0)
-    
-    // 排除没有 @Expose 的字段
-    .excludeFieldsWithoutExposeAnnotation()
-    
-    // 排除特定修饰符的字段
-    .excludeFieldsWithModifiers(Modifier.STATIC, Modifier.TRANSIENT)
-    
-    // 生成不可执行的 JSON（带 )]}' 前缀，防止 XSS）
-    .generateNonExecutableJson()
-    
-    // 字段命名策略
-    .setFieldNamingPolicy(FieldNamingPolicy.LOWER_CASE_WITH_UNDERSCORES)
-    
-    // 自定义字段命名策略
-    .setFieldNamingStrategy { field ->
-        "prefix_${field.name}"
-    }
-    
-    // 注册类型适配器
-    .registerTypeAdapter(Date::class.java, DateTypeAdapter())
-    .registerTypeAdapter(List::class.java, ListTypeAdapter())
-    
-    .create()
+不要把所有选项串联成一份“推荐配置”：`excludeFieldsWithoutExposeAnnotation()` 会排除没有 `@Expose` 的字段；自定义命名策略会替代此前策略；`generateNonExecutableJson()` 会改变输出格式，不是通用 XSS 防护。宽松解析也不是网络输入的默认安全建议。
 
-// ==================== FieldNamingPolicy 命名策略 ====================
-// IDENTITY：原样保留
-// LOWER_CASE_WITH_UNDERSCORES：user_name
-// LOWER_CASE_WITH_DASHES：user-name
-// UPPER_CAMEL_CASE：UserName
-// UPPER_CAMEL_CASE_WITH_SPACES：User Name
+```kotlin
+// 最小示例：只按协议需要显式输出 null；不默认启用 lenient 或特殊前缀。
+val gson = GsonBuilder()
+    .serializeNulls()
+    .create()
 ```
 
+去掉 `setLenient()` 不等于 Gson 2.10.1 已严格拒绝所有非标准 JSON。Gson **2.11.0+** 才提供 `Strictness.STRICT` 配置；如要采用，须先按发布说明升级并回归，不能直接复制到本文的 2.10.1 依赖上。日期、枚举未知值、缺失字段/null、数值溢出和最大输入大小都应按业务协议测试。
+
+来源：[Gson Troubleshooting 的 malformed JSON/Strictness 说明](https://github.com/google/gson/blob/main/Troubleshooting.md)、[Gson 用户指南](https://github.com/google/gson/blob/main/UserGuide.md)。
+
 ### 3.5 泛型处理
+
+公共 `inline` 不能访问对象的 `private` 字段；下面将共享 Gson 标成 `@PublishedApi internal`，以满足 Kotlin 公共内联函数的可见性要求。内联泛型用 `TypeToken<List<T>>` 保留嵌套类型；`T::class.java` 只保留原始 Class，会丢失 `List<User>` 等类型参数。允许 JSON `null` 的入口必须返回可空结果；声明非空时应显式校验。
+
+来源：[Kotlin public inline 限制](https://kotlinlang.org/docs/inline-functions.html#restrictions-for-public-api-inline-functions)、[Gson TypeToken 排查](https://github.com/google/gson/blob/main/Troubleshooting.md)。
 
 ```kotlin
 // ==================== 泛型类解析 ====================
@@ -718,7 +725,9 @@ data class ApiResponse<T>(
 inline fun <reified T> parseApiResponse(jsonString: String): ApiResponse<T> {
     val gson = Gson()
     val type = object : TypeToken<ApiResponse<T>>() {}.type
-    return gson.fromJson(jsonString, type)
+    return requireNotNull(gson.fromJson<ApiResponse<T>>(jsonString, type)) {
+        "Response must not be JSON null"
+    }
 }
 
 // 使用
@@ -726,35 +735,36 @@ val response: ApiResponse<User> = parseApiResponse(jsonString)
 
 // ==================== 泛型工具类 ====================
 object GsonUtils {
-    private val gson = GsonBuilder()
+    @PublishedApi
+    internal val gson = GsonBuilder()
         .setPrettyPrinting()
         .serializeNulls()
         .setDateFormat("yyyy-MM-dd HH:mm:ss")
         .create()
-    
-    fun <T> fromJson(json: String, clazz: Class<T>): T {
+
+    fun <T> fromJson(json: String, clazz: Class<T>): T? {
         return gson.fromJson(json, clazz)
     }
-    
-    inline fun <reified T> fromJson(json: String): T {
+
+    inline fun <reified T> fromJson(json: String): T? {
         return gson.fromJson(json, object : TypeToken<T>() {}.type)
     }
-    
-    fun <T> fromJson(json: String, type: Type): T {
+
+    fun <T> fromJson(json: String, type: Type): T? {
         return gson.fromJson(json, type)
     }
-    
+
     fun <T> toJson(obj: T): String {
         return gson.toJson(obj)
     }
-    
+
     fun <T> toJson(obj: T, type: Type): String {
         return gson.toJson(obj, type)
     }
-    
+
     // List 解析
-    inline fun <reified T> fromJsonList(json: String): List<T> {
-        val type = TypeToken.getParameterized(List::class.java, T::class.java).type
+    inline fun <reified T> fromJsonList(json: String): List<T>? {
+        val type = object : TypeToken<List<T>>() {}.type
         return gson.fromJson(json, type)
     }
 }
@@ -850,7 +860,7 @@ class DateTypeAdapter : TypeAdapter<Date>() {
     override fun write(out: JsonWriter, value: Date?) {
         out.value(value?.time)
     }
-    
+
     override fun read(reader: JsonReader): Date? {
         return try {
             if (reader.peek() == JsonToken.NULL) {
@@ -886,16 +896,17 @@ data class User(
 // - null 值：使用 null（不设置 serializeNulls 时序列化会跳过）
 
 // ==================== 处理枚举 ====================
+@JsonClass(generateAdapter = false) // 按 Moshi 文档保护反射枚举在 R8 下的语义
 enum class Status {
     @SerializedName("pending")
     PENDING,
-    
+
     @SerializedName("processing")
     PROCESSING,
-    
+
     @SerializedName("completed")
     COMPLETED,
-    
+
     @SerializedName("failed")
     FAILED
 }
@@ -930,7 +941,7 @@ data class Message(
 
 fun parseMessage(json: String) {
     val message = Gson().fromJson(json, Message::class.java)
-    
+
     when (message.type) {
         "text" -> {
             val text = message.content.asString
@@ -951,28 +962,47 @@ sealed class Content {
     data class VideoContent(val url: String, val duration: Int) : Content()
 }
 
-// 使用 RuntimeTypeAdapterFactory（需要 extra 依赖）
-// implementation("com.google.code.gson:gson-extras:2.10.1")
-
-// 或自定义反序列化器
+// 使用显式白名单反序列化器，不加载服务端提供的 JVM 类名。
 class ContentDeserializer : JsonDeserializer<Content> {
-    override fun deserialize(
-        json: JsonElement,
-        typeOfT: Type,
-        context: JsonDeserializationContext
-    ): Content {
-        val jsonObject = json.asJsonObject
-        val type = jsonObject.get("type").asString
-        
-        return when (type) {
-            "text" -> context.deserialize(json, Content.TextContent::class.java)
-            "image" -> context.deserialize(json, Content.ImageContent::class.java)
-            "video" -> context.deserialize(json, Content.VideoContent::class.java)
-            else -> throw JsonParseException("Unknown content type: $type")
+    override fun deserialize(json: JsonElement, typeOfT: Type,
+                             context: JsonDeserializationContext): Content {
+        if (!json.isJsonObject) throw JsonParseException("content 必须是对象")
+        val obj = json.asJsonObject
+        fun text(key: String): String {
+            val value = obj[key]
+            if (value == null || !value.isJsonPrimitive || !value.asJsonPrimitive.isString)
+                throw JsonParseException("$key 必须为字符串")
+            return value.asString
+        }
+        fun number(key: String): Int {
+            val value = obj[key]
+            if (value == null || !value.isJsonPrimitive || !value.asJsonPrimitive.isNumber)
+                throw JsonParseException("$key 必须为整数")
+            val result = try { value.asBigDecimal.intValueExact() }
+                catch (error: ArithmeticException) { throw JsonParseException("$key 超出整数范围", error) }
+            if (result < 0) throw JsonParseException("$key 不可为负数")
+            return result
+        }
+        return when (val type = text("type")) {
+            "text" -> Content.TextContent(text("text"))
+            "image" -> Content.ImageContent(text("url"), number("width"), number("height"))
+            "video" -> Content.VideoContent(text("url"), number("duration"))
+            else -> throw JsonParseException("未知 content 类型: $type")
         }
     }
 }
+val contentGson = GsonBuilder()
+    .registerTypeAdapter(Content::class.java, ContentDeserializer())
+    .create()
+val content = requireNotNull(contentGson.fromJson<Content>(
+    """{"type":"image","url":"https://example.com/a.png","width":64,"height":64}""",
+    Content::class.java
+))
 ```
+
+本例限定反序列化。双向协议还需实现 serializer，显式写回 type 判别字段，不能依赖运行时子类默认序列化自动补出 type。Gson extras 的 RuntimeTypeAdapterFactory 不随 core 发布；使用 core 的公开接口即可实现自己的协议映射。
+
+源码：[Gson 2.10.1 JsonDeserializer](https://github.com/google/gson/blob/gson-parent-2.10.1/gson/src/main/java/com/google/gson/JsonDeserializer.java)。
 
 ### 3.8 与 Retrofit 集成
 
@@ -1000,21 +1030,28 @@ sealed class ApiResult<out T> {
     data class Error(val code: Int, val message: String) : ApiResult<Nothing>()
 }
 
-suspend fun <T> safeApiCall(call: suspend () -> Response<BaseResponse<T>>): ApiResult<T> {
+suspend fun <T : Any> safeApiCall(call: suspend () -> Response<BaseResponse<T>>): ApiResult<T> {
     return try {
         val response = call()
-        if (response.isSuccessful) {
-            val body = response.body()
-            if (body != null && body.code == 200) {
-                ApiResult.Success(body.data!!)
-            } else {
-                ApiResult.Error(body?.code ?: -1, body?.message ?: "Unknown error")
-            }
+        if (!response.isSuccessful) {
+            response.errorBody()?.close()
+            ApiResult.Error(response.code(), "HTTP 请求失败")
         } else {
-            ApiResult.Error(response.code(), response.message())
+            val body = response.body()
+            val data = body?.data
+            when {
+                body == null -> ApiResult.Error(-2, "空响应")
+                body.code != 200 -> ApiResult.Error(body.code, "业务请求失败")
+                data == null -> ApiResult.Error(-2, "缺少响应数据")
+                else -> ApiResult.Success(data)
+            }
         }
-    } catch (e: Exception) {
-        ApiResult.Error(-1, e.message ?: "Network error")
+    } catch (cancelled: kotlinx.coroutines.CancellationException) {
+        throw cancelled
+    } catch (invalid: JsonParseException) {
+        ApiResult.Error(-2, "响应格式错误")
+    } catch (network: java.io.IOException) {
+        ApiResult.Error(-1, "网络请求失败")
     }
 }
 ```
@@ -1025,7 +1062,7 @@ suspend fun <T> safeApiCall(call: suspend () -> Response<BaseResponse<T>>): ApiR
 
 ### 4.1 Moshi 简介
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         Moshi 简介                                          │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1047,6 +1084,16 @@ suspend fun <T> safeApiCall(call: suspend () -> Response<BaseResponse<T>>): ApiR
 ```
 
 ### 4.2 基本使用
+
+`@JsonClass(generateAdapter = true)` 需要真正运行匹配版本的 codegen；仅添加 `moshi` runtime 不会自动生成适配器。KSP 插件版本必须在工程中显式配置并与 Kotlin/AGP 兼容，不能从 Android 17 推导。对未生成适配器的 Kotlin 类，普通 Java 反射不受支持，需 `moshi-kotlin` 与 `KotlinJsonAdapterFactory`，或补充 codegen 注解。
+
+```kotlin
+// 仅选择 Kotlin 反射方案时补充；与本文 1.15.0 runtime 保持一致。
+implementation("com.squareup.moshi:moshi-kotlin:1.15.0")
+// KotlinJsonAdapterFactory 位于 com.squareup.moshi.kotlin.reflect 包。
+```
+
+来源：[Moshi Kotlin/codegen 与反射说明](https://github.com/square/moshi/blob/parent-1.15.0/README.md)。后文带 `KotlinJsonAdapterFactory` 的示例同样需要此依赖，不是 core 的免费内置能力。
 
 ```kotlin
 // ==================== 添加注解 ====================
@@ -1113,6 +1160,7 @@ data class Order(
     val status: Status
 )
 
+@JsonClass(generateAdapter = false) // 按 Moshi 文档保护反射枚举在 R8 下的语义
 enum class Status {
     @Json(name = "pending") PENDING,
     @Json(name = "processing") PROCESSING,
@@ -1144,7 +1192,7 @@ class DateAdapter {
     fun toJson(writer: JsonWriter, value: Date?) {
         writer.value(value?.time)
     }
-    
+
     @FromJson
     fun fromJson(reader: JsonReader): Date? {
         return if (reader.peek() == JsonReader.Token.NULL) {
@@ -1173,7 +1221,7 @@ class StatusAdapter {
             else -> throw JsonDataException("Unknown status: $status")
         }
     }
-    
+
     @ToJson
     fun toJson(status: Status): String {
         return status.name.lowercase()
@@ -1190,7 +1238,7 @@ class UserAdapter {
             age = json.userAge
         )
     }
-    
+
     @ToJson
     fun toJson(user: User): UserJson {
         return UserJson(
@@ -1207,22 +1255,22 @@ class UserAdapter {
 ```kotlin
 // ==================== Moshi 工具类 ====================
 object MoshiUtils {
-    
+
     private val moshi = Moshi.Builder()
         .add(KotlinJsonAdapterFactory())  // Kotlin 支持
         .add(DateAdapter())
         .build()
-    
+
     inline fun <reified T> fromJson(json: String): T? {
         val adapter = moshi.adapter(T::class.java)
         return adapter.fromJson(json)
     }
-    
+
     inline fun <reified T> toJson(obj: T): String {
         val adapter = moshi.adapter(T::class.java)
         return adapter.toJson(obj) ?: "{}"
     }
-    
+
     inline fun <reified T> fromJsonList(json: String): List<T>? {
         val listType = Types.newParameterizedType(List::class.java, T::class.java)
         val adapter = moshi.adapter<List<T>>(listType)
@@ -1247,7 +1295,7 @@ val retrofit = Retrofit.Builder()
 
 ### 5.1 Jackson 简介
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         Jackson 简介                                        │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1306,19 +1354,19 @@ val mapFromJson: Map<String, User> = mapper.readValue(mapJson, mapType)
 data class User(
     @JsonProperty("user_id")
     val id: Int,
-    
+
     @JsonProperty("user_name")
     val name: String,
-    
+
     @JsonIgnore
     val password: String,  // 忽略此字段
-    
+
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     val createdAt: Date? = null,
-    
+
     @JsonInclude(JsonInclude.Include.NON_NULL)
     val email: String? = null,  // null 时不序列化
-    
+
     @JsonAlias(["age", "userAge"])
     val userAge: Int = 0  // 别名
 )
@@ -1326,49 +1374,20 @@ data class User(
 
 ---
 
-## 6. 性能对比
+## 6. 性能测量与选型
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         JSON 解析库性能对比                                 │
-└─────────────────────────────────────────────────────────────────────────────┘
+解析性能取决于模型结构、输入大小、分配量、适配器缓存、设备和构建配置。比较前先固定数据契约，再测冷启动与稳态解析。
 
-  解析速度（越小越快）：
-  ─────────────────────────────────────────────────────────────────────────
-  
-  ┌──────────────────┬──────────────┬──────────────┬──────────────────────────┐
-  │      库           │  序列化(ms)   │  反序列化(ms) │         说明            │
-  ├──────────────────┼──────────────┼──────────────┼──────────────────────────┤
-  │  Jackson         │  5-10        │  8-15        │  最快，流式解析          │
-  ├──────────────────┼──────────────┼──────────────┼──────────────────────────┤
-  │  Moshi           │  10-20       │  15-25       │  较快，Okio 优化         │
-  ├──────────────────┼──────────────┼──────────────┼──────────────────────────┤
-  │  Gson            │  15-30       │  20-40       │  中等，反射开销          │
-  ├──────────────────┼──────────────┼──────────────┼──────────────────────────┤
-  │  org.json        │  20-40       │  30-50       │  较慢，手动解析          │
-  └──────────────────┴──────────────┴──────────────┴──────────────────────────┘
+| 对比维度 | 必须统一的条件 |
+|----------|----------------|
+| 解析/序列化耗时 | 相同 JSON、模型、缺失字段策略、冷热适配器及线程 |
+| 内存与分配 | 流式/树模型/对象映射分开测，记录峰值与 GC |
+| APK 成本 | 使用相同 release/R8 配置，计算传递依赖和生成代码，不只看单个 JAR |
+| 正确性 | 泛型、null、默认值、未知枚举、数字范围和错误输入 |
 
-  库大小：
-  ─────────────────────────────────────────────────────────────────────────
-  - org.json：0 KB（内置）
-  - Gson：~240 KB
-  - Moshi：~150 KB
-  - Jackson：~1.5 MB
+对已有 Java/Gson 业务可先审计再迁移；新 Android/Kotlin 模型可评估 Moshi codegen 或 Kotlin Serialization，不能预先宣布某库最快。`org.json` 可减少额外依赖，但仍需手工维护字段契约。Android 17 平台更新不会自动改变三方库的序列化协议。
 
-  内存占用：
-  ─────────────────────────────────────────────────────────────────────────
-  - Jackson：最低（流式解析）
-  - Moshi：中等
-  - Gson：较高（反射缓存）
-  - org.json：中等
-
-  选择建议：
-  ─────────────────────────────────────────────────────────────────────────
-  - 简单场景 / 无额外依赖：org.json
-  - Java 项目 / 团队熟悉：Gson
-  - Kotlin 项目 / 新项目：Moshi
-  - 高性能 / 大数据量：Jackson
-```
+来源：[Gson Android/Kotlin 限制](https://github.com/google/gson/blob/main/README.md)、[Moshi 代码生成](https://github.com/square/moshi/blob/parent-1.15.0/README.md)、[Android Microbenchmark](https://developer.android.com/topic/performance/benchmarking/microbenchmark-overview)。
 
 ---
 
@@ -1384,7 +1403,7 @@ data class ApiResponse<T>(
     val data: T?
 ) {
     val isSuccess: Boolean get() = code == 200
-    
+
     fun getDataOrThrow(): T {
         if (!isSuccess) throw ApiException(code, message)
         return data ?: throw ApiException(-1, "Data is null")
@@ -1395,17 +1414,18 @@ class ApiException(val code: Int, override val message: String) : Exception(mess
 
 // ==================== 使用 Gson ====================
 inline fun <reified T> parseResponse(json: String): ApiResponse<T> {
-    val type = TypeToken.getParameterized(
-        ApiResponse::class.java,
-        T::class.java
-    ).type
-    return Gson().fromJson(json, type)
+    val type = object : TypeToken<ApiResponse<T>>() {}.type
+    return requireNotNull(Gson().fromJson<ApiResponse<T>>(json, type)) {
+        "Response must not be JSON null"
+    }
 }
 
 // ==================== 使用 Moshi ====================
-inline fun <reified T> parseResponseMoshi(json: String): ApiResponse<T>? {
-    val moshi = Moshi.Builder().add(KotlinJsonAdapterFactory()).build()
-    val type = Types.newParameterizedType(ApiResponse::class.java, T::class.java)
+// dataType 必须包含完整泛型，如 Types.newParameterizedType(List::class.java, User::class.java)。
+// 依赖 moshi-kotlin；Type 是 java.lang.reflect.Type。
+fun <T> parseResponseMoshi(json: String, dataType: Type): ApiResponse<T>? {
+    val moshi = Moshi.Builder().addLast(KotlinJsonAdapterFactory()).build()
+    val type = Types.newParameterizedType(ApiResponse::class.java, dataType)
     return moshi.adapter<ApiResponse<T>>(type).fromJson(json)
 }
 ```
@@ -1414,20 +1434,21 @@ inline fun <reified T> parseResponseMoshi(json: String): ApiResponse<T>? {
 
 ```kotlin
 // ==================== 安全解析 ====================
-inline fun <reified T> safeParseJson(json: String): Result<T> {
+inline fun <reified T : Any> safeParseJson(json: String): Result<T> {
     return try {
-        val obj = Gson().fromJson(json, T::class.java)
-        Result.success(obj)
-    } catch (e: JsonSyntaxException) {
-        Result.failure(ParseException("JSON syntax error", e))
-    } catch (e: Exception) {
+        val type = object : TypeToken<T>() {}.type
+        val obj = GsonUtils.gson.fromJson<T>(json, type)
+        Result.success(requireNotNull(obj) { "JSON null is not allowed here" })
+    } catch (e: JsonParseException) {
+        Result.failure(IllegalArgumentException("JSON parse failed", e))
+    } catch (e: IllegalArgumentException) {
         Result.failure(e)
     }
 }
 
 // 使用
 val result = safeParseJson<User>(jsonString)
-result.onSuccess { user -> 
+result.onSuccess { user ->
     // 处理成功
 }.onFailure { error ->
     // 处理失败
@@ -1440,7 +1461,7 @@ result.onSuccess { user ->
 // ==================== 缓存 Gson 适配器 ====================
 object GsonFactory {
     private val gsonCache = mutableMapOf<Type, Gson>()
-    
+
     fun <T> getAdapter(type: Type): Gson {
         return gsonCache.getOrPut(type) {
             GsonBuilder()
@@ -1455,9 +1476,9 @@ object MoshiFactory {
     private val moshi = Moshi.Builder()
         .add(KotlinJsonAdapterFactory())
         .build()
-    
+
     private val adapterCache = mutableMapOf<Type, JsonAdapter<*>>()
-    
+
     @Suppress("UNCHECKED_CAST")
     fun <T> getAdapter(clazz: Class<T>): JsonAdapter<T> {
         return adapterCache.getOrPut(clazz) {
@@ -1471,12 +1492,12 @@ object MoshiFactory {
 
 ## 8. 常见问题
 
-```
+```text
 Q1: Gson 和 Moshi 怎么选？
 ─────────────────────────────────────────────────────────────────────────
-A: 
-   - Java 项目或团队熟悉 Gson：选 Gson
-   - Kotlin 新项目：选 Moshi（编译时代码生成，性能更好）
+A:
+   - 现有 Gson：先审计 Kotlin/null/泛型及 R8，再决定是否迁移
+   - Kotlin 新项目：评估 Moshi codegen / Kotlin Serialization，性能需实测
    - 需要 Kotlin 特性支持（可空、默认值）：Moshi 更好
 
 Q2: 如何处理 JSON 字段名和类字段名不一致？
@@ -1530,7 +1551,7 @@ A:
 
 ## 9. 知识体系总结
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         JSON 解析知识体系                                   │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1555,10 +1576,85 @@ A:
   1. org.json：Android 内置，简单场景无需额外依赖
   2. Gson：成熟稳定，Java 项目首选
   3. Moshi：Kotlin 友好，新项目推荐
-  4. Jackson：性能最高，大数据量场景
+  4. Jackson：可评估流式解析；性能由业务样本与设备决定
   5. 复用实例，缓存适配器，优化性能
 ```
 
 ---
 
 > 作者：OpenClaw | 日期：2026-03-13
+
+## 10. 严格的数据边界与生命周期
+
+### 10.1 org.json：缺失、null 与类型转换
+
+Android 平台 `org.json` 的实现位于 AOSP `libcore/json/src/main/java/org/json/`。`has(name)` 判断成员是否存在；`isNull(name)` 对缺失成员和 JSON null 都返回 true。`getString` 等方法可能进行类型转换，因此“调用未抛异常”不等于满足业务 schema。
+
+```kotlin
+import org.json.JSONObject
+import org.json.JSONException
+
+data class Account(val id: String, val nickname: String?)
+fun parseAccount(json: String): Account {
+    val obj = JSONObject(json)
+    if (!obj.has("id") || obj.isNull("id")) throw JSONException("缺少 id")
+    val rawId = obj.get("id")
+    if (rawId !is String || rawId.isBlank()) throw JSONException("id 必须为非空字符串")
+    val nickname = if (!obj.has("nickname") || obj.isNull("nickname")) null else {
+        obj.get("nickname") as? String ?: throw JSONException("nickname 类型错误")
+    }
+    return Account(rawId, nickname)
+}
+```
+
+上述模型有意把缺失 nickname 与显式 null 合并。如果 PATCH 协议区分“未修改”和“清空”，则用三态模型 Missing/Null/Value，不能压缩成一个 nullable 字段。
+
+源码：[AOSP Android 17 JSONObject.java](https://android.googlesource.com/platform/libcore/+/refs/tags/android-17.0.0_r1/json/src/main/java/org/json/JSONObject.java)。
+
+### 10.2 Moshi：代码生成和错误分类
+
+Moshi 1.15.0 的 Kotlin 类可以使用 `moshi-kotlin-codegen` 生成适配器，也可以使用 `moshi-kotlin` 的 KotlinJsonAdapterFactory。两种方案择一配置；下面选反射路径，不要求示例工程额外运行 KSP。
+
+```kotlin
+// dependencies：moshi:1.15.0 与 moshi-kotlin:1.15.0
+import com.squareup.moshi.JsonDataException
+import com.squareup.moshi.Moshi
+import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
+
+data class ProductDto(val id: String, val title: String, val stock: Int = 0)
+val productMoshi = Moshi.Builder().addLast(KotlinJsonAdapterFactory()).build()
+val productAdapter = productMoshi.adapter(ProductDto::class.java).nonNull()
+
+fun parseProduct(input: String): ProductDto {
+    val product = requireNotNull(productAdapter.fromJson(input))
+    if (product.id.isBlank() || product.stock < 0) throw JsonDataException("商品字段不合法")
+    return product
+}
+```
+
+缺失 stock 使用默认值，显式 `"stock":null` 则违反非空契约。`JsonDataException` 表示结构/类型不符合模型，`IOException` 表示读取或 JSON 编码问题。两类错误都不能直接用空商品掩盖；UI 应显示协议异常或失败重试状态。`failOnUnknown()` 可用于严格内部协议测试，开放服务端协议则要权衡新增字段的向前兼容。
+
+参考：[Moshi 1.15.0 发布源码](https://github.com/square/moshi/tree/parent-1.15.0)、[Moshi 官方使用说明](https://github.com/square/moshi)。
+
+### 10.3 泛型、R8 与适配器复用
+
+`List<User>` 需要包含类型参数的 Type；`List::class.java` 只能提供原始类型。公共 inline 封装使用 `@PublishedApi internal` 访问缓存实例，并保留完整嵌套类型。应用级复用 Gson/Moshi/配置完成的 ObjectMapper 和模型适配器，不缓存绑定 Activity 的回调。
+
+R8 可能改变反射字段、构造器和泛型签名。Gson DTO 使用稳定 `@SerializedName` 字段名，并按该版本的 consumer rules 补足反射模型保留；Moshi codegen 减少反射依赖，但反射访问的枚举/类型仍遵守库的规则。release 测试输入包含泛型嵌套、缺失字段、显式 null、未知枚举和数字溢出。
+
+### 10.4 有界输入与取消
+
+大文件使用流式解析，每读完一个对象就交给下游，不把完整 JSONArray 和完整业务列表同时常驻内存。输入层限制压缩后/解压后大小、协议允许的嵌套深度和字段长度；仅检查 HTTP Content-Length 无法约束 chunked 或解压后的内容。
+
+同步 JSON 解析不会在所有循环中自动响应协程取消。批量映射在 Default dispatcher 上运行并定期 `ensureActive()`；流在拥有者作用域中使用 `use` 关闭。不要捕获所有 Exception 后返回默认对象，从而吞掉 CancellationException 或程序错误。
+
+### 10.5 性能实验的可重复步骤
+
+1. 固定真实脱敏样本：小对象、深层泛型、大数组、异常输入分别测量。
+2. 在相同 release/R8 配置下预热适配器，把首次建适配器和稳态解析分开。
+3. 记录每次解析时间、分配字节、峰值内存；不把网络时间计入纯解析指标。
+4. 校验输出完全一致后再比较性能，流式解析与整树解析按相同业务输出量比较。
+
+Android 17 更新平台的 `org.json` 与运行环境；Gson、Moshi、Jackson 的代码仍由应用依赖决定。不能以系统版本推导某个解析器“性能最高”。
+
+参考：[Gson TypeToken](https://github.com/google/gson/blob/gson-parent-2.10.1/gson/src/main/java/com/google/gson/reflect/TypeToken.java)、[Moshi](https://github.com/square/moshi)、[Microbenchmark](https://developer.android.com/topic/performance/benchmarking/microbenchmark-overview)。

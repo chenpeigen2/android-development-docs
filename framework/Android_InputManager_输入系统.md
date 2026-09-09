@@ -876,26 +876,32 @@ public boolean onKeyDown(int keyCode, KeyEvent event) {
 
 ```java
 /**
- * InputMethodManager - 输入法管理器
+ * InputMethodManager - 应用侧输入法管理器
  * 位置：frameworks/base/core/java/android/view/inputmethod/InputMethodManager.java
  */
 class InputMethodManager {
-    // 显示输入法
     public void showSoftInput(View view, int flags);
-    
-    // 隐藏输入法
     public boolean hideSoftInputFromWindow(IBinder windowToken, int flags);
-    
-    // 切换输入法
     public void toggleSoftInput(int showFlags, int hideFlags);
-    
-    // 获取输入法列表
-    public List<InputMethodInfo> getInputMethodList();
-    
-    // 切换到指定输入法
-    public void setInputMethod(IBinder token, String id);
 }
+```
 
-/**
- * InputMethodService - 输入法服务
- * 位置：frameworks/base/core/java
+`InputMethodManager` 持有应用侧输入连接和窗口 token，显示或隐藏输入法时把请求发送到 `InputMethodManagerService`。编辑器通过 `InputConnection` 提交文本、选区和组合态；输入法通过 `commitText()`、`setComposingText()` 等操作回写编辑器。一次输入的关键边界如下：
+
+```text
+KeyEvent / MotionEvent
+        ↓
+InputDispatcher
+        ↓
+InputMethodManagerService 选择当前输入法
+        ↓ Binder
+InputMethodService
+        ↓ InputConnection
+EditorInfo / BaseInputConnection / TextView
+```
+
+排查输入法问题时，应同时检查焦点窗口、`EditorInfo.inputType`、输入法服务是否绑定，以及应用是否在窗口销毁后继续持有 `InputConnection`。输入法切换和窗口焦点变化是异步过程，不能假定调用 `showSoftInput()` 后键盘立即可见；应以窗口 Insets 或输入法回调作为状态依据。
+
+## 9. 总结
+
+Android 17 的输入系统由 native `EventHub`、`InputReader`、`InputDispatcher` 与 Java 框架层协作完成。按键、触摸和输入法虽然入口不同，但最终都通过窗口 token、InputChannel、焦点和异步回调连接到应用线程。分析问题时要沿着“设备事件 → native 读取/分发 → Binder 或 InputChannel → ViewRootImpl/编辑器”的链路定位，而不是只观察某个 View 的回调。

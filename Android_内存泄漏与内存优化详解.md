@@ -236,7 +236,7 @@ Android 应用堆内存限制（因设备而异）：
   <application android:largeHeap="true" ... >
 ```
 
-> **注意**：`largeHeap="true"` 只增大 Java 堆限制，不影响 Native 堆。Native 堆没有明确上限，只受系统可用物理内存约束。```
+> **注意**：`largeHeap="true"` 只增大 Java 堆限制，不影响 Native 堆。Native 堆没有明确上限，只受系统可用物理内存约束。
 
 ### 2.3 垃圾回收机制
 
@@ -1232,6 +1232,26 @@ Glide.with(context)
 ```
 
 ---
+
+## 7.4 Android 17 MemoryLimiter 与退出历史
+
+MemoryLimiter 是 system_server 配合 cgroup 的进程级限制器，不是 `Runtime.maxMemory()` 的别名。`Configuration` 分 visible/notVisible 的 memory 与 swap 额度，状态变化通过 `configureLimit(pid, uid, memHigh, swapHigh)` 下发；Native 侧监控 `memory.high`、`memory.swap.high` 和 `anon+swap`。
+
+命中 `anon+swap` 后，AOSP 17 先释放限制，可按配置触发 profiling，再发送延迟 30 秒的 `MESSAGE_KILL`，reason 为 `MemoryLimiter:AnonSwap`。该延迟不给应用一个可依赖的清理回调；Java OOM、LMKD 回收和此路径的触发条件不同。
+
+```kotlin
+fun classify(info: ApplicationExitInfo): String = when {
+    info.reason == ApplicationExitInfo.REASON_OTHER &&
+        info.description?.contains("MemoryLimiter:AnonSwap") == true -> "memory_limiter"
+    info.reason == ApplicationExitInfo.REASON_LOW_MEMORY -> "low_memory"
+    info.reason == ApplicationExitInfo.REASON_ANR -> "anr"
+    info.reason == ApplicationExitInfo.REASON_CRASH -> "crash_check_stack"
+    info.reason == ApplicationExitInfo.REASON_CRASH_NATIVE -> "native_crash"
+    else -> "other"
+}
+```
+
+读取 `getHistoricalProcessExitReasons()` 时同时保存 timestamp、processName、pid、PSS/RSS 和 description；`REASON_OTHER` 单独不足以归因，`REASON_SIGNALED` 也不自动等于 LMKD。HPROF 不能覆盖 native/graphics，需和 `dumpsys meminfo`、匿名内存、swap 时间线结合。
 
 ## 9. 知识体系总结
 

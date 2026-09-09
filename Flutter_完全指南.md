@@ -996,5 +996,41 @@ class ListViewExample extends StatelessWidget {
 ---
 
 **文档版本**：v1.0  
-**更新时间**：2026-03-10  
+**更新时间**：2026-09-09
 **适用版本**：Flutter 3.16+
+
+
+## 第 19 章 工程化实战：请求、持久化与宿主释放
+
+Flutter 3.35.0 页面状态应由 State/Controller 持有，Repository 只负责业务接口。以下 `NotesRepository`、`Note` 是本文示例自定义类型，不是 Flutter API；真实实现需注入存储和错误策略。异步完成后先检查 `mounted`，dispose 时取消请求和订阅。
+
+```dart
+class NotesPage extends StatefulWidget {
+  const NotesPage({super.key, required this.repository});
+  final NotesRepository repository; // 业务接口
+  @override State<NotesPage> createState() => _NotesPageState();
+}
+class _NotesPageState extends State<NotesPage> {
+  int _generation = 0; bool _busy = false; String? _error;
+  List<Note> _notes = const [];
+  Future<void> load() async {
+    final generation = ++_generation;
+    setState(() { _busy = true; _error = null; });
+    try {
+      final value = await widget.repository.load();
+      if (mounted && generation == _generation) setState(() => _notes = value);
+    } catch (_) {
+      if (mounted && generation == _generation) setState(() => _error = '读取失败');
+    } finally {
+      if (mounted && generation == _generation) setState(() => _busy = false);
+    }
+  }
+  @override void dispose() { ++_generation; widget.repository.cancelPending(); super.dispose(); }
+  @override Widget build(BuildContext c) => Column(children: [
+    if (_busy) const LinearProgressIndicator(), if (_error != null) Text(_error!),
+    for (final note in _notes) Text(note.text),
+  ]);
+}
+```
+
+`cancelPending()` 是业务接口，不是 Flutter 内建方法；若底层使用 `HttpClient`/dio，应让它真正关闭或取消请求。`setState` 不能在 dispose 后调用，`mounted` 不能代替资源取消。

@@ -1,22 +1,52 @@
 # Android 架构模式演进详解
 
+> 适用环境：Android 17（API 37）；示例采用 AndroidX ViewModel、Lifecycle 与 Kotlin Flow，架构模式本身不绑定平台发布版本。
+
 > 作者：OpenClaw | 日期：2026-03-09
 
 ---
 
 ## 目录
 
-1. [概述](#1-概述)
-2. [架构演进历程](#2-架构演进历程)
-3. [MVC 架构](#3-mvc-架构)
-4. [MVP 架构](#4-mvp-架构)
-5. [MVVM 架构](#5-mvvm-架构)
-6. [MVI 架构](#6-mvi-架构)
-7. [架构对比](#7-架构对比)
-8. [架构选择指南](#8-架构选择指南)
-9. [Clean Architecture](#9-clean-architecture)
-10. [常见问题](#10-常见问题)
-11. [知识体系总结](#11-知识体系总结)
+- [1. 概述](#1-概述)
+- [2. 架构演进历程](#2-架构演进历程)
+- [3. MVC 架构](#3-mvc-架构)
+  - [3.1 MVC 是什么](#31-mvc-是什么)
+  - [3.2 MVC 结构图](#32-mvc-结构图)
+  - [3.3 MVC 代码示例](#33-mvc-代码示例)
+  - [3.4 MVC 优缺点](#34-mvc-优缺点)
+- [4. MVP 架构](#4-mvp-架构)
+  - [4.1 MVP 是什么](#41-mvp-是什么)
+  - [4.2 MVP 结构图](#42-mvp-结构图)
+  - [4.3 MVP 代码示例](#43-mvp-代码示例)
+  - [4.4 MVP 优缺点](#44-mvp-优缺点)
+- [5. MVVM 架构](#5-mvvm-架构)
+  - [5.1 MVVM 是什么](#51-mvvm-是什么)
+  - [5.2 MVVM 结构图](#52-mvvm-结构图)
+  - [5.3 MVVM 三种实现方式](#53-mvvm-三种实现方式)
+  - [5.4 LiveData 方式（传统）](#54-livedata-方式传统)
+  - [5.5 DataBinding 方式](#55-databinding-方式)
+  - [5.6 StateFlow 方式（生命周期感知）](#56-stateflow-方式生命周期感知)
+  - [5.7 三种方式对比](#57-三种方式对比)
+  - [5.8 MVVM 优缺点](#58-mvvm-优缺点)
+- [6. MVI 架构](#6-mvi-架构)
+  - [6.1 MVI 是什么](#61-mvi-是什么)
+  - [6.2 MVI 结构图](#62-mvi-结构图)
+  - [6.3 MVI 代码示例](#63-mvi-代码示例)
+  - [6.4 MVI 优缺点](#64-mvi-优缺点)
+- [7. 架构对比](#7-架构对比)
+  - [7.2 MVVM vs MVI 的界限模糊](#72-mvvm-vs-mvi-的界限模糊)
+- [8. 架构选择指南](#8-架构选择指南)
+- [9. Clean Architecture](#9-clean-architecture)
+- [10. 常见问题](#10-常见问题)
+  - [10.1 MVVM 和 MVI 怎么选？](#101-mvvm-和-mvi-怎么选)
+  - [10.2 ViewModel 如何传递参数？](#102-viewmodel-如何传递参数)
+  - [10.3 如何处理一次性事件（Toast/导航）？](#103-如何处理一次性事件toast导航)
+  - [10.4 LiveData postValue 和 setValue 区别？](#104-livedata-postvalue-和-setvalue-区别)
+  - [10.5 Flow 的发射线程和收集线程是什么关系？](#105-flow-的发射线程和收集线程是什么关系)
+  - [10.6 LiveData vs Flow 怎么选？](#106-livedata-vs-flow-怎么选)
+- [11. 知识体系总结](#11-知识体系总结)
+- [12. Android 17 下的状态与任务边界](#12-android-17-下的状态与任务边界)
 
 ---
 
@@ -24,14 +54,14 @@
 
 Android 架构模式是组织代码的一种方式，目的是解决代码耦合、提高可维护性和可测试性。从早期的 MVC 到现代的 MVI，架构模式不断演进，每种模式都有其适用场景和优缺点。
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         架构模式演进                                        │
 └─────────────────────────────────────────────────────────────────────────────┘
 
   时间线：
   ─────────────────────────────────────────────────────────────────────────
-  
+
   1979  MVC         Trygve Reenskaug 提出（Smalltalk）
   2010  MVP         Android 开发社区推广
   2017  MVVM        Google 推出 Architecture Components
@@ -49,7 +79,7 @@ Android 架构模式是组织代码的一种方式，目的是解决代码耦合
 
 ## 2. 架构演进历程
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         架构演进核心问题                                    │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -91,7 +121,7 @@ Android 架构模式是组织代码的一种方式，目的是解决代码耦合
 
 ### 3.1 MVC 是什么
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         MVC（Model-View-Controller）                        │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -107,12 +137,12 @@ Android 架构模式是组织代码的一种方式，目的是解决代码耦合
   - 业务逻辑
   - 数据存取
   - 网络请求
-  
+
   View：
   - UI 布局
   - 用户交互
   - 数据展示
-  
+
   Controller：
   - 处理用户输入
   - 调用 Model 获取数据
@@ -121,7 +151,7 @@ Android 架构模式是组织代码的一种方式，目的是解决代码耦合
 
 ### 3.2 MVC 结构图
 
-```
+```text
                     ┌─────────────────────────────────────┐
                     │             用户操作                 │
                     └──────────────────┬──────────────────┘
@@ -156,7 +186,7 @@ public class UserModel {
         void onSuccess(User user);
         void onFailure(String error);
     }
-    
+
     public void login(String username, String password, OnLoginListener listener) {
         // 模拟网络请求
         new Thread(() -> {
@@ -180,20 +210,20 @@ public class LoginActivity extends AppCompatActivity {
     private Button btnLogin;
     private TextView tvResult;
     private UserModel userModel;
-    
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_login);
-        
+
         etUsername = findViewById(R.id.et_username);
         etPassword = findViewById(R.id.et_password);
         btnLogin = findViewById(R.id.btn_login);
         tvResult = findViewById(R.id.tv_result);
         userModel = new UserModel();
-        
+
         btnLogin.setOnClickListener(v -> {
-            userModel.login(etUsername.getText().toString(), 
+            userModel.login(etUsername.getText().toString(),
                 etPassword.getText().toString(),
                 new UserModel.OnLoginListener() {
                     @Override
@@ -212,7 +242,7 @@ public class LoginActivity extends AppCompatActivity {
 
 ### 3.4 MVC 优缺点
 
-```
+```text
 优点：
 1. 结构简单，易于理解
 2. 早期 Android 默认架构
@@ -231,7 +261,7 @@ public class LoginActivity extends AppCompatActivity {
 
 ### 4.1 MVP 是什么
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         MVP（Model-View-Presenter）                         │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -248,7 +278,7 @@ public class LoginActivity extends AppCompatActivity {
 
 ### 4.2 MVP 结构图
 
-```
+```text
                     ┌─────────────────────────────────────┐
                     │             用户操作                 │
                     └──────────────────┬──────────────────┘
@@ -285,7 +315,7 @@ public interface LoginContract {
         String getUsername();
         String getPassword();
     }
-    
+
     interface Presenter {
         void login();
         void onDestroy();
@@ -296,12 +326,12 @@ public interface LoginContract {
 public class LoginPresenter implements LoginContract.Presenter {
     private LoginContract.View view;
     private LoginModel model;
-    
+
     public LoginPresenter(LoginContract.View view) {
         this.view = view;
         this.model = new LoginModel();
     }
-    
+
     @Override
     public void login() {
         if (TextUtils.isEmpty(view.getUsername()) || TextUtils.isEmpty(view.getPassword())) {
@@ -322,7 +352,7 @@ public class LoginPresenter implements LoginContract.Presenter {
             }
         });
     }
-    
+
     @Override
     public void onDestroy() {
         view = null;  // 防止内存泄漏
@@ -332,7 +362,7 @@ public class LoginPresenter implements LoginContract.Presenter {
 // ==================== View ====================
 public class LoginActivity extends AppCompatActivity implements LoginContract.View {
     private LoginPresenter presenter;
-    
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -340,14 +370,14 @@ public class LoginActivity extends AppCompatActivity implements LoginContract.Vi
         presenter = new LoginPresenter(this);
         findViewById(R.id.btn_login).setOnClickListener(v -> presenter.login());
     }
-    
+
     @Override public void showLoading() { /*...*/ }
     @Override public void hideLoading() { /*...*/ }
     @Override public void showSuccess(String msg) { /*...*/ }
     @Override public void showError(String error) { /*...*/ }
     @Override public String getUsername() { return etUsername.getText().toString(); }
     @Override public String getPassword() { return etPassword.getText().toString(); }
-    
+
     @Override
     protected void onDestroy() {
         super.onDestroy();
@@ -358,7 +388,7 @@ public class LoginActivity extends AppCompatActivity implements LoginContract.Vi
 
 ### 4.4 MVP 优缺点
 
-```
+```text
 优点：
 1. View 和 Model 完全解耦
 2. 易于单元测试
@@ -378,7 +408,7 @@ public class LoginActivity extends AppCompatActivity implements LoginContract.Vi
 
 ### 5.1 MVVM 是什么
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                     MVVM（Model-View-ViewModel）                            │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -395,7 +425,7 @@ public class LoginActivity extends AppCompatActivity implements LoginContract.Vi
 
 ### 5.2 MVVM 结构图
 
-```
+```text
                     ┌─────────────────────────────────────┐
                     │              View                   │
                     │        (Activity/Fragment)          │
@@ -417,7 +447,7 @@ public class LoginActivity extends AppCompatActivity implements LoginContract.Vi
 
 ### 5.3 MVVM 三种实现方式
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    MVVM 三种实现方式                                        │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -446,20 +476,20 @@ public class LoginActivity extends AppCompatActivity implements LoginContract.Vi
 ```kotlin
 // ==================== ViewModel + LiveData ====================
 class UserViewModel(private val repository: UserRepository) : ViewModel() {
-    
+
     // 私有 MutableLiveData，对外暴露 LiveData
     private val _users = MutableLiveData<List<User>>()
     val users: LiveData<List<User>> = _users
-    
+
     private val _isLoading = MutableLiveData<Boolean>()
     val isLoading: LiveData<Boolean> = _isLoading
-    
+
     private val _errorMessage = MutableLiveData<String>()
     val errorMessage: LiveData<String> = _errorMessage
-    
+
     fun loadUsers() {
         _isLoading.value = true
-        
+
         viewModelScope.launch {
             repository.getUsers()
                 .onSuccess { users ->
@@ -472,7 +502,7 @@ class UserViewModel(private val repository: UserRepository) : ViewModel() {
                 }
         }
     }
-    
+
     fun deleteUser(userId: String) {
         viewModelScope.launch {
             repository.deleteUser(userId)
@@ -489,37 +519,37 @@ class UserActivity : AppCompatActivity() {
     private lateinit var binding: ActivityUserBinding
     private val viewModel: UserViewModel by viewModels()
     private lateinit var adapter: UserAdapter
-    
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityUserBinding.inflate(layoutInflater)
         setContentView(binding.root)
-        
+
         adapter = UserAdapter { user ->
             viewModel.deleteUser(user.id)
         }
         binding.recyclerView.adapter = adapter
-        
+
         // 观察 users LiveData
         viewModel.users.observe(this) { users ->
             adapter.submitList(users)
         }
-        
+
         // 观察 isLoading LiveData
         viewModel.isLoading.observe(this) { isLoading ->
             binding.progressBar.visibility = if (isLoading) View.VISIBLE else View.GONE
         }
-        
+
         // 观察 errorMessage LiveData
         viewModel.errorMessage.observe(this) { error ->
             error?.let {
                 Snackbar.make(binding.root, it, Snackbar.LENGTH_SHORT).show()
             }
         }
-        
+
         // 初始加载
         viewModel.loadUsers()
-        
+
         // 下拉刷新
         binding.swipeRefresh.setOnRefreshListener {
             viewModel.loadUsers()
@@ -536,39 +566,39 @@ class UserActivity : AppCompatActivity() {
 <?xml version="1.0" encoding="utf-8"?>
 <layout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto">
-    
+
     <data>
         <import type="android.view.View" />
         <variable
             name="viewModel"
             type="com.example.UserViewModel" />
     </data>
-    
+
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:orientation="vertical">
-        
+
         <!-- 双向绑定：EditText 内容自动同步到 ViewModel -->
         <EditText
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:hint="搜索用户"
             android:text="@={viewModel.searchQuery}" />
-        
+
         <!-- 条件显示 -->
         <ProgressBar
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="center"
             android:visibility="@{viewModel.isLoading ? View.VISIBLE : View.GONE}" />
-        
+
         <!-- RecyclerView 需要自定义 BindingAdapter -->
         <androidx.recyclerview.widget.RecyclerView
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             app:items="@{viewModel.users}" />
-        
+
         <!-- 单向绑定 -->
         <TextView
             android:layout_width="match_parent"
@@ -576,7 +606,7 @@ class UserActivity : AppCompatActivity() {
             android:text="@{viewModel.errorMessage}"
             android:textColor="@color/red"
             android:visibility="@{viewModel.errorMessage != null ? View.VISIBLE : View.GONE}" />
-            
+
     </LinearLayout>
 </layout>
 ```
@@ -584,20 +614,20 @@ class UserActivity : AppCompatActivity() {
 ```kotlin
 // ==================== ViewModel（DataBinding）====================
 class UserViewModel(private val repository: UserRepository) : ViewModel() {
-    
+
     // 双向绑定字段
     val searchQuery = ObservableField<String>("")
-    
+
     // LiveData
     private val _users = MutableLiveData<List<User>>()
     val users: LiveData<List<User>> = _users
-    
+
     private val _isLoading = MutableLiveData<Boolean>(false)
     val isLoading: LiveData<Boolean> = _isLoading
-    
+
     private val _errorMessage = MutableLiveData<String?>()
     val errorMessage: LiveData<String?> = _errorMessage
-    
+
     init {
         // 监听搜索框变化
         searchQuery.addOnPropertyChangedCallback(object : Observable.OnPropertyChangedCallback() {
@@ -606,22 +636,22 @@ class UserViewModel(private val repository: UserRepository) : ViewModel() {
             }
         })
     }
-    
+
     fun loadUsers() {
         _isLoading.value = true
         viewModelScope.launch {
             repository.getUsers()
-                .onSuccess { 
+                .onSuccess {
                     _isLoading.value = false
-                    _users.value = it 
+                    _users.value = it
                 }
-                .onFailure { 
+                .onFailure {
                     _isLoading.value = false
-                    _errorMessage.value = it.message 
+                    _errorMessage.value = it.message
                 }
         }
     }
-    
+
     private fun search(query: String) {
         // 搜索逻辑
     }
@@ -631,141 +661,113 @@ class UserViewModel(private val repository: UserRepository) : ViewModel() {
 class UserActivity : AppCompatActivity() {
     private lateinit var binding: ActivityUserBinding
     private val viewModel: UserViewModel by viewModels()
-    
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        
+
         // DataBinding 初始化
         binding = DataBindingUtil.setContentView(this, R.layout.activity_user)
         binding.lifecycleOwner = this  // 重要！让 LiveData 生效
         binding.viewModel = viewModel
-        
+
         viewModel.loadUsers()
     }
 }
 ```
 
-### 5.6 StateFlow 方式（现代推荐）
+### 5.6 StateFlow 方式（生命周期感知）
+
+StateFlow 保存当前 UI 状态，ViewModel 负责加载与转换，View 只收集并渲染。下面以详情页为例：仓库通过工厂注入；SavedStateHandle 保存可重建页面的 ID，而不是保存大对象；刷新会取消前一次加载。
 
 ```kotlin
-// ==================== ViewModel + StateFlow ====================
-class UserViewModel(private val repository: UserRepository) : ViewModel() {
-    
-    // 单一状态源（UiState）
-    data class UiState(
-        val isLoading: Boolean = false,
-        val users: List<User> = emptyList(),
-        val error: String? = null
-    )
-    
-    private val _state = MutableStateFlow(UiState())
-    val state: StateFlow<UiState> = _state.asStateFlow()
-    
-    // 一次性事件（Toast/导航）
-    private val _event = MutableSharedFlow<UiEvent>()
-    val event: SharedFlow<UiEvent> = _event.asSharedFlow()
-    
-    sealed class UiEvent {
-        data class ShowToast(val message: String) : UiEvent()
-        data class NavigateToDetail(val userId: String) : UiEvent()
-    }
-    
-    fun loadUsers() {
-        viewModelScope.launch {
-            _state.update { it.copy(isLoading = true, error = null) }
-            
-            repository.getUsers()
-                .onSuccess { users ->
-                    _state.update { it.copy(isLoading = false, users = users) }
-                }
-                .onFailure { error ->
-                    _state.update { it.copy(isLoading = false, error = error.message) }
-                }
-        }
-    }
-    
-    fun onUserClick(userId: String) {
-        viewModelScope.launch {
-            _event.emit(UiEvent.NavigateToDetail(userId))
-        }
-    }
-    
-    fun deleteUser(userId: String) {
-        viewModelScope.launch {
-            repository.deleteUser(userId)
-                .onSuccess {
-                    _state.update { 
-                        it.copy(users = it.users.filter { u -> u.id != userId }) 
-                    }
-                    _event.emit(UiEvent.ShowToast("删除成功"))
-                }
-        }
-    }
-}
+import androidx.lifecycle.SavedStateHandle
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import java.io.IOException
+import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.*
 
-// ==================== Activity（StateFlow）====================
-class UserActivity : AppCompatActivity() {
-    private lateinit var binding: ActivityUserBinding
-    private val viewModel: UserViewModel by viewModels()
-    private lateinit var adapter: UserAdapter
-    
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        binding = ActivityUserBinding.inflate(layoutInflater)
-        setContentView(binding.root)
-        
-        adapter = UserAdapter(
-            onItemClick = { viewModel.onUserClick(it.id) },
-            onDeleteClick = { viewModel.deleteUser(it.id) }
-        )
-        binding.recyclerView.adapter = adapter
-        
-        // 收集状态
-        lifecycleScope.launch {
-            repeatOnLifecycle(Lifecycle.State.STARTED) {
-                // 收集 UI 状态
-                viewModel.state.collect { state ->
-                    render(state)
-                }
-            }
-        }
-        
-        // 收集一次性事件
-        lifecycleScope.launch {
-            repeatOnLifecycle(Lifecycle.State.STARTED) {
-                viewModel.event.collect { event ->
-                    when (event) {
-                        is UserViewModel.UiEvent.ShowToast -> {
-                            Snackbar.make(binding.root, event.message, Snackbar.LENGTH_SHORT).show()
-                        }
-                        is UserViewModel.UiEvent.NavigateToDetail -> {
-                            startActivity(Intent(this@UserActivity, DetailActivity::class.java).apply {
-                                putExtra("userId", event.userId)
-                            })
-                        }
-                    }
-                }
-            }
-        }
+data class Article(val id: String, val title: String)
+interface ArticleRepository { suspend fun find(id: String): Article }
+sealed interface ArticleUi {
+    data object Loading : ArticleUi
+    data class Content(val article: Article) : ArticleUi
+    data class Error(val message: String) : ArticleUi
+}
+class ArticleViewModel(
+    private val savedState: SavedStateHandle,
+    private val repository: ArticleRepository
+) : ViewModel() {
+    private val mutableUi = MutableStateFlow<ArticleUi>(ArticleUi.Loading)
+    val ui: StateFlow<ArticleUi> = mutableUi.asStateFlow()
+    private var loading: Job? = null
+
+    init { reload() }
+
+    fun open(id: String) {
+        savedState["articleId"] = id
+        reload()
     }
-    
-    private fun render(state: UserViewModel.UiState) {
-        binding.progressBar.isVisible = state.isLoading
-        adapter.submitList(state.users)
-        
-        state.error?.let {
-            binding.errorTextView.text = it
-            binding.errorTextView.isVisible = true
-        } ?: run {
-            binding.errorTextView.isVisible = false
+    fun reload() {
+        loading?.cancel()
+        val id = savedState.get<String>("articleId")
+        if (id.isNullOrBlank()) {
+            mutableUi.value = ArticleUi.Error("缺少文章 ID")
+            return
+        }
+        loading = viewModelScope.launch {
+            mutableUi.value = ArticleUi.Loading
+            try {
+                val article = repository.find(id)
+                ensureActive() // 即使仓库未及时响应取消，也不提交旧结果
+                mutableUi.value = ArticleUi.Content(article)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (network: IOException) {
+                mutableUi.value = ArticleUi.Error("加载失败，请重试")
+            }
         }
     }
 }
 ```
+
+Fragment 的 Factory 使用 CreationExtras 创建带恢复能力的 SavedStateHandle。业务仓库由 Application 容器或 DI 提供；导航参数名称与 `articleId` 一致。
+
+```kotlin
+import androidx.fragment.app.viewModels
+import androidx.lifecycle.createSavedStateHandle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
+
+// Fragment 字段；repository 是宿主提供的 ArticleRepository。
+private val model: ArticleViewModel by viewModels {
+    viewModelFactory {
+        initializer { ArticleViewModel(createSavedStateHandle(), repository) }
+    }
+}
+// onViewCreated 中：
+viewLifecycleOwner.lifecycleScope.launch {
+    viewLifecycleOwner.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
+        model.ui.collect { state ->
+            when (state) {
+                ArticleUi.Loading -> renderLoading()
+                is ArticleUi.Content -> renderArticle(state.article)
+                is ArticleUi.Error -> renderError(state.message, model::reload)
+            }
+        }
+    }
+}
+```
+
+`renderLoading/renderArticle/renderError` 是页面自己的渲染函数，每次都应更新 loading、内容和错误区的可见性。STARTED 以下停止收集不等于自动取消 ViewModel 的加载；网络任务归 ViewModel 所有，视图观察归 viewLifecycleOwner 所有。进程被回收后 ViewModel 会重建，使用保存的 ID 重新读取仓库；需要持久保存的编辑草稿应写数据库或文件。
+
+参考：[ViewModel 工厂](https://developer.android.com/topic/libraries/architecture/viewmodel/viewmodel-factories)、[SavedStateHandle](https://developer.android.com/topic/libraries/architecture/viewmodel/viewmodel-savedstate)、[生命周期协程](https://developer.android.com/topic/libraries/architecture/coroutines)。
 
 ### 5.7 三种方式对比
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    MVVM 三种实现方式对比                                    │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -798,7 +800,7 @@ class UserActivity : AppCompatActivity() {
 
 ### 5.8 MVVM 优缺点
 
-```
+```text
 优点：
 1. ViewModel 不依赖 View
 2. LiveData/Flow 自动管理生命周期
@@ -817,7 +819,7 @@ class UserActivity : AppCompatActivity() {
 
 ### 6.1 MVI 是什么
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                     MVI（Model-View-Intent）                                │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -834,7 +836,7 @@ class UserActivity : AppCompatActivity() {
 
 ### 6.2 MVI 结构图
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         MVI 单向数据流                                      │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -877,11 +879,11 @@ sealed class UserIntent {
 
 // ==================== ViewModel ====================
 class UserViewModel(private val repository: UserRepository) : ViewModel() {
-    
+
     // 单一状态源
     private val _state = MutableStateFlow(UiState())
     val state: StateFlow<UiState> = _state
-    
+
     // 处理 Intent
     fun processIntent(intent: UserIntent) {
         when (intent) {
@@ -890,12 +892,12 @@ class UserViewModel(private val repository: UserRepository) : ViewModel() {
             is UserIntent.DeleteUser -> deleteUser(intent.userId)
         }
     }
-    
+
     private fun loadUsers() {
         viewModelScope.launch {
             // 更新状态：加载中
             _state.update { it.copy(isLoading = true, error = null) }
-            
+
             repository.getUsers()
                 .onSuccess { users ->
                     // 更新状态：成功
@@ -907,7 +909,7 @@ class UserViewModel(private val repository: UserRepository) : ViewModel() {
                 }
         }
     }
-    
+
     private fun deleteUser(userId: String) {
         viewModelScope.launch {
             repository.deleteUser(userId)
@@ -923,38 +925,38 @@ class UserViewModel(private val repository: UserRepository) : ViewModel() {
 class UserActivity : AppCompatActivity() {
     private val viewModel: UserViewModel by viewModels()
     private lateinit var adapter: UserAdapter
-    
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_user)
-        
+
         adapter = UserAdapter { user ->
             // 发送 Intent
             viewModel.processIntent(UserIntent.DeleteUser(user.id))
         }
-        
+
         findViewById<RecyclerView>(R.id.recyclerView).adapter = adapter
-        
+
         findViewById<SwipeRefreshLayout>(R.id.swipeRefresh).setOnRefreshListener {
             viewModel.processIntent(UserIntent.Refresh)
         }
-        
-        // 观察状态
+
+        // 只在 UI 可见时收集；不是仅在销毁时才停止。
         lifecycleScope.launch {
-            viewModel.state.collect { state ->
-                render(state)
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                viewModel.state.collect { state -> render(state) }
             }
         }
-        
+
         // 初始加载
         viewModel.processIntent(UserIntent.LoadUsers)
     }
-    
+
     // 渲染状态
     private fun render(state: UiState) {
         findViewById<SwipeRefreshLayout>(R.id.swipeRefresh).isRefreshing = state.isLoading
         adapter.submitList(state.users)
-        
+
         state.error?.let { error ->
             Snackbar.make(findViewById(R.id.root), error, Snackbar.LENGTH_SHORT).show()
         }
@@ -964,7 +966,7 @@ class UserActivity : AppCompatActivity() {
 
 ### 6.4 MVI 优缺点
 
-```
+```text
 优点：
 1. 单向数据流，状态可预测
 2. 不可变状态，线程安全
@@ -982,7 +984,7 @@ class UserActivity : AppCompatActivity() {
 
 ## 7. 架构对比
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         四种架构对比表                                      │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1011,7 +1013,7 @@ class UserActivity : AppCompatActivity() {
 
 ### 7.2 MVVM vs MVI 的界限模糊
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    现代 MVVM 与 MVI 的融合                                  │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1033,7 +1035,7 @@ class UserActivity : AppCompatActivity() {
       // 单一状态源
       private val _state = MutableStateFlow(UiState())
       val state: StateFlow<UiState> = _state
-      
+
       // 用户操作
       fun loadUsers() { ... }
       fun deleteUser(id: String) { ... }
@@ -1043,7 +1045,7 @@ class UserActivity : AppCompatActivity() {
   class UserViewModel : ViewModel() {
       private val _state = MutableStateFlow(UiState())
       val state: StateFlow<UiState> = _state
-      
+
       // 用户意图
       fun processIntent(intent: UserIntent) { ... }
   }
@@ -1073,50 +1075,25 @@ class UserActivity : AppCompatActivity() {
 
 ## 8. 架构选择指南
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         架构选择决策树                                      │
-└─────────────────────────────────────────────────────────────────────────────┘
+- 优先明确 UI 层、数据层、单向数据流（UDF）与单一可信数据源，而不是按年份强制选择某个缩写。
+- Domain/use case 层是可选层：跨多个 ViewModel 复用业务逻辑或 UI 层逻辑过于复杂时再引入，不能要求每个 CRUD 操作都多包一层。
+- MVVM 和 MVI 不是 Android 17 的新旧 API 关系。复杂状态可以集中归约，但“使用 MVI”本身不保证串行化、无竞态或可恢复。
+- View UI 用 `repeatOnLifecycle`；Fragment 应使用 `viewLifecycleOwner`。Compose 使用 `collectAsStateWithLifecycle()`，需单独引入匹配版本的 `lifecycle-runtime-compose`。
 
-  问题1：项目规模？
-  ─────────────────────────────────────────────────────────────────────────
-  小型项目（Demo/工具类）──► MVC 或不用架构
-  中型项目 ──► MVP 或 MVVM
-  大型项目 ──► MVVM 或 MVI
-
-  问题2：状态复杂度？
-  ─────────────────────────────────────────────────────────────────────────
-  简单状态 ──► MVP 或 MVVM
-  复杂状态 ──► MVI
-
-  问题3：团队规模？
-  ─────────────────────────────────────────────────────────────────────────
-  小团队 ──► 简单架构（MVP/MVVM）
-  大团队 ──► 严格架构（MVVM + Clean Architecture / MVI）
-
-  问题4：测试需求？
-  ─────────────────────────────────────────────────────────────────────────
-  高测试覆盖 ──► MVP / MVVM / MVI
-  低测试需求 ──► MVC
-
-  推荐方案：
-  ─────────────────────────────────────────────────────────────────────────
-  2024+ 推荐方案：MVVM + Clean Architecture
-  或：MVI（复杂状态场景）
-```
+来源：[Android 架构建议](https://developer.android.com/topic/architecture/recommendations)。这些建议不要求升级全部 AndroidX artifact；Android 17 的平台行为与库版本应分开测试。
 
 ---
 
 ## 9. Clean Architecture
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         Clean Architecture                                  │
 └─────────────────────────────────────────────────────────────────────────────┘
 
   分层：
   ─────────────────────────────────────────────────────────────────────────
-  
+
   ┌─────────────────────────────────────────────────────────────────────┐
   │                          Presentation Layer                          │
   │                    (Activity/Fragment/ViewModel)                     │
@@ -1178,7 +1155,7 @@ class UserRepositoryImpl(
 class UserViewModel(private val getUsersUseCase: GetUsersUseCase) : ViewModel() {
     private val _state = MutableStateFlow(UiState())
     val state: StateFlow<UiState> = _state
-    
+
     fun loadUsers() {
         viewModelScope.launch {
             _state.update { it.copy(isLoading = true) }
@@ -1196,7 +1173,7 @@ class UserViewModel(private val getUsersUseCase: GetUsersUseCase) : ViewModel() 
 
 ### 10.1 MVVM 和 MVI 怎么选？
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    MVVM vs MVI：界限已经模糊                               │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1207,11 +1184,11 @@ class UserViewModel(private val getUsersUseCase: GetUsersUseCase) : ViewModel() 
       // 单一状态源（单向数据流）
       private val _state = MutableStateFlow(UiState())
       val state: StateFlow<UiState> = _state
-      
+
       // 事件
       private val _event = MutableSharedFlow<UiEvent>()
       val event: SharedFlow<UiEvent> = _event
-      
+
       // 直接调用方法
       fun loadUsers() { ... }
       fun deleteUser(id: String) { ... }
@@ -1222,7 +1199,7 @@ class UserViewModel(private val getUsersUseCase: GetUsersUseCase) : ViewModel() 
   class UserViewModel : ViewModel() {
       private val _state = MutableStateFlow(UiState())
       val state: StateFlow<UiState> = _state
-      
+
       // 统一 Intent 入口
       fun processIntent(intent: UserIntent) {
           when (intent) {
@@ -1234,12 +1211,12 @@ class UserViewModel(private val getUsersUseCase: GetUsersUseCase) : ViewModel() 
 
   选择建议：
   ─────────────────────────────────────────────────────────────────────────
-  
+
   选择 MVVM（现代写法）：
   - 大多数场景足够用
   - 代码更简洁
   - 团队更容易上手
-  
+
   选择 MVI：
   - 需要严格记录所有用户操作（日志/分析）
   - 需要状态回溯/时间旅行调试
@@ -1249,12 +1226,12 @@ class UserViewModel(private val getUsersUseCase: GetUsersUseCase) : ViewModel() 
   结论：
   ─────────────────────────────────────────────────────────────────────────
   现代 MVVM + StateFlow = 轻量级 MVI
-  
+
   两者核心思想相同：
   - 单一状态源
   - 单向数据流
   - 不可变状态（StateFlow）
-  
+
   区别只是 API 设计风格：
   - MVVM：直接调用方法
   - MVI：通过 Intent 封装操作
@@ -1285,28 +1262,32 @@ class UserViewModel @Inject constructor(
 
 ### 10.3 如何处理一次性事件（Toast/导航）？
 
+先区分可丢失提示与必须兑现的业务结果。`SharedFlow(replay=0)` 在无订阅者时不保留事件；extraBufferCapacity 也不会让离线订阅者收到历史事件。Channel 的接收语义同样不能提供进程死亡后的“恰好一次导航”。
+
+必须确认的结果转为状态，并在 UI 成功处理后回传确认 ID：
+
 ```kotlin
-// 使用 SharedFlow（推荐）
-private val _event = MutableSharedFlow<UiEvent>()
-val event: SharedFlow<UiEvent> = _event
+data class PendingNavigation(val eventId: Long, val orderId: String)
+data class CheckoutUi(val pending: PendingNavigation? = null)
 
-// 发送事件
-_event.emit(UiEvent.ShowToast("成功"))
+// ViewModel 内；由结算成功结果生成 pending。
+private val mutable = kotlinx.coroutines.flow.MutableStateFlow(CheckoutUi())
+val ui = mutable.asStateFlow()
 
-// 观察
-lifecycleScope.launch {
-    viewModel.event.collect { event ->
-        when (event) {
-            is UiEvent.ShowToast -> Toast.makeText(context, event.message, Toast.LENGTH_SHORT).show()
-            is UiEvent.Navigate -> findNavController().navigate(event.destination)
-        }
+fun navigationHandled(eventId: Long) {
+    mutable.update { state ->
+        if (state.pending?.eventId == eventId) state.copy(pending = null) else state
     }
 }
 ```
 
+UI 检查当前导航目的地并执行跳转，随后确认该 ID；旧确认不能清掉新结果。旋转重建后若仍有 pending，可以继续处理；进程死亡恢复需要 SavedStateHandle 或持久层保存必要信息。即使使用确认协议，崩溃仍可能发生在跳转和确认之间，因此导航目标必须幂等。Toast、动画等允许丢失的提示则可用无 replay 的事件流。
+
+参考：[UI 事件处理](https://developer.android.com/topic/architecture/ui-layer/events)、[SharedFlow](https://kotlinlang.org/api/kotlinx.coroutines/kotlinx-coroutines-core/kotlinx.coroutines.flow/-shared-flow/)。
+
 ### 10.4 LiveData postValue 和 setValue 区别？
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    LiveData postValue vs setValue                          │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1351,18 +1332,18 @@ lifecycleScope.launch {
 ```kotlin
 // 示例：正确使用
 class UserViewModel(private val repository: UserRepository) : ViewModel() {
-    
+
     private val _users = MutableLiveData<List<User>>()
     val users: LiveData<List<User>> = _users
-    
+
     fun loadUsers() {
         viewModelScope.launch(Dispatchers.IO) {
             // 子线程获取数据
             val result = repository.getUsers()
-            
+
             // 方式1：postValue（子线程）
             _users.postValue(result.getOrNull())
-            
+
             // 方式2：切回主线程 setValue
             // withContext(Dispatchers.Main) {
             //     _users.value = result.getOrNull()
@@ -1374,7 +1355,7 @@ class UserViewModel(private val repository: UserRepository) : ViewModel() {
 
 ### 10.5 Flow 的发射线程和收集线程是什么关系？
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         Flow 线程模型                                      │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1402,7 +1383,7 @@ class UserViewModel(private val repository: UserRepository) : ViewModel() {
 fun getUsers(): Flow<List<User>> = flow {
     // 这里在 IO 线程执行（由 flowOn 决定）
     println("发射线程: ${Thread.currentThread().name}")  // DefaultDispatcher-worker-1
-    
+
     val users = apiService.getUsers()  // 网络请求
     emit(users)  // 发射数据
 }.flowOn(Dispatchers.IO)  // 指定上游在 IO 线程
@@ -1431,17 +1412,17 @@ fun getData(): Flow<Int> = flow {
         delay(100)
     }
 }
-    .map { 
+    .map {
         // 中间操作：也受 flowOn(Dispatchers.IO) 影响
         println("map 线程: ${Thread.currentThread().name}")
-        it * 2 
+        it * 2
     }
     .flowOn(Dispatchers.IO)  // 上游和中间操作都在 IO 线程
 
 // 收集
 lifecycleScope.launch {
     // 下游：在 launch 的上下文（主线程）
-    getData().collect { 
+    getData().collect {
         println("collect 线程: ${Thread.currentThread().name}")
     }
 }
@@ -1455,20 +1436,20 @@ lifecycleScope.launch {
 ```kotlin
 // ==================== 示例3：StateFlow 线程安全 ====================
 class UserViewModel : ViewModel() {
-    
+
     private val _state = MutableStateFlow(UiState())
     val state: StateFlow<UiState> = _state.asStateFlow()
-    
+
     fun loadData() {
         // 在 IO 线程发射
         viewModelScope.launch(Dispatchers.IO) {
             val data = repository.getData()
-            
+
             // StateFlow.value 是线程安全的
             // 内部有同步机制，可以在任意线程调用
             _state.update { it.copy(data = data) }
         }
-        
+
         // 或者
         viewModelScope.launch {
             repository.getDataFlow()
@@ -1482,7 +1463,7 @@ class UserViewModel : ViewModel() {
 }
 ```
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    Flow 线程控制总结                                       │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1515,9 +1496,22 @@ class UserViewModel : ViewModel() {
 
 ### 10.6 LiveData vs Flow 怎么选？
 
+LiveData 适合既有 View/XML 页面中的可观察状态，它主动感知 LifecycleOwner 并在活跃状态派发；Flow 是协程流抽象，本身不感知 Android 生命周期，需要在 UI 边界结合 repeatOnLifecycle。StateFlow 保存当前状态，SharedFlow 可表达多播流，但不自带持久事件队列。
+
+| 场景 | 选择与理由 |
+|---|---|
+| 既有 XML/DataBinding 页面 | 可以继续使用 LiveData，避免仅为替换类型重写稳定业务 |
+| Repository 数据变换、合并、重试 | Flow 提供结构化的操作符链，取消与协程作用域一致 |
+| ViewModel 当前 UI 状态 | StateFlow + 生命周期感知收集，重新订阅得到最近状态 |
+| 必须兑现的业务结果 | 保存为状态并确认消费，不能只靠无 replay 事件流 |
+
+从 Flow 转 LiveData 或从 LiveData 转 Flow 时明确谁订阅、何时停止，以及冷流是否会重复触发网络请求。不要在同一个页面维护两份可独立修改的 UI 真相。
+
+参考：[Android 架构建议](https://developer.android.com/topic/architecture/recommendations)、[生命周期协程](https://developer.android.com/topic/libraries/architecture/coroutines)。
+
 ## 11. 知识体系总结
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         架构模式知识体系                                    │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1553,13 +1547,23 @@ class UserViewModel : ViewModel() {
   3. 状态管理：分散 → 集中
   4. 数据流：双向 → 单向
 
-  推荐方案（2024+）：
+  架构选择原则：
   ─────────────────────────────────────────────────────────────────────────
   - 中小项目：MVVM + ViewModel + LiveData/Flow
-  - 大型项目：MVVM + Clean Architecture
+  - Domain/use case：按复用与复杂度引入，不强制所有项目分层
   - 复杂状态：MVI
 ```
 
 ---
 
 > 作者：OpenClaw | 日期：2026-03-09
+
+## 12. Android 17 下的状态与任务边界
+
+应用进程、Activity、Fragment View 和 ViewModel 不是同一生命周期。配置变化保留 ViewModel 不代表进程死亡保留内存；`SavedStateHandle` 用于轻量恢复状态，数据库负责持久业务事实。Repository 不持有页面 View，也不把 Activity Context 放进应用级单例。
+
+Android 17/API 37 的本地网络权限改变局域网功能的进入条件，不改变 MVVM/MVI 的单向数据流：UI 发起授权，ViewModel 接收授权结果，Repository 只处理已满足前置条件的请求。无锁 MessageQueue 的实现变化也不改变 Handler 公共调用方式；架构层不反射其内部消息链表。
+
+验收同一页面时依次覆盖旋转、后台恢复、返回栈重建、重复点击重试、请求乱序、权限拒绝和进程恢复。用这些场景检查状态归属，比仅按类名判断“是否 MVI”更有效。
+
+参考：[Android 17 行为变化](https://developer.android.com/about/versions/17/behavior-changes-17)、[应用架构建议](https://developer.android.com/topic/architecture/recommendations)。

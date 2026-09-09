@@ -1,37 +1,92 @@
 # Android 动画完全指南
 
-_作者：OpenClaw_  
-_日期：2026-03-08_
+> 源码版本：AOSP Android 17（API 37），`android-17.0.0_r1`。
+
+
+_作者：OpenClaw_
+_初稿日期：2026-03-08_
 
 ---
 
 ## 目录
 
-1. [概述](#概述)
-2. [View 动画 (Animation)](#view-动画-animation)
-   - [View 动画底层原理：与 ViewRootImpl 的结合](#view-动画底层原理与-viewrootimpl-的结合)
-3. [属性动画 (Property Animation)](#属性动画-property-animation)
-   - [Interpolator（插值器）](#interpolator插值器)
-   - [TypeEvaluator（类型估值器）](#typeevaluator类型估值器)
-   - [属性动画与 ViewRootImpl 的结合](#属性动画与-viewrootimpl-的结合)
-4. [帧动画 (Drawable Animation)](#帧动画-drawable-animation)
-5. [转场动画 (Transition API)](#转场动画-transition-api)
-6. [Material Design 动画](#material-design-动画)
-7. [动画性能优化](#动画性能优化)
-8. [实战技巧](#实战技巧)
+- [概述](#概述)
+- [View 动画 (Animation)](#view-动画-animation)
+  - [什么是 View 动画](#什么是-view-动画)
+  - [支持的动画类型](#支持的动画类型)
+  - [在代码中使用 View Animation](#在代码中使用-view-animation)
+  - [Interpolator（插值器）](#interpolator插值器)
+  - [View 动画的局限性](#view-动画的局限性)
+  - [View 动画底层原理：与 ViewRootImpl 的结合](#view-动画底层原理与-viewrootimpl-的结合)
+    - [完整流程](#完整流程)
+    - [关键：applyLegacyAnimation()](#关键applylegacyanimation)
+    - [Animation.getTransformation()](#animationgettransformation)
+    - [View 动画 vs 属性动画：核心区别](#view-动画-vs-属性动画核心区别)
+- [属性动画 (Property Animation)](#属性动画-property-animation)
+  - [什么是属性动画](#什么是属性动画)
+  - [核心类](#核心类)
+  - [ValueAnimator 使用](#valueanimator-使用)
+  - [ObjectAnimator 使用](#objectanimator-使用)
+  - [多属性组合动画](#多属性组合动画)
+  - [Interpolator（插值器）](#interpolator插值器-1)
+    - [基础使用](#基础使用)
+    - [内置插值器](#内置插值器)
+    - [插值器底层原理](#插值器底层原理)
+    - [自定义插值器](#自定义插值器)
+    - [PathInterpolator（API 21+）](#pathinterpolatorapi-21)
+  - [TypeEvaluator（类型估值器）](#typeevaluator类型估值器)
+    - [内置 TypeEvaluator](#内置-typeevaluator)
+    - [TypeEvaluator 底层原理](#typeevaluator-底层原理)
+    - [插值器 + TypeEvaluator 完整流程](#插值器--typeevaluator-完整流程)
+    - [自定义 TypeEvaluator](#自定义-typeevaluator)
+    - [自定义复杂 TypeEvaluator：颜色渐变中间色](#自定义复杂-typeevaluator颜色渐变中间色)
+    - [Interpolator vs TypeEvaluator 总结](#interpolator-vs-typeevaluator-总结)
+  - [动画监听器](#动画监听器)
+  - [动画监听器](#动画监听器-1)
+  - [属性动画与 ViewRootImpl 的结合](#属性动画与-viewrootimpl-的结合)
+    - [核心流程](#核心流程)
+    - [属性更新与重绘](#属性更新与重绘)
+    - [ViewRootImpl 与 Choreographer 的回调顺序](#viewrootimpl-与-choreographer-的回调顺序)
+    - [动画完成、取消与系统设置](#动画完成取消与系统设置)
+- [帧动画 (Drawable Animation)](#帧动画-drawable-animation)
+  - [什么是帧动画](#什么是帧动画)
+  - [使用方式](#使用方式)
+  - [注意事项](#注意事项)
+- [转场动画 (Transition API)](#转场动画-transition-api)
+  - [Activity 转场动画](#activity-转场动画)
+  - [Fragment 转场动画](#fragment-转场动画)
+- [Material Design 动画](#material-design-动画)
+  - [Ripple Effect（波纹效果）](#ripple-effect波纹效果)
+  - [State List Animator](#state-list-animator)
+  - [Circular Reveal（圆形揭示）](#circular-reveal圆形揭示)
+  - [MotionLayout 动画](#motionlayout-动画)
+- [动画性能优化](#动画性能优化)
+  - [1. 使用硬件加速](#1-使用硬件加速)
+  - [2. 减少重绘](#2-减少重绘)
+  - [3. 使用 RecyclerView ItemAnimator](#3-使用-recyclerview-itemanimator)
+  - [4. 动画优化技巧](#4-动画优化技巧)
+  - [5. 监控动画性能](#5-监控动画性能)
+- [实战技巧](#实战技巧)
+  - [1. 避免动画中的内存泄漏](#1-避免动画中的内存泄漏)
+  - [2. 在 XML 中定义动画，然后在代码中应用](#2-在-xml-中定义动画然后在代码中应用)
+  - [3. 组合复杂动画](#3-组合复杂动画)
+  - [4. 使用动画集合管理器](#4-使用动画集合管理器)
+  - [5. 跨 Activity 共享元素](#5-跨-activity-共享元素)
+- [总结](#总结)
+- [参考资料](#参考资料)
 
 ---
 
 ## 概述
 
-Android 动画是提升用户体验的关键技术之一。从 API 1 到现在的 API 34，Android 提供了多种动画框架：
+本文以 Android 17 / API 37 为平台基线。下表区分各动画体系的引入版本，不把旧 API 的引入时间改写为 Android 17 新特性：
 
 | 动画类型 | 引入版本 | 特点 |
 |---------|---------|------|
 | View 动画 | API 1 | 简单易用，但只改变视觉效果，不改变实际属性 |
 | 属性动画 | API 11 | 真正改变对象属性，功能强大 |
 | 帧动画 | API 1 | 播放一系列 Drawable 帧 |
-| 转场动画 | API 19 | Activity/Fragment 切换动画 |
+| Transition 框架 | API 19 | 场景与布局变化；Activity 内容/共享元素转场为 API 21+，AndroidX Fragment 单独演进 |
 
 ---
 
@@ -138,128 +193,171 @@ animation.setAnimationListener(new Animation.AnimationListener() {
 
 ### View 动画底层原理：与 ViewRootImpl 的结合
 
-View 动画虽然不改变实际属性，但它同样需要通过 ViewRootImpl 和 Choreographer 来驱动绘制。
+#### startAnimation：把 Animation 挂到 View，并请求后续绘制
 
-#### 完整流程
-
-```
-View.startAnimation()
-    ↓
-Animation.attach()
-    ↓
-View.invalidate() + requestChildAnimation()
-    ↓
-ViewParent.requestLayout()
-    ↓
-ViewRootImpl.scheduleTraversals()
-    ↓
-Choreographer.postCallback(CALLBACK_TRAVERSAL)
-    ↓
-VSYNC 信号
-    ↓
-ViewRootImpl.doTraversal()
-    ↓
-ViewRootImpl.performTraversals()
-    ↓
-View.draw(canvas)
-    ↓
-applyLegacyAnimation(canvas) ← 动画在这里生效
-    ↓
-canvas.concat(t.getMatrix()) ← Canvas 矩阵变换
-```
-
-#### 关键：applyLegacyAnimation()
+源码精简节选（省略注释；[View.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/view/View.java)）：
 
 ```java
-// View.java
-boolean applyLegacyAnimation(Canvas canvas) {
-    boolean more = false;
-    
-    if (mCurrentAnimation != null) {
-        final Transformation t = getChildTransformation();
-        
-        // 计算当前帧的动画变换
-        more = mCurrentAnimation.getTransformation(
-            AnimationUtils.currentAnimationTimeMillis(), 
-            t
-        );
-        
-        // 关键：将动画的矩阵应用到 Canvas
-        if (more) {
-            canvas.concat(t.getMatrix());
-            
-            // 如果有透明度变化
-            float alpha = t.getAlpha();
-            if (alpha != 1.0f) {
-                canvas.saveLayerAlpha(canvas.getClipBounds(), (int) (alpha * 255));
-                canvas.restore();
-            }
+public void startAnimation(Animation animation) {
+    animation.setStartTime(Animation.START_ON_FIRST_FRAME);
+    setAnimation(animation);
+    invalidateParentCaches();
+    invalidate(true);
+}
+```
+
+它没有每帧 requestLayout。`START_ON_FIRST_FRAME` 使 Animation 在第一次真正求取 Transformation 时建立起始时间，避免把挂载到 View 与首次绘制之间的等待算进正常播放进度。
+
+#### applyLegacyAnimation：绘制侧求变换并传播失效
+
+源码精简节选（省略注释；[View.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/view/View.java)）：
+
+```java
+private boolean applyLegacyAnimation(ViewGroup parent, long drawingTime,
+        Animation a, boolean scalingRequired) {
+    Transformation invalidationTransform;
+    final int flags = parent.mGroupFlags;
+    final boolean initialized = a.isInitialized();
+    if (!initialized) {
+        a.initialize(mRight - mLeft, mBottom - mTop, parent.getWidth(), parent.getHeight());
+        a.initializeInvalidateRegion(0, 0, mRight - mLeft, mBottom - mTop);
+        if (mAttachInfo != null) a.setListenerHandler(mAttachInfo.mHandler);
+        onAnimationStart();
+    }
+
+    final Transformation t = parent.getChildTransformation();
+    boolean more = a.getTransformation(drawingTime, t, 1f);
+    if (scalingRequired && mAttachInfo.mApplicationScale != 1f) {
+        if (parent.mInvalidationTransformation == null) {
+            parent.mInvalidationTransformation = new Transformation();
         }
-        
-        // 动画未结束时继续请求重绘
-        if (more && !mAttachInfo.mHardwareAccelerated) {
-            invalidate(true);
+        invalidationTransform = parent.mInvalidationTransformation;
+        a.getTransformation(drawingTime, invalidationTransform, 1f);
+    } else {
+        invalidationTransform = t;
+    }
+    if ((t.getTransformationType() & Transformation.TYPE_MATRIX) != 0) {
+        mPrivateFlags4 |= PFLAG4_HAS_VIEW_PROPERTY_INVALIDATION;
+        mPrivateFlags4 |= PFLAG4_HAS_MOVED;
+    }
+
+    if (more) {
+        if (!a.willChangeBounds()) {
+            if ((flags & (ViewGroup.FLAG_OPTIMIZE_INVALIDATE | ViewGroup.FLAG_ANIMATION_DONE)) ==
+                    ViewGroup.FLAG_OPTIMIZE_INVALIDATE) {
+                parent.mGroupFlags |= ViewGroup.FLAG_INVALIDATE_REQUIRED;
+            } else if ((flags & ViewGroup.FLAG_INVALIDATE_REQUIRED) == 0) {
+                parent.mPrivateFlags |= PFLAG_DRAW_ANIMATION;
+                parent.invalidate(mLeft, mTop, mRight, mBottom);
+            }
+        } else {
+            if (parent.mInvalidateRegion == null) {
+                parent.mInvalidateRegion = new RectF();
+            }
+            final RectF region = parent.mInvalidateRegion;
+            a.getInvalidateRegion(0, 0, mRight - mLeft, mBottom - mTop, region,
+                    invalidationTransform);
+            parent.mPrivateFlags |= PFLAG_DRAW_ANIMATION;
+
+            final int left = mLeft + (int) region.left;
+            final int top = mTop + (int) region.top;
+            parent.invalidate(left, top, left + (int) (region.width() + .5f),
+                    top + (int) (region.height() + .5f));
         }
     }
-    
     return more;
 }
 ```
 
-#### Animation.getTransformation()
+返回的 more 来自 Animation 是否需要继续运行。若动画只改变 alpha 等不改变边界的效果，可按已有范围失效；若变换影响绘制范围，则计算 invalidate region 以覆盖旧位置与新位置。软件绘制把 Transformation 应用到 Canvas，硬件绘制还涉及 RenderNode 的动画矩阵，不能把两者都写成一个空的 saveLayerAlpha/restore。
+
+#### Animation.getTransformation：时间、填充与重复
+
+源码精简节选（省略注释；[Animation.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/view/animation/Animation.java)）：
 
 ```java
-// Animation.java
-public boolean getTransformation(long currentTime, Transformation outTransform) {
-    // 1. 初始化开始时间
-    if (mStartTime < 0) {
+public boolean getTransformation(long currentTime, Transformation outTransformation) {
+    if (mStartTime == -1) {
         mStartTime = currentTime;
     }
-    
-    // 2. 计算进度
-    long deltaTime = currentTime - mStartTime;
-    float normalizedTime = deltaTime / (float) mDuration;
-    
-    // 3. 应用插值器
-    if (mInterpolator != null) {
-        normalizedTime = mInterpolator.getInterpolation(normalizedTime);
-    }
-    
-    // 4. 计算变换矩阵
-    applyTransformation(normalizedTime, outTransform);
-    
-    return normalizedTime < 1.0f; // 动画是否继续
-}
 
-protected void applyTransformation(float interpolatedTime, Transformation t) {
-    // 根据动画类型（平移、缩放、旋转、透明度）计算矩阵
-    // ...
+    final long startOffset = getStartOffset();
+    final long duration = mDuration;
+    float normalizedTime;
+    if (duration != 0) {
+        normalizedTime = ((float) (currentTime - (mStartTime + startOffset))) /
+                (float) duration;
+    } else {
+        normalizedTime = currentTime < mStartTime ? 0.0f : 1.0f;
+    }
+
+    final boolean expired = normalizedTime >= 1.0f || isCanceled();
+    mMore = !expired;
+
+    if (!mFillEnabled) normalizedTime = Math.max(Math.min(normalizedTime, 1.0f), 0.0f);
+
+    if ((normalizedTime >= 0.0f || mFillBefore) && (normalizedTime <= 1.0f || mFillAfter)) {
+        if (!mStarted) {
+            fireAnimationStart();
+            mStarted = true;
+            if (NoImagePreloadHolder.USE_CLOSEGUARD) {
+                guard.open("cancel or detach or getTransformation");
+            }
+        }
+
+        if (mFillEnabled) normalizedTime = Math.max(Math.min(normalizedTime, 1.0f), 0.0f);
+
+        if (mCycleFlip) {
+            normalizedTime = 1.0f - normalizedTime;
+        }
+
+        getTransformationAt(normalizedTime, outTransformation);
+    }
+
+    if (expired) {
+        if (mRepeatCount == mRepeated || isCanceled()) {
+            if (!mEnded) {
+                mEnded = true;
+                guard.close();
+                fireAnimationEnd();
+            }
+        } else {
+            if (mRepeatCount > 0) {
+                mRepeated++;
+            }
+
+            if (mRepeatMode == REVERSE) {
+                mCycleFlip = !mCycleFlip;
+            }
+
+            mStartTime = -1;
+            mMore = true;
+
+            fireAnimationRepeat();
+        }
+    }
+
+    if (!mMore && mOneMoreTime) {
+        mOneMoreTime = false;
+        return true;
+    }
+
+    return mMore;
 }
 ```
 
-#### View 动画 vs 属性动画：核心区别
+该方法使用 currentTime、mStartTime、mStartOffset、mDuration 计算规范化时间，处理 fillEnabled/fillBefore/fillAfter，再通过插值器和 applyTransformation 产生矩阵或 alpha。repeatCount、repeatMode 与 cycle flip 决定下一轮方向。duration=0 有自己的完成分支，不能除以零，也不能用“插值后的 fraction 小于 1”判断是否继续。
 
-| 特性 | View 动画 | 属性动画 |
-|-----|----------|---------|
-| **作用对象** | Canvas 画布 | View 属性成员 |
-| **实际位置** | 不变 | 真正改变 |
-| **点击区域** | 不变 | 跟随移动 |
-| **实现方式** | `canvas.concat(matrix)` | `setXXX()` 方法 |
-| **触发绘制** | 在 `draw()` 中 | 在 `onAnimationUpdate()` 中 |
-| **性能** | 较高 | 较低 |
+fillAfter 保留的是绘制变换，不会把终点写入 left/top。传统平移动画把按钮画到新位置后，常规触摸分配仍使用 View 的布局与属性矩阵，不使用这套 Animation 的临时绘制矩阵。
 
-#### 总结
+#### 与属性动画的选择
 
-View 动画的流程可以总结为：
-1. **启动**：调用 `startAnimation()`，设置 `mCurrentAnimation`
-2. **触发**：调用 `invalidate()` 触发 `ViewRootImpl.scheduleTraversals()`
-3. **绘制**：在 `View.draw()` 中通过 `applyLegacyAnimation()` 应用动画
-4. **变换**：通过 `canvas.concat(matrix)` 改变绘制位置
-5. **循环**：动画未结束时再次调用 `invalidate()` 继续下一帧
-
-这就是为什么 View 动画"看起来"移动了，但 `getX()` / `getY()` 返回的还是原始位置。
-
----
+| 需求 | 更合适的实现 | 原因 |
+|---|---|---|
+| 对旧界面做一次视觉进入/退出 | View Animation | 绘制变换足以表达，不承担布局状态 |
+| 移动后继续接受点击与拖动 | translation/scale 等属性动画 | View 属性矩阵参与显示与逆矩阵命中 |
+| 改变兄弟占位、宽高或文字排版 | 明确修改布局状态 | translation 不会为兄弟重新分配空间 |
+| 自绘进度、颜色、曲线参数 | ValueAnimator + 自定义 setter | 把连续数值写入绘制模型并按需 invalidate |
 
 ## 属性动画 (Property Animation)
 
@@ -397,7 +495,7 @@ public interface Interpolator extends TimeInterpolator {
 
 **插值器 vs TypeEvaluator 的区别：**
 
-```
+```text
 动画时间轴：
 0.0 ---- 0.5 ---- 1.0 (时间)
    ↑
@@ -429,11 +527,11 @@ public interface Interpolator extends TimeInterpolator {
 // 自定义加速插值器
 public class CustomAccelerateInterpolator implements Interpolator {
     private final float mFactor;
-    
+
     public CustomAccelerateInterpolator(float factor) {
         mFactor = factor;
     }
-    
+
     @Override
     public float getInterpolation(float input) {
         // 指数加速: input^factor
@@ -507,94 +605,40 @@ public interface TypeEvaluator<T> {
 
 #### TypeEvaluator 底层原理
 
-```java
-// IntEvaluator 源码
-public class IntEvaluator implements TypeEvaluator<Integer> {
-    public Integer evaluate(float fraction, Integer startValue, Integer endValue) {
-        int startInt = startValue;
-        // 公式: start + (end - start) * fraction
-        return (int) (startInt + fraction * (endValue - startInt));
-    }
-}
-
-// FloatEvaluator 源码
-public class FloatEvaluator implements TypeEvaluator<Float> {
-    public Float evaluate(float fraction, Float startValue, Float endValue) {
-        // 公式相同
-        return startValue + fraction * (endValue - startValue);
-    }
-}
-
-// ArgbEvaluator 源码 - 颜色渐变更复杂
-public class ArgbEvaluator implements TypeEvaluator<Integer> {
-    // 颜色是 ARGB 格式，需要分别对 R/G/B/A 分量插值
-    public Integer evaluate(float fraction, Integer startValue, Integer endValue) {
-        int startA = (startValue >> 24) & 0xff;
-        int startR = (startValue >> 16) & 0xff;
-        int startG = (startValue >> 8) & 0xff;
-        int startB = startValue & 0xff;
-        
-        int endA = (endValue >> 24) & 0xff;
-        int endR = (endValue >> 16) & 0xff;
-        int endG = (endValue >> 8) & 0xff;
-        int endB = endValue & 0xff;
-        
-        return (int)((startA + (int)(fraction * (endA - startA))) << 24) |
-               (int)((startR + (int)(fraction * (endR - startR))) << 16) |
-               (int)((startG + (int)(fraction * (endG - startG))) << 8) |
-               (int)((startB + (int)(fraction * (endB - startB))));
-    }
-}
-```
+数值估值可理解为 start + fraction * (end - start)。原文逐字节线性插值 ARGB 并非 Android 17 的 int 颜色实现：固定 tag 的 ArgbEvaluator.evaluate 将 RGB 按 2.2 次幂转换到线性空间插值，再按 1/2.2 次幂转回；alpha 直接插值。应用使用 ArgbEvaluator / ObjectAnimator.ofArgb，不把旧公式当成平台逐字源码。依据：[ArgbEvaluator.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/animation/ArgbEvaluator.java)。
 
 #### 插值器 + TypeEvaluator 完整流程
 
-```java
-// ValueAnimator 内部执行流程
-public void start() {
-    // 1. 计算原始进度 (0-1)
-    long now = AnimationUtils.currentAnimationTimeMillis();
-    float fraction = (float) (now - mStartTime) / mDuration;
-    
-    // 2. 应用插值器（改变进度曲线）
-    if (mInterpolator != null) {
-        fraction = mInterpolator.getInterpolation(fraction);
-    }
-    
-    // 3. 应用 TypeEvaluator（计算属性值）
-    if (mEvaluator != null) {
-        animatedValue = mEvaluator.evaluate(fraction, mStartValue, mEndValue);
-    } else {
-        // 默认使用对应类型的估值器
-        animatedValue = mTypeEvaluator.evaluate(fraction, mStartValue, mEndValue);
-    }
-    
-    // 4. 设置属性值
-    setAnimatedValue(animatedValue);
-}
+```text
+伪代码（单次求值阶段，不是 ValueAnimator.start 实现）：
+动画时间 -> 原始 fraction -> TimeInterpolator
+  -> PropertyValuesHolder / TypeEvaluator -> 当前值
+  -> 更新监听器；ObjectAnimator 再应用目标属性
 ```
+
+start() 负责状态初始化和注册后续帧回调，不是在 start 内一次算完动画。重复、反向、延迟、时长缩放和 seek 另有状态处理；超调插值器结果不保证始终在 0..1。依据：[ValueAnimator.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/animation/ValueAnimator.java)。
 
 #### 自定义 TypeEvaluator
 
 ```java
 // 自定义 PointF 估值器
 public class PointFEvaluator implements TypeEvaluator<PointF> {
-    
+
     private PointF mPoint;
-    
+
     public PointFEvaluator() {
         // 复用对象，减少 GC
     }
-    
+
     public PointFEvaluator(PointF reuse) {
         mPoint = reuse;
     }
-    
+
     @Override
     public PointF evaluate(float fraction, PointF startValue, PointF endValue) {
         float x = startValue.x + fraction * (endValue.x - startValue.x);
         float y = startValue.y + fraction * (endValue.y - startValue.y);
-        
+
         // 复用对象
         if (mPoint != null) {
             mPoint.set(x, y);
@@ -621,13 +665,13 @@ public class HueEvaluator implements TypeEvaluator<Integer> {
     public Integer evaluate(float fraction, Integer startValue, Integer endValue) {
         float[] hsv = new float[3];
         Color.colorToHSV(startValue, hsv);
-        
+
         float[] hsvEnd = new float[3];
         Color.colorToHSV(endValue, hsvEnd);
-        
+
         // 只改变色相
         hsv[0] = hsv[0] + fraction * (hsvEnd[0] - hsv[0]);
-        
+
         return Color.HSVToColor(hsv);
     }
 }
@@ -641,10 +685,10 @@ ValueAnimator animator = ValueAnimator.ofObject(new HueEvaluator(),
 
 | 概念 | 作用 | 修改的是 |
 |-----|------|---------|
-| **Interpolator** | 控制动画**进度**的变化速度 | 0-1 之间的 fraction |
+| **Interpolator** | 控制动画**进度**的变化速度 | 时间进度映射后的 fraction，可超调 |
 | **TypeEvaluator** | 根据进度**计算属性值** | 实际的属性值 |
 
-```
+```text
 时间 → Interpolator → TypeEvaluator → 属性值
 0.0  →    0.0      →     0        →  0px
 0.5  →    0.5      →    100       →  100px (匀速)
@@ -652,13 +696,13 @@ ValueAnimator animator = ValueAnimator.ofObject(new HueEvaluator(),
 1.0  →    1.0      →    200       →  200px
 ```
 
-### 动画监听器
+### 自定义估值器的使用
 
 自定义属性变化的计算方式：
 
 ```java
 // 颜色动画
-ValueAnimator colorAnimator = ValueAnimator.ofObject(new ArgbEvaluator(), 
+ValueAnimator colorAnimator = ValueAnimator.ofObject(new ArgbEvaluator(),
     Color.RED, Color.BLUE);
 colorAnimator.setDuration(1000);
 colorAnimator.addUpdateListener(animation -> {
@@ -712,390 +756,521 @@ animator.addListener(new AnimatorListenerAdapter() {
 
 ### 属性动画与 ViewRootImpl 的结合
 
-属性动画之所以能**真正改变 View 的实际属性**（如 `translationX`、`alpha`、`rotation`），是因为它在动画过程中会持续触发 ViewRootImpl 的绘制流程。
+#### 1. ValueAnimator 的播放状态
 
-#### 核心流程
+ValueAnimator 实现的是 `AnimationHandler.AnimationFrameCallback`，不是 Choreographer.FrameCallback。它可以自行注册 pulse，也可以由 AnimatorSet 统一推进。
 
-```
-ObjectAnimator.start()
-    ↓
-ValueAnimator.start()
-    ↓
-AnimationHandler.scheduleAnimation()
-    ↓
-Choreographer.postCallback(CALLBACK_ANIMATION, ...)
-    ↓
-VSYNC 信号触发
-    ↓
-AnimationFrameCallback.doFrame()
-    ↓
-ValueAnimator.doAnimationFrame()
-    ↓
-onAnimationUpdate() 回调
-    ↓
-View.setProperty() 直接修改属性
-    ↓
-View.invalidate() / requestLayout()
-    ↓
-ViewRootImpl.scheduleTraversals()
-    ↓
-performTraversals() 重新绘制
-```
+| 字段 | 作用 |
+|---|---|
+| `mStarted` / `mRunning` | 已启动与已进入实际播放；有 startDelay 时二者可不同 |
+| `mSelfPulse` | 是否自己向 AnimationHandler 注册帧回调 |
+| `mStartTime` / `mLastFrameTime` | 动画时间原点与最后一帧时间，单位毫秒 |
+| `mStartDelay` / `mDuration` | 未经系统缩放的启动延迟和单轮时长 |
+| `mOverallFraction` | 包含重复轮数的总进度，不局限于 0..1 |
+| `mCurrentFraction` | 当前轮经过插值器处理后的进度 |
+| `mSeekFraction` | 显式 seek 的进度，在首次 pulse 时修正时间原点 |
+| `mPaused` / `mResumed` / `mPauseTime` | 暂停恢复时修正播放时间，避免把暂停间隔计入进度 |
 
-#### 1. 动画启动：ValueAnimator.start()
+源码精简节选（省略注释；[ValueAnimator.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/animation/ValueAnimator.java)）：
 
 ```java
-// ValueAnimator.java
-public void start() {
-    // 确保在主线程
+private void start(boolean playBackwards) {
     if (Looper.myLooper() == null) {
-        throw new AndroidRuntimeException("Animators may only be run on the main thread");
+        throw new AndroidRuntimeException("Animators may only be run on Looper threads");
     }
-    
-    // 标记正在运行
-    mRunning = true;
-    mPlayingBackwards = false;
-    mCurrentIteration = 0;
-    mLastIteration = 0;
-    
-    // 设置开始时间
-    long startTime = AnimationUtils.currentAnimationTimeMillis();
-    mStartTime = startTime;
-    
-    // 添加到 AnimationHandler
-    sAnimationHandler.addAnimationFrameCallback(this, 0);
-}
-```
-
-#### 2. AnimationHandler：管理所有属性动画
-
-属性动画通过 `AnimationHandler` 统一管理，它是一个单例：
-
-```java
-// ValueAnimator.java - 内部类
-public static final AnimationHandler sAnimationHandler = new AnimationHandler();
-
-private static class AnimationHandler extends Handler {
-    // 保存所有正在运行的动画
-    private final ArrayList<WeakReference<FrameCallback>> mAnimations = 
-        new ArrayList<>();
-    
-    // 通过 Choreographer 接收 VSYNC 回调
-    public void addAnimationFrameCallback(FrameCallback callback, int priority) {
-        // 添加到回调列表
-    }
-    
-    // Choreographer 回调
-    private final Choreographer.FrameCallback mFrameCallback = new Choreographer.FrameCallback() {
-        @Override
-        public void doFrame(long frameTimeNanos) {
-            // 遍历所有动画，调用它们的 doAnimationFrame
-            doAnimationFrame(frameTimeNanos);
-            // 继续注册下一帧
-            postFrameCallback();
+    mReversing = playBackwards;
+    mSelfPulse = !mSuppressSelfPulseRequested;
+    if (playBackwards && mSeekFraction != -1 && mSeekFraction != 0) {
+        if (mRepeatCount == INFINITE) {
+            float fraction = (float) (mSeekFraction - Math.floor(mSeekFraction));
+            mSeekFraction = 1 - fraction;
+        } else {
+            mSeekFraction = 1 + mRepeatCount - mSeekFraction;
         }
-    };
-    
-    void doAnimationFrame(long frameTimeNanos) {
-        // 遍历所有动画
-        for (int i = 0; i < callbacks.size(); i++) {
-            FrameCallback callback = callbacks.get(i);
-            if (callback != null) {
-                // 关键：调用动画的 doAnimationFrame
-                callback.doAnimationFrame(frameTimeNanos);
-            }
+    }
+    mStarted = true;
+    mPaused = false;
+    mRunning = false;
+    mAnimationEndRequested = false;
+    mLastFrameTime = -1;
+    mFirstFrameTime = -1;
+    mStartTime = -1;
+    addAnimationCallback(0);
+
+    if (mStartDelay == 0 || mSeekFraction >= 0 || mReversing) {
+        startAnimation();
+        if (mSeekFraction == -1) {
+            setCurrentPlayTime(0);
+        } else {
+            setCurrentFraction(mSeekFraction);
         }
     }
 }
 ```
 
-#### 3. Choreographer：帧调度中心
+启动首先检查当前线程有 Looper。涉及 View 的动画还必须在该 View 所属线程操作；“有 Looper”不代表任意后台 HandlerThread 都可修改 Activity 的 View。
+
+无 startDelay、已有 seek 或反向启动时，start 会立即初始化并设置当前播放值；正常零延迟动画的第一次 update 因而不必等到下一次 Vsync。后续连续推进才由帧 pulse 驱动。
+
+#### 2. AnimationHandler：线程内共享的帧来源
+
+源码精简节选（省略注释；[AnimationHandler.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/animation/AnimationHandler.java)）：
 
 ```java
-// ValueAnimator 实现了 FrameCallback 接口
-public boolean doAnimationFrame(long frameTime) {
-    // 1. 计算当前帧的动画值
-    final long now = AnimationUtils.currentAnimationTimeMillis();
-    final long remaining = (mStartTime + mDuration) - now;
-    
-    // 2. 计算动画进度
-    float fraction = mDuration > 0 ? (float) (now - mStartTime) / mDuration : 1f;
-    
-    // 3. 应用插值
-    if (mInterpolator != null) {
-        fraction = mInterpolator.getInterpolation(fraction);
-    }
-    
-    // 4. 设置动画值
-    if (mEvaluator != null) {
-        Object value = mEvaluator.evaluate(fraction, mStartValue, mEndValue);
-        setAnimatedValue(value);
-    }
-    
-    // 5. 通知监听器
-    if (mUpdateListeners != null) {
-        for (int i = 0; i < mUpdateListeners.size(); i++) {
-            mUpdateListeners.get(i).onAnimationUpdate(this);
+private final Choreographer.FrameCallback mFrameCallback = new Choreographer.FrameCallback() {
+    @Override
+    public void doFrame(long frameTimeNanos) {
+        doAnimationFrame(frameTimeNanos / TimeUtils.NANOS_PER_MS);
+        if (mAnimationCallbacks.size() > 0) {
+            getProvider().postFrameCallback(this);
         }
     }
-    
-    return mRunning;
+};
+
+public void addAnimationFrameCallback(final AnimationFrameCallback callback, long delay) {
+    if (mAnimationCallbacks.size() == 0) {
+        getProvider().postFrameCallback(mFrameCallback);
+    }
+    if (!mAnimationCallbacks.contains(callback)) {
+        mAnimationCallbacks.add(callback);
+    }
+
+    if (delay > 0) {
+        mDelayedCallbackStartTime.put(callback, (SystemClock.uptimeMillis() + delay));
+    }
+}
+
+private void doAnimationFrame(long frameTime) {
+    long currentTime = SystemClock.uptimeMillis();
+    final int size = mAnimationCallbacks.size();
+    for (int i = 0; i < size; i++) {
+        final AnimationFrameCallback callback = mAnimationCallbacks.get(i);
+        if (callback == null) {
+            continue;
+        }
+        if (isCallbackDue(callback, currentTime)) {
+            callback.doAnimationFrame(frameTime);
+        }
+    }
+    cleanUpList();
+}
+
+private class MyFrameCallbackProvider implements AnimationFrameCallbackProvider {
+
+    final Choreographer mChoreographer = Choreographer.getInstance();
+
+    @Override
+    public void postFrameCallback(Choreographer.FrameCallback callback) {
+        mChoreographer.postFrameCallback(callback);
+    }
+
+    @Override
+    public long getFrameDelay() {
+        return Choreographer.getFrameDelay();
+    }
+
+    @Override
+    public void setFrameDelay(long delay) {
+        Choreographer.setFrameDelay(delay);
+    }
 }
 ```
 
-#### 4. setAnimatedValue：真正改变属性
+默认 handler 存在 ThreadLocal 中。同线程的多个 animator 共享一次 Choreographer 帧回调，handler 在帧内依次推进它们；只要列表还有回调就重发下一帧。纳秒在桥接点除以 `NANOS_PER_MS`，所以 ValueAnimator.doAnimationFrame 接收毫秒，不能再把输入按纳秒计算 duration。
+
+列表删除采用先置 null、帧末清理的策略，避免动画在回调中 cancel 导致遍历索引立即错位。延迟回调的到期判断与动画自己的 startDelay 是两个层次，不应把所有延迟都写成一个 Handler.postDelayed。
+
+#### 3. doAnimationFrame：建立时间原点、暂停与 seek
+
+源码精简节选（省略注释；[ValueAnimator.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/animation/ValueAnimator.java)）：
 
 ```java
-// ObjectAnimator.java
-@Override
-public void setAnimatedValue(Object target) {
-    // 逐个设置每个属性的值
-    for (int i = 0; i < mPropertyValues.length; i++) {
-        PropertyValuesHolder pvh = mPropertyValues[i];
-        pvh.setAnimatedValue(target);
+public final boolean doAnimationFrame(long frameTime) {
+    if (mStartTime < 0) {
+        mStartTime = mReversing
+                ? frameTime
+                : frameTime + (long) (mStartDelay * resolveDurationScale());
+    }
+    if (mPaused) {
+        mPauseTime = frameTime;
+        removeAnimationCallback();
+        return false;
+    } else if (mResumed) {
+        mResumed = false;
+        if (mPauseTime > 0) {
+            mStartTime += (frameTime - mPauseTime);
+        }
+    }
+
+    if (!mRunning) {
+        if (mStartTime > frameTime && mSeekFraction == -1) {
+            return false;
+        } else {
+            mRunning = true;
+            startAnimation();
+        }
+    }
+
+    if (mLastFrameTime < 0) {
+        if (mSeekFraction >= 0) {
+            long seekTime = (long) (getScaledDuration() * mSeekFraction);
+            mStartTime = frameTime - seekTime;
+            mSeekFraction = -1;
+        }
+    }
+    mLastFrameTime = frameTime;
+    final long currentTime = Math.max(frameTime, mStartTime);
+    boolean finished = animateBasedOnTime(currentTime);
+
+    if (finished) {
+        endAnimation(true );
+    }
+    return finished;
+}
+```
+
+第一次 pulse 建立 mStartTime，正向播放将按缩放后的 startDelay 推后；尚未到开始时间则直接返回。恢复时把暂停间隔加到 mStartTime，令动画从暂停处继续。seek 则反推时间原点，使下一帧的时间公式与指定 fraction 连续。
+
+#### 4. duration 与 repeat：按时间推进，而不是按帧计数
+
+源码精简节选（省略注释；[ValueAnimator.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/animation/ValueAnimator.java)）：
+
+```java
+private float resolveDurationScale() {
+    return mDurationScale >= 0f ? mDurationScale : sDurationScale;
+}
+
+private long getScaledDuration() {
+    return (long)(mDuration * resolveDurationScale());
+}
+
+public long getTotalDuration() {
+    if (mRepeatCount == INFINITE) {
+        return DURATION_INFINITE;
+    } else {
+        return mStartDelay + (mDuration * (mRepeatCount + 1));
     }
 }
 
-// PropertyValuesHolder.java
+boolean animateBasedOnTime(long currentTime) {
+    boolean done = false;
+    if (mRunning) {
+        final long scaledDuration = getScaledDuration();
+        final float fraction = scaledDuration > 0 ?
+                (float)(currentTime - mStartTime) / scaledDuration : 1f;
+        final float lastFraction = mOverallFraction;
+        final boolean newIteration = (int) fraction > (int) lastFraction;
+        final boolean lastIterationFinished = (fraction >= mRepeatCount + 1) &&
+                (mRepeatCount != INFINITE);
+        if (scaledDuration == 0) {
+            done = true;
+        } else if (newIteration && !lastIterationFinished) {
+            notifyListeners(AnimatorCaller.ON_REPEAT, false);
+        } else if (lastIterationFinished) {
+            done = true;
+        }
+        mOverallFraction = clampFraction(fraction);
+        float currentIterationFraction = getCurrentIterationFraction(
+                mOverallFraction, mReversing);
+        animateValue(currentIterationFraction);
+    }
+    return done;
+}
+```
+
+`setDuration(300)` 表示单轮名义时长 300ms。实际播放用 `scaledDuration = (long)(mDuration * resolveDurationScale())`，正向 startDelay 同样缩放。有限重复的 getTotalDuration 返回 `startDelay + duration * (repeatCount + 1)`，是名义总时长，不把系统动画缩放乘进去；INFINITE 返回 DURATION_INFINITE。
+
+例：startDelay=100ms、duration=300ms、repeatCount=1，名义总时长是 700ms；系统 scale=2 时，按时间公式对应的延迟与两轮播放合计约 1400ms，实际回调发生在帧边界。120Hz 只会比 60Hz 有更多采样机会，不会把同一个 300ms 动画自动缩短到 150ms。
+
+若丢帧，下一次 pulse 依据当前时间跳到正确进度，不通过补发所有遗漏帧来追赶。源码只在观察到跨轮且尚未整体结束时通知 repeat，不能依赖每一个理论轮次都在卡顿后补发一次回调。
+
+`REVERSE` 模式在奇偶轮间反转单轮 fraction；最终值需同时考虑 repeatCount 与 reversing。插值器可超调，mCurrentFraction 和最终值可能暂时超出 0..1 或起终点范围，业务 setter 应明确是否允许这种效果。
+
+#### 5. AnimatorSet：父 pulse 与子动画禁止双重注册
+
+源码精简节选（省略注释；[ValueAnimator.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/animation/ValueAnimator.java)）：
+
+```java
+boolean pulseAnimationFrame(long frameTime) {
+    if (mSelfPulse) {
+        return false;
+    }
+    return doAnimationFrame(frameTime);
+}
+
+private void addAnimationCallback(long delay) {
+    if (!mSelfPulse) {
+        return;
+    }
+    getAnimationHandler().addAnimationFrameCallback(this, delay);
+}
+```
+
+源码精简节选（省略注释；[AnimatorSet.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/animation/AnimatorSet.java)）：
+
+```java
+private void pulseFrame(Node node, long animPlayTime) {
+    if (!node.mEnded) {
+        float durationScale = ValueAnimator.getDurationScale();
+        durationScale = durationScale == 0  ? 1 : durationScale;
+        if (node.mAnimation.pulseAnimationFrame((long) (animPlayTime * durationScale))) {
+            node.mEnded = true;
+        }
+    }
+}
+```
+
+AnimatorSet 按依赖节点计算每个子动画的播放时间，子项通过 startWithoutPulsing 启动，由父调用 pulseAnimationFrame。mSelfPulse 防止子项又向 handler 注册一套时钟，否则同一帧可能推进两次且破坏集合的时序。
+
+集合中的子动画可以有不同 delay/duration；不要一边让集合持有它，一边又单独 start 同一个实例。重用配置可以 clone 或重新创建动画，但运行实例的归属应明确。
+
+#### 6. 求值与赋值：Interpolator、PropertyValuesHolder、setter
+
+源码精简节选（省略注释；[ValueAnimator.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/animation/ValueAnimator.java)）：
+
+```java
+void animateValue(float fraction) {
+    if (TRACE_ANIMATION_FRACTION) {
+        Trace.traceCounter(Trace.TRACE_TAG_VIEW, getNameForTrace() + hashCode(),
+                (int) (fraction * 1000));
+    }
+    if (mValues == null) {
+        return;
+    }
+    fraction = mInterpolator.getInterpolation(fraction);
+    mCurrentFraction = fraction;
+    int numValues = mValues.length;
+    for (int i = 0; i < numValues; ++i) {
+        mValues[i].calculateValue(fraction);
+    }
+    if (mSeekFraction >= 0 || mStartListenersCalled) {
+        callOnList(mUpdateListeners, AnimatorCaller.ON_UPDATE, this, false);
+    }
+}
+```
+
+源码精简节选（省略注释；[ObjectAnimator.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/animation/ObjectAnimator.java)）：
+
+```java
+void animateValue(float fraction) {
+    final Object target = getTarget();
+    super.animateValue(fraction);
+    int numValues = mValues.length;
+    for (int i = 0; i < numValues; ++i) {
+        mValues[i].setAnimatedValue(target);
+    }
+}
+```
+
+源码精简节选（省略注释；[PropertyValuesHolder.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/animation/PropertyValuesHolder.java)）：
+
+```java
+void calculateValue(float fraction) {
+    Object value = mKeyframes.getValue(fraction);
+    mAnimatedValue = mConverter == null ? value : mConverter.convert(value);
+}
+```
+
+源码精简节选（省略注释；[PropertyValuesHolder.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/animation/PropertyValuesHolder.java)）：
+
+```java
 void setAnimatedValue(Object target) {
     if (mProperty != null) {
-        // 通过 Property 直接设置值
         mProperty.set(target, getAnimatedValue());
-    } else if (mSetter != null) {
-        // 通过反射调用 setter 方法
-        mSetter.invoke(target, getAnimatedValue());
+    }
+    if (mSetter != null) {
+        try {
+            mTmpValueArray[0] = getAnimatedValue();
+            mSetter.invoke(target, mTmpValueArray);
+        } catch (InvocationTargetException e) {
+            Log.e("PropertyValuesHolder", e.toString());
+        } catch (IllegalAccessException e) {
+            Log.e("PropertyValuesHolder", e.toString());
+        }
     }
 }
 ```
 
-#### 5. 触发 ViewRootImpl 重绘
+ValueAnimator 先通过 Interpolator 改变 fraction，再让各 PropertyValuesHolder 根据 keyframe/evaluator 算值，最后通知 update listener。ObjectAnimator 的重载在 super 返回之后才逐个赋给 target，因此 **ObjectAnimator 的 update listener 可以读到当前计算值，但不应假定目标所有 setter 已在本帧执行完**。
 
-当属性值改变后，View 需要重新绘制。属性动画有两种方式触发绘制：
+PropertyValuesHolder 可以使用 Property 对象，也可以调用已解析的 setter；具体 float/int 专用 holder 还有优化路径，不能概括为“所有属性每帧都重新反射查找方法”。普通业务对象的 setter 不自动刷新 View。
 
-**方式一：通过 View.setProperty() 自动触发**
+源码精简节选（省略注释；[View.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/view/View.java)）：
 
 ```java
-// View.java
 public void setTranslationX(float translationX) {
-    // 1. 直接修改属性值
-    mTranslationX = translationX;
-    
-    // 2.  invalidate 触发重绘
-    invalidate();
-    
-    // 3.  invalidate 无效时，请求重新布局
-    invalidateParentCaches();
-}
-```
+    if (translationX != getTranslationX()) {
+        mPrivateFlags4 |= PFLAG4_HAS_MOVED;
+        invalidateViewProperty(true, false);
+        mRenderNode.setTranslationX(translationX);
+        invalidateViewProperty(false, true);
 
-**方式二：通过 onAnimationUpdate 手动触发**
-
-```java
-ObjectAnimator animator = ObjectAnimator.ofFloat(view, "translationX", 0, 100);
-animator.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
-    @Override
-    public void onAnimationUpdate(ValueAnimator animation) {
-        // 这里修改属性后，View.invalidate() 会被自动调用
-        // 但如果需要更强制刷新，可以手动调用：
-        // view.setTranslationX(...);
-        // view.getParent().requestLayout(); // 如果改变了布局参数
-    }
-});
-animator.start();
-```
-
-#### 6. ViewRootImpl.scheduleTraversals()
-
-无论哪种方式触发，最终都会汇聚到 `ViewRootImpl.scheduleTraversals()`：
-
-```java
-// ViewRootImpl.java
-void scheduleTraversals() {
-    if (!mTraversalScheduled) {
-        mTraversalScheduled = true;
-        
-        // 通过 Choreographer 注册下一帧的绘制任务
-        mChoreographer.postCallback(
-            Choreographer.CALLBACK_TRAVERSAL,
-            mTraversalRunnable,
-            null
-        );
+        invalidateParentIfNeededAndWasQuickRejected();
+        notifySubtreeAccessibilityStateChangedIfNeeded();
     }
 }
 ```
 
-#### 7. Choreographer 的回调顺序
+translationX 更新 RenderNode 属性，并走 View 自带的属性失效流程。它改变 View 的显示与变换命中，不改变 left/right；动画宽高、边距时则需 setter 自己修改布局参数并 requestLayout，成本模型完全不同。
+
+#### 7. 与 Choreographer 五阶段和遍历回调衔接
+
+```text
+INPUT(0)
+ANIMATION(1)
+  AnimationHandler -> ValueAnimator / AnimatorSet pulse
+    插值、求值 -> ObjectAnimator setter 或 update listener
+      View 属性失效 / 自绘 invalidate / 尺寸 requestLayout
+INSETS_ANIMATION(2)
+TRAVERSAL(3)
+  TraversalCallback.onVsync(FrameData)
+    doTraversal(frameTimeNanos) -> performTraversals(frameTimeNanos)
+COMMIT(4)
+```
+
+ViewRootImpl 使用 `postVsyncCallback(CALLBACK_TRAVERSAL, mTraversalCallback)`。TraversalCallback 的接口类型是 VsyncCallback，队列类型仍是 TRAVERSAL；不能误写成公共 postFrameCallback 的 ANIMATION 阶段。图中顺序是 CPU 回调顺序，RenderThread、GPU 和 SurfaceFlinger 还有各自的执行与同步时间线。
+
+#### 8. end、cancel 与结束监听的时机
+
+源码精简节选（省略注释；[ValueAnimator.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/animation/ValueAnimator.java)）：
 
 ```java
-// Choreographer.java
-void doFrame(long frameTimeNanos, int frame) {
-    // 按优先级顺序执行回调
-    // 1. CALLBACK_INPUT - 输入事件
-    // 2. CALLBACK_ANIMATION - 动画更新 ← 属性动画在这里更新值
-    // 3. CALLBACK_TRAVERSAL - View 遍历/绘制 ← ViewRootImpl 在这里重绘
-    
-    doCallbacks(Choreographer.CALLBACK_INPUT, frameTimeNanos);
-    doCallbacks(Choreographer.CALLBACK_ANIMATION, frameTimeNanos);
-    doCallbacks(Choreographer.CALLBACK_TRAVERSAL, frameTimeNanos);
+public void cancel() {
+    if (Looper.myLooper() == null) {
+        throw new AndroidRuntimeException("Animators may only be run on Looper threads");
+    }
+    if (mAnimationEndRequested) {
+        if (consumePendingEndListeners(false )) {
+            if (mRunning) {
+                notifyListeners(AnimatorCaller.ON_CANCEL, false );
+            }
+            completeEndAnimation(false , "notifyAnimEndByCancel");
+        }
+        return;
+    }
+    if ((mStarted || mRunning || mStartListenersCalled) && mListeners != null) {
+        if (!mRunning) {
+            notifyStartListeners(mReversing);
+        }
+        notifyListeners(AnimatorCaller.ON_CANCEL, false);
+    }
+    endAnimation();
+}
+
+public void end() {
+    if (Looper.myLooper() == null) {
+        throw new AndroidRuntimeException("Animators may only be run on Looper threads");
+    }
+    if (!mRunning) {
+        startAnimation();
+        mStarted = true;
+    } else if (!mInitialized) {
+        initAnimation();
+    }
+    animateValue(shouldPlayBackward(mRepeatCount, mReversing) ? 0f : 1f);
+    if (mAnimationEndRequested) {
+        consumePendingEndListeners(true );
+        return;
+    }
+    endAnimation();
+}
+
+private void endAnimation(boolean fromLastFrame) {
+    if (mAnimationEndRequested) {
+        return;
+    }
+    final boolean postNotifyEndListener = sPostNotifyEndListenerEnabled && mListeners != null
+            && fromLastFrame && getScaledDuration() > 0;
+    removeAnimationCallback();
+
+    mAnimationEndRequested = true;
+    mPaused = false;
+    boolean notify = (mStarted || mRunning) && mListeners != null;
+    if (notify && !mRunning) {
+        notifyStartListeners(mReversing);
+    }
+    mLastFrameTime = -1;
+    mFirstFrameTime = -1;
+    mStartTime = -1;
+    notifyEndListenersFromEndAnimation(mReversing, postNotifyEndListener);
+    if (Trace.isTagEnabled(Trace.TRACE_TAG_VIEW)) {
+        Trace.asyncTraceEnd(Trace.TRACE_TAG_VIEW, getNameForTrace(),
+                System.identityHashCode(this));
+    }
 }
 ```
 
-这意味着：
-- **CALLBACK_ANIMATION** 阶段：属性动画计算新值，更新 View 属性
-- **CALLBACK_TRAVERSAL** 阶段：ViewRootImpl 执行 performTraversals()，重新绘制整个 View 树
+`cancel()` 不负责把属性推进终值，已启动动画通常先通知 cancel 再结束；`end()` 先按方向推进到结束值。取消也会走结束通知，不能在 onAnimationEnd 无条件提交“操作成功”。
 
-#### 属性动画 vs View 动画：与 ViewRootImpl 的区别
+该 tag 还有 `sPostNotifyEndListenerEnabled` 控制的路径：正常最后一帧结束、存在监听器、有效时长大于零等条件满足时，结束通知可以延后发布。源码另行处理已挂起结束回调期间的 cancel/end。业务既不能把 onAnimationEnd 当作 GPU 已呈现最后一帧的信号，也不应依赖它必定与最后一次 setter 同步栈内执行。
 
-| 特性 | View 动画 | 属性动画 |
-|-----|----------|---------|
-| 触发方式 | `View.startAnimation()` | `ObjectAnimator.start()` |
-| 回调机制 | 直接调用 `invalidate()` | 通过 AnimationHandler + Choreographer |
-| 属性变化 | 只改变 Canvas 矩阵 | **真正改变 View 的成员变量** |
-| 触发重绘 | 在 `applyLegacyAnimation()` 中 | 在 `setAnimatedValue()` 中 |
-| 与 ViewRootImpl | 通过 `scheduleTraversals()` | 同样通过 `scheduleTraversals()` |
-| 性能 | 较高（只重绘一次） | 较低（每帧都计算+重绘） |
+#### 9. 实战：可反复重定向且在 detach 取消的动画属性
 
-#### 完整的帧流程时序图
+以下是独立应用 View 示例。调用 animateTo 可以从当前显示值转向新目标；先清旧动画引用再 cancel，避免旧 onAnimationEnd 误清新实例。系统关闭动画时直接写终态。
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                         VSYNC 信号                                    │
-│                              ↓                                       │
-│  ┌─────────────────────────────────────────────────────────────────┐ │
-│  │              Choreographer.doFrame()                            │ │
-│  │  ┌─────────────────┐  ┌─────────────────┐  ┌────────────────┐  │ │
-│  │  │ CALLBACK_INPUT  │  │ CALLBACK_ANIM   │  │CALLBACK_TRAV   │  │ │
-│  │  │   输入事件       │→ │  属性动画更新值  │→ │  View 重绘     │  │ │
-│  │  │                 │  │                 │  │                │  │ │
-│  │  │                 │  │ ValueAnimator   │  │ performTraver  │  │ │
-│  │  │                 │  │ .doAnimationFram│  │ sals()         │  │ │
-│  │  │                 │  │                 │  │                │  │ │
-│  │  │                 │  │ setAnimatedValue│  │ View.draw()    │  │ │
-│  │  │                 │  │ setTranslationX │  │                │  │ │
-│  │  │                 │  │ View.mTranslatio│  │                │  │ │
-│  │  │                 │  │ nX = newValue    │  │                │  │ │
-│  │  └─────────────────┘  └─────────────────┘  └────────────────┘  │ │
-│  └─────────────────────────────────────────────────────────────────┘ │
-│                              ↓                                       │
-│  屏幕刷新                                                                 │
-└─────────────────────────────────────────────────────────────────────┘
-```
+```kotlin
+import android.animation.Animator
+import android.animation.AnimatorListenerAdapter
+import android.animation.ValueAnimator
+import android.content.Context
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Paint
+import android.util.AttributeSet
+import android.view.View
 
-#### 为什么属性动画能改变实际属性？
+class AnimatedMeter @JvmOverloads constructor(
+    context: Context, attrs: AttributeSet? = null
+) : View(context, attrs) {
+    private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.BLUE }
+    private var value = 0f
+    private var running: ValueAnimator? = null
 
-通过上面的分析，答案很清楚了：
-
-1. **直接修改成员变量**：`setTranslationX()` 会直接修改 `View.mTranslationX`
-2. **属性反射机制**：`PropertyValuesHolder` 通过反射调用 `setTranslationX()` 方法
-3. **自动触发重绘**：每个 setter 方法内部都调用了 `invalidate()` 或 `requestLayout()`
-4. **ViewRootImpl 调度**：`invalidate()` 最终会调用 `ViewRootImpl.scheduleTraversals()`
-5. **Choreographer 驱动**：每帧的更新由 Choreographer 的 VSYNC 信号统一驱动
-
-这与 View 动画完全不同：View 动画只在 `draw()` 阶段通过 `canvas.concat(matrix)` 临时改变绘制位置，而不修改任何成员变量。
-
-#### 属性动画的帧更新时机
-
-属性动画是基于 VSYNC 信号驱动的，帧更新的时机如下：
-
-```
-VSYNC 信号触发
-    ↓
-Choreographer.doFrame()
-    ↓
-CALLBACK_ANIMATION 阶段（计算新值）
-    ↓
-setAnimatedValue() 更新属性
-    ↓
-View.setter() 触发 invalidate()
-    ↓
-CALLBACK_TRAVERSAL 阶段（重绘生效）
-    ↓
-屏幕刷新
-```
-
-**结论：属性动画设置的参数在下一帧才生效。**
-
-| 操作 | 生效时机 |
-|-----|---------|
-| `animator.start()` | 立即注册到下一帧 |
-| `animator.setDuration(1000)` | **不影响已启动的动画** |
-| `animator.cancel()` | 立即停止，但当前帧可能已更新 |
-| `animator.pause()` | 暂停，恢复后从当前位置继续 |
-| 修改动画目标值 | 需要**重新创建动画实例** |
-
-#### 动态修改动画参数
-
-如果在动画运行过程中需要修改参数（如动态改变目标位置），**必须重新创建动画实例**：
-
-```java
-// ❌ 错误：动态修改参数无效
-ObjectAnimator animator = ObjectAnimator.ofFloat(view, "translationX", 0, 100);
-animator.start();
-// 这里的修改不会影响正在运行的动画
-animator.setFloatValues(0, 200); 
-
-// ✅ 正确：重新创建动画
-private ObjectAnimator currentAnimator;
-
-private void animateTo(float targetX) {
-    // 先取消之前的动画
-    if (currentAnimator != null) {
-        currentAnimator.cancel();
+    fun animateTo(target: Float, durationMs: Long = 300L) {
+        require(target.isFinite() && target in 0f..1f)
+        require(durationMs >= 0L)
+        val old = running
+        running = null
+        old?.cancel()
+        if (durationMs == 0L ||
+            (android.os.Build.VERSION.SDK_INT >= 26 && !ValueAnimator.areAnimatorsEnabled())) {
+            value = target
+            invalidate()
+            return
+        }
+        val next = ValueAnimator.ofFloat(value, target).apply {
+            duration = durationMs
+            addUpdateListener {
+                value = it.animatedValue as Float
+                invalidate()
+            }
+            addListener(object : AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: Animator) {
+                    if (running === animation) running = null
+                }
+            })
+        }
+        running = next
+        next.start()
     }
-    
-    // 从当前位置开始动画
-    float startX = view.getTranslationX();
-    currentAnimator = ObjectAnimator.ofFloat(view, "translationX", startX, targetX);
-    currentAnimator.setDuration(300);
-    currentAnimator.start();
+
+    override fun onDraw(canvas: Canvas) {
+        super.onDraw(canvas)
+        val available = (width - paddingLeft - paddingRight).coerceAtLeast(0)
+        canvas.drawRect(paddingLeft.toFloat(), paddingTop.toFloat(),
+            paddingLeft + available * value, (height - paddingBottom).toFloat(), paint)
+    }
+
+    override fun onDetachedFromWindow() {
+        val old = running
+        running = null
+        old?.cancel()
+        super.onDetachedFromWindow()
+    }
 }
 ```
 
-或者使用 `ValueAnimator` 手动控制：
-
-```java
-// 使用 ValueAnimator 手动控制进度
-ValueAnimator animator = ValueAnimator.ofFloat(0, 1);
-animator.addUpdateListener(animation -> {
-    float fraction = (float) animation.getAnimatedValue();
-    // 动态计算当前值
-    float currentValue = startValue + (targetValue - startValue) * fraction;
-    view.setTranslationX(currentValue);
-});
-```
-
-#### 动画的 lifecycle 回调
-
-```java
-animator.addListener(new AnimatorListenerAdapter() {
-    @Override
-    public void onAnimationStart(Animator animation) {
-        // 动画开始（重新开始时也会调用）
-    }
-
-    @Override
-    public void onAnimationEnd(Animator animation) {
-        // 动画结束
-    }
-
-    @Override
-    public void onAnimationPause(Animator animation) {
-        // 动画暂停
-    }
-
-    @Override
-    public void onAnimationResume(Animator animation) {
-        // 动画恢复
-    }
-
-    @Override
-    public void onAnimationCancel(Animator animation) {
-        // 动画取消（也会触发 onAnimationEnd）
-    }
-});
-```
-
----
+调用方应在 UI 线程使用，并给此示例 View 设置明确尺寸。若页面需要保存目标进度，应把业务目标存在 ViewModel/状态模型里，视图重建后恢复；动画瞬时值只是显示状态，不应承担业务数据持久化。
 
 ## 帧动画 (Drawable Animation)
 
@@ -1148,66 +1323,42 @@ boolean isRunning = animationDrawable.isRunning();
 
 ### Activity 转场动画
 
-**方式一：overridePendingTransition**
+`overridePendingTransition()` 自 API 34 起废弃。Android 17 优先使用 API 34+ 的 `overrideActivityTransition()`，配置应放在参与转场的目标 Activity，而不是机械替换旧调用位置。
 
-```java
-// 启动 Activity 时
-startActivity(new Intent(this, SecondActivity.class));
-overridePendingTransition(R.anim.fade_in, R.anim.fade_out);
-
-// 关闭 Activity 时
-finish();
-overridePendingTransition(R.anim.fade_in, R.anim.fade_out);
+```kotlin
+// 在 Activity B 的 onCreate 中配置；A 负责启动 B。
+if (Build.VERSION.SDK_INT >= 34) {
+    overrideActivityTransition(
+        Activity.OVERRIDE_TRANSITION_OPEN, R.anim.fade_in, R.anim.fade_out
+    )
+    overrideActivityTransition(
+        Activity.OVERRIDE_TRANSITION_CLOSE, R.anim.fade_in, R.anim.fade_out
+    )
+}
 ```
 
-**方式二：Theme 定义（API 21+）**
+API 33 及以下的历史兼容路径仍可在 `startActivity` / `finish` 后紧接旧 `overridePendingTransition`。内容/共享元素转场是另一套机制；`ActivityOptions.makeSceneTransitionAnimation` 自 API 21 提供，不应和 API 19 的场景 Transition 混为一谈。依据：[Activity.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/app/Activity.java)（转场 API 及优先级注释）。
 
-```xml
-<!-- styles.xml -->
-<style name="AppTheme" parent="Theme.MaterialComponents.Light.NoActionBar">
-    <item name="android:windowActivityTransitions">true</item>
-    <item name="android:windowContentTransitions">true</item>
-    <item name="android:windowEnterTransition">@android:transition/fade</item>
-    <item name="android:windowExitTransition">@android:transition/fade</item>
-    <item name="android:windowSharedElementEnterTransition">@transition/shared_element</item>
-    <item name="android:windowSharedElementExitTransition">@transition/shared_element</item>
-</style>
-```
-
-**共享元素动画：**
-
-```java
-// 启动Activity
-ActivityOptions options = ActivityOptions.makeSceneTransitionAnimation(
-    this,
-    sharedView, // 共享的 View
-    "sharedName" // 共享元素名称
-);
-startActivity(new Intent(this, SecondActivity.class), options.toBundle());
-
-// SecondActivity 中
-getWindow().setSharedElementEnterTransition(...);
-```
+在 Android 16+ 且 targetSdk >= 36 时，预测返回系统动画默认启用；这也是 Android 17 升级必须回归的既有变化，而非 Android 17 新增。不要仅依赖旧 onBackPressed/KEYCODE_BACK 拦截实现返回动画，应用应采用支持的返回分发机制并测试手势取消。依据：[Android 16 target 行为变化](https://developer.android.com/about/versions/16/behavior-changes-16)。
 
 ### Fragment 转场动画
 
-```java
-// 设置自定义动画
-getFragmentManager().beginTransaction()
+新代码使用 AndroidX Fragment，不把旧 `getFragmentManager()` 与 AndroidX transition 内部类混用。`FragmentTransitionSupport.beginDelayedTransition(...)` 不是应用应调用的公开入口。
+
+```kotlin
+// 位于 FragmentActivity/AppCompatActivity；fragment 为 AndroidX Fragment。
+supportFragmentManager.beginTransaction()
+    .setReorderingAllowed(true)
     .setCustomAnimations(
-        R.anim.slide_in_right,
-        R.anim.slide_out_left,
-        R.anim.slide_in_left,
-        R.anim.slide_out_right
+        R.anim.slide_in_right, R.anim.slide_out_left,
+        R.anim.slide_in_left, R.anim.slide_out_right
     )
     .replace(R.id.container, fragment)
-    .commit();
-
-// 使用 FragmentTransitions (API 28+)
-FragmentTransitionSupport.beginDelayedTransition(fragmentContainer);
+    .addToBackStack(null)
+    .commit()
 ```
 
----
+Fragment 的 enter/exit/shared-element transition 与普通 ViewGroup 的 `androidx.transition.TransitionManager.beginDelayedTransition(sceneRoot)` 不同；后者不是通用的 Fragment 转场启动器。预测返回支持取决于 AndroidX 版本和动画类型，本文不追改依赖号。依据：[官方 Fragment 动画指南](https://developer.android.com/guide/fragments/animate)。
 
 ## Material Design 动画
 
@@ -1359,17 +1510,17 @@ hideAnimator.start();
 
 ### 1. 使用硬件加速
 
-```java
-// 在 View 上启用硬件加速
-view.setLayerType(View.LAYER_TYPE_HARDWARE, null);
+`setLayerType(LAYER_TYPE_HARDWARE)` 是在已有硬件加速窗口中缓存 View 的离屏层，不是开启窗口硬件加速。窗口级配置在 manifest 中；不要把 XML 写进 Java 代码块。临时属性动画可按需使用：
 
-// 或者在 Activity/Application 级别
-<application android:hardwareAccelerated="true">
+```kotlin
+view.animate().alpha(0f).setDuration(300L).withLayer().start()
 ```
+
+`withLayer()` 会在动画结束后恢复先前层类型，仍应避免无测量依据地给所有 View 建层。频繁变更内容会使缓存失效并增加显存成本。依据：[官方硬件加速指南](https://developer.android.com/develop/ui/views/graphics/hardware-accel)。
 
 ### 2. 减少重绘
 
-- 使用 `canvas.save()` 和 `canvas.restore()` 限制绘制区域
+- `canvas.save()` / `restore()` 仅保存恢复矩阵和裁剪状态；限制区域需要配合 `clipRect()` 等操作
 - 避免在 `onDraw()` 中创建对象
 - 使用 `clipRect()` 减少绘制区域
 
@@ -1386,8 +1537,8 @@ recyclerView.setItemAnimator(itemAnimator);
 ### 4. 动画优化技巧
 
 ```java
-// 使用nineoldandroids兼容库操作属性动画（在旧版本API）
-// 替代方案：使用 AndroidX 动画库
+// NineOldAndroids 仅属早期 API < 11 的历史兼容方案，不作为 Android 17 新项目建议。
+// 平台属性动画与 AndroidX 库按实际功能选择，不在此追改依赖版本。
 
 // 避免在动画中触发过度绘制
 // 使用 ViewPropertyAnimator（简洁的API）
@@ -1403,19 +1554,9 @@ view.animate()
 
 ### 5. 监控动画性能
 
-```java
-// 使用 Choreographer 监控帧率
-Choreographer.getInstance().postFrameCallback(new Choreographer.FrameCallback() {
-    @Override
-    public void doFrame(long frameTimeNanos) {
-        // 每一帧的回调
-        // 计算帧率：1000000000L / (frameTimeNanos - lastFrameTime)
-        Choreographer.getInstance().postFrameCallback(this);
-    }
-});
-```
+`Choreographer.postFrameCallback` 时间间隔只能观察应用回调节奏，不等于屏幕真实呈现帧率；单次回调耗时也不包含全部 RenderThread/GPU/合成耗时。自注册循环回调时必须持有引用并在页面停止时 `removeFrameCallback`，否则会持续调度。
 
----
+分析动画应分清 UI、渲染和合成阶段，并在 60/90/120 Hz、关闭动画、后台切换及取消交互时分别回归。依据：[属性动画官方指南](https://developer.android.com/develop/ui/views/animations/prop-animation)。
 
 ## 实战技巧
 
@@ -1425,14 +1566,14 @@ Choreographer.getInstance().postFrameCallback(new Choreographer.FrameCallback() 
 // 正确做法：使用弱引用或在 onDestroy 中取消
 public class MyActivity extends AppCompatActivity {
     private ObjectAnimator animator;
-    
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         animator = ObjectAnimator.ofFloat(view, "alpha", 1f, 0f);
         animator.start();
     }
-    
+
     @Override
     protected void onDestroy() {
         super.onDestroy();
@@ -1479,13 +1620,13 @@ private void showHeartAnimation(View view) {
     view.setScaleX(0f);
     view.setScaleY(0f);
     view.setVisibility(View.VISIBLE);
-    
+
     AnimatorSet set = new AnimatorSet();
-    
+
     ObjectAnimator scaleUpX = ObjectAnimator.ofFloat(view, "scaleX", 0f, 1.2f, 1f);
     ObjectAnimator scaleUpY = ObjectAnimator.ofFloat(view, "scaleY", 0f, 1.2f, 1f);
     ObjectAnimator alpha = ObjectAnimator.ofFloat(view, "alpha", 0f, 1f);
-    
+
     set.playTogether(scaleUpX, scaleUpY, alpha);
     set.setDuration(400);
     set.setInterpolator(new OvershootInterpolator());
@@ -1499,11 +1640,11 @@ private void showHeartAnimation(View view) {
 // 管理所有动画，便于统一取消
 public class AnimationManager {
     private final List<Animator> animators = new ArrayList<>();
-    
+
     public void addAnimator(Animator animator) {
         animators.add(animator);
     }
-    
+
     public void cancelAll() {
         for (Animator animator : animators) {
             animator.cancel();

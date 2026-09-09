@@ -1156,5 +1156,36 @@ JavaScript Thread              Bridge              Native Thread
 ---
 
 **文档版本**：v1.0  
-**更新时间**：2026-03-10  
+**更新时间**：2026-09-09
 **适用版本**：React Native 0.73+
+
+
+## 第 19 章 工程化实战：New Architecture 页面
+
+React Native 0.82.0 只运行 New Architecture。Fabric、TurboModule、Codegen 和 JSI 是 RN/React Native 的实现，不是 Android API；权限、Activity 重建、TLS 和 `.so` 加载仍由 Android 宿主负责。
+
+```tsx
+function SearchScreen({endpoint}: {endpoint: string}) {
+  const [rows, setRows] = React.useState<{id: string; title: string}[]>([]);
+  const [error, setError] = React.useState<string>();
+  React.useEffect(() => {
+    const controller = new AbortController(); let active = true;
+    (async () => {
+      try {
+        const response = await fetch(endpoint, {signal: controller.signal});
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data: unknown = await response.json();
+        if (!Array.isArray(data)) throw new Error('bad payload');
+        if (active) setRows(data as {id: string; title: string}[]);
+      } catch (e) {
+        if ((e as {name?: string}).name !== 'AbortError' && active) setError('加载失败');
+      }
+    })();
+    return () => { active = false; controller.abort(); };
+  }, [endpoint]);
+  return <FlatList data={rows} keyExtractor={item => item.id}
+    renderItem={({item}) => <Text>{item.title}</Text>} />;
+}
+```
+
+`endpoint` 是业务传入的 HTTPS 地址，数据校验契约也由业务定义；示例不虚构 RN 或 Android 接口。组件卸载取消 fetch，旧结果不回写；生产代码还应限制响应大小、区分权限拒绝/网络失败和服务端错误，并为重试定义幂等语义。

@@ -1406,14 +1406,22 @@ public class IActivityManagerHook {
 
 ### 5.3 占坑 Activity 方案
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                    占坑 Activity 方案详解                                    │
-└─────────────────────────────────────────────────────────────────────────────┘
+占坑 Activity 只解决系统组件解析阶段的宿主入口问题，并不会自动完成插件类加载、资源切换或生命周期转发。典型声明如下：
 
-1. AndroidManifest.xml 声明占坑 Activity
-┌─────────────────────────────────────────────────────────────────────────────┐
-│ <application>                                                              │
-│     <!-- 标准模式占坑 -->                                                   │
-│     <activity android:name=".stub.StubActivity0" android:exported="false" />│
-│     <activity android:name=".stub
+```xml
+<application>
+    <activity android:name=".stub.StubActivity0" android:exported="false" />
+</application>
+```
+
+宿主在 `StubActivity.onCreate()` 中读取插件标识，创建对应的 `ClassLoader` 与 `Resources`，再由插件页面控制器完成视图创建。插件 Activity 的 `onSaveInstanceState()`、配置变化和返回栈必须由宿主显式映射；插件组件不能绕过 Android 的导出、权限和 `ActivityTaskManager` 校验。
+
+### 5.4 方案选择
+
+| 方案 | 适用场景 | 主要代价 |
+|---|---|---|
+| 宿主 Activity 承载 | 页面或业务模块动态加载 | 插件生命周期不是系统原生组件生命周期 |
+| 占坑 Activity | 需要保持启动 Intent 形态 | 需要处理 launchMode、task、返回栈和配置变化 |
+| 系统级插件机制 | 设备厂商或系统应用 | 需要平台签名、权限和严格版本契约 |
+
+无论采用哪种方案，动态代码校验、版本兼容、资源隔离和失败回滚都属于宿主责任；`ClassLoader` 只负责类查找，不提供安全沙箱。

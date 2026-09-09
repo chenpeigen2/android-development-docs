@@ -1,160 +1,142 @@
 # Android 网络请求库完全指南
 
-> 作者：OpenClaw | 日期：2026-03-10  
+> 适用环境：Android 17（API 37）；源码分析固定为 OkHttp 4.12.0 与 Retrofit 2.9.0，协程与 RxJava 适配按该发布版本说明。
+
+> 作者：OpenClaw | 日期：2026-03-10
 > 涵盖：OkHttp | Retrofit
 
 ---
 
-## 📚 目录
+## 目录
 
-### 第一篇：OkHttp - Square 出品的网络请求库
-
-**第 1 章 OkHttp 概述**
-- 1.1 [什么是 OkHttp？](#11-什么是-okhttp)
-- 1.2 [核心优势](#12-核心优势)
-- 1.3 [添加依赖](#13-添加依赖)
-- 1.4 [权限配置](#14-权限配置)
-
-**第 2 章 OkHttp 基本使用**
-- 2.1 [创建 OkHttpClient](#21-创建-okhttpclient)
-- 2.2 [同步请求](#22-同步请求)
-- 2.3 [异步请求](#23-异步请求)
-- 2.4 [GET 请求](#24-get-请求)
-- 2.5 [POST 请求](#25-post-请求)
-- 2.6 [文件上传](#26-文件上传)
-- 2.7 [文件下载](#27-文件下载)
-
-**第 3 章 OkHttp 拦截器**
-- 3.1 [拦截器概述](#31-拦截器概述)
-- 3.2 [应用拦截器](#32-应用拦截器)
-- 3.3 [网络拦截器](#33-网络拦截器)
-- 3.4 [日志拦截器](#34-日志拦截器)
-- 3.5 [缓存拦截器](#35-缓存拦截器)
-- 3.6 [头部拦截器](#36-头部拦截器)
-
-**第 4 章 OkHttp 缓存机制**
-- 4.1 [缓存策略](#41-缓存策略)
-- 4.2 [缓存配置](#42-缓存配置)
-- 4.3 [强制刷新](#43-强制刷新)
-- 4.4 [离线缓存](#44-离线缓存)
-
-**第 5 章 OkHttp 连接管理**
-- 5.1 [连接池](#51-连接池)
-- 5.2 [连接复用](#52-连接复用)
-- 5.3 [连接超时](#53-连接超时)
-- 5.4 [DNS 解析](#54-dns-解析)
-
-**第 6 章 OkHttp 高级功能**
-- 6.1 [WebSocket](#61-websocket)
-- 6.2 [HTTPS 配置](#62-https-配置)
-- 6.3 [证书绑定](#63-证书绑定)
-- 6.4 [Cookie 管理](#64-cookie-管理)
-- 6.5 [请求重试](#65-请求重试)
-
-**第 7 章 OkHttp 核心原理**
-- 7.1 [请求流程](#71-请求流程)
-- 7.2 [拦截器链](#72-拦截器链)
-- 7.3 [连接池原理](#73-连接池原理)
-- 7.4 [缓存原理](#74-缓存原理)
-
-**第 8 章 OkHttp 源码解析**
-- 8.1 [OkHttpClient 创建](#81-okhttpclient-创建)
-- 8.2 [Call 创建与执行](#82-call-创建与执行)
-- 8.3 [Dispatcher 调度器](#83-dispatcher-调度器)
-- 8.4 [ConnectionPool](#84-connectionpool)
-
-**第 9 章 OkHttp 性能优化**
-- 9.1 [连接优化](#91-连接优化)
-- 9.2 [缓存优化](#92-缓存优化)
-- 9.3 [请求优化](#93-请求优化)
-- 9.4 [内存优化](#94-内存优化)
-
-**第 10 章 OkHttp 面试常见问题**
-- 10.1 [拦截器原理](#101-拦截器原理)
-- 10.2 [连接池复用](#102-连接池复用)
-- 10.3 [缓存策略](#103-缓存策略)
-- 10.4 [同步 vs 异步](#104-同步-vs-异步)
-- 10.5 [Dispatcher](#105-dispatcher)
-- 10.6 [责任链模式](#106-责任链模式)
-- 10.7 [WebSocket](#107-websocket)
-- 10.8 [HTTPS 握手](#108-https-握手)
-- 10.9 [OkHttp vs HttpURLConnection](#109-okhttp-vs-httpurlconnection)
-- 10.10 [最佳实践](#1010-最佳实践)
-
----
-
-### 第二篇：Retrofit - Square 出品的 REST 客户端
-
-**第 11 章 Retrofit 概述**
-- 11.1 [什么是 Retrofit？](#111-什么是-retrofit)
-- 11.2 [核心优势](#112-核心优势)
-- 11.3 [添加依赖](#113-添加依赖)
-- 11.4 [与 OkHttp 关系](#114-与-okhttp-关系)
-
-**第 12 章 Retrofit 基本使用**
-- 12.1 [创建 Retrofit 实例](#121-创建-retrofit-实例)
-- 12.2 [定义 API 接口](#122-定义-api-接口)
-- 12.3 [GET 请求](#123-get-请求)
-- 12.4 [POST 请求](#124-post-请求)
-- 12.5 [PUT 请求](#125-put-请求)
-- 12.6 [DELETE 请求](#126-delete-请求)
-
-**第 13 章 Retrofit 注解详解**
-- 13.1 [请求方法注解](#131-请求方法注解)
-- 13.2 [请求头注解](#132-请求头注解)
-- 13.3 [请求参数注解](#133-请求参数注解)
-- 13.4 [请求体注解](#134-请求体注解)
-- 13.5 [标记注解](#135-标记注解)
-
-**第 14 章 Retrofit 高级功能**
-- 14.1 [Converter 转换器](#141-converter-转换器)
-- 14.2 [CallAdapter 适配器](#142-calladapter-适配器)
-- 14.3 [文件上传](#143-文件上传)
-- 14.4 [文件下载](#144-文件下载)
-- 14.5 [动态 URL](#145-动态-url)
-- 14.6 [取消请求](#146-取消请求)
-
-**第 15 章 Retrofit 与协程**
-- 15.1 [suspend 函数](#151-suspend-函数)
-- 15.2 [Flow 集成](#152-flow-集成)
-- 15.3 [异常处理](#153-异常处理)
-- 15.4 [超时控制](#154-超时控制)
-
-**第 16 章 Retrofit 与 RxJava**
-- 16.1 [RxJava 集成](#161-rxjava-集成)
-- 16.2 [Observable 转换](#162-observable-转换)
-- 16.3 [线程调度](#163-线程调度)
-- 16.4 [错误处理](#164-错误处理)
-
-**第 17 章 Retrofit 核心原理**
-- 17.1 [动态代理](#171-动态代理)
-- 17.2 [注解解析](#172-注解解析)
-- 17.3 [ServiceMethod](#173-servicemethod)
-- 17.4 [OkHttpCall](#174-okhttpcall)
-
-**第 18 章 Retrofit 源码解析**
-- 18.1 [Retrofit 创建流程](#181-retrofit-创建流程)
-- 18.2 [create 方法解析](#182-create-方法解析)
-- 18.3 [loadServiceMethod](#183-loadservicemethod)
-- 18.4 [invoke 方法](#184-invoke-方法)
-
-**第 19 章 Retrofit 性能优化**
-- 19.1 [单例模式](#191-单例模式)
-- 19.2 [缓存优化](#192-缓存优化)
-- 19.3 [请求优化](#193-请求优化)
-- 19.4 [错误处理优化](#194-错误处理优化)
-
-**第 20 章 Retrofit 面试常见问题**
-- 20.1 [动态代理原理](#201-动态代理原理)
-- 20.2 [注解解析流程](#202-注解解析流程)
-- 20.3 [Converter 原理](#203-converter-原理)
-- 20.4 [CallAdapter 原理](#204-calladapter-原理)
-- 20.5 [与 OkHttp 关系](#205-与-okhttp-关系)
-- 20.6 [线程切换](#206-线程切换)
-- 20.7 [suspend 支持](#207-suspend-支持)
-- 20.8 [文件上传原理](#208-文件上传原理)
-- 20.9 [Retrofit vs Volley](#209-retrofit-vs-volley)
-- 20.10 [最佳实践](#2010-最佳实践)
+- [第一篇：OkHttp - Square 出品的网络请求库](#第一篇okhttp---square-出品的网络请求库)
+- [第 1 章 OkHttp 概述](#第-1-章-okhttp-概述)
+  - [1.1 什么是 OkHttp？](#11-什么是-okhttp)
+  - [1.2 核心优势](#12-核心优势)
+  - [1.3 添加依赖](#13-添加依赖)
+  - [1.4 权限配置](#14-权限配置)
+- [第 2 章 OkHttp 基本使用](#第-2-章-okhttp-基本使用)
+  - [2.1 创建 OkHttpClient](#21-创建-okhttpclient)
+  - [2.2 同步请求](#22-同步请求)
+  - [2.3 异步请求](#23-异步请求)
+  - [2.4 GET 请求](#24-get-请求)
+  - [2.5 POST 请求](#25-post-请求)
+  - [2.6 文件上传](#26-文件上传)
+  - [2.7 文件下载](#27-文件下载)
+- [第 3 章 OkHttp 拦截器](#第-3-章-okhttp-拦截器)
+  - [3.1 拦截器概述](#31-拦截器概述)
+  - [3.2 应用拦截器](#32-应用拦截器)
+  - [3.3 网络拦截器](#33-网络拦截器)
+  - [3.4 日志拦截器](#34-日志拦截器)
+  - [3.5 缓存拦截器](#35-缓存拦截器)
+  - [3.6 头部拦截器](#36-头部拦截器)
+- [第 4 章 OkHttp 缓存机制](#第-4-章-okhttp-缓存机制)
+  - [4.1 缓存策略](#41-缓存策略)
+  - [4.2 缓存配置](#42-缓存配置)
+  - [4.3 强制刷新](#43-强制刷新)
+  - [4.4 离线缓存](#44-离线缓存)
+- [第 5 章 OkHttp 连接管理](#第-5-章-okhttp-连接管理)
+  - [5.1 连接池](#51-连接池)
+  - [5.2 连接复用](#52-连接复用)
+  - [5.3 连接超时](#53-连接超时)
+  - [5.4 DNS 解析](#54-dns-解析)
+- [第 6 章 OkHttp 高级功能](#第-6-章-okhttp-高级功能)
+  - [6.1 WebSocket](#61-websocket)
+  - [6.2 HTTPS 配置](#62-https-配置)
+  - [6.3 证书绑定](#63-证书绑定)
+  - [6.4 Cookie 管理](#64-cookie-管理)
+  - [6.5 请求重试](#65-请求重试)
+- [第 7 章 OkHttp 核心原理](#第-7-章-okhttp-核心原理)
+  - [7.1 整体架构](#71-整体架构)
+  - [7.2 请求完整流程（源码级）](#72-请求完整流程源码级)
+  - [7.3 拦截器链（责任链模式）深度分析](#73-拦截器链责任链模式深度分析)
+  - [7.4 连接池原理（ConnectionPool）](#74-连接池原理connectionpool)
+  - [7.5 缓存原理（CacheInterceptor）](#75-缓存原理cacheinterceptor)
+  - [7.6 RetryAndFollowUpInterceptor 重试与重定向](#76-retryandfollowupinterceptor-重试与重定向)
+  - [7.7 Okio 底层 I/O](#77-okio-底层-io)
+- [第 8 章 OkHttp 源码解析](#第-8-章-okhttp-源码解析)
+  - [8.1 源码入口与对象职责](#81-源码入口与对象职责)
+  - [8.2 Call 创建与执行（同步/异步）](#82-call-创建与执行同步异步)
+  - [8.3 Dispatcher 调度器（并发控制核心）](#83-dispatcher-调度器并发控制核心)
+  - [8.4 RealConnection 与 Socket](#84-realconnection-与-socket)
+  - [8.5 Exchange 与连接释放](#85-exchange-与连接释放)
+- [第 9 章 OkHttp 性能优化](#第-9-章-okhttp-性能优化)
+  - [9.1 连接优化](#91-连接优化)
+  - [9.2 缓存优化](#92-缓存优化)
+  - [9.3 请求优化](#93-请求优化)
+  - [9.4 内存优化](#94-内存优化)
+- [第 10 章 OkHttp 面试常见问题](#第-10-章-okhttp-面试常见问题)
+  - [10.1 拦截器原理](#101-拦截器原理)
+  - [10.2 连接池复用](#102-连接池复用)
+  - [10.3 缓存策略](#103-缓存策略)
+  - [10.4 同步 vs 异步](#104-同步-vs-异步)
+  - [10.5 Dispatcher](#105-dispatcher)
+  - [10.6 责任链模式](#106-责任链模式)
+  - [10.7 WebSocket](#107-websocket)
+  - [10.8 HTTPS 握手](#108-https-握手)
+  - [10.9 OkHttp vs HttpURLConnection](#109-okhttp-vs-httpurlconnection)
+  - [10.10 最佳实践](#1010-最佳实践)
+- [第二篇：Retrofit - Square 出品的 REST 客户端](#第二篇retrofit---square-出品的-rest-客户端)
+- [第 11 章 Retrofit 概述](#第-11-章-retrofit-概述)
+  - [11.1 什么是 Retrofit？](#111-什么是-retrofit)
+  - [11.2 核心优势](#112-核心优势)
+  - [11.3 添加依赖](#113-添加依赖)
+  - [11.4 与 OkHttp 关系](#114-与-okhttp-关系)
+- [第 12 章 Retrofit 基本使用](#第-12-章-retrofit-基本使用)
+  - [12.1 创建 Retrofit 实例](#121-创建-retrofit-实例)
+  - [12.2 定义 API 接口](#122-定义-api-接口)
+  - [12.3 GET 请求](#123-get-请求)
+  - [12.4 POST 请求](#124-post-请求)
+  - [12.5 PUT 请求](#125-put-请求)
+  - [12.6 DELETE 请求](#126-delete-请求)
+- [第 13 章 Retrofit 注解详解](#第-13-章-retrofit-注解详解)
+  - [13.1 请求方法注解](#131-请求方法注解)
+  - [13.2 请求头注解](#132-请求头注解)
+  - [13.3 请求参数注解](#133-请求参数注解)
+  - [13.4 请求体注解](#134-请求体注解)
+  - [13.5 标记注解](#135-标记注解)
+- [第 14 章 Retrofit 高级功能](#第-14-章-retrofit-高级功能)
+  - [14.1 Converter 转换器](#141-converter-转换器)
+  - [14.2 CallAdapter 适配器](#142-calladapter-适配器)
+  - [14.3 文件上传](#143-文件上传)
+  - [14.4 文件下载](#144-文件下载)
+  - [14.5 动态 URL](#145-动态-url)
+  - [14.6 取消请求](#146-取消请求)
+- [第 15 章 Retrofit 与协程](#第-15-章-retrofit-与协程)
+  - [15.1 suspend 接口与返回类型](#151-suspend-接口与返回类型)
+  - [15.2 创建客户端](#152-创建客户端)
+  - [15.3 取消如何传到网络层](#153-取消如何传到网络层)
+  - [15.4 ViewModel 与视图生命周期](#154-viewmodel-与视图生命周期)
+  - [15.5 HTTP、业务与协议错误](#155-http业务与协议错误)
+  - [15.6 重试与超时](#156-重试与超时)
+- [第 16 章 Retrofit 与 RxJava](#第-16-章-retrofit-与-rxjava)
+  - [16.1 选择匹配的适配器](#161-选择匹配的适配器)
+  - [16.2 接口与线程](#162-接口与线程)
+  - [16.3 订阅与释放](#163-订阅与释放)
+  - [16.4 重试操作符](#164-重试操作符)
+  - [16.5 背压与请求数量](#165-背压与请求数量)
+- [第 17 章 Retrofit 核心原理](#第-17-章-retrofit-核心原理)
+  - [17.1 动态代理](#171-动态代理)
+  - [17.2 注解到请求](#172-注解到请求)
+  - [17.3 Converter](#173-converter)
+  - [17.4 CallAdapter](#174-calladapter)
+  - [17.5 缓存与复用](#175-缓存与复用)
+- [第 18 章 Retrofit 源码调用链](#第-18-章-retrofit-源码调用链)
+  - [18.1 loadServiceMethod](#181-loadservicemethod)
+  - [18.2 HttpServiceMethod](#182-httpservicemethod)
+  - [18.3 OkHttpCall](#183-okhttpcall)
+  - [18.4 parseResponse](#184-parseresponse)
+- [第 19 章 网络性能与可观测性](#第-19-章-网络性能与可观测性)
+  - [19.1 复用与并发预算](#191-复用与并发预算)
+  - [19.2 大响应](#192-大响应)
+  - [19.3 测试设计](#193-测试设计)
+  - [19.4 Android 17 本地网络权限](#194-android-17-本地网络权限)
+- [第 20 章 常见问题](#第-20-章-常见问题)
+  - [20.1 suspend 是否运行在主线程上？](#201-suspend-是否运行在主线程上)
+  - [20.2 HTTP 错误为什么没有进入 onFailure？](#202-http-错误为什么没有进入-onfailure)
+  - [20.3 连接池为什么不能解决所有慢请求？](#203-连接池为什么不能解决所有慢请求)
+  - [20.4 取消后为什么仍要校验页面状态？](#204-取消后为什么仍要校验页面状态)
+  - [20.5 版本升级改变哪些边界？](#205-版本升级改变哪些边界)
 
 ---
 
@@ -168,7 +150,7 @@
 
 **OkHttp** 是 Square 公司开源的 Android/Java HTTP 客户端，是目前 Android 开发中使用最广泛的网络请求库。
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         OkHttp 核心特性                                      │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -201,7 +183,7 @@
 
 ### 1.2 核心优势
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         OkHttp 核心优势                                      │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -226,7 +208,7 @@
 dependencies {
     // OkHttp 核心库
     implementation 'com.squareup.okhttp3:okhttp:4.12.0'
-    
+
     // OkHttp 日志拦截器
     implementation 'com.squareup.okhttp3:logging-interceptor:4.12.0'
 }
@@ -270,10 +252,10 @@ public void syncRequest() throws IOException {
     Request request = new Request.Builder()
         .url("https://api.example.com/data")
         .build();
-    
+
     // 2. 创建 Call
     Call call = client.newCall(request);
-    
+
     // 3. 执行同步请求（会阻塞当前线程）
     try (Response response = call.execute()) {
         if (response.isSuccessful()) {
@@ -301,10 +283,10 @@ public void asyncRequest() {
     Request request = new Request.Builder()
         .url("https://api.example.com/data")
         .build();
-    
+
     // 2. 创建 Call
     Call call = client.newCall(request);
-    
+
     // 3. 执行异步请求
     call.enqueue(new Callback() {
         @Override
@@ -312,13 +294,13 @@ public void asyncRequest() {
             // 请求失败（在子线程）
             e.printStackTrace();
         }
-        
+
         @Override
         public void onResponse(Call call, Response response) throws IOException {
             // 请求成功（在子线程）
             if (response.isSuccessful()) {
                 String responseData = response.body().string();
-                
+
                 // 切换到主线程更新 UI
                 runOnUiThread(() -> {
                     textView.setText(responseData);
@@ -337,7 +319,7 @@ public void getRequest() {
     Request request = new Request.Builder()
         .url("https://api.example.com/users")
         .build();
-    
+
     client.newCall(request).enqueue(callback);
 }
 
@@ -345,18 +327,18 @@ public void getRequest() {
 public void getWithParams() {
     // 方式1: 拼接 URL
     String url = "https://api.example.com/users?page=1&size=20";
-    
+
     // 方式2: 使用 HttpUrl.Builder
     HttpUrl httpUrl = HttpUrl.parse("https://api.example.com/users")
         .newBuilder()
         .addQueryParameter("page", "1")
         .addQueryParameter("size", "20")
         .build();
-    
+
     Request request = new Request.Builder()
         .url(httpUrl)
         .build();
-    
+
     client.newCall(request).enqueue(callback);
 }
 
@@ -367,7 +349,7 @@ public void getWithHeaders() {
         .addHeader("Authorization", "Bearer token123")
         .addHeader("Content-Type", "application/json")
         .build();
-    
+
     client.newCall(request).enqueue(callback);
 }
 ```
@@ -378,17 +360,17 @@ public void getWithHeaders() {
 // 1. POST JSON 数据
 public void postJson() {
     String json = "{\"name\":\"张三\",\"age\":25}";
-    
+
     RequestBody body = RequestBody.create(
-        json, 
+        json,
         MediaType.parse("application/json; charset=utf-8")
     );
-    
+
     Request request = new Request.Builder()
         .url("https://api.example.com/users")
         .post(body)
         .build();
-    
+
     client.newCall(request).enqueue(callback);
 }
 
@@ -398,31 +380,31 @@ public void postForm() {
         .add("username", "admin")
         .add("password", "123456")
         .build();
-    
+
     Request request = new Request.Builder()
         .url("https://api.example.com/login")
         .post(formBody)
         .build();
-    
+
     client.newCall(request).enqueue(callback);
 }
 
 // 3. POST Multipart（文件+参数）
 public void postMultipart() {
     File file = new File("/sdcard/image.jpg");
-    
+
     RequestBody requestBody = new MultipartBody.Builder()
         .setType(MultipartBody.FORM)
         .addFormDataPart("username", "张三")
         .addFormDataPart("avatar", "image.jpg",
             RequestBody.create(file, MediaType.parse("image/jpeg")))
         .build();
-    
+
     Request request = new Request.Builder()
         .url("https://api.example.com/upload")
         .post(requestBody)
         .build();
-    
+
     client.newCall(request).enqueue(callback);
 }
 ```
@@ -433,30 +415,30 @@ public void postMultipart() {
 // 1. 上传单个文件
 public void uploadFile() {
     File file = new File("/sdcard/test.jpg");
-    
+
     RequestBody fileBody = RequestBody.create(
-        file, 
+        file,
         MediaType.parse("image/jpeg")
     );
-    
+
     Request request = new Request.Builder()
         .url("https://api.example.com/upload")
         .post(fileBody)
         .build();
-    
+
     client.newCall(request).enqueue(callback);
 }
 
 // 2. 带进度的文件上传
 public void uploadWithProgress() {
     File file = new File("/sdcard/test.zip");
-    
+
     RequestBody requestBody = new RequestBody() {
         @Override
         public MediaType contentType() {
             return MediaType.parse("application/octet-stream");
         }
-        
+
         @Override
         public void writeTo(BufferedSink sink) throws IOException {
             Source source = null;
@@ -465,11 +447,11 @@ public void uploadWithProgress() {
                 Buffer buffer = new Buffer();
                 long total = file.length();
                 long uploaded = 0;
-                
+
                 for (long read; (read = source.read(buffer, 8192)) != -1; ) {
                     sink.write(buffer, read);
                     uploaded += read;
-                    
+
                     // 更新进度
                     int progress = (int) (uploaded * 100 / total);
                     runOnUiThread(() -> {
@@ -483,12 +465,12 @@ public void uploadWithProgress() {
             }
         }
     };
-    
+
     Request request = new Request.Builder()
         .url("https://api.example.com/upload")
         .post(requestBody)
         .build();
-    
+
     client.newCall(request).enqueue(callback);
 }
 ```
@@ -501,25 +483,25 @@ public void downloadFile() {
     Request request = new Request.Builder()
         .url("https://example.com/file.zip")
         .build();
-    
+
     client.newCall(request).enqueue(new Callback() {
         @Override
         public void onFailure(Call call, IOException e) {
             e.printStackTrace();
         }
-        
+
         @Override
         public void onResponse(Call call, Response response) throws IOException {
             if (response.isSuccessful()) {
                 InputStream inputStream = response.body().byteStream();
                 FileOutputStream fos = new FileOutputStream("/sdcard/file.zip");
-                
+
                 byte[] buffer = new byte[2048];
                 int len;
                 while ((len = inputStream.read(buffer)) != -1) {
                     fos.write(buffer, 0, len);
                 }
-                
+
                 fos.flush();
                 fos.close();
                 inputStream.close();
@@ -533,7 +515,7 @@ public void downloadWithProgress() {
     Request request = new Request.Builder()
         .url("https://example.com/file.zip")
         .build();
-    
+
     client.newCall(request).enqueue(new Callback() {
         @Override
         public void onResponse(Call call, Response response) throws IOException {
@@ -541,28 +523,28 @@ public void downloadWithProgress() {
                 long contentLength = response.body().contentLength();
                 InputStream inputStream = response.body().byteStream();
                 FileOutputStream fos = new FileOutputStream("/sdcard/file.zip");
-                
+
                 byte[] buffer = new byte[2048];
                 int len;
                 long downloaded = 0;
-                
+
                 while ((len = inputStream.read(buffer)) != -1) {
                     fos.write(buffer, 0, len);
                     downloaded += len;
-                    
+
                     // 更新进度
                     int progress = (int) (downloaded * 100 / contentLength);
                     runOnUiThread(() -> {
                         progressBar.setProgress(progress);
                     });
                 }
-                
+
                 fos.flush();
                 fos.close();
                 inputStream.close();
             }
         }
-        
+
         @Override
         public void onFailure(Call call, IOException e) {
             e.printStackTrace();
@@ -577,7 +559,7 @@ public void downloadWithProgress() {
 
 ### 3.1 拦截器概述
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         OkHttp 拦截器链                                      │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -617,23 +599,23 @@ public void downloadWithProgress() {
 
 ```java
 public class LoggingInterceptor implements Interceptor {
-    
+
     @Override
     public Response intercept(Chain chain) throws IOException {
         // 1. 获取请求
         Request request = chain.request();
-        
+
         long startTime = System.nanoTime();
         Log.d("OkHttp", String.format("Sending request %s on %s%n%s",
             request.url(), chain.connection(), request.headers()));
-        
+
         // 2. 执行请求
         Response response = chain.proceed(request);
-        
+
         long endTime = System.nanoTime();
         Log.d("OkHttp", String.format("Received response for %s in %.1fms%n%s",
             response.request().url(), (endTime - startTime) / 1e6d, response.headers()));
-        
+
         return response;
     }
 }
@@ -648,21 +630,21 @@ OkHttpClient client = new OkHttpClient.Builder()
 
 ```java
 public class NetworkInterceptor implements Interceptor {
-    
+
     @Override
     public Response intercept(Chain chain) throws IOException {
         Request request = chain.request();
-        
+
         // 可以访问 Connection
         Connection connection = chain.connection();
-        
+
         // 执行请求
         Response response = chain.proceed(request);
-        
+
         // 可以看到缓存响应头
         Log.d("OkHttp", "Cache response: " + response.cacheResponse());
         Log.d("OkHttp", "Network response: " + response.networkResponse());
-        
+
         return response;
     }
 }
@@ -675,7 +657,7 @@ OkHttpClient client = new OkHttpClient.Builder()
 
 **应用拦截器 vs 网络拦截器对比：**
 
-```
+```text
 ┌──────────────────┬──────────────────┬──────────────────┐
 │       特性        │   应用拦截器     │   网络拦截器     │
 ├──────────────────┼──────────────────┼──────────────────┤
@@ -689,10 +671,17 @@ OkHttpClient client = new OkHttpClient.Builder()
 
 ### 3.4 日志拦截器
 
+不能无条件开启 BODY：它会记录请求/响应内容；`redactHeader` 仅隐藏指定头，不会脱敏 URL 查询参数或 JSON 正文。下例仅在 debug 开 BASIC；即使 BASIC 也可能输出带敏感参数的 URL，应避免把 token 放入 URL，并按项目日志策略决定是否完全关闭。来源：[OkHttp 4.12.0 HttpLoggingInterceptor](https://github.com/square/okhttp/blob/parent-4.12.0/okhttp-logging-interceptor/src/main/kotlin/okhttp3/logging/HttpLoggingInterceptor.kt)。
+
 ```java
 // 使用官方日志拦截器
 HttpLoggingInterceptor loggingInterceptor = new HttpLoggingInterceptor();
-loggingInterceptor.setLevel(HttpLoggingInterceptor.Level.BODY);
+loggingInterceptor.redactHeader("Authorization");
+loggingInterceptor.redactHeader("Cookie");
+loggingInterceptor.redactHeader("Set-Cookie");
+loggingInterceptor.setLevel(BuildConfig.DEBUG
+        ? HttpLoggingInterceptor.Level.BASIC
+        : HttpLoggingInterceptor.Level.NONE);
 
 OkHttpClient client = new OkHttpClient.Builder()
     .addInterceptor(loggingInterceptor)
@@ -709,20 +698,20 @@ OkHttpClient client = new OkHttpClient.Builder()
 
 ```java
 public class CacheInterceptor implements Interceptor {
-    
+
     @Override
     public Response intercept(Chain chain) throws IOException {
         Request request = chain.request();
-        
+
         // 无网络时，强制使用缓存
         if (!isNetworkAvailable()) {
             request = request.newBuilder()
                 .cacheControl(CacheControl.FORCE_CACHE)
                 .build();
         }
-        
+
         Response response = chain.proceed(request);
-        
+
         if (isNetworkAvailable()) {
             // 有网络时，缓存有效期为 1 小时
             int maxAge = 60 * 60;
@@ -738,7 +727,7 @@ public class CacheInterceptor implements Interceptor {
                 .header("Cache-Control", "public, only-if-cached, max-stale=" + maxStale)
                 .build();
         }
-        
+
         return response;
     }
 }
@@ -748,11 +737,11 @@ public class CacheInterceptor implements Interceptor {
 
 ```java
 public class HeaderInterceptor implements Interceptor {
-    
+
     @Override
     public Response intercept(Chain chain) throws IOException {
         Request originalRequest = chain.request();
-        
+
         // 添加通用请求头
         Request request = originalRequest.newBuilder()
             .addHeader("Content-Type", "application/json")
@@ -760,7 +749,7 @@ public class HeaderInterceptor implements Interceptor {
             .addHeader("User-Agent", "Android App")
             .addHeader("Authorization", "Bearer " + getToken())
             .build();
-        
+
         return chain.proceed(request);
     }
 }
@@ -772,7 +761,7 @@ public class HeaderInterceptor implements Interceptor {
 
 ### 4.1 缓存策略
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         OkHttp 缓存策略                                      │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -834,26 +823,26 @@ Request request = new Request.Builder()
 ```java
 public Response getWithOfflineCache(String url) throws IOException {
     Request.Builder requestBuilder = new Request.Builder().url(url);
-    
+
     if (!isNetworkAvailable()) {
         // 无网络时，强制使用缓存
         requestBuilder.cacheControl(CacheControl.FORCE_CACHE);
     }
-    
+
     Request request = requestBuilder.build();
     Response response = client.newCall(request).execute();
-    
+
     if (response.code() == 504) {
         // 缓存不存在，返回错误
         return null;
     }
-    
+
     return response;
 }
 
 // 检查网络是否可用
 private boolean isNetworkAvailable() {
-    ConnectivityManager cm = (ConnectivityManager) 
+    ConnectivityManager cm = (ConnectivityManager)
         getSystemService(Context.CONNECTIVITY_SERVICE);
     NetworkInfo activeNetwork = cm.getActiveNetworkInfo();
     return activeNetwork != null && activeNetwork.isConnectedOrConnecting();
@@ -885,7 +874,7 @@ OkHttpClient client = new OkHttpClient.Builder()
 
 ### 5.2 连接复用
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         OkHttp 连接复用原理                                  │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -918,7 +907,7 @@ OkHttpClient client = new OkHttpClient.Builder()
 ```java
 // 自定义 DNS
 public class CustomDns implements Dns {
-    
+
     @Override
     public List<InetAddress> lookup(String hostname) throws UnknownHostException {
         try {
@@ -945,33 +934,33 @@ OkHttpClient client = new OkHttpClient.Builder()
 ```java
 // 1. 创建 WebSocket 监听器
 WebSocketListener webSocketListener = new WebSocketListener() {
-    
+
     @Override
     public void onOpen(WebSocket webSocket, Response response) {
         Log.d("WebSocket", "连接已建立");
     }
-    
+
     @Override
     public void onMessage(WebSocket webSocket, String text) {
         Log.d("WebSocket", "收到消息: " + text);
     }
-    
+
     @Override
     public void onMessage(WebSocket webSocket, ByteString bytes) {
         Log.d("WebSocket", "收到二进制消息");
     }
-    
+
     @Override
     public void onClosing(WebSocket webSocket, int code, String reason) {
         Log.d("WebSocket", "连接正在关闭");
         webSocket.close(1000, null);
     }
-    
+
     @Override
     public void onClosed(WebSocket webSocket, int code, String reason) {
         Log.d("WebSocket", "连接已关闭");
     }
-    
+
     @Override
     public void onFailure(WebSocket webSocket, Throwable t, Response response) {
         Log.e("WebSocket", "连接失败", t);
@@ -994,47 +983,26 @@ webSocket.close(1000, "Closing");
 
 ### 6.2 HTTPS 配置
 
-```java
-// 信任所有证书（仅用于测试！）
-public static OkHttpClient getUnsafeOkHttpClient() {
-    try {
-        // 创建信任所有证书的 TrustManager
-        final TrustManager[] trustAllCerts = new TrustManager[] {
-            new X509TrustManager() {
-                @Override
-                public void checkClientTrusted(X509Certificate[] chain, String authType) {
-                }
-                
-                @Override
-                public void checkServerTrusted(X509Certificate[] chain, String authType) {
-                }
-                
-                @Override
-                public X509Certificate[] getAcceptedIssuers() {
-                    return new X509Certificate[] {};
-                }
-            }
-        };
-        
-        // 安装信任管理器
-        final SSLContext sslContext = SSLContext.getInstance("SSL");
-        sslContext.init(null, trustAllCerts, new java.security.SecureRandom());
-        
-        // 创建 SSL 套接字工厂
-        final SSLSocketFactory sslSocketFactory = sslContext.getSocketFactory();
-        
-        OkHttpClient.Builder builder = new OkHttpClient.Builder();
-        builder.sslSocketFactory(sslSocketFactory, (X509TrustManager) trustAllCerts[0]);
-        builder.hostnameVerifier((hostname, session) -> true);
-        
-        return builder.build();
-    } catch (Exception e) {
-        throw new RuntimeException(e);
-    }
-}
+TLS 同时校验证书信任链与主机名；缺少任意一项都不能确认服务端身份。正常客户端使用平台默认校验：
 
-// ⚠️ 生产环境应该使用证书绑定！
+```java
+OkHttpClient client = new OkHttpClient.Builder().build();
 ```
+
+需要开发 CA 时，用 Android Network Security Configuration（API 24+）的 `debug-overrides` 限定调试包，而不是在生产客户端注入 trust-all。清单需设置 `android:networkSecurityConfig="@xml/network_security_config"`：
+
+```xml
+<!-- res/xml/network_security_config.xml；需在 res/raw/debug_cas 提供开发 CA。 -->
+<network-security-config>
+    <debug-overrides>
+        <trust-anchors>
+            <certificates src="@raw/debug_cas" />
+        </trust-anchors>
+    </debug-overrides>
+</network-security-config>
+```
+
+这里不会允许明文 HTTP，也不取消主机名校验。证书绑定不是所有生产应用的强制配置；是否启用应结合威胁模型、证书轮换和备用公钥设计，不能使用示意 pin 发布。来源：[Android 网络安全配置](https://developer.android.com/privacy-and-security/security-config)、[OkHttp 4.12.0 HTTPS 文档](https://github.com/square/okhttp/blob/parent-4.12.0/docs/https.md)。
 
 ### 6.3 证书绑定
 
@@ -1053,14 +1021,14 @@ OkHttpClient client = new OkHttpClient.Builder()
 ```java
 // 1. 创建 CookieJar
 public class PersistentCookieJar implements CookieJar {
-    
+
     private Map<String, List<Cookie>> cookieStore = new HashMap<>();
-    
+
     @Override
     public void saveFromResponse(HttpUrl url, List<Cookie> cookies) {
         cookieStore.put(url.host(), cookies);
     }
-    
+
     @Override
     public List<Cookie> loadForRequest(HttpUrl url) {
         List<Cookie> cookies = cookieStore.get(url.host());
@@ -1076,812 +1044,131 @@ OkHttpClient client = new OkHttpClient.Builder()
 
 ### 6.5 请求重试
 
+`retryOnConnectionFailure(true)` 处理连接失败后的可恢复路径，不会把任意 4xx/5xx 都重试。业务重试应限制为可重放请求；支付等写操作必须由服务端幂等协议保证，不能靠客户端重试次数消除重复提交。
+
+以下应用拦截器只对 `Retry-After: 0` 的 GET 503 立即重试一次。重试前关闭响应，最终响应所有权交给调用者；没有实例级共享计数。需要等待的退避由上层协程 `delay` 或任务调度器承担，不在 Dispatcher 线程中 `sleep`。
+
 ```java
-// 自定义重试拦截器
-public class RetryInterceptor implements Interceptor {
-    
-    private int maxRetryCount = 3;  // 最大重试次数
-    private int retryCount = 0;
-    
-    @Override
-    public Response intercept(Chain chain) throws IOException {
-        Request request = chain.request();
-        Response response = null;
-        IOException exception = null;
-        
-        while (retryCount < maxRetryCount) {
-            try {
-                response = chain.proceed(request);
-                if (response.isSuccessful()) {
-                    return response;
-                }
-            } catch (IOException e) {
-                exception = e;
-            } finally {
-                retryCount++;
-            }
+// 应用拦截器：仅立即重试一次带 Retry-After: 0 的 GET 503。
+public final class ImmediateGetRetry implements okhttp3.Interceptor {
+    @Override public okhttp3.Response intercept(Chain chain) throws java.io.IOException {
+        okhttp3.Request request = chain.request();
+        okhttp3.Response first = chain.proceed(request);
+        if (!"GET".equals(request.method()) || first.code() != 503
+                || !"0".equals(first.header("Retry-After")) || chain.call().isCanceled()) {
+            return first;
         }
-        
-        if (exception != null) {
-            throw exception;
-        }
-        
-        return response;
+        first.close();
+        return chain.proceed(request);
     }
 }
-
-// 使用重试拦截器
-OkHttpClient client = new OkHttpClient.Builder()
-    .addInterceptor(new RetryInterceptor())
-    .build();
 ```
 
----
+网络拦截器要求每次恰好调用一次 `proceed()`，上述类只能用 `addInterceptor` 注册。调用者用 `response.use { ... }` 或 try-with-resources 关闭最终响应；异常直接交给上层处理，取消不再触发重试。
+
+参考：[OkHttp 4.12.0 拦截器](https://github.com/square/okhttp/blob/parent-4.12.0/docs/interceptors.md)、[RetryAndFollowUpInterceptor.kt](https://github.com/square/okhttp/blob/parent-4.12.0/okhttp/src/main/kotlin/okhttp3/internal/http/RetryAndFollowUpInterceptor.kt)。
 
 ## 第 7 章 OkHttp 核心原理
 
 ### 7.1 整体架构
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                            OkHttp 整体架构                                   │
-└─────────────────────────────────────────────────────────────────────────────┘
+OkHttp 4.12.0 的一次调用由 `RealCall` 表示；应用层请求和响应经过拦截器链，连接发现由 `ExchangeFinder` 协助完成，一次实际 HTTP 交换由 `Exchange` 连接协议编解码器和连接。
 
-┌──────────────────────────────────────────────────────────────────────────────┐
-│                          OkHttpClient (.Builder)                            │
-│                                                                              │
-│   ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐        │
-│   │ Dispatcher │  │  Interceptors│  │  Okio       │  │ConnectionPool│        │
-│   │  (线程池)   │  │  (拦截器链)  │  │  (I/O)      │  │  (连接复用)  │        │
-│   └─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘        │
-│          │                │                │                │                │
-│          └────────────────┴────────────────┴────────────────┘                │
-│                                   │                                          │
-│                                   ▼                                          │
-│                            ┌─────────────┐                                   │
-│                            │ RealCall    │ ← 请求入口                         │
-│                            │  - execute()│   同步                             │
-│                            │  - enqueue()│   异步                             │
-│                            └──────┬──────┘                                   │
-│                                   │                                          │
-│                                   ▼                                          │
-│                        ┌─────────────────────┐                               │
-│                        │ Interceptor Chain   │                               │
-│                        │                     │                               │
-│                        │ [1] RetryAndFollowUp│                               │
-│                        │ [2] Bridge          │                               │
-│                        │ [3] Cache           │                               │
-│                        │ [4] Connect         │                               │
-│                        │ [5] CallServer      │                               │
-│                        └─────────────────────┘                               │
-└──────────────────────────────────────────────────────────────────────────────┘
-
-┌──────────────────────────────────────────────────────────────────────────────┐
-│                              请求分层                                          │
-│                                                                              │
-│  应用层  ←→ OkHttpClient + Interceptors (应用拦截器)                         │
-│   │                                                                              │
-│   ▼                                                                              │
-│  网络层  ←→ RetryAndFollowUp → Bridge → Cache → Connect → CallServer          │
-│   │                                                                              │
-│   ▼                                                                              │
-│  传输层  ←→ Socket / SSLSocket + Okio                                        │
-│   │                                                                              │
-│   ▼                                                                              │
-│  协议层  ←→ HTTP/1.1 / HTTP/2 / TLS 1.3                                      │
-└──────────────────────────────────────────────────────────────────────────────┘
+```text
+OkHttpClient.newCall(Request) -> RealCall
+  -> 应用拦截器
+  -> RetryAndFollowUpInterceptor   恢复、重定向、认证后续请求
+  -> BridgeInterceptor            HTTP 头与透明 gzip
+  -> CacheInterceptor             缓存策略与条件请求
+  -> ConnectInterceptor           建立 Exchange / 寻找连接
+  -> 网络拦截器
+  -> CallServerInterceptor        通过 Exchange 读写请求响应
 ```
+
+这些是库内部实现，不是 AOSP 类；业务只依赖 `Call`、`Interceptor`、`EventListener` 等公共接口。
 
 ### 7.2 请求完整流程（源码级）
 
-```
-用户: client.newCall(request).execute()
-        │
-        ▼
-┌──────────────────────────────────────────────────────────────────────────────┐
-│ RealCall (请求的最小执行单元)                                                 │
-│                                                                              │
-│  1. 校验是否已执行 (executed 标志)                                            │
-│  2. 同步: dispatcher.executed(this) — 加入 runningSyncCalls                  │
-│     异步: dispatcher.enqueue(AsyncCall) — 加入 readyAsyncCalls / runningAsyncCalls│
-│  3. getResponseWithInterceptorChain() — 启动拦截器链                         │
-│  4. finally: dispatcher.finished(this) — 从队列移除                           │
-└──────────────────────────────────────────────────────────────────────────────┘
-        │
-        ▼
-┌──────────────────────────────────────────────────────────────────────────────┐
-│ getResponseWithInterceptorChain() — 拦截器链的入口                            │
-│                                                                              │
-│  RealInterceptorChain(chain, index=0, request)                               │
-│        │                                                                     │
-│        │ chain.proceed(request)                                             │
-│        ▼                                                                     │
-│  拦截器[0] RetryAndFollowUpInterceptor.intercept(chain)                       │
-│        │                                                                     │
-│        │ chain.proceed(request)                                             │
-│        ▼                                                                     │
-│  拦截器[1] BridgeInterceptor.intercept(chain)                                │
-│        │  • 添加 Cookie                                                      │
-│        │  • GZIP 压缩                                                        │
-│        │  • 添加必要的 Header                                                 │
-│        │                                                                     │
-│        │ chain.proceed(request)                                             │
-│        ▼                                                                     │
-│  拦截器[2] CacheInterceptor.intercept(chain)                                │
-│        │  • 查缓存 (cache.get)                                               │
-│        │  • 缓存命中 → 直接返回缓存 Response                                  │
-│        │  • 缓存未命中 → chain.proceed(request) → 写缓存 (cache.put)         │
-│        │                                                                     │
-│        │ chain.proceed(request)                                             │
-│        ▼                                                                     │
-│  拦截器[3] ConnectInterceptor.intercept(chain)                               │
-│        │  • 从 ConnectionPool 获取 / 新建 RealConnection                      │
-│        │  • 建立 Socket 连接 / TLS 握手                                      │
-│        │  • connection.connect() → socket = rawSocket                        │
-│        │    if HTTPS: sslSocketFactory.createSocket(rawSocket)              │
-│        │                                                                     │
-│        │ chain.proceed(request)                                             │
-│        ▼                                                                     │
-│  拦截器[4] CallServerInterceptor.intercept(chain)                           │
-│        │  • 写入请求头 (sink.writeHeaders)                                   │
-│        │  • 写入请求体 (sink.writeRequestBody)                               │
-│        │  • 刷新输出 (sink.flush)                                           │
-│        │  • 读取响应头 (source.readHeaders)                                 │
-│        │  • 读取响应体 (source.readBody)                                    │
-│        │                                                                     │
-│  返回 Response ← 一层层往回走，每个拦截器对 Response 做后处理               │
-└──────────────────────────────────────────────────────────────────────────────┘
-```
+`execute()` 和 `enqueue()` 都先检查 Call 是否已经执行，一个 Call 只能执行一次。同步路径在调用线程执行拦截器链，异步路径由 Dispatcher 提交 `AsyncCall`。`getResponseWithInterceptorChain()` 组装链；结束或异常路径负责释放占用。收到响应头不代表请求资源全部结束：响应体可能仍在读取，直到关闭、读完或失败才完成相应交换。
 
 ### 7.3 拦截器链（责任链模式）深度分析
 
-#### 7.3.1 责任链模式在 OkHttp 中的实现
+应用拦截器面向逻辑请求，能看到缓存命中，并可短路返回；网络拦截器面向实际网络交换，重定向时可能运行多次，纯缓存命中时不会运行。它必须保持同一 host/port 并恰好调用一次 `proceed`。应用拦截器多次调用时必须先关闭旧响应体。
 
-```
-┌──────────────────────────────────────────────────────────────────────────────┐
-│                         责任链模式执行图                                      │
-└──────────────────────────────────────────────────────────────────────────────┘
-
-proceed() 调用链 (从上往下):
-  RealInterceptorChain.proceed(request)
-       │
-       │ index=0, 取 interceptors[0] = RetryAndFollowUpInterceptor
-       ▼
-  RetryAndFollowUpInterceptor.intercept(chain)  ← 第1个拦截器收到 chain
-       │
-       │ 创建新的 RealInterceptorChain(index=1)
-       │ 调用 chain.proceed(request) — 继续往下传
-       ▼
-  BridgeInterceptor.intercept(chain)             ← 第2个拦截器收到 chain
-       │
-       │ 创建新的 RealInterceptorChain(index=2)
-       │ 调用 chain.proceed(request) — 继续往下传
-       ▼
-  CacheInterceptor.intercept(chain)             ← 第3个拦截器收到 chain
-       │
-       │ 创建新的 RealInterceptorChain(index=3)
-       │ 调用 chain.proceed(request) — 继续往下传
-       ▼
-  ConnectInterceptor.intercept(chain)           ← 第4个拦截器收到 chain
-       │
-       │ 创建新的 RealInterceptorChain(index=4)
-       │ 调用 chain.proceed(request) — 继续往下传
-       ▼
-  CallServerInterceptor.intercept(chain)        ← 第5个拦截器（最后一层）
-       │
-       │ ⚠️ 注意：这里是最后一层，不再调用 chain.proceed()
-       │    直接执行 HTTP 请求并返回 Response
-       ▼
-  Response ← 沿原路返回，每个拦截器在 return 之前做后处理
-       │
-  ConnectInterceptor 后处理 ← 什么都不做
-       │
-  CacheInterceptor 后处理 ← 写缓存
-       │
-  BridgeInterceptor 后处理 ← GZIP 解压
-       │
-  RetryAndFollowUpInterceptor 后处理 ← 重试 / 重定向
-       │
-  返回用户
-```
-
-#### 7.3.2 RealInterceptorChain 源码核心逻辑
-
-```java
-// RealInterceptorChain.java — 拦截器链的递归/递归展开结构
-public class RealInterceptorChain implements Interceptor.Chain {
-    private final List<Interceptor> interceptors;  // 拦截器列表
-    private final int index;                        // 当前拦截器下标
-    private final Request request;                  // 当前请求
-
-    public Response proceed(Request request, StreamAllocation streamAllocation,
-            HttpCodec httpCodec, RealConnection connection) {
-
-        // 1. 校验下标不越界
-        if (index >= interceptors.size()) {
-            throw new AssertionError("拦截器链遍历完毕但未生成 Response");
-        }
-
-        // 2. 标记当前调用已启动（用于统计）
-        calls++;
-
-        // 3. 构造下一个拦截器链（index + 1）
-        RealInterceptorChain next = new RealInterceptorChain(
-            interceptors,
-            index + 1,
-            request,
-            streamAllocation,
-            httpCodec,
-            connection
-        );
-
-        // 4. 取当前拦截器，执行
-        Interceptor interceptor = interceptors.get(index);
-
-        // 5. ⚠️ 这里是关键：调用当前拦截器，传入下一个 chain
-        //    当前拦截器内部会调用 chain.proceed()，形成递归展开
-        Response response = interceptor.intercept(next);
-
-        return response;
+```kotlin
+class RequestIdInterceptor : okhttp3.Interceptor {
+    override fun intercept(chain: okhttp3.Interceptor.Chain): okhttp3.Response {
+        val request = chain.request().newBuilder()
+            .header("X-Request-Id", java.util.UUID.randomUUID().toString())
+            .build()
+        return chain.proceed(request) // 不消费、不关闭将交给调用者的 body
     }
 }
 ```
-
-#### 7.3.3 五大核心拦截器职责
-
-| 拦截器 | 职责 | 对请求做什么 | 对响应做什么 |
-|-------|------|------------|-------------|
-| **RetryAndFollowUpInterceptor** | 重试与重定向 | 判断是否重试/重定向，修改 URL | 处理 307/308 重定向，跟随 Location 头 |
-| **BridgeInterceptor** | 协议转换 | 添加默认 Header（GZIP/Keep-Alive/Content-Type） | GZIP 解压响应体 |
-| **CacheInterceptor** | HTTP 缓存 | 无 | 命中缓存直接返回，否则写入新缓存 |
-| **ConnectInterceptor** | 建立连接 | 无 | 建立 TCP + TLS 连接 |
-| **CallServerInterceptor** | 网络 I/O | 写入请求头/体 | 读取响应头/体 |
 
 ### 7.4 连接池原理（ConnectionPool）
 
-#### 7.4.1 为什么需要连接池
-
-```
-无连接池（每次请求新建连接）:
-  请求1 ──► [TCP握手: 14ms] ──► [TLS握手: 56ms] ──► [发送: 5ms] ──► [接收: 10ms] ──► 总计: 85ms
-  请求2 ──► [TCP握手: 14ms] ──► [TLS握手: 56ms] ──► [发送: 5ms] ──► [接收: 10ms] ──► 总计: 85ms
-  请求3 ──► [TCP握手: 14ms] ──► [TLS握手: 56ms] ──► [发送: 5ms] ──► [接收: 10ms] ──► 总计: 85ms
-
-有连接池（复用已建立连接）:
-  请求1 ──► [TCP握手: 14ms] ──► [TLS握手: 56ms] ──► [发送: 5ms] ──► [接收: 10ms] ──► 总计: 85ms
-  请求2 ──► [复用连接: 3ms] ──► 总计: 3ms    (节省 82ms)
-  请求3 ──► [复用连接: 3ms] ──► 总计: 3ms    (节省 82ms)
-```
-
-#### 7.4.2 连接池数据结构
-
-```java
-// ConnectionPool.java — 连接池核心
-public final class ConnectionPool {
-    // 最大空闲连接数（每个 Address）
-    private final int maxIdleConnections;
-    // 空闲连接保活时间
-    private final long keepAliveDurationNs;
-    // 连接队列（Deque 支持首尾高效增删）
-    private final ArrayDeque<RealConnection> connections = new ArrayDeque<>();
-
-    // RouteDatabase: 记录失败路线（用于快速失败跳过）
-    private final RouteDatabase routeDatabase;
-}
-```
-
-#### 7.4.3 连接获取流程
-
-```
-ConnectInterceptor.intercept(chain)
-        │
-        ▼
-RealConnection.new(connectionPool)
-        │
-        ▼
-connectionPool.get(address) — 从池中查找匹配连接
-        │
-        ├── 遍历 connections (Deque)
-        │
-        ├── 判断条件: connection.isEligible(address)
-        │      ├── HTTP/1.1 → 必须同 Address（host+port+proxy）
-        │      └── HTTP/2   → 必须同 Host（HTTP/2 多路复用，同一 host 共享一个连接）
-        │
-        ├── 找到 → return connection (复用)
-        │         └── 复用前检查: connection.isHealthy() — Socket 是否还连着
-        │
-        └── 找不到 → return null (需新建)
-                   └── 新建 RealConnection → 放入池中
-```
-
-#### 7.4.4 连接池清理机制
-
-```java
-// ConnectionPool.java — 后台清理线程
-private final Runnable cleanupRunnable = () -> {
-    while (true) {
-        // 执行清理，返回下次清理的间隔（纳秒）
-        long waitNanos = cleanup(System.nanoTime());
-        if (waitNanos == -1) return;  // 池空了，退出
-        LockSupport.parkNanos(this, waitNanos);
-    }
-};
-
-// cleanup() 核心逻辑
-long cleanup(long now) {
-    RealConnection longestIdleConnection = null;
-    long longestIdleDurationNs = 0;
-    int idleConnectionCount = 0;
-
-    synchronized (this) {
-        // 遍历所有连接
-        for (Iterator<RealConnection> i = connections.iterator(); i.hasNext(); ) {
-            RealConnection connection = i.next();
-
-            // 统计该连接上还有多少 StreamAllocation（活跃的请求）
-            int streams = connection.allocations.size();
-            if (streams > 0) {
-                idleConnectionCount++;  // 有活跃请求，跳过
-                continue;
-            }
-
-            // 无活跃请求，计算空闲时长
-            long idleDurationNs = now - connection.idleAtNanos;
-            if (idleDurationNs > longestIdleDurationNs) {
-                longestIdleDurationNs = idleDurationNs;
-                longestIdleConnection = connection;
-            }
-        }
-
-        // 清理策略1: 超过保活时间 → 立即移除
-        if (longestIdleDurationNs >= keepAliveDurationNs) {
-            connections.remove(longestIdleConnection);
-            longestIdleConnection.socket().close();
-            return 0;  // 清理完立即再检查
-        }
-
-        // 清理策略2: 超过最大空闲连接数 → 移除最久的
-        if (idleConnectionCount > maxIdleConnections) {
-            connections.remove(longestIdleConnection);
-            longestIdleConnection.socket().close();
-            return 0;
-        }
-
-        // 计算到下次需要清理的时间
-        long nanosToWait = keepAliveDurationNs - longestIdleDurationNs;
-        return nanosToWait;  // 线程 park 这个时间后再次清理
-    }
-}
-```
-
-**清理触发条件**:
-- 空闲连接数 > `maxIdleConnections`（默认 5）
-- 某连接的空闲时间 > `keepAliveDuration`（默认 5 分钟）
-
-#### 7.4.5 HTTP/2 连接复用
-
-```
-HTTP/1.1 模式（每请求一个连接）:
-  连接1 ──► 请求A (请求B必须等A完成)
-  连接2 ──► 请求B (并行需新建连接)
-  连接3 ──► 请求C (并行需新建连接)
-
-HTTP/2 模式（多路复用，一个连接并行多个请求）:
-  连接1 ──► 请求A ──┐
-             请求B ──┼── 并行在一个 TCP 连接上
-             请求C ──┘
-  复用率更高，连接数更少
-```
+连接池持有可复用的 `RealConnection`。复用先检查地址、路由、TLS 等条件和连接健康状况；HTTP/1.1 通常由一个交换独占连接，HTTP/2 在同一连接上复用多个流。`maxIdleConnections` 限制空闲连接保留数量，不是并发请求上限；跨 host 的 HTTP/2 合并还有证书和路由等约束，不能仅凭 IP 相同认定可复用。
 
 ### 7.5 缓存原理（CacheInterceptor）
 
-#### 7.5.1 HTTP 缓存协议基础
-
-```
-┌──────────────────────────────────────────────────────────────────────────────┐
-│                          HTTP 缓存决策流程                                     │
-└──────────────────────────────────────────────────────────────────────────────┘
-
-请求到达
-    │
-    ▼
-查本地缓存 ─────────────────────────────────────────────────────────┐
-    │                                                                │
-    ├── 命中 ──► 检查新鲜度 ──► 未过期 ──► 直接返回缓存 Response     │
-    │                      │                                        │
-    │                      ├── 已过期 ──► 发送验证请求 ──► 304 ──► 更新缓存头，返回缓存
-    │                      │                            │            │
-    │                      │                            └── 200 ──► 返回新数据，写入缓存
-    │                                                                │
-    └── 未命中 ──► 发送网络请求 ──► 200 ──► 写入缓存 ──► 返回 Response
-                                                               │
-                                                               ▼
-                                                          存储位置: /data/data/<pkg>/cache/http_cache/
-                                                          格式:     HTTP/1.1 原始格式（header + body）
-```
-
-#### 7.5.2 CacheStrategy 决策
-
-```java
-// CacheStrategy.java — 缓存策略工厂
-public class CacheStrategy {
-    final Request networkRequest;   // 需要发到网络的请求（null = 不发网络）
-    final Response cacheResponse;   // 缓存的响应（null = 不返回缓存）
-
-    // 决策过程（CacheInterceptor 中调用）
-    // 1. FORCE_CACHE: 强制用缓存
-    //    → networkRequest = null（不发网络）
-    //    → cacheResponse = 缓存响应
-
-    // 2. FORCE_NETWORK: 强制用网络
-    //    → networkRequest = 新请求
-    //    → cacheResponse = null（不用缓存）
-
-    // 3. 正常流程:
-    //    networkRequest = 可能有条件地发（带 If-None-Match / If-Modified-Since）
-    //    cacheResponse = 可能有缓存响应（过期时可用 stale 响应）
-
-    // 条件请求（返回缓存但同时发验证）:
-    //    → networkRequest 有 If-None-Match (ETag) 或 If-Modified-Since
-    //    → cacheResponse = stale 缓存（过期但还能用）
-    //    → 服务器返回 304 → 用缓存（节省 body 传输）
-    //    → 服务器返回 200 → 用新响应
-}
-```
-
-#### 7.5.3 缓存 key 与存储结构
-
-```java
-// 缓存 key: URL 的 MD5
-String key = new CacheKey.Builder(url).build().toString();
-// 存储: /http_cache/<hash>/<metadata> + <data>
-
-// metadata (HTTP header 原始格式)
-// data (响应体原始 bytes)
-```
+缓存策略比较请求缓存指令、响应有效期与已有条目：新鲜命中直接返回，过期条目可以带 `If-None-Match`/`If-Modified-Since` 发起条件请求。304 表示继续使用已有实体并合并头，不是空业务数据。`no-cache` 允许存储但要求重新验证，`no-store` 禁止存储；用户切换时还要处理带身份信息的缓存隔离。
 
 ### 7.6 RetryAndFollowUpInterceptor 重试与重定向
 
-```java
-// 重试条件
-// 1. 协议异常: IOException (连接断开、超时等)
-// 2. 可重定向的响应码: 307, 308 (POST/GET 重定向)
-// 3. 407: Proxy Authentication Required
-// 4. 路由异常: RouteException
-
-// 重试次数限制: 20 次（防止无限重试）
-
-// 重定向跟随
-// 307/308 → 读取 Location 头，直接发新请求
-// 响应码 3xx 但不带 Location → 返回错误
-```
+连接故障恢复需要判断异常类型、请求体能否重放及是否存在其他路由。重定向和认证响应会生成 follow-up request；库限制后续请求数量，避免无限循环。业务幂等性仍由服务端协议决定。文件流等一次性请求体不应随意重新发送；取消后停止恢复并向调用者报告取消。
 
 ### 7.7 Okio 底层 I/O
 
-```
-┌──────────────────────────────────────────────────────────────────────────────┐
-│                              Okio 架构                                       │
-└──────────────────────────────────────────────────────────────────────────────┘
+Okio 使用 Source/Sink 和分段 Buffer 组织读写，减少细碎 I/O 与数据复制。`ResponseBody.string()` 会一次性读取全部内容且只能消费一次；大文件用 `source()`/`byteStream()` 流式写到文件，并用 `use` 关闭。日志拦截器和解析器若都消费原 body，会破坏一次性读取契约。
 
-OkHttp 的 I/O 底层依赖 Okio:
-
-  BufferedSink (写入端)      BufferedSource (读取端)
-       │                          ▲
-       ▼                          │
-  Sink (抽象输出)           Source (抽象输入)
-       │                          ▲
-       ▼                          │
-  实际 I/O (Socket / File)       │
-       │                          │
-       ▼                          │
-  Segment → SegmentPool (零拷贝优化)                                    │
-
-关键概念:
-  Segment: 8KB 数据块，双向链表，支持零拷贝传递（不需要复制数据）
-  SegmentPool: 回收空闲 Segment，复用内存块，减少 GC
-
-  BufferedSink: 带缓冲的输出，writeUtf8() → Buffer.writeUtf8()
-  BufferedSource: 带缓冲的输入，readUtf8() → Buffer.readUtf8()
-
-Socket 读写示例:
-  source = connection.socket().inputStream
-  source.read(headerBuffer)      // 读取响应头
-  body = source.read(contentLength) // 读取响应体
-```
-
----
+源码：[RealCall.kt](https://github.com/square/okhttp/blob/parent-4.12.0/okhttp/src/main/kotlin/okhttp3/internal/connection/RealCall.kt)、[CacheInterceptor.kt](https://github.com/square/okhttp/blob/parent-4.12.0/okhttp/src/main/kotlin/okhttp3/internal/cache/CacheInterceptor.kt)、[RealConnection.kt](https://github.com/square/okhttp/blob/parent-4.12.0/okhttp/src/main/kotlin/okhttp3/internal/connection/RealConnection.kt)。
 
 ## 第 8 章 OkHttp 源码解析
 
-### 8.1 OkHttpClient 创建
+### 8.1 源码入口与对象职责
 
-```java
-// OkHttpClient.java — 不可变对象，所有配置在 Builder 中
-public OkHttpClient {
-    final Dispatcher dispatcher;          // 调度器
-    final List<Interceptor> interceptors;  // 应用拦截器（用户添加的）
-    final List<Interceptor> networkInterceptors; // 网络拦截器
-    final ConnectionPool connectionPool;    // 连接池
-    final List<Protocol> protocols;        // 协议列表 (HTTP/1.1, HTTP/2)
-    final List<ConnectionSpec> connectionSpecs; // TLS 版本和加密套件
-    final Dns dns;                         // DNS 解析
-    final SocketFactory socketFactory;      // Socket 工厂
-    final SSLSocketFactory sslSocketFactory; // SSL Socket 工厂
-    final CertificateChainCleaner certificateChainCleaner;
-    final HostnameVerifier hostnameVerifier;
-    final CertificatePinner certificatePinner;
-    final Authenticator proxyAuthenticator;   // 代理认证
-    final Authenticator authenticator;         // 源站认证
-    final int connectTimeout;     // 连接超时 ms
-    final int readTimeout;        // 读取超时 ms
-    final int writeTimeout;       // 写入超时 ms
-    final int pingInterval;       // WebSocket ping 间隔
-}
-
-// 最佳实践: 单例模式（OkHttpClient 线程安全，应复用）
-public class OkHttpFactory {
-    private static volatile OkHttpClient INSTANCE;
-
-    public static OkHttpClient get() {
-        if (INSTANCE == null) {
-            synchronized (OkHttpFactory.class) {
-                if (INSTANCE == null) {
-                    INSTANCE = new OkHttpClient.Builder()
-                        .connectTimeout(10, TimeUnit.SECONDS)
-                        .readTimeout(10, TimeUnit.SECONDS)
-                        .writeTimeout(10, TimeUnit.SECONDS)
-                        .connectionPool(new ConnectionPool(
-                            5, 5, TimeUnit.MINUTES))
-                        .build();
-                }
-            }
-        }
-        return INSTANCE;
-    }
-}
-```
+固定路径为 `okhttp/src/main/kotlin/okhttp3/internal/`。先读 `connection/RealCall.kt` 中的 `getResponseWithInterceptorChain()`，再沿 `http/RealInterceptorChain.kt` 跟进；连接层依次阅读 `ExchangeFinder.kt`、`RealConnection.kt`、`Exchange.kt`。不要把早期 Java 实现的内部字段直接用于 4.12.0。
 
 ### 8.2 Call 创建与执行（同步/异步）
 
+`newCall` 只创建调用对象，不立即发包。异步 `enqueue` 的回调不在 Android 主线程；`onFailure` 表示传输执行失败，HTTP 404/500 仍进入 `onResponse`。调用者必须检查状态码并关闭响应体。
+
 ```java
-// RealCall.java — Call 的唯一实现
-
-// 1. 创建 Call
-@Override public Call newCall(Request request) {
-    return new RealCall(this, request, false);  // false = 非 WebSocket
-}
-
-// 2. 同步执行
-@Override public Response execute() throws IOException {
-    // 防止重复执行
-    synchronized (this) {
-        if (executed) throw new IllegalStateException("Already Executed");
-        executed = true;
+okhttp3.Call call = client.newCall(request);
+call.enqueue(new okhttp3.Callback() {
+    @Override public void onFailure(okhttp3.Call call, java.io.IOException error) {
+        if (call.isCanceled()) return; // 页面离开不是网络错误提示
+        // 将错误映射到业务状态，再切换主线程更新 UI。
     }
-    try {
-        // 加入同步调用队列（用于统计和取消）
-        client.dispatcher().executed(this);
-        // 执行拦截器链
-        Response response = getResponseWithInterceptorChain();
-        if (response == null) throw new IOException("Canceled");
-        return response;
-    } finally {
-        // 从队列移除
-        client.dispatcher().finished(this);
-    }
-}
-
-// 3. 异步执行
-@Override public void enqueue(Callback responseCallback) {
-    synchronized (this) {
-        if (executed) throw new IllegalStateException("Already Executed");
-        executed = true;
-    }
-    // 包装成 AsyncCall，提交到 Dispatcher 线程池
-    client.dispatcher().enqueue(new AsyncCall(responseCallback));
-}
-
-// AsyncCall 是 RealCall 的内部类（Runnable 实现）
-final class AsyncCall extends NamedRunnable {
-    private final Callback responseCallback;
-
-    @Override protected void execute() {
-        try {
-            // 执行拦截器链
-            Response response = getResponseWithInterceptorChain();
-            // 判断是否成功
-            if (retryAndFollowUpInterceptor.isRecoverable(e, streamAllocation)) {
-                // 可恢复错误，添加到重试队列
-                client.dispatcher().retryAndPerform(this);
+    @Override public void onResponse(okhttp3.Call call, okhttp3.Response response)
+            throws java.io.IOException {
+        try (okhttp3.Response owned = response) {
+            if (!owned.isSuccessful()) {
+                // 映射 HTTP 错误；不要把服务器原始错误页直接展示给用户。
                 return;
             }
-            // 回调失败
-            responseCallback.onFailure(RealCall.this, e);
-        } catch (IOException e) {
-            responseCallback.onFailure(RealCall.this, e);
-        } finally {
-            // 从 Dispatcher 移除
-            client.dispatcher().finished(this);
+            String body = owned.body() == null ? "" : owned.body().string();
+            // 此处解析 body；向 UI 提交前还需检查页面/请求标识。
         }
     }
-}
+});
+// 页面停止持有该请求时：call.cancel();
 ```
 
 ### 8.3 Dispatcher 调度器（并发控制核心）
 
-```java
-// Dispatcher.java — 异步请求的并发调度
-
-public final class Dispatcher {
-    // 并发数限制
-    private int maxRequests = 64;           // 全局最大并发
-    private int maxRequestsPerHost = 5;     // 每台主机最大并发
-
-    // 三个队列
-    private final Deque<AsyncCall> runningSyncCalls = new ArrayDeque<>();    // 同步运行中
-    private final Deque<AsyncCall> runningAsyncCalls = new ArrayDeque<>();   // 异步运行中
-    private final Deque<AsyncCall> readyAsyncCalls = new ArrayDeque<>();      // 异步等待中
-
-    // 线程池（按需创建）
-    private ExecutorService executorService;
-
-    // 异步入队
-    synchronized void enqueue(AsyncCall call) {
-        // 条件1: 全局并发 < 64
-        // 条件2: 同 Host 并发 < 5
-        if (runningAsyncCalls.size() < maxRequests
-                && runningCallsForHost(call) < maxRequestsPerHost) {
-            // 直接运行
-            runningAsyncCalls.add(call);
-            executorService().execute(call);
-        } else {
-            // 达到上限，加入等待队列
-            readyAsyncCalls.add(call);
-        }
-    }
-
-    // 请求完成时调用 → 触发等待队列的 promotion
-    void finished(AsyncCall call) {
-        if (runningAsyncCalls.remove(call)) {
-            // 触发 promotion
-            promoteCalls();
-        }
-        // 统计
-        idleCallback.run();
-    }
-
-    // 将等待队列中的请求 promotion 到运行状态
-    private void promoteCalls() {
-        // 遍历等待队列
-        for (Iterator<AsyncCall> i = readyAsyncCalls.iterator(); i.hasNext(); ) {
-            AsyncCall call = i.next();
-            if (runningAsyncCalls.size() >= maxRequests) break;
-            if (runningCallsForHost(call) >= maxRequestsPerHost) continue;
-            // 移出等待队列，加入运行队列
-            i.remove();
-            runningAsyncCalls.add(call);
-            executorService().execute(call);
-        }
-    }
-
-    // 线程池（懒加载）
-    public synchronized ExecutorService executorService() {
-        if (executorService == null) {
-            executorService = new ThreadPoolExecutor(
-                0, Integer.MAX_VALUE, 60L, TimeUnit.SECONDS,
-                new SynchronousQueue<>(),   // 不缓存任务，直接创建线程
-                Util.threadFactory("OkHttp Dispatcher", false)
-            );
-        }
-        return executorService;
-    }
-}
-```
-
-**Dispatcher 限流图解**:
-
-```
-请求进来
-    │
-    ▼
-runningAsyncCalls.size() < 64 ? ──► 否 ──► 加入 readyAsyncCalls（等待）
-    │                                      ▲
-    │ 是                                    │
-    ▼                                      │
-runningCallsForHost(call) < 5 ? ──► 否 ──┘
-    │
-    │ 是
-    ▼
-加入 runningAsyncCalls
-    │
-    ▼
-线程池执行
-
-请求完成后:
-    │
-    ▼
-从 runningAsyncCalls 移除
-    │
-    ▼
-promoteCalls() — 检查 waiting 队列
-    │
-    ▼
-如果有可执行的，移入 runningAsyncCalls 并执行
-```
+4.12.0 默认 `maxRequests=64`、`maxRequestsPerHost=5`，用于异步调用的排队和晋升；同步调用被记录，但不由这两个阈值排队。增加上限会同时增加服务端压力、解析并发和内存占用，不一定降低页面耗时。
 
 ### 8.4 RealConnection 与 Socket
 
-```java
-// RealConnection.java — 底层 TCP 连接
+连接建立包含 DNS、路由选择、TCP、代理隧道（适用时）、TLS 与协议协商。EventListener 可以分段记录这些过程；连接复用时不会再次出现完整 DNS/TLS 序列。读取超时、连接超时和整个 Call 超时覆盖的阶段不同，应分别设置预算。
 
-public final class RealConnection extends NamedRunnable {
-    private final ConnectionPool connectionPool;
-    private final Route route;  // 路由信息（地址 + 代理 + 证书）
+### 8.5 Exchange 与连接释放
 
-    // 底层 Socket
-    private Socket socket;
-    private Socket rawSocket;  // 原始 Socket（HTTPS 时为 SSLSocket 包装）
+`Exchange` 跟踪一次请求/响应交换的完成情况，并通过 `RealCall.messageDone` 报告请求体与响应体完成。连接最终是否归还池取决于调用状态、连接可复用性和剩余分配；HTTP/2 的单个流取消不等于关闭整个共享连接。业务最重要的职责是关闭 body、传播取消，不调用内部“归还连接”方法。
 
-    // HTTP/2 相关
-    private Http2Connection http2Connection;
-    private Protocol protocol;
-
-    // 关联的 StreamAllocation（用于多路复用计数）
-    private final List<Reference<StreamAllocation>> allocations = new ArrayList<>();
-
-    // 建立连接
-    public void connect(int connectTimeout, int readTimeout, int writeTimeout,
-            Call call, EventListener.EventListener eventListener) {
-
-        // 1. 选择代理类型
-        //    - DIRECT: 直连
-        //    - HTTP: HTTP 代理（CONNECT 建立隧道）
-        //    - SOCKS: SOCKS 代理
-
-        // 2. 建立 Socket 连接
-        socket = rawSocketFactory.createSocket();
-        socket.connect(new InetSocketAddress(route.socketAddress(), connectTimeout));
-
-        // 3. 如果是 HTTPS，进行 TLS 握手
-        if (route.address().sslSocketFactory() != null) {
-            socket = doSslHandshake(socket, route);
-        }
-    }
-
-    // HTTP/1.1 创建 HttpCodec
-    public HttpCodec newCodec(OkHttpClient client, StreamAllocation streamAllocation,
-            Callback callback) {
-        // HTTP/1.1 每个连接同时只处理一个请求-响应对
-        // HTTP/2 可以通过同一个连接处理多个
-        return new Http1ExchangeCodec(this, streamAllocation, callback);
-    }
-}
-```
-
-### 8.5 StreamAllocation（连接复用计数）
-
-```java
-// StreamAllocation.java — 管理连接上的「流」（请求-响应对）
-
-public final class StreamAllocation {
-    private final ConnectionPool connectionPool;
-    private final Route route;
-    private RealConnection connection;     // 引用的连接
-    private HttpCodec codec;              // 当前正在使用的 codec
-
-    // 关键方法: release()
-    // 每次请求完成时调用，表示这个「流」不再使用此连接
-    // 当 connections 上所有 allocations 都 release 后，连接变为空闲
-    public void streamFinished(String codecName, long bytesRead, boolean responseCompleted) {
-        connectionPool.streamFinished(this);
-    }
-
-    // HTTP/2: 同一个 RealConnection 可以同时有多个 StreamAllocation（多路复用）
-    // HTTP/1.1: 同时只能有 1 个 StreamAllocation（pipeline 已被废弃）
-}
-```
-
----
+源码：[Dispatcher.kt](https://github.com/square/okhttp/blob/parent-4.12.0/okhttp/src/main/kotlin/okhttp3/Dispatcher.kt)、[Exchange.kt](https://github.com/square/okhttp/blob/parent-4.12.0/okhttp/src/main/kotlin/okhttp3/internal/connection/Exchange.kt)。
 
 ## 第 9 章 OkHttp 性能优化
 
@@ -1890,9 +1177,9 @@ public final class StreamAllocation {
 ```java
 // 1. 使用全局单例
 public class OkHttpManager {
-    
+
     private static volatile OkHttpClient instance;
-    
+
     public static OkHttpClient getInstance() {
         if (instance == null) {
             synchronized (OkHttpManager.class) {
@@ -1939,7 +1226,7 @@ public Response getWithCache(String url) throws IOException {
             .maxAge(5, TimeUnit.MINUTES)
             .build())
         .build();
-    
+
     return client.newCall(request).execute();
 }
 ```
@@ -1950,14 +1237,14 @@ public Response getWithCache(String url) throws IOException {
 // 1. 批量请求
 public void batchRequests(List<String> urls) {
     List<Call> calls = new ArrayList<>();
-    
+
     for (String url : urls) {
         Request request = new Request.Builder()
             .url(url)
             .build();
         calls.add(client.newCall(request));
     }
-    
+
     // 并发执行
     for (Call call : calls) {
         call.enqueue(callback);
@@ -1976,7 +1263,7 @@ public void cancelWithTag(Object tag) {
             call.cancel();
         }
     }
-    
+
     for (Call call : client.dispatcher().runningCalls()) {
         if (tag.equals(call.request().tag())) {
             call.cancel();
@@ -2238,7 +1525,7 @@ WebSocket 基于 HTTP 协议升级：
        public void onFailure(Call call, IOException e) {
            // 处理网络错误
        }
-       
+
        @Override
        public void onResponse(Call call, Response response) {
            // 检查响应码
@@ -2263,7 +1550,7 @@ WebSocket 基于 HTTP 协议升级：
 
 **Retrofit** 是 Square 公司开源的 Android/Java REST 客户端，基于 OkHttp，通过注解和动态代理简化网络请求。
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         Retrofit 核心特性                                    │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -2295,7 +1582,7 @@ WebSocket 基于 HTTP 协议升级：
 
 ### 11.2 核心优势
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         Retrofit 核心优势                                    │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -2319,19 +1606,19 @@ WebSocket 基于 HTTP 协议升级：
 dependencies {
     // Retrofit 核心库
     implementation 'com.squareup.retrofit2:retrofit:2.9.0'
-    
+
     // Gson 转换器
     implementation 'com.squareup.retrofit2:converter-gson:2.9.0'
-    
+
     // RxJava 适配器（可选）
     implementation 'com.squareup.retrofit2:adapter-rxjava3:2.9.0'
-    
+
     // Moshi 转换器（可选）
     implementation 'com.squareup.retrofit2:converter-moshi:2.9.0'
-    
+
     // Jackson 转换器（可选）
     implementation 'com.squareup.retrofit2:converter-jackson:2.9.0'
-    
+
     // ProtoBuf 转换器（可选）
     implementation 'com.squareup.retrofit2:converter-protobuf:2.9.0'
 }
@@ -2339,7 +1626,7 @@ dependencies {
 
 ### 11.4 与 OkHttp 关系
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         Retrofit 与 OkHttp 关系                              │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -2396,9 +1683,9 @@ Retrofit retrofit = new Retrofit.Builder()
 
 // 方式3: 单例模式
 public class RetrofitManager {
-    
+
     private static volatile Retrofit instance;
-    
+
     public static Retrofit getInstance() {
         if (instance == null) {
             synchronized (RetrofitManager.class) {
@@ -2420,30 +1707,30 @@ public class RetrofitManager {
 ```java
 // 定义 API 接口
 public interface ApiService {
-    
+
     // GET 请求
     @GET("users")
     Call<List<User>> getUsers();
-    
+
     // 带路径参数
     @GET("users/{id}")
     Call<User> getUser(@Path("id") int userId);
-    
+
     // 带查询参数
     @GET("users")
     Call<List<User>> getUsers(
         @Query("page") int page,
         @Query("size") int size
     );
-    
+
     // POST 请求
     @POST("users")
     Call<User> createUser(@Body User user);
-    
+
     // PUT 请求
     @PUT("users/{id}")
     Call<User> updateUser(@Path("id") int userId, @Body User user);
-    
+
     // DELETE 请求
     @DELETE("users/{id}")
     Call<Void> deleteUser(@Path("id") int userId);
@@ -2470,7 +1757,7 @@ call.enqueue(new Callback<List<User>>() {
             // 处理错误
         }
     }
-    
+
     @Override
     public void onFailure(Call<List<User>> call, Throwable t) {
         // 网络错误
@@ -2576,16 +1863,16 @@ Call<ResponseBody> uploadFile(
 // 调用
 File file = new File("/sdcard/image.jpg");
 RequestBody requestFile = RequestBody.create(
-    file, 
+    file,
     MediaType.parse("image/jpeg")
 );
 MultipartBody.Part body = MultipartBody.Part.createFormData(
-    "file", 
-    file.getName(), 
+    "file",
+    file.getName(),
     requestFile
 );
 RequestBody description = RequestBody.create(
-    "这是图片描述", 
+    "这是图片描述",
     MediaType.parse("text/plain")
 );
 apiService.uploadFile(description, body);
@@ -2894,12 +2181,12 @@ suspend fun getUsers(): List<User>
 
 // 4. 自定义 CallAdapter
 public class StringCallAdapter implements CallAdapter<String, Call<String>> {
-    
+
     @Override
     public Type responseType() {
         return String.class;
     }
-    
+
     @Override
     public Call<String> adapt(Call<String> call) {
         return call;
@@ -2970,26 +2257,26 @@ apiService.uploadFiles(parts);
 
 // 4. 带进度的文件上传
 public class ProgressRequestBody extends RequestBody {
-    
+
     private RequestBody requestBody;
     private UploadCallback callback;
-    
+
     public ProgressRequestBody(RequestBody requestBody, UploadCallback callback) {
         this.requestBody = requestBody;
         this.callback = callback;
     }
-    
+
     @Override
     public MediaType contentType() {
         return requestBody.contentType();
     }
-    
+
     @Override
     public void writeTo(BufferedSink sink) throws IOException {
         BufferedSink bufferedSink = Okio.buffer(new ForwardingSink(sink) {
             long bytesWritten = 0L;
             long contentLength = 0L;
-            
+
             @Override
             public void write(Buffer source, long byteCount) throws IOException {
                 super.write(source, byteCount);
@@ -3022,7 +2309,7 @@ call.enqueue(new Callback<ResponseBody>() {
             writeResponseBodyToDisk(response.body());
         }
     }
-    
+
     @Override
     public void onFailure(Call<ResponseBody> call, Throwable t) {
     }
@@ -3033,13 +2320,13 @@ private void writeResponseBodyToDisk(ResponseBody body) {
     try {
         InputStream inputStream = body.byteStream();
         FileOutputStream fos = new FileOutputStream("/sdcard/test.zip");
-        
+
         byte[] buffer = new byte[4096];
         int bytesRead;
         while ((bytesRead = inputStream.read(buffer)) != -1) {
             fos.write(buffer, 0, bytesRead);
         }
-        
+
         fos.flush();
         fos.close();
         inputStream.close();
@@ -3078,14 +2365,14 @@ apiService.getUser("https://other-api.example.com/user/123");
 
 // 方式2: 动态 baseUrl
 public class RetrofitManager {
-    
+
     private static Retrofit createRetrofit(String baseUrl) {
         return new Retrofit.Builder()
             .baseUrl(baseUrl)
             .addConverterFactory(GsonConverterFactory.create())
             .build();
     }
-    
+
     public static ApiService getApiService(String baseUrl) {
         return createRetrofit(baseUrl).create(ApiService.class);
     }
@@ -3127,3 +2414,228 @@ if (call.isCanceled()) {
 
 ---
 
+## 第 15 章 Retrofit 与协程
+
+### 15.1 suspend 接口与返回类型
+
+Retrofit 2.9.0 原生识别 suspend 方法。返回 `T` 时非 2xx 抛 `HttpException`；返回 `Response<T>` 时由调用者检查 HTTP 状态。网络 I/O 失败和 JSON 转换失败仍会抛异常。以下例子采用 Gson converter，DTO 字段显式可空，在数据边界做校验。
+
+```kotlin
+import retrofit2.Response
+import retrofit2.http.GET
+import retrofit2.http.Path
+
+data class ProfileDto(val id: String?, val name: String?)
+data class Profile(val id: String, val name: String)
+interface ProfileApi {
+    @GET("profiles/{id}")
+    suspend fun profile(@Path("id") id: String): Response<ProfileDto>
+}
+sealed interface ProfileResult {
+    data class Data(val profile: Profile) : ProfileResult
+    data class HttpError(val code: Int) : ProfileResult
+    data object NetworkError : ProfileResult
+    data object InvalidPayload : ProfileResult
+}
+class ProfileRepository(private val api: ProfileApi) {
+    suspend fun load(id: String): ProfileResult = try {
+        val response = api.profile(id)
+        if (!response.isSuccessful) {
+            response.errorBody()?.close()
+            ProfileResult.HttpError(response.code())
+        } else {
+            val dto = response.body()
+            val validId = dto?.id?.takeIf { it.isNotBlank() }
+            val name = dto?.name
+            if (validId == null || name == null) ProfileResult.InvalidPayload
+            else ProfileResult.Data(Profile(validId, name))
+        }
+    } catch (cancelled: kotlinx.coroutines.CancellationException) {
+        throw cancelled
+    } catch (badJson: com.google.gson.JsonParseException) {
+        ProfileResult.InvalidPayload
+    } catch (network: java.io.IOException) {
+        ProfileResult.NetworkError
+    }
+}
+```
+
+### 15.2 创建客户端
+
+```kotlin
+val http = okhttp3.OkHttpClient.Builder()
+    .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
+    .readTimeout(20, java.util.concurrent.TimeUnit.SECONDS)
+    .callTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+    .build()
+val api = retrofit2.Retrofit.Builder()
+    .baseUrl("https://example.com/api/") // 替换为业务服务器，末尾保留 /
+    .client(http)
+    .addConverterFactory(retrofit2.converter.gson.GsonConverterFactory.create())
+    .build().create(ProfileApi::class.java)
+val repository = ProfileRepository(api)
+```
+
+### 15.3 取消如何传到网络层
+
+2.9.0 的 `KotlinExtensions.kt` 使用 `suspendCancellableCoroutine`，并在取消回调里执行 `Call.cancel()`。因此直接调用 suspend 接口即可，不必再套 `withContext(IO)` 让网络“异步”。这不等于所有后续解析/映射都没有 CPU 开销；大规模数据转换放到 Default dispatcher。
+
+### 15.4 ViewModel 与视图生命周期
+
+ViewModel 在 `viewModelScope` 中启动请求，将加载/数据/失败表达为 StateFlow；Fragment 使用 `viewLifecycleOwner` 收集状态。旋转时 ViewModel 通常保留，请求不会因旧 View 销毁而重复发起；离开导航目的地并清理 ViewModel 时取消请求。如果每次重新加载会覆盖旧请求，先取消旧 Job，必要时再校验请求 ID。
+
+### 15.5 HTTP、业务与协议错误
+
+HTTP 200 并不代表业务成功；业务 envelope 的 code 在 Repository 解包。401 进入认证流程，403 是权限拒绝，429/503 可按 Retry-After 调度。204、JSON null 和空字符串是不同协议结果，不能统一强转为非空 DTO。
+
+### 15.6 重试与超时
+
+只为幂等请求定义次数上限和带抖动的退避；`delay` 能响应取消。`withTimeout` 限制整个协程操作，OkHttp callTimeout 限制单个 Call。不要同时在 Repository、拦截器、Worker 各重试三次而导致请求成倍放大。
+
+源码：[Retrofit 2.9.0 KotlinExtensions.kt](https://github.com/square/retrofit/blob/2.9.0/retrofit/src/main/java/retrofit2/KotlinExtensions.kt)。
+
+## 第 16 章 Retrofit 与 RxJava
+
+### 16.1 选择匹配的适配器
+
+以下限定 RxJava 2：依赖 `com.squareup.retrofit2:adapter-rxjava2:2.9.0`、`io.reactivex.rxjava2:rxjava:2.2.21`、`io.reactivex.rxjava2:rxandroid:2.1.1`。不要混用 RxJava 3 的类型与 RxJava 2 适配器。
+
+### 16.2 接口与线程
+
+```kotlin
+interface RxProfileApi {
+    @retrofit2.http.GET("profiles/{id}")
+    fun profile(@retrofit2.http.Path("id") id: String): io.reactivex.Single<ProfileDto>
+}
+val rxApi = retrofit2.Retrofit.Builder()
+    .baseUrl("https://example.com/api/")
+    .client(http)
+    .addConverterFactory(retrofit2.converter.gson.GsonConverterFactory.create())
+    .addCallAdapterFactory(retrofit2.adapter.rxjava2.RxJava2CallAdapterFactory.createAsync())
+    .build().create(RxProfileApi::class.java)
+```
+
+`createAsync()` 使用异步 Call；默认 `create()` 使用同步执行，通常需要 `subscribeOn(Schedulers.io())`。`observeOn(AndroidSchedulers.mainThread())` 控制下游 UI 消费线程，而不是修改 OkHttp 内部调度器。
+
+### 16.3 订阅与释放
+
+```kotlin
+// Fragment 的字段；在 onViewCreated 中添加订阅。
+private val requests = io.reactivex.disposables.CompositeDisposable()
+
+fun loadProfile(id: String) {
+    requests.add(rxApi.profile(id)
+        .observeOn(io.reactivex.android.schedulers.AndroidSchedulers.mainThread())
+        .subscribe(
+            { dto -> /* 校验 DTO 后渲染当前 View */ },
+            { error -> /* 映射 HTTP、网络、解析错误并显示重试入口 */ }
+        ))
+}
+// Fragment.onDestroyView 中调用 requests.clear()，再清空 binding。
+```
+
+`clear()` 释放本批订阅但容器可再次使用；`dispose()` 使容器永久结束。释放订阅会取消对应网络调用，不能省略 onError 消费函数。
+
+### 16.4 重试操作符
+
+`retry()` 无参数会不断重订阅。使用 `retryWhen` 时应按异常类型、次数、退避生成新的订阅机会，并让页面释放中止等待；认证失败不能通过无限重试恢复。
+
+### 16.5 背压与请求数量
+
+一次 HTTP 响应并不会因为改为 Flowable 就逐条流式解析 JSON。搜索输入应用防抖与 `switchMap` 淘汰旧查询；批量请求应用受限并发，不能无界 flatMap。
+
+源码：[RxJava2CallAdapterFactory](https://github.com/square/retrofit/blob/2.9.0/retrofit-adapters/rxjava2/src/main/java/retrofit2/adapter/rxjava2/RxJava2CallAdapterFactory.java)、[CallEnqueueObservable](https://github.com/square/retrofit/blob/2.9.0/retrofit-adapters/rxjava2/src/main/java/retrofit2/adapter/rxjava2/CallEnqueueObservable.java)。
+
+## 第 17 章 Retrofit 核心原理
+
+### 17.1 动态代理
+
+`Retrofit.create()` 为服务接口建立 Java 动态代理；调用接口方法时解析注解并执行 `ServiceMethod`，不是生成一个实现了每个业务方法的源码文件。
+
+### 17.2 注解到请求
+
+`RequestFactory` 把方法注解解析为 HTTP 方法、相对路径及 ParameterHandler。调用时再把参数绑定到 Path/Query/Header/Body。接口声明的静态配置被缓存，实际参数每次传入。
+
+### 17.3 Converter
+
+Converter 将请求体编码或将响应体转换为模型。Factory 按注册顺序询问，过于宽泛的 converter 应靠后；例如 Gson 几乎接受所有模型，先注册会遮挡只处理特定类型的 converter。
+
+### 17.4 CallAdapter
+
+CallAdapter 改变调用的外部抽象，例如 Call、RxJava Single。它不负责把 JSON 变成 DTO。suspend 方法走 HttpServiceMethod 中的协程适配分支，不需要额外的旧协程 adapter artifact。
+
+### 17.5 缓存与复用
+
+Retrofit 缓存方法解析结果以减少重复反射；这不是 HTTP 响应缓存。HTTP 缓存仍由共享 OkHttpClient 的 Cache 控制，登录态、拦截器与连接池也属于客户端配置。
+
+源码：[Retrofit.java](https://github.com/square/retrofit/blob/2.9.0/retrofit/src/main/java/retrofit2/Retrofit.java)、[RequestFactory.java](https://github.com/square/retrofit/blob/2.9.0/retrofit/src/main/java/retrofit2/RequestFactory.java)。
+
+## 第 18 章 Retrofit 源码调用链
+
+### 18.1 loadServiceMethod
+
+代理方法调用进入 `loadServiceMethod(method)`，优先从缓存读取；缓存缺失时解析并发布。应沿同一标签源码阅读，缓存内部同步策略不属于公共兼容契约。
+
+### 18.2 HttpServiceMethod
+
+解析返回类型、注解、converter 和 adapter，区分普通调用、SuspendForBody、SuspendForResponse。非空 suspend body 遇到 null 会走异常路径，接口应如实描述可空性。
+
+### 18.3 OkHttpCall
+
+每次业务调用创建 OkHttpCall，延迟构建原始 OkHttp Call；参数转换失败会在创建请求阶段报告。`clone()` 创建可再次执行的调用，已经 execute/enqueue 的对象不能直接复用。
+
+### 18.4 parseResponse
+
+非 2xx 形成 error response；204/205 关闭 body 并返回空 body；普通成功响应交给 responseConverter。使用 `Response<T>` 时错误体由调用者处理并关闭，成功 DTO 转换器则在转换期间消费响应体。
+
+源码：[HttpServiceMethod.java](https://github.com/square/retrofit/blob/2.9.0/retrofit/src/main/java/retrofit2/HttpServiceMethod.java)、[OkHttpCall.java](https://github.com/square/retrofit/blob/2.9.0/retrofit/src/main/java/retrofit2/OkHttpCall.java)。
+
+## 第 19 章 网络性能与可观测性
+
+### 19.1 复用与并发预算
+
+共享 OkHttpClient/Retrofit，按不同认证或缓存边界建立少量配置。请求延迟拆为排队、DNS、建连、TLS、服务端等待、下载、解析和 UI 提交，避免把所有慢请求都归因于连接池。
+
+### 19.2 大响应
+
+下载使用 `@Streaming` 的 ResponseBody 和文件流，在后台写临时文件，成功后再替换目标文件；失败清理临时文件。`string()` 和 `bytes()` 都会整体加载，不能用于不受限下载。
+
+### 19.3 测试设计
+
+固定版本 `mockwebserver:4.12.0` 可模拟 200、204、401、503、延迟与断连。测试同时检查结果、请求次数、取消后不更新 UI、body 关闭，以及日志中没有 token/个人数据。
+
+### 19.4 Android 17 本地网络权限
+
+targetSdk 37 的本地网络访问受 `ACCESS_LOCAL_NETWORK` 运行时权限保护。直接访问局域网设备的功能应先声明并申请权限，授权后才创建连接；系统提供的设备选择器可走平台中介访问路径，避免申请广泛局域网权限。拒绝时显示功能不可用和重新授权入口，不循环请求权限。普通远端 HTTPS 仍使用 `INTERNET`，不能把两类权限混为一谈。
+
+```xml
+<uses-permission android:name="android.permission.INTERNET" />
+<!-- 仅在功能访问局域网时声明；API 37 上还须运行时申请。 -->
+<uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK" />
+```
+
+网络库不会代替 Activity 完成授权。连接失败时先区分权限、DNS、TLS、HTTP 和业务错误，不以“更新 OkHttp”替代平台权限处理。
+
+参考：[Android 17 target 行为变化](https://developer.android.com/about/versions/17/behavior-changes-17)、[EventListener](https://github.com/square/okhttp/blob/parent-4.12.0/okhttp/src/main/kotlin/okhttp3/EventListener.kt)。
+
+## 第 20 章 常见问题
+
+### 20.1 suspend 是否运行在主线程上？
+
+调用可以从主线程发起，底层异步 I/O 不阻塞主线程；拿到模型后的业务计算仍在当前协程上下文中执行。
+
+### 20.2 HTTP 错误为什么没有进入 onFailure？
+
+OkHttp 收到了合法 HTTP 响应，传输层调用已成功；检查 `isSuccessful`。Retrofit 是否抛 HttpException 则取决于声明为 body、Response 还是 Call。
+
+### 20.3 连接池为什么不能解决所有慢请求？
+
+连接池减少建连开销，不解决服务端耗时、Dispatcher 排队和主线程解析。先分阶段度量再调整并发。
+
+### 20.4 取消后为什么仍要校验页面状态？
+
+取消和结果提交可能竞争；已经排到主线程的业务任务不一定被网络取消撤回。使用生命周期收集、请求 ID 与状态归属共同避免旧结果覆盖。
+
+### 20.5 版本升级改变哪些边界？
+
+系统升级关注权限、网络安全和后台限制；OkHttp/Retrofit 升级关注公共 API、最低运行要求、TLS、converter 和 adapter 行为。AOSP `android-17.0.0_r1` 不用于选择 Maven artifact 版本。

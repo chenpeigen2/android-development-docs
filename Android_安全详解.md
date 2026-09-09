@@ -3673,6 +3673,20 @@ val client = OkHttpClient.Builder()
 
 ---
 
+## 6.6 Keystore 密钥的实际生命周期
+
+`KeyGenParameterSpec` 描述用途、GCM 模式、padding、nonce 随机化和认证要求；`AndroidKeyStoreKeyGeneratorSpi` 将它转换为 Keystore/KeyMint 参数。应用拿到的是 `SecretKey` 代理，密钥材料不应写入 SharedPreferences 或 APK。
+
+```text
+首次使用 -> alias notes-gcm-v1 -> generateKey
+加密 -> provider 生成随机 IV -> 保存 format/version/IV/ciphertext+tag
+读取 -> 按 version 取 alias -> AAD 与 tag 校验 -> 明文
+轮换 -> v1 解密 -> 生成 v2 -> 原子写入 -> 全量成功后再清理 v1
+丢 key -> 明确恢复/重新登录，不生成同名新 key 覆盖旧密文
+```
+
+AES-GCM 的认证失败必须报错；密钥轮换需可恢复、可重试，文件用 `AtomicFile` 或数据库事务避免半写。`setUserAuthenticationRequired(true)` 才建立用户认证约束，普通生成示例不能称为生物识别保护。卸载、清除数据、设备安全策略变化或跨设备恢复都可能使原 key 不可用。源码：`KeyGenParameterSpec.java`、`AndroidKeyStoreKeyGeneratorSpi.java`、`system/security/keystore2/src/security_level.rs`。
+
 ## 总结
 
 ### Android 安全核心要点
@@ -3727,5 +3741,5 @@ val client = OkHttpClient.Builder()
 ---
 
 **文档版本**：v1.0  
-**更新时间**：2026-03-11  
+**更新时间**：2026-09-09
 **适用版本**：Android 5.0+

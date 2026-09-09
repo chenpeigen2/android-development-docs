@@ -1,15 +1,51 @@
 # lib_hissug 模块架构详解
 
-> 历史 & 搜索建议（History & Suggestions），百度APP搜索主入口组件，当前版本 **50.2.10**
+> 版本来源：模块结构、内部类名及规模沿用 lib_hissug 50.2.10 项目资料，不代表内部当前版本或 Android 17 适配结论。
+
+> 历史 & 搜索建议（History & Suggestions），百度APP搜索主入口组件，资料版本 **50.2.10**
+
+---
+
+## 目录
+
+- [1. 模块概述](#1-模块概述)
+- [2. 模块目录结构](#2-模块目录结构)
+- [3. 核心模块说明](#3-核心模块说明)
+  - [3.1 lib_hissug_interface — 接口层](#31-lib_hissug_interface--接口层)
+  - [3.2 lib_hissug_frame — 控制层](#32-lib_hissug_frame--控制层)
+  - [3.3 lib_hissug_impl — 实现层](#33-lib_hissug_impl--实现层)
+  - [3.4 lib_hissug_data — 数据层](#34-lib_hissug_data--数据层)
+  - [3.5 lib_hissug_view — 视图层](#35-lib_hissug_view--视图层)
+  - [3.6 lib_hot_search / lib_hot_topic — 扩展功能](#36-lib_hot_search--lib_hot_topic--扩展功能)
+- [4. 功能模块详解](#4-功能模块详解)
+  - [4.1 搜索历史（His）](#41-搜索历史his)
+  - [4.2 搜索建议（Sug）](#42-搜索建议sug)
+  - [4.3 搜索推荐（Rec）](#43-搜索推荐rec)
+  - [4.4 搜索运营](#44-搜索运营)
+  - [4.5 用户体验](#45-用户体验)
+- [5. 构建配置](#5-构建配置)
+  - [5.1 Gradle 构建](#51-gradle-构建)
+  - [5.2 测试](#52-测试)
+  - [5.3 构建特征](#53-构建特征)
+- [6. NAComp 框架集成](#6-nacomp-框架集成)
+  - [6.1 lib_hissug 中的 NAComp 使用概况](#61-lib_hissug-中的-nacomp-使用概况)
+  - [6.2 核心能力速览](#62-核心能力速览)
+- [7. 模块依赖关系](#7-模块依赖关系)
+- [8. 性能考量](#8-性能考量)
+- [9. 关键类索引](#9-关键类索引)
+- [10. 集成点](#10-集成点)
+- [11. 搜索请求、页面生命周期与 Android 17](#11-搜索请求页面生命周期与-android-17)
+  - [11.1 从 query 到页面状态](#111-从-query-到页面状态)
+  - [11.2 首帧与资源释放](#112-首帧与资源释放)
 
 ---
 
 ## 1. 模块概述
 
-lib_hissug 是百度APP的核心搜索体验模块，用户点击搜索框后进入输入态时展示的页面。PV以亿为单位，搜索用户启动后第一时间使用，承载着提升搜索渗透率、DAU、PV的重要目标。
+lib_hissug 是百度APP的核心搜索体验模块，用户点击搜索框后进入输入态时展示的页面。模块围绕搜索入口组织历史、推荐与输入建议，负责衔接用户输入、数据加载和结果展示。
 
 - **仓库路径**: `repos/business/components/lib_hissug`
-- **Maven坐标**: `com.baidu.searchbox.hissug`
+- **Maven group**: `com.baidu.searchbox.hissug`；完整依赖还需 artifact 与 version，由工程依赖目录提供。
 - **主控类**: `HissugFrame`
 
 页面根据是否有 query 分为两种效果：
@@ -20,7 +56,7 @@ lib_hissug 是百度APP的核心搜索体验模块，用户点击搜索框后进
 
 ## 2. 模块目录结构
 
-```
+```text
 lib_hissug/
 ├── lib_hissug_interface/       # 接口定义、契约、数据模型
 ├── lib_hissug_frame/           # 主控制器/编排层（HissugFrame）
@@ -198,7 +234,7 @@ cd .. && ./gradlew :business:components:lib_hissug:connectedAndroidTest
 
 ## 7. 模块依赖关系
 
-```
+```text
 lib_hissug_frame (主控制器)
     ├── lib_hissug_interface (接口契约)
     ├── lib_hissug_impl (业务实现)
@@ -251,3 +287,56 @@ lib_hot_topic (热议)
 - 使用账号系统获取用户历史
 - UBC 集成做用户行为分析
 - 通过 nacomp 框架统一架构模式
+
+## 11. 搜索请求、页面生命周期与 Android 17
+
+### 11.1 从 query 到页面状态
+
+His/Sug 切换应由同一份 query 状态驱动：空串进入 His，非空串进入 Sug。输入变化会产生多次请求，取消旧任务与校验请求序号分别解决“停止无用工作”和“拒绝过期回调”；页面退出后不再向旧 View 写结果。
+
+下面是使用 Kotlin Flow 的**业务侧示例**，`SuggestionSource` 是示例自行定义的接口，不是 NAComp 或 lib_hissug 内部 API。
+
+```kotlin
+import java.io.IOException
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.flow.*
+
+interface SuggestionSource {
+    suspend fun search(query: String): List<String>
+}
+sealed interface SearchPage {
+    data object History : SearchPage
+    data class Loading(val query: String) : SearchPage
+    data class Suggestions(val query: String, val items: List<String>) : SearchPage
+    data class Failed(val query: String, val message: String) : SearchPage
+}
+@OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
+fun searchPages(queries: Flow<String>, source: SuggestionSource): Flow<SearchPage> =
+    queries.map { it.trim() }.distinctUntilChanged().flatMapLatest { query ->
+        flow<SearchPage> {
+            if (query.isEmpty()) {
+                emit(SearchPage.History)
+            } else {
+                emit(SearchPage.Loading(query))
+                kotlinx.coroutines.delay(250) // 新 query 立即取消旧请求，再等待防抖窗口
+                emit(SearchPage.Suggestions(query, source.search(query)))
+            }
+        }.catch { error ->
+            if (error is CancellationException) throw error
+            if (error is IOException) emit(SearchPage.Failed(query, "网络不可用，请重试"))
+            else throw error
+        }
+    }
+```
+
+Fragment 在 `viewLifecycleOwner.lifecycleScope` 中通过 `repeatOnLifecycle(STARTED)` 收集；如果结果需要跨旋转保留，把流放入 ViewModel 并用 `stateIn` 持有状态。搜索历史写入应与网络请求解耦，用户明确提交搜索时再记录，不能把每个输入中间态都写入历史。
+
+### 11.2 首帧与资源释放
+
+输入法显示、His 首帧和 Sug 首次结果是三个不同时间点。记录入口点击、页面首帧、输入法可见、请求结束、结果提交等时间戳，才能区分布局耗时、网络耗时和输入法时序。离屏列表应停止动画和图片请求；复用时重置内容、点击监听器、字号和主题状态。
+
+Android 17 的 targetSdk 37 应用使用新的无锁 `MessageQueue` 实现，诊断工具应通过公开的 Looper/Trace 能力观察消息分发，不反射队列内部链表。远端 HTTPS 搜索不等于局域网访问；只有访问局域网端点的功能才进入本地网络权限流程。
+
+参考：[Flow 取消](https://kotlinlang.org/docs/cancellation-and-timeouts.html)、[生命周期协程](https://developer.android.com/topic/libraries/architecture/coroutines)、[Android 17 行为变化](https://developer.android.com/about/versions/17/behavior-changes-17)。

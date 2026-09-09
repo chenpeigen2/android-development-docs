@@ -1,6 +1,75 @@
 # NAComp 框架使用指南 — 搜索NA业务基础模块
 
+> 版本来源：NAComp 内部类名、继承关系和依赖别名沿用项目原有资料，未指定源码版本；Android 17 相关内容仅涉及公开平台与 AndroidX 契约。
+
 > 百度APP搜索业务核心架构框架，提供 MVVM组件化、FSM状态机、RecyclerView委托适配器、夜间模式、字号适配等能力
+
+---
+
+## 目录
+
+- [1. 框架概述](#1-框架概述)
+  - [1.1 子模块划分](#11-子模块划分)
+  - [1.2 包结构](#12-包结构)
+- [2. 整体架构设计图](#2-整体架构设计图)
+  - [2.1 模块依赖架构](#21-模块依赖架构)
+  - [2.2 MVVM 组件继承体系图](#22-mvvm-组件继承体系图)
+  - [2.3 ViewModel 继承体系图](#23-viewmodel-继承体系图)
+  - [2.4 适配器体系图 — Delegator 委托模式](#24-适配器体系图--delegator-委托模式)
+  - [2.5 FSM 状态机架构图](#25-fsm-状态机架构图)
+  - [2.6 组件生命周期 & 事件传播架构图](#26-组件生命周期--事件传播架构图)
+  - [2.7 数据流架构图](#27-数据流架构图)
+  - [2.8 lib_hissug 中 NAComp 使用全景图](#28-lib_hissug-中-nacomp-使用全景图)
+- [3. 引入依赖](#3-引入依赖)
+  - [3.1 build.gradle 声明](#31-buildgradle-声明)
+  - [3.2 依赖选择指南](#32-依赖选择指南)
+- [4. 核心架构 — 组件继承体系](#4-核心架构--组件继承体系)
+  - [4.1 继承关系图](#41-继承关系图)
+  - [4.2 四大组件基类对比](#42-四大组件基类对比)
+- [5. 使用指南 — MVVM 组件开发](#5-使用指南--mvvm-组件开发)
+  - [5.1 开发一个列表项组件（完整流程）](#51-开发一个列表项组件完整流程)
+  - [5.2 开发一个独立区域组件（Slave Component）](#52-开发一个独立区域组件slave-component)
+  - [5.3 组件层级 — IComponentGroup 使用](#53-组件层级--icomponentgroup-使用)
+- [6. 使用指南 — FSM 状态机](#6-使用指南--fsm-状态机)
+  - [6.1 核心概念](#61-核心概念)
+  - [6.2 完整使用示例](#62-完整使用示例)
+  - [6.3 实际项目中的状态层级](#63-实际项目中的状态层级)
+- [7. 使用指南 — RecyclerView 委托适配器](#7-使用指南--recyclerview-委托适配器)
+  - [7.1 DelegatorAdapter 工作原理](#71-delegatoradapter-工作原理)
+  - [7.2 多类型列表完整示例](#72-多类型列表完整示例)
+- [8. 使用指南 — 工具类](#8-使用指南--工具类)
+  - [8.1 JSONExtKt — 空安全 JSON 操作](#81-jsonextkt--空安全-json-操作)
+  - [8.2 ResWrapper — 夜间模式资源包装](#82-reswrapper--夜间模式资源包装)
+  - [8.3 FontSizeInfo — 字号适配](#83-fontsizeinfo--字号适配)
+  - [8.4 ViewExKt — View 扩展](#84-viewexkt--view-扩展)
+  - [8.5 CollectionUtils — 集合工具](#85-collectionutils--集合工具)
+  - [8.6 UniqueId — 唯一标识符](#86-uniqueid--唯一标识符)
+  - [8.7 ThrottleClickListener — 防抖点击](#87-throttleclicklistener--防抖点击)
+- [9. 使用指南 — 生命周期控制](#9-使用指南--生命周期控制)
+  - [9.1 CeilingChildLifecycleOwner](#91-ceilingchildlifecycleowner)
+  - [9.2 CeilingLifecycleOwner 工具方法](#92-ceilinglifecycleowner-工具方法)
+- [10. 使用指南 — 下拉刷新组件](#10-使用指南--下拉刷新组件)
+  - [10.1 PullToRefreshRecyclerView](#101-pulltorefreshrecyclerview)
+- [11. 使用指南 — View 复用池](#11-使用指南--view-复用池)
+  - [11.1 ViewPool 机制](#111-viewpool-机制)
+- [12. R8 / ProGuard 配置](#12-r8--proguard-配置)
+- [13. 组件化设计思想](#13-组件化设计思想)
+  - [13.1 设计原则](#131-设计原则)
+  - [13.2 组件通信模式](#132-组件通信模式)
+  - [13.3 新增组件的标准步骤](#133-新增组件的标准步骤)
+- [14. lib_hissug 中的 NAComp 组件清单](#14-lib_hissug-中的-nacomp-组件清单)
+  - [14.1 BaseExtItemComponent 实现（~20个）](#141-baseextitemcomponent-实现20个)
+  - [14.2 BaseExtRVComponent 实现（7个）](#142-baseextrvcomponent-实现7个)
+  - [14.3 BaseExtSlaveComponent 实现（~23个）](#143-baseextslavecomponent-实现23个)
+- [15. 常见问题](#15-常见问题)
+  - [Q: BaseExtItemComponent 和 BaseExtSlaveComponent 怎么选？](#q-baseextitemcomponent-和-baseextslavecomponent-怎么选)
+  - [Q: DelegatorAdapter 和 ItemAdapter 的关系？](#q-delegatoradapter-和-itemadapter-的关系)
+  - [Q: 为什么要用 UniqueId 而不是整型 viewType？](#q-为什么要用-uniqueid-而不是整型-viewtype)
+  - [Q: 组件间如何通信？](#q-组件间如何通信)
+  - [Q: 如何处理夜间模式？](#q-如何处理夜间模式)
+- [16. 绑定生命周期与异步结果](#16-绑定生命周期与异步结果)
+  - [16.1 一次绑定对应一次清理](#161-一次绑定对应一次清理)
+  - [16.2 FSM 与请求竞态](#162-fsm-与请求竞态)
 
 ---
 
@@ -20,7 +89,7 @@
 
 ### 1.2 包结构
 
-```
+```text
 com.baidu.searchbox.nacomp/
 ├── fsm/                           # 有限状态机
 │   ├── StateMachine<T>            # 状态机核心类
@@ -84,7 +153,7 @@ com.baidu.searchbox.nacomp/
 
 ### 2.1 模块依赖架构
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────┐
 │                       业务模块层 (lib_hissug)                    │
 │                                                                 │
@@ -149,7 +218,7 @@ com.baidu.searchbox.nacomp/
 
 ### 2.2 MVVM 组件继承体系图
 
-```
+```text
                          ┌──────────────┐
                          │  IComponent  │  (接口)
                          │  组件契约     │
@@ -180,7 +249,7 @@ com.baidu.searchbox.nacomp/
 
 ### 2.3 ViewModel 继承体系图
 
-```
+```text
                       ┌──────────────────┐
                       │  BaseViewModel   │
                       │  (nacomp.mvvm)   │
@@ -204,7 +273,7 @@ com.baidu.searchbox.nacomp/
 
 ### 2.4 适配器体系图 — Delegator 委托模式
 
-```
+```text
                      ┌─────────────────────┐
                      │  DelegatorAdapter   │
                      │  多类型委托适配器     │
@@ -243,7 +312,7 @@ com.baidu.searchbox.nacomp/
 
 ### 2.5 FSM 状态机架构图
 
-```
+```text
    ┌──────────────────────────────────────────────────────────────┐
    │                     StateMachine<T>                          │
    │                   T = 宿主组件类型                            │
@@ -296,7 +365,7 @@ com.baidu.searchbox.nacomp/
 
 ### 2.6 组件生命周期 & 事件传播架构图
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────┐
 │                         HissugFrame (主控制器)                       │
 │                                                                     │
@@ -352,7 +421,7 @@ com.baidu.searchbox.nacomp/
 
 ### 2.7 数据流架构图
 
-```
+```text
 ┌─────────────┐     ┌─────────────────┐     ┌──────────────────┐
 │   网络层      │     │    数据解析层     │     │    数据模型层      │
 │  (OKHttp)    │     │  (JSONExtKt)    │     │  (IAdapterData)  │
@@ -395,7 +464,7 @@ com.baidu.searchbox.nacomp/
 
 ### 2.8 lib_hissug 中 NAComp 使用全景图
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                         lib_hissug 模块                                  │
 │                                                                         │
@@ -445,7 +514,11 @@ com.baidu.searchbox.nacomp/
 
 ## 3. 引入依赖
 
-### 2.1 build.gradle 声明
+`deps.business.nacomp.*` 是原私有构建的自定义别名，不是标准 Gradle 属性，也不是可公开解析的 Maven 坐标。当前版本、group/artifact、仓库凭据与 Kotlin/AGP 兼容性必须从真实版本目录及源码确认；不要把下面片段描述为复制到任意 Android 17 工程即可运行。
+
+通用依赖声明依据：[Gradle 声明依赖](https://docs.gradle.org/9.3.1/userguide/declaring_dependencies.html)。该来源不证明私有别名或内部 API 存在。
+
+### 3.1 build.gradle 声明
 
 ```gradle
 // 核心框架（FSM、MVVM、RecyclerView、工具类）
@@ -455,7 +528,7 @@ implementation deps.business.nacomp.core
 implementation deps.business.nacomp.extension
 ```
 
-### 2.2 依赖选择指南
+### 3.2 依赖选择指南
 
 | 需求 | 引入的模块 |
 |------|-----------|
@@ -472,7 +545,7 @@ implementation deps.business.nacomp.extension
 
 ### 4.1 继承关系图
 
-```
+```text
 IComponent (接口)
 └── IComponentGroup (接口，可包含子组件)
 
@@ -524,6 +597,10 @@ class TitleItemModel(
 
 #### Step 2: 定义 ViewModel
 
+`MutableLiveData.value`/`setValue` 必须在主线程更新。下例以主线程作为 `setModel` 的调用契约：后台解析完成后先切换到主线程再提交模型；连续 `postValue` 可能合并尚未分发的值，不适合充当事件队列。
+
+来源：[LiveData 更新线程规则](https://developer.android.com/topic/libraries/architecture/livedata)。
+
 ```kotlin
 class TitleItemVM : BaseExtItemViewModel<TitleItemModel>() {
 
@@ -531,7 +608,11 @@ class TitleItemVM : BaseExtItemViewModel<TitleItemModel>() {
     val iconUrl = MutableLiveData<String>()
     val iconRes = MutableLiveData<Int>()
 
+    @androidx.annotation.MainThread
     override fun setModel(model: TitleItemModel) {
+        check(android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) {
+            "setModel must update LiveData on the main thread"
+        }
         super.setModel(model)
         title.value = model.title
         iconUrl.value = model.iconUrl
@@ -557,6 +638,10 @@ class TitleItemAdapter(private val owner: LifecycleOwner) :
 ```
 
 #### Step 4: 定义 Component（处理视图逻辑）
+
+`observe(owner)` 在 owner 销毁后自动解绑，但列表重新绑定早于页面销毁。每次绑定应释放上一次绑定持有的观察者、监听器和图片请求；Fragment 内的 View 使用 `viewLifecycleOwner`，避免旧 View 跟随 Fragment 实例继续存活。
+
+若由标准 Fragment 管理这些 View，应绑定 `viewLifecycleOwner`，不是 Fragment 自身更长的生命周期。来源：[Fragment 视图生命周期](https://developer.android.com/guide/fragments/lifecycle)、[LiveData](https://developer.android.com/topic/libraries/architecture/livedata)。
 
 ```kotlin
 class TitleItemComp(owner: LifecycleOwner, view: View) :
@@ -692,7 +777,7 @@ if (component is IComponentGroup) {
 
 ### 6.1 核心概念
 
-```
+```text
 StateMachine<T>     — 状态机，T 是宿主类型
 ├── changeState()    — 切换状态
 └── handleMessage()  — 分发消息给当前状态
@@ -794,7 +879,7 @@ class SearchFrameComp(owner: LifecycleOwner, view: View) :
 
 ### 6.3 实际项目中的状态层级
 
-```
+```text
 搜索框状态层级:
 BaseBoxState
 ├── NormalBoxState          # 普通搜索框
@@ -812,7 +897,7 @@ BaseBoxState
 
 ### 7.1 DelegatorAdapter 工作原理
 
-```
+```text
 DelegatorAdapter
 ├── put(ItemAdapter)         # 注册类型委托
 ├── setItems(List<IAdapterData>)  # 设置数据
@@ -937,7 +1022,7 @@ override fun onFontSizeChange(info: FontSizeInfo) {
 }
 ```
 
-### 7.4 ViewExKt — View 扩展
+### 8.4 ViewExKt — View 扩展
 
 ```kotlin
 import com.baidu.searchbox.nacomp.extension.util.ViewExKt
@@ -949,7 +1034,7 @@ val px: Int = ViewExKt.getDp(5)
 val pxF: Float = ViewExKt.getDpF(5.5f)
 ```
 
-### 7.5 CollectionUtils — 集合工具
+### 8.5 CollectionUtils — 集合工具
 
 ```kotlin
 import com.baidu.searchbox.nacomp.util.CollectionUtils
@@ -961,7 +1046,7 @@ if (CollectionUtils.isEmpty(list)) { ... }
 val last: Item? = CollectionUtils.getLast(list)
 ```
 
-### 7.6 UniqueId — 唯一标识符
+### 8.6 UniqueId — 唯一标识符
 
 ```kotlin
 import com.baidu.searchbox.nacomp.util.UniqueId
@@ -975,7 +1060,7 @@ companion object {
 override fun getType(): UniqueId = TYPE
 ```
 
-### 7.7 ThrottleClickListener — 防抖点击
+### 8.7 ThrottleClickListener — 防抖点击
 
 ```kotlin
 import com.baidu.searchbox.nacomp.extension.widget.ThrottleClickListener
@@ -988,9 +1073,9 @@ button.setOnClickListener(ThrottleClickListener {
 
 ---
 
-## 8. 使用指南 — 生命周期控制
+## 9. 使用指南 — 生命周期控制
 
-### 8.1 CeilingChildLifecycleOwner
+### 9.1 CeilingChildLifecycleOwner
 
 用于子组件的生命周期上限控制，确保子组件的生命周期不会超过父组件：
 
@@ -1006,7 +1091,7 @@ val childComp = MyChildComp(childLifecycle, view).apply {
 }
 ```
 
-### 8.2 CeilingLifecycleOwner 工具方法
+### 9.2 CeilingLifecycleOwner 工具方法
 
 ```kotlin
 // 创建 ceiling lifecycle
@@ -1022,9 +1107,9 @@ ceiling.setMaxLifecycle(Lifecycle.State.RESUMED)
 
 ---
 
-## 9. 使用指南 — 下拉刷新组件
+## 10. 使用指南 — 下拉刷新组件
 
-### 9.1 PullToRefreshRecyclerView
+### 10.1 PullToRefreshRecyclerView
 
 ```kotlin
 import com.baidu.searchbox.nacomp.extension.widget.ptr.PullToRefreshRecyclerView
@@ -1048,9 +1133,13 @@ ptrRecyclerView.setOnRefreshListener {
 
 ---
 
-## 10. 使用指南 — View 复用池
+## 11. 使用指南 — View 复用池
 
-### 10.1 ViewPool 机制
+### 11.1 ViewPool 机制
+
+复用池只复用对象。取出 View 后仍要重置数据、监听器、图片请求、主题和字号，并绑定新的生命周期 owner；不同主题或不兼容 Context 的 View 不应共用一个池。
+
+标准 RecyclerView 可在 [onViewRecycled](https://developer.android.com/reference/androidx/recyclerview/widget/RecyclerView.Adapter#onViewRecycled(VH)) 中结束条目绑定，页面销毁时再统一释放剩余绑定。
 
 ```kotlin
 import com.baidu.searchbox.nacomp.extension.viewopt.ViewPool
@@ -1068,28 +1157,37 @@ val newSource = NewSpawnViewSource { context ->
 
 ---
 
-## 11. ProGuard 配置
+## 12. R8 / ProGuard 配置
 
-文件位置: `app/zeus-build/proguard_rule/proguard-nacomp.pro`
+R8 从代码入口构建可达图：直接调用的组件通常可被正确追踪，反射、JNI 和按名称创建对象则需要相应保留规则。项目规则集中在 `app/zeus-build/proguard_rule/proguard-nacomp.pro`；库自己的反射约束适合随 AAR 的 consumer rules 一起交付。
 
-```proguard
-# NAComp 核心包
--keep class com.baidu.searchbox.nacomp.fsm.** { *; }
--keep class com.baidu.searchbox.nacomp.mvvm.** { *; }
--keep class com.baidu.searchbox.nacomp.recycler.** { *; }
--keep class com.baidu.searchbox.nacomp.util.** { *; }
+不要默认保留整个 `com.baidu.searchbox.nacomp.**` 包。下面以**业务自己定义**的反射入口为例，保留范围由真实加载方式决定：
 
-# NAComp 扩展包
--keep class com.baidu.searchbox.nacomp.extension.util.** { *; }
--keep class com.baidu.searchbox.nacomp.extension.widget.** { *; }
--keep class com.baidu.searchbox.nacomp.extension.base.** { *; }
+```kotlin
+// 示例业务代码，不是 NAComp API。
+package com.example.components
+class PromoEntry {
+    fun title(): String = "推荐"
+}
+// 调用侧：按名称加载类和 public 无参构造器。
+val entry = Class.forName("com.example.components.PromoEntry")
+    .getConstructor().newInstance()
 ```
 
----
+```proguard
+# 仅保留上述反射入口；title() 没有被反射使用，不必一并保留。
+-keep,allowoptimization class com.example.components.PromoEntry {
+    public <init>();
+}
+```
 
-## 12. 组件化设计思想
+如果代码还通过字符串查找方法，则增加对应方法规则。release 构建中检查 mapping 与裁剪结果，覆盖多类型列表、状态机、主题和字号切换；对缺失类先判断依赖是否遗漏，`-dontwarn` 不能补齐运行时实现。
 
-### 12.1 设计原则
+参考：[R8 keep 规则](https://developer.android.com/topic/performance/app-optimization/add-keep-rules)。
+
+## 13. 组件化设计思想
+
+### 13.1 设计原则
 
 | 原则 | 实现方式 |
 |------|---------|
@@ -1101,9 +1199,9 @@ val newSource = NewSpawnViewSource { context ->
 | **事件向上传递** | 接口回调模式，子组件通过接口通知父组件 |
 | **事件向下传播** | `IComponentGroup` 自动将事件分发给子组件 |
 
-### 12.2 组件通信模式
+### 13.2 组件通信模式
 
-```
+```text
 ┌──────────────────────────────────────────┐
 │          Parent Component (Slave)         │
 │                                          │
@@ -1127,9 +1225,9 @@ val newSource = NewSpawnViewSource { context ->
 3. 跨组件: 通过共享 ViewModel 或事件总线
 ```
 
-### 12.3 新增组件的标准步骤
+### 13.3 新增组件的标准步骤
 
-```
+```text
 1. 定义 Model (实现 IAdapterData)
    └── 定义 UniqueId.TYPE
 
@@ -1153,9 +1251,9 @@ val newSource = NewSpawnViewSource { context ->
 
 ---
 
-## 13. lib_hissug 中的 NAComp 组件清单
+## 14. lib_hissug 中的 NAComp 组件清单
 
-### 13.1 BaseExtItemComponent 实现（~20个）
+### 14.1 BaseExtItemComponent 实现（~20个）
 
 | 组件 | 功能 |
 |------|------|
@@ -1175,7 +1273,7 @@ val newSource = NewSpawnViewSource { context ->
 | `QueryTplTitleItemComp` | 查询模板标题项 |
 | `HisGuideComp` | 历史引导 |
 
-### 13.2 BaseExtRVComponent 实现（7个）
+### 14.2 BaseExtRVComponent 实现（7个）
 
 | 组件 | 功能 |
 |------|------|
@@ -1187,7 +1285,7 @@ val newSource = NewSpawnViewSource { context ->
 | `HistoryListComp` | 历史列表 |
 | `ListIntegrationComp` | 列表集成组件 |
 
-### 13.3 BaseExtSlaveComponent 实现（~23个）
+### 14.3 BaseExtSlaveComponent 实现（~23个）
 
 | 组件 | 功能 |
 |------|------|
@@ -1217,7 +1315,7 @@ val newSource = NewSpawnViewSource { context ->
 
 ---
 
-## 14. 常见问题
+## 15. 常见问题
 
 ### Q: BaseExtItemComponent 和 BaseExtSlaveComponent 怎么选？
 - **列表项**（RecyclerView 的 item）→ `BaseExtItemComponent<M, VM>`
@@ -1229,7 +1327,7 @@ val newSource = NewSpawnViewSource { context ->
 - 每个 `ItemAdapter` 对应一对 `IAdapterData` + `BaseExtItemComponent`
 
 ### Q: 为什么要用 UniqueId 而不是整型 viewType？
-- UniqueId 是字符串生成的唯一标识，避免跨模块 viewType 冲突
+- UniqueId 用作类型标识；同一委托适配器内各 item 类型应保持稳定且互不冲突，不把业务位置或可变文案当类型 ID。
 - 配合 `IAdapterData.getType()` 实现自动分发
 
 ### Q: 组件间如何通信？
@@ -1242,3 +1340,45 @@ val newSource = NewSpawnViewSource { context ->
 1. Component 重写 `onNightModeChange(isNightMode: Boolean)`
 2. 使用 `ResWrapper` 替代直接资源访问
 3. `IComponentGroup` 会自动传播给子组件
+
+## 16. 绑定生命周期与异步结果
+
+### 16.1 一次绑定对应一次清理
+
+下面的 `ViewBindingSession` 是可组合的业务辅助类，只使用 LiveData 公共 API。组件在重新绑定前调用 `close()`，页面销毁时也调用 `close()`；它不要求 NAComp 增加新的 override 方法。
+
+```kotlin
+import androidx.annotation.MainThread
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.LiveData
+import androidx.lifecycle.Observer
+
+class ViewBindingSession<T>(
+    private val source: LiveData<T>,
+    owner: LifecycleOwner,
+    render: (T) -> Unit
+) : AutoCloseable {
+    private val observer = Observer<T> { render(it) }
+    private var closed = false
+
+    init { source.observe(owner, observer) }
+
+    @MainThread
+    override fun close() {
+        if (!closed) {
+            closed = true
+            source.removeObserver(observer)
+        }
+    }
+}
+```
+
+在主线程构造此对象。绑定管理者先关闭旧 session，再为新模型创建 session；清理图片请求和点击监听器也放在同一业务清理动作里。`removeObservers(owner)` 会移除该 owner 的全部观察者，不能用来随意清理共享页面上的其他组件。
+
+### 16.2 FSM 与请求竞态
+
+状态机决定合法迁移，生命周期决定结果还能否提交。列表加载可建模为 Idle → Loading → Content/Empty/Error，重试从 Error 进入 Loading。每次请求携带 query 或递增请求 ID，返回后只接受与当前状态匹配的结果；取消不是 Error 状态，离开页面也不应弹出“加载失败”。渲染状态时同时更新内容、占位、错误和按钮使能，避免复用 View 遗留上一种状态。
+
+Android 17 平台升级不改变上述所有权关系。消息调度继续使用公开 Handler/Looper API，不依赖 `MessageQueue` 私有链表；业务协程跟随 ViewModel 或 View 的实际存活范围创建。
+
+参考：[LiveData](https://developer.android.com/topic/libraries/architecture/livedata)、[Fragment 生命周期](https://developer.android.com/guide/fragments/lifecycle)、[Android 17 行为变化](https://developer.android.com/about/versions/17/behavior-changes-17)。
