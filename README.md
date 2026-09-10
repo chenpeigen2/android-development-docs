@@ -10,6 +10,14 @@
 
 ---
 
+## 项目 Skills
+
+- [aosp-source-navigation](.agents/skills/aosp-source-navigation/SKILL.md)：按固定 tag/commit 定位 AOSP 源码，提供子系统/第三方库源码地图、Gitiles 下载与证据缓存工具。
+- 项目内调用：`使用 $aosp-source-navigation，基于 android-17.0.0_r1 查找 Window 到 WMS 的调用链。`
+- Skill 为项目工具，不计入上面的 46 篇技术文章统计。
+
+---
+
 ## 文档目录
 
 ### 基础知识（9篇）
@@ -136,6 +144,11 @@
 ---
 
 ## 更新日志
+
+### 2026-09-10 项目源码导航 Skill
+
+- 新增项目级 `.agents/skills/aosp-source-navigation/`，包括源码地图、固定版本 Gitiles 获取脚本与回归测试。
+- 工具缓存默认放在 TEMP，不把下载的 AOSP 源码放入文档仓库。
 
 ### 2026-09-10 全文源码审阅与技术纠错
 

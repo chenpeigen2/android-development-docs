@@ -1,0 +1,3 @@
+interface:
+  display_name: "AOSP 源码定位"
+  short_description: "按固定版本查找 Android 平台与相关库源码，追踪跨进程调用并保留可核验证据"
