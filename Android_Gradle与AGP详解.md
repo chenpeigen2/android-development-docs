@@ -174,6 +174,7 @@ tasks.register("printBuildMessage") {
 ### 4.1 Project 对象
 
 ```kotlin
+// API 要点示意（省略 Java 泛型通配符等细节），不是 Gradle 源码原文。
 interface Project {
     val name: String              // 项目名称
     val path: String              // 项目路径 (:app)
@@ -197,11 +198,12 @@ interface Project {
 ### 4.2 Task 对象
 
 ```kotlin
+// API 要点示意；doFirst/doLast 返回 Task 以支持链式配置。
 interface Task {
     val name: String              // 任务名称
     val group: String?            // 任务分组
     val description: String?      // 任务描述
-    val enabled: Boolean          // 是否启用
+    var enabled: Boolean          // 是否启用（可配置）
 
     // 输入输出
     val inputs: TaskInputs
@@ -211,8 +213,8 @@ interface Task {
     fun dependsOn(vararg paths: Any): Task
 
     // 执行回调
-    fun doFirst(action: Action<Task>)
-    fun doLast(action: Action<Task>)
+    fun doFirst(action: Action<Task>): Task
+    fun doLast(action: Action<Task>): Task
 }
 
 // 创建 Task
@@ -233,26 +235,17 @@ tasks.register("hello") {
 ### 4.3 Task 依赖图
 
 ```text
-Task 依赖图 (DAG):
+以下箭头表示“入口依赖产物生产者”，不是固定的内部 Task 名：
 
-                    assemble
-                       │
-          ┌────────────┼────────────┐
-          │            │            │
-          ▼            ▼            ▼
-      bundleDebug  bundleRelease  test
-          │            │
-          ▼            ▼
-      packageDebug  packageRelease
-          │            │
-          ▼            ▼
-    processResources processResources
-          │            │
-          ▼            ▼
-      compileJava   compileJava
+assemble ──► assembleDebug / assembleRelease ──► APK 打包所需任务
+bundleDebug / bundleRelease ──► AAB 打包所需任务
+check ──► 配置的检查与测试任务
 
-执行顺序: compileJava → processResources → package → bundle → assemble
+资源编译/链接、源码编译、DEX 处理各自有输入输出依赖，能并行的分支
+由 Gradle 调度；assemble 不负责运行单元测试，也不负责生成 AAB。
 ```
+
+可分别执行 `./gradlew assembleDebug --dry-run`、`./gradlew bundleDebug --dry-run`、`./gradlew check --dry-run` 查看当前工程的实际任务图，不把概念流程当作 AGP 内部任务的稳定 ABI。
 
 ---
 
@@ -610,16 +603,20 @@ android {
 AAPT2 (Android Asset Packaging Tool 2)
 
 1. 编译阶段 (compile):
-   res/layout/main.xml → main.xml.flat (二进制格式)
+   res/layout/main.xml → layout_main.xml.flat（编译中间产物）
 
 2. 链接阶段 (link):
-   *.flat → resources.pb + resource_table.pb
+   *.flat + AndroidManifest.xml + android.jar → 链接后的资源 APK
+   默认 APK 格式包含 resources.arsc 和二进制 XML；--proto-format
+   才使用 protobuf 格式（如 resources.pb），不是固定输出两个 .pb 文件。
 
 优点:
 • 增量编译: 只编译变化的资源
 • 并行编译: 多个资源并行处理
 • 更快的链接: 预编译格式
 ```
+
+来源：[AAPT2 compile/link 的输出格式](https://developer.android.com/tools/aapt2#link)。
 
 ### 9.2 DEX 编译
 
@@ -633,12 +630,12 @@ D8 编译器 (替代 DX):
 • 支持 Java 8+ 特性
 
 MultiDex:
-当方法数超过 65536:
+当单个 DEX 的方法引用数超过 65536（含依赖引用，不只是自己声明的方法）:
 classes.dex, classes2.dex, classes3.dex ...
 
 android {
     defaultConfig {
-        multiDexEnabled true
+        multiDexEnabled = true // Kotlin DSL；本文 minSdk 24 默认已支持 multidex
     }
 }
 ```
@@ -944,11 +941,11 @@ androidComponents {
 ```text
 implementation:
 • 编译和运行时都需要
-• 不传递给消费者模块
+• 不暴露给消费者编译类路径，但运行时依赖仍可传递
 
 api:
 • 编译和运行时都需要
-• 会传递给消费者模块
+• 对消费者的编译与运行时类路径都可见
 ```
 
 **Q3: Gradle 守护进程的作用？**
@@ -956,7 +953,7 @@ api:
 ```text
 • 保持 JVM 运行，避免每次启动
 • 缓存构建状态
-• 大幅提升构建速度 (2-3x)
+• 避免冷启动 JVM；收益由工程、机器和缓存状态决定，需实测
 ```
 
 ### 13.2 进阶问题

@@ -13,14 +13,19 @@ All documents are in Chinese and follow these naming conventions:
 - `Android_[Topic]完全指南.md` - Complete guides
 - `[Framework]_完全指南.md` - Cross-platform framework guides
 
-### Categories (6 major sections)
+### Categories and Inventory
 
-1. **基础知识** (9 docs): View drawing, event distribution, animations, Activity, components, screen adaptation, networking
-2. **核心机制** (8 docs): Binder, Handler, VM, ClassLoader, Zygote/SystemServer, AndroidX, architecture patterns, background tasks
-3. **性能优化** (4 docs): Performance, memory leaks, ANR, Systrace
-4. **三方库详解** (2 docs): Glide/Fresco/MMKV/PAG/Lottie, OkHttp/Retrofit
-5. **跨平台开发** (3 docs): Flutter, React Native, Jetpack Compose
-6. **安全与防护** (1 doc): Obfuscation, hardening, encryption, network security
+`README.md` is the source of truth for the ordered catalog, document counts,
+file sizes, and update history. Categories include fundamentals, core mechanisms,
+Framework internals, performance, architecture, libraries, cross-platform,
+build/debugging tools, data processing, dependency injection, security, display,
+and supplementary source/internal-framework guides. Do not reuse the old six-category
+inventory or count review records and contributor instructions as technical guides.
+
+Structural checks: install `tools/requirements-docs.txt` and run
+`python tools/check_docs.py`. The optional `--fix-toc` rebuilds existing opening TOCs
+from real headings, without creating missing technical chapters. A passing structural
+check is not evidence that all API facts or code examples were source-verified.
 
 ## Adding New Documents
 

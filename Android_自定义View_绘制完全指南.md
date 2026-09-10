@@ -29,8 +29,11 @@
     - [3.2.1 MeasureSpec 测量规格](#321-measurespec-测量规格)
     - [3.2.2 onMeasure 核心逻辑](#322-onmeasure-核心逻辑)
     - [3.2.3 获取 View 尺寸的正确方式](#323-获取-view-尺寸的正确方式)
+    - [3.2.1 View.measure() 的外层协议](#321-viewmeasure-的外层协议)
+    - [3.2.2 默认尺寸与 resolveSizeAndState](#322-默认尺寸与-resolvesizeandstate)
   - [3.3 Layout 布局阶段](#33-layout-布局阶段)
   - [3.4 Draw 绘制阶段](#34-draw-绘制阶段)
+  - [3.5 实战：支持 margin 的纵向容器](#35-实战支持-margin-的纵向容器)
 - [4. Canvas 画布详解](#4-canvas-画布详解)
   - [4.1 Canvas 核心功能](#41-canvas-核心功能)
   - [4.2 Canvas 基础绘制](#42-canvas-基础绘制)
@@ -60,19 +63,19 @@
   - [9.2 inflate() 方法解析](#92-inflate-方法解析)
   - [9.3 注意事项](#93-注意事项)
 - [10. Merge、Include 与 ViewStub](#10-mergeinclude-与-viewstub)
-  - [10.1 <merge> 标签](#101--标签)
-  - [10.2 <include> 标签](#102--标签)
-  - [10.3 <ViewStub> 标签](#103--标签)
+  - [10.1 \<merge\> 标签](#101--标签)
+  - [10.2 \<include\> 标签](#102--标签)
+  - [10.3 \<ViewStub\> 标签](#103--标签)
 - [11. Invalidate 与 RequestLayout](#11-invalidate-与-requestlayout)
-  - [11.1 Invalidate - 重绘](#111-invalidate---重绘)
-  - [11.2 RequestLayout - 重新布局](#112-requestlayout---重新布局)
+  - [11.1 invalidate：从本地脏标记传播到根](#111-invalidate从本地脏标记传播到根)
+  - [11.2 requestLayout：尺寸依赖沿父链传播](#112-requestlayout尺寸依赖沿父链传播)
   - [11.3 两者对比与选择](#113-两者对比与选择)
-  - [11.4 forceLayout() 强制重新布局](#114-forcelayout-强制重新布局)
+  - [11.4 forceLayout：只标本节点，不向上排程](#114-forcelayout只标本节点不向上排程)
 - [12. Draw 流程源码解析](#12-draw-流程源码解析)
-  - [12.1 View.draw() 源码流程](#121-viewdraw-源码流程)
-  - [12.2 DecorView.draw() 特殊流程](#122-decorviewdraw-特殊流程)
-  - [12.3 ViewGroup.drawChild() 源码详解](#123-viewgroupdrawchild-源码详解)
-  - [12.4 绘制顺序控制](#124-绘制顺序控制)
+  - [12.1 View.draw() 顺序](#121-viewdraw-顺序)
+  - [12.2 ViewGroup.drawChild() 与硬件显示列表](#122-viewgroupdrawchild-与硬件显示列表)
+  - [12.3 属性失效与内容重录的区别](#123-属性失效与内容重录的区别)
+  - [12.4 DecorView 与子项绘制顺序](#124-decorview-与子项绘制顺序)
 - [13. Canvas 高级用法](#13-canvas-高级用法)
   - [13.1 Canvas Save/Restore 详解](#131-canvas-saverestore-详解)
   - [13.2 Canvas saveLayer/RestoreToCount 详解](#132-canvas-savelayerrestoretocount-详解)
@@ -96,20 +99,8 @@
   - [16.3 特殊情况：SurfaceView](#163-特殊情况surfaceview)
   - [15.3 width/height 区别](#153-widthheight-区别)
   - [18.1 区别](#181-区别)
-  - [18.2 两者不一致的情况](#182-两者不一致的情况)
-  - [15.4 根视图的多次 Measure](#154-根视图的多次-measure)
-  - [19.1 多次 Measure 的原因](#191-多次-measure-的原因)
-  - [19.2 源码流程](#192-源码流程)
-  - [19.3 避免重复 Measure](#193-避免重复-measure)
-- [17. 自定义 View 类型与分类](#17-自定义-view-类型与分类)
-  - [17.1 自定义 View 类型](#171-自定义-view-类型)
-    - [17.1.1 继承 View 类](#1711-继承-view-类)
-    - [17.1.2 组合控件](#1712-组合控件)
-    - [17.1.3 继承 ViewGroup](#1713-继承-viewgroup)
-- [18. 核心生命周期方法详解](#18-核心生命周期方法详解)
-  - [18.1 三大方法对比](#181-三大方法对比)
-  - [18.2 MeasureSpec 三种模式处理](#182-measurespec-三种模式处理)
-  - [18.3 处理 wrap_content 和 padding](#183-处理-wrap_content-和-padding)
+  - [18.2 MeasureSpec 不能与 LayoutParams 一对一等同](#182-measurespec-不能与-layoutparams-一对一等同)
+  - [18.3 处理 wrap_content、padding 和最小尺寸](#183-处理-wrap_contentpadding-和最小尺寸)
 - [19. 自定义属性详解](#19-自定义属性详解)
   - [19.1 属性声明](#191-属性声明)
   - [19.2 属性解析](#192-属性解析)
@@ -644,6 +635,86 @@ class ContentView(context: Context) : View(context) {
 ```
 
 背景、子项、Overlay、前景和焦点高亮由框架组织，见第 12 节。依据：[View.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/view/View.java)。
+
+### 3.5 实战：支持 margin 的纵向容器
+
+下面容器按添加顺序纵向放置非 GONE 子项，处理 padding、margin、最小尺寸和测量状态；不实现 weight、gravity、RTL start/end gravity 或滚动。INVISIBLE 子项仍保留空间。例子使用 ViewGroup 标准测量 API，而不是在 onLayout 中调用 measure。
+
+```kotlin
+class MarginColumn @JvmOverloads constructor(
+    context: Context, attrs: AttributeSet? = null
+) : ViewGroup(context, attrs) {
+    override fun generateDefaultLayoutParams(): LayoutParams =
+        MarginLayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT)
+
+    override fun generateLayoutParams(attrs: AttributeSet): LayoutParams =
+        MarginLayoutParams(context, attrs)
+
+    override fun generateLayoutParams(source: LayoutParams): LayoutParams =
+        if (source is MarginLayoutParams) MarginLayoutParams(source)
+        else MarginLayoutParams(source)
+
+    override fun checkLayoutParams(params: LayoutParams): Boolean =
+        params is MarginLayoutParams
+
+    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        var usedHeight = 0
+        var widestChild = 0
+        var childState = 0
+        for (i in 0 until childCount) {
+            val child = getChildAt(i)
+            if (child.visibility == GONE) continue
+            val lp = child.layoutParams as MarginLayoutParams
+            measureChildWithMargins(child, widthMeasureSpec, 0,
+                heightMeasureSpec, usedHeight)
+            widestChild = maxOf(widestChild,
+                child.measuredWidth + lp.leftMargin + lp.rightMargin)
+            usedHeight += child.measuredHeight + lp.topMargin + lp.bottomMargin
+            childState = combineMeasuredStates(childState, child.measuredState)
+        }
+        setMeasuredDimension(
+            resolveSizeAndState(maxOf(suggestedMinimumWidth,
+                widestChild + paddingLeft + paddingRight), widthMeasureSpec, childState),
+            resolveSizeAndState(maxOf(suggestedMinimumHeight,
+                usedHeight + paddingTop + paddingBottom), heightMeasureSpec,
+                childState shl MEASURED_HEIGHT_STATE_SHIFT)
+        )
+
+        // 父宽不是 EXACTLY 时，MATCH_PARENT 子项第一轮可能只得到 AT_MOST。
+        // 根容器宽度确定后再统一其宽；保留第一轮测得的子项高度。
+        if (MeasureSpec.getMode(widthMeasureSpec) != MeasureSpec.EXACTLY) {
+            for (i in 0 until childCount) {
+                val child = getChildAt(i)
+                if (child.visibility == GONE) continue
+                val lp = child.layoutParams as MarginLayoutParams
+                if (lp.width == LayoutParams.MATCH_PARENT) {
+                    val width = (measuredWidth - paddingLeft - paddingRight -
+                        lp.leftMargin - lp.rightMargin).coerceAtLeast(0)
+                    child.measure(MeasureSpec.makeMeasureSpec(width, MeasureSpec.EXACTLY),
+                        MeasureSpec.makeMeasureSpec(child.measuredHeight, MeasureSpec.EXACTLY))
+                }
+            }
+        }
+    }
+
+    override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
+        var y = paddingTop
+        for (i in 0 until childCount) {
+            val child = getChildAt(i)
+            if (child.visibility == GONE) continue
+            val lp = child.layoutParams as MarginLayoutParams
+            y += lp.topMargin
+            val x = paddingLeft + lp.leftMargin
+            child.layout(x, y, x + child.measuredWidth, y + child.measuredHeight)
+            y += child.measuredHeight + lp.bottomMargin
+        }
+    }
+}
+```
+
+heightUsed 只包含已经测过的子项及其 margin，measureChildWithMargins 自己会扣父 padding，不能重复扣除。布局传入的 child 坐标相对当前容器，不能再加父的 left/top。父约束不足时容器仍服从 EXACTLY/AT_MOST；它不是滚动容器，不会自动让超出内容可滚动。
+
+二次统一宽保留第一轮高度，适合固定内容/常规纵向布局；若业务需要宽变化后重新排版并重新计算整列高度，应增加完整二次测量策略，或使用 LinearLayout/ConstraintLayout。此处明确示例能力边界，不声称是通用 LinearLayout 替代。源码依据：[AOSP 17 ViewGroup.measureChildWithMargins / getChildMeasureSpec](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/view/ViewGroup.java)。
 
 ## 4. Canvas 画布详解
 
@@ -3123,324 +3194,42 @@ val actualW = view.width            // 实际宽度
 val actualH = view.height           // 实际高度
 ```
 
-### 18.2 两者不一致的情况
+### 18.2 MeasureSpec 不能与 LayoutParams 一对一等同
+
+MeasureSpec 是父容器结合自身约束、padding/margin 和子项 LayoutParams 计算的结果。EXACTLY 不只是 match_parent，AT_MOST 也不是看到 wrap_content 就无条件成立；例如父 UNSPECIFIED 的分支有独立处理。
+
+| mode | 对自定义测量的约束 |
+|---|---|
+| EXACTLY | 使用 specSize，不因自定义最小尺寸再扩大 |
+| AT_MOST | 期望尺寸不能突破 specSize，可返回 TOO_SMALL 测量状态 |
+| UNSPECIFIED | 根据内容、padding、建议最小尺寸决定期望值 |
+
+宽和高都必须计算并传给 setMeasuredDimension。只计算 resultWidth 却使用未定义 resultHeight 的代码不能作为完整示例。固定实现见 [ViewGroup.getChildMeasureSpec](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/view/ViewGroup.java) 和 [View.resolveSizeAndState](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/view/View.java)。
+
+### 18.3 处理 wrap_content、padding 和最小尺寸
 
 ```kotlin
-/**
- * 常见不一致场景：
- * 1. 父容器强制调整子 View 尺寸
- * 2. 自定义 ViewGroup 限制子 View
- * 3. 使用 MATCH_PARENT 但父容器空间不足
- */
-
-class MyViewGroup : ViewGroup {
-
-    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-        // 强制限制子 View 尺寸
-        for (i in 0 until childCount) {
-            val child = getChildAt(i)
-            // 强制使用固定尺寸，不管子 View 的测量结果
-            measureChild(child,
-                MeasureSpec.makeMeasureSpec(100, MeasureSpec.EXACTLY),
-                MeasureSpec.makeMeasureSpec(100, MeasureSpec.EXACTLY)
-            )
-        }
-        setMeasuredDimension(500, 500)
-    }
-}
-
-// 结果：child.measuredWidth = 子View计算的尺寸
-//      child.width = 100 (被强制修改)
-```
-
----
-
-### 15.4 根视图的多次 Measure
-
-### 19.1 多次 Measure 的原因
-
-```text
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         根视图多次 Measure                                   │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-为什么 ViewRootImpl 会多次 measure？
-
-1. 第一次：获取初步尺寸
-   - 尝试使用期望的尺寸进行布局
-
-2. 第二次：根据布局结果调整
-   - 如果子 View 使用 MATCH_PARENT
-   - 需要根据可用空间重新计算
-
-3. 特殊场景：
-   - ScrollView 中的内容高度不确定
-   - ConstraintLayout 的自动约束计算
-   - 动态添加/删除子 View
-```
-
-### 19.2 源码流程
-
-```kotlin
-// ViewRootImpl.performMeasure() 简化流程
-
-void performMeasure(int widthMeasureSpec, int heightMeasureSpec) {
-    // 第一次 Measure
-    mView.measure(widthMeasureSpec, heightMeasureSpec);
-
-    // 检查是否需要重新 Measure
-    // (例如：LayoutParams 变化)
-    if (measureInvalidated) {
-        // 第二次 Measure
-        mView.measure(widthMeasureSpec, heightMeasureSpec);
-    }
-}
-
-// 常见触发场景
-// 1. TextView 内容变化 -> 重新测量
-// 2. ViewStub 展开 -> 重新测量
-// 3. 动态添加 View -> 父容器重新测量
-```
-
-### 19.3 避免重复 Measure
-
-```text
-/**
- * 优化技巧：
- * 1. 在 onMeasure 中做缓存
- * 2. 使用 setMeasuredDimension 避免重复
- * 3. 合理使用 ViewGroup 的 children 缓存
- */
-
-class OptimizedView : View {
-
-    private var cachedWidth = 0
-    private var cachedHeight = 0
-    private var cacheValid = false
-
-    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-        // 检查是否可以使用缓存
-        if (cacheValid) {
-            setMeasuredDimension(cachedWidth, cachedHeight)
-            return
-        }
-
-        // 实际测量
-        // ... 测量逻辑 ...
-
-        // 缓存结果
-        cachedWidth = resultWidth
-        cachedHeight = resultHeight
-        cacheValid = true
-
-        setMeasuredDimension(cachedWidth, cachedHeight)
-    }
-
-    // 数据变化时清除缓存
-    fun setNewData(data: Any) {
-        cacheValid = false
-        requestLayout()
-    }
-}
-```
-
----
-
-## 17. 自定义 View 类型与分类
-
-### 17.1 自定义 View 类型
-
-```text
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         自定义 View 类型                                     │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-┌─────────────────────┬─────────────────────────────────────────────────────┐
-│       类型           │                      说明                           │
-├─────────────────────┼─────────────────────────────────────────────────────┤
-│ 继承 View 类        │ 用于基础绘制（如圆形、图表、刻度盘）                │
-│                     │ 需要重写 onDraw() 实现自定义绘制                    │
-├─────────────────────┼─────────────────────────────────────────────────────┤
-│ 组合控件            │ 复用现有控件（如标题栏、搜索栏）                    │
-│                     │ 通过 LayoutInflater 加载 XML 布局                  │
-├─────────────────────┼─────────────────────────────────────────────────────┤
-│ 继承 ViewGroup      │ 管理子 View 布局（如流式布局、瀑布流）              │
-│                     │ 需要处理 onMeasure() 和 onLayout()                │
-└─────────────────────┴─────────────────────────────────────────────────────┘
-```
-
-#### 17.1.1 继承 View 类
-
-```kotlin
-/**
- * 场景：需要自定义绘制（如圆形、图表、刻度盘）
- * 关键：重写 onDraw() 使用 Canvas 绘制
- */
-class CircleView @JvmOverloads constructor(
-    context: Context,
-    attrs: AttributeSet? = null
+class SizedContentView @JvmOverloads constructor(
+    context: Context, attrs: AttributeSet? = null
 ) : View(context, attrs) {
-
-    private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-
-    override fun onDraw(canvas: Canvas) {
-        super.onDraw(canvas)
-        canvas.drawCircle(width / 2f, height / 2f, minOf(width, height) / 2f, paint)
-    }
-}
-```
-
-#### 17.1.2 组合控件
-
-```text
-/**
- * 场景：复用现有控件（如标题栏、搜索栏）
- * 关键：使用 LayoutInflater 加载 XML
- */
-class TitleBarView @JvmOverloads constructor(
-    context: Context,
-    attrs: AttributeSet? = null
-) : FrameLayout(context, attrs) {
-
-    init {
-        LayoutInflater.from(context).inflate(R.layout.title_bar, this, true)
-        findViewById<ImageView>(R.id.btn_back).setOnClickListener {
-            // 返回按钮事件
-        }
-    }
-}
-
-// XML 布局
-// <com.app.TitleBarView ... />
-```
-
-#### 17.1.3 继承 ViewGroup
-
-```text
-/**
- * 场景：管理子 View 布局（如流式布局、瀑布流）
- * 关键：重写 onMeasure() 和 onLayout()
- */
-class FlowLayout @JvmOverloads constructor(
-    context: Context,
-    attrs: AttributeSet? = null
-) : ViewGroup(context, attrs) {
+    private val contentSizePx = TypedValue.applyDimension(
+        TypedValue.COMPLEX_UNIT_DIP, 100f, resources.displayMetrics
+    ).roundToInt() // import kotlin.math.roundToInt
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-        // 测量所有子 View
-        measureChildren(widthMeasureSpec, heightMeasureSpec)
-        // 计算自身尺寸
-        setMeasuredDimension(...)
-    }
-
-    override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
-        // 布局所有子 View
-        for (i in 0 until childCount) {
-            val child = getChildAt(i)
-            child.layout(...)
-        }
+        val desiredWidth = maxOf(suggestedMinimumWidth,
+            contentSizePx + paddingLeft + paddingRight)
+        val desiredHeight = maxOf(suggestedMinimumHeight,
+            contentSizePx + paddingTop + paddingBottom)
+        setMeasuredDimension(
+            resolveSizeAndState(desiredWidth, widthMeasureSpec, 0),
+            resolveSizeAndState(desiredHeight, heightMeasureSpec, 0)
+        )
     }
 }
 ```
 
----
-
-## 18. 核心生命周期方法详解
-
-### 18.1 三大方法对比
-
-```text
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                    核心生命周期方法                                          │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-┌─────────────────┬─────────────────────────────────────────────────────────┐
-│     方法         │                      说明                              │
-├─────────────────┼─────────────────────────────────────────────────────────┤
-│ onMeasure()     │ 确定 View 尺寸                                           │
-│                 │ 处理 MeasureSpec 三种模式                                │
-│                 │ EXACTLY / AT_MOST / UNSPECIFIED                         │
-├─────────────────┼─────────────────────────────────────────────────────────┤
-│ onLayout()      │ 确定子 View 位置（仅 ViewGroup）                        │
-│                 │ 调用 child.layout() 设置子 View 位置                    │
-├─────────────────┼─────────────────────────────────────────────────────────┤
-│ onDraw()        │ 绘制 View 内容                                          │
-│                 │ 使用 Canvas 和 Paint 绘制                                │
-└─────────────────┴─────────────────────────────────────────────────────────┘
-
-// 完整流程
-onMeasure() -> onLayout() -> onDraw()
-   │              │              │
-   ▼              ▼              ▼
- 测量尺寸      确定位置        绘制内容
-```
-
-### 18.2 MeasureSpec 三种模式处理
-
-```kotlin
-override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-    val widthMode = MeasureSpec.getMode(widthMeasureSpec)
-    val widthSize = MeasureSpec.getSize(widthMeasureSpec)
-
-    var resultWidth = 0
-
-    when (widthMode) {
-        // match_parent 或具体数值 (如 100dp)
-        MeasureSpec.EXACTLY -> {
-            resultWidth = widthSize
-        }
-
-        // wrap_content
-        MeasureSpec.AT_MOST -> {
-            // 取内容和父容器允许值的较小者
-            resultWidth = minOf(contentWidth, widthSize)
-        }
-
-        // ScrollView 中使用
-        MeasureSpec.UNSPECIFIED -> {
-            resultWidth = contentWidth // 使用内容尺寸
-        }
-    }
-
-    // ⚠️ 必须调用
-    setMeasuredDimension(resultWidth, resultHeight)
-}
-```
-
-### 18.3 处理 wrap_content 和 padding
-
-```kotlin
-class CustomView : View {
-
-    private val DEFAULT_SIZE = 200
-    private val MIN_SIZE = 100
-
-    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-        super.onMeasure(widthMeasureSpec, heightMeasureSpec)
-
-        // 考虑 padding 的影响
-        val paddingH = paddingLeft + paddingRight
-        val paddingV = paddingTop + paddingBottom
-
-        val widthMode = MeasureSpec.getMode(widthMeasureSpec)
-        val widthSize = MeasureSpec.getSize(widthMeasureSpec)
-
-        var measuredWidth = when (widthMode) {
-            MeasureSpec.EXACTLY -> widthSize
-            MeasureSpec.AT_MOST -> {
-                // wrap_content: 内容尺寸 + padding
-                minOf(DEFAULT_SIZE + paddingH, widthSize)
-            }
-            else -> DEFAULT_SIZE + paddingH
-        }
-
-        // 设置最小尺寸限制
-        measuredWidth = maxOf(measuredWidth, MIN_SIZE + paddingH)
-
-        setMeasuredDimension(measuredWidth, measuredHeight)
-    }
-}
-```
+最小尺寸约束先进入期望值，再与父约束合并，不能在解析 EXACTLY/AT_MOST 后用 maxOf 强行撑大结果。父 EXACTLY 40px 时，即便内容期望 100px，也必须测量为 40px；AT_MOST 40px 则受限并可标 TOO_SMALL。绘制内容应裁剪/缩放或重排以适应最终空间，而不是篡改父容器约束。
 
 ---
 
@@ -3572,48 +3361,62 @@ class CustomView @JvmOverloads constructor(
 
 ### 20.1 onTouchEvent
 
+点击与拖动不能仅通过 UP 区分：超出 touchSlop、多指参与、CANCEL 都应取消本次点击资格。以下单指点击示例始终消费自己已接受的流，只在未拖动的有效 UP 调用 performClick：
+
 ```kotlin
 class TouchView @JvmOverloads constructor(
-    context: Context,
-    attrs: AttributeSet? = null
+    context: Context, attrs: AttributeSet? = null
 ) : View(context, attrs) {
+    private val slop = ViewConfiguration.get(context).scaledTouchSlop
+    private var downX = 0f
+    private var downY = 0f
+    private var clickCandidate = false
 
-    private var lastX = 0f
-    private var lastY = 0f
+    init { isClickable = true }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
-        when (event.action) {
+        if (!isEnabled) return super.onTouchEvent(event)
+        when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
-                lastX = event.x
-                lastY = event.y
-                return true // 消费事件
+                downX = event.x
+                downY = event.y
+                clickCandidate = true
+                isPressed = true
+            }
+            MotionEvent.ACTION_POINTER_DOWN -> {
+                clickCandidate = false
+                isPressed = false
             }
             MotionEvent.ACTION_MOVE -> {
-                val dx = event.x - lastX
-                val dy = event.y - lastY
-                // 处理移动逻辑
-                lastX = event.x
-                lastY = event.y
+                if (kotlin.math.abs(event.x - downX) > slop ||
+                    kotlin.math.abs(event.y - downY) > slop) {
+                    clickCandidate = false
+                    isPressed = false
+                }
             }
             MotionEvent.ACTION_UP -> {
-                // 处理点击
-                performClick() // 触发 onClick
+                val click = clickCandidate && event.x >= 0 && event.x < width &&
+                    event.y >= 0 && event.y < height
+                clickCandidate = false
+                isPressed = false
+                if (click) performClick()
             }
             MotionEvent.ACTION_CANCEL -> {
-                // 处理取消
+                clickCandidate = false
+                isPressed = false
             }
         }
-        return super.onTouchEvent(event)
+        return true
     }
 
-    // 必须实现以支持 onClick
     override fun performClick(): Boolean {
-        super.performClick()
-        // 处理点击事件
+        super.performClick() // 保留 OnClickListener 与无障碍点击事件
         return true
     }
 }
 ```
+
+原生 View 的 onTouchEvent 还实现长按、工具类型、按压反馈等分支；无需自定义手势时优先使用原生点击行为。依据：[AOSP 17 View.onTouchEvent / performClick](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/view/View.java)。
 
 ### 20.2 GestureDetector 手势处理
 
@@ -3701,13 +3504,15 @@ class ChildView @JvmOverloads constructor(
 ) : View(context, attrs) {
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
-        when (event.action) {
-            MotionEvent.ACTION_MOVE -> {
-                // 请求父 View 不要拦截
-                parent.requestDisallowInterceptTouchEvent(true)
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                parent?.requestDisallowInterceptTouchEvent(true)
+                return true // 接受 DOWN，否则后续请求可能根本没有机会执行
             }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL ->
+                parent?.requestDisallowInterceptTouchEvent(false)
         }
-        return super.onTouchEvent(event)
+        return true // 示例仅演示手势所有权；业务点击/滚动需独立实现
     }
 }
 ```
@@ -4010,8 +3815,6 @@ class PianoView @JvmOverloads constructor(
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
-        val pointerId = event.getPointerId(event.actionIndex)
-
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
                 val keyIndex = getKeyIndex(event.getX(event.actionIndex), event.getY(event.actionIndex))
@@ -4022,18 +3825,19 @@ class PianoView @JvmOverloads constructor(
                 }
             }
             MotionEvent.ACTION_MOVE -> {
-                pressedKeys.clear()
+                val nextKeys = mutableSetOf<Int>()
                 for (i in 0 until event.pointerCount) {
                     val keyIndex = getKeyIndex(event.getX(i), event.getY(i))
-                    if (keyIndex >= 0) pressedKeys.add(keyIndex)
+                    if (keyIndex >= 0) nextKeys.add(keyIndex)
                 }
+                (nextKeys - pressedKeys).forEach { playSound(it) }
+                pressedKeys.clear()
+                pressedKeys.addAll(nextKeys)
                 invalidate()
             }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP -> {
                 val pointerIndex = event.actionIndex
-                val upPointerId = event.getPointerId(pointerIndex)
-                pressedKeys.removeIf { it == upPointerId }
-
+                // pointerIndex 指示离开的指针，不是琴键编号；不与 pressedKeys 比较。
                 // 检查其他手指是否按在其他键上
                 pressedKeys.clear()
                 for (i in 0 until event.pointerCount) {

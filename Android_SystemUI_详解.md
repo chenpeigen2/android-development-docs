@@ -1,5 +1,8 @@
 # Android SystemUI 完全指南
 
+> 审阅基线：AOSP `android-17.0.0_r1`；审阅日期：2026-09-10。正文中的调用链为固定 tag 的关键路径分析，省略代码不是可独立编译的完整 AOSP 类；产品开关、权限和设备结果另行验证。
+
+
 > 作者：OpenClaw | 日期：2026-03-11  
 > SystemUI 核心机制 | AOD 与通知系统深度解析
 
@@ -7,102 +10,106 @@
 
 ## 目录
 
-### 一、SystemUI 基础
-
-- [第1章 SystemUI 概述](#1-systemui-概述)
+- [1. SystemUI 概述](#1-systemui-概述)
   - [1.1 什么是 SystemUI](#11-什么是-systemui)
   - [1.2 SystemUI 包含的组件](#12-systemui-包含的组件)
   - [1.3 SystemUI 进程](#13-systemui-进程)
-
-- [第2章 SystemUI 启动流程 (Android 16)](#2-systemui-启动流程-android-16)
-  - [2.1 整体架构 — Dagger 注入体系](#21-整体架构-android-16-dagger-注入)
-  - [2.2 核心源码分析](#22-核心源码分析-android-16-aosp)
+- [2. SystemUI 启动流程（Android 17）](#2-systemui-启动流程android-17)
+  - [2.1 整体架构：接口入口、实现入口与注入](#21-整体架构接口入口实现入口与注入)
+  - [2.2 核心源码分析](#22-核心源码分析)
+    - [抽象入口与真实状态字段](#抽象入口与真实状态字段)
+    - [onCreate：引导配置和 boot 分发](#oncreate引导配置和-boot-分发)
+    - [系统用户与次用户服务集合](#系统用户与次用户服务集合)
+    - [依赖驱动的启动算法](#依赖驱动的启动算法)
+    - [SystemUIService：启动门面，不是应用入口替代物](#systemuiservice启动门面不是应用入口替代物)
   - [2.3 Dagger 组件绑定示例](#23-dagger-组件绑定示例)
   - [2.4 启动时序图](#24-启动时序图)
-  - [2.5 CoreStartable 服务列表](#25-主要-corestartable-服务列表)
-
-### 二、AOD 系统
-
-- [第3章 AOD 基础](#3-aod-always-on-display-详解)
+  - [2.5 主要启动组件与核验方法](#25-主要启动组件与核验方法)
+- [3. AOD (Always On Display) 详解](#3-aod-always-on-display-详解)
   - [3.1 AOD 概述](#31-aod-概述)
-  - [3.2 AOD 架构](#32-aod-架构-android-16)
-  - [3.3 Doze 状态机](#33-aod-状态机-dozemachine)
-  - [3.4 AOD 显示流程](#34-aod-显示流程-android-16)
-  - [3.5 AOD 核心组件源码](#35-aod-核心组件源码-android-16)
-
-- [第12章 AOD 高级特性](#12-aod-高级特性)
-  - [12.1 WakefulnessLifecycle 交互](#121-aod-与-wakefulnesslifecycle-交互)
-  - [12.2 显示状态管理](#122-aod-显示状态管理)
-  - [12.3 传感器集成](#123-aod-传感器集成-android-16)
-  - [12.4 配置和设置](#124-aod-配置和设置-android-16)
-
-### 三、通知系统
-
-- [第4章 通知系统详解](#4-通知系统详解)
-  - [4.1 通知系统架构](#41-通知系统概述)
+  - [3.2 AOD 架构（Android 17 职责示意）](#32-aod-架构android-17-职责示意)
+    - [源码文件结构](#源码文件结构)
+  - [3.3 AOD 状态机 (DozeMachine)](#33-aod-状态机-dozemachine)
+  - [3.4 AOD 显示流程（Android 17）](#34-aod-显示流程android-17)
+    - [触发原因与调试](#触发原因与调试)
+  - [3.5 AOD 核心组件源码（Android 17）](#35-aod-核心组件源码android-17)
+    - [DozeService：框架生命周期到状态机](#dozeservice框架生命周期到状态机)
+    - [DozeHost：UI 与控制策略的边界](#dozehostui-与控制策略的边界)
+    - [DozeTriggers：通知、手势与 proximity](#dozetriggers通知手势与-proximity)
+    - [DozeSensors：注册不等于传感器一定可用](#dozesensors注册不等于传感器一定可用)
+    - [DozeScreenState：目标状态与实际应用分开](#dozescreenstate目标状态与实际应用分开)
+- [4. 通知系统详解](#4-通知系统详解)
+  - [4.1 通知系统概述](#41-通知系统概述)
   - [4.2 通知发送流程](#42-通知发送流程)
   - [4.3 通知核心组件](#43-通知核心组件)
-
-- [第5章 NotificationManagerService](#5-notificationmanagerservice-深入分析)
+- [5. NotificationManagerService 深入分析](#5-notificationmanagerservice-深入分析)
   - [5.1 NMS 架构](#51-nms-架构)
   - [5.2 NMS 核心流程](#52-nms-核心流程)
-
-- [第6章 RemoteViews 机制](#6-remoteviews-深度解析)
+    - [取消、更新与用户可见性的区别](#取消更新与用户可见性的区别)
+- [6. RemoteViews 深度解析](#6-remoteviews-深度解析)
   - [6.1 RemoteViews 原理](#61-remoteviews-原理)
-  - [6.2 支持的 View](#62-remoteviews-支持的-view)
+  - [6.2 RemoteViews 支持的 View](#62-remoteviews-支持的-view)
   - [6.3 RemoteViews 操作](#63-remoteviews-操作)
   - [6.4 Actions 机制深度解析](#64-actions-机制深度解析)
-  - [6.5 反射创建与 View 白名单](#65-反射创建与-view-白名单机制)
-
-- [第7章 SystemUI 与 Framework 协作](#7-systemui-与-framework-协作)
+    - [当前 Action 的真实映射](#当前-action-的真实映射)
+    - [反射不是任意方法执行](#反射不是任意方法执行)
+    - [序列化、缓存和变体](#序列化缓存和变体)
+    - [apply/reapply 与异步绑定](#applyreapply-与异步绑定)
+  - [6.5 反射创建与 View 白名单机制](#65-反射创建与-view-白名单机制)
+    - [三个需要同时存在的边界](#三个需要同时存在的边界)
+    - [为什么不能简单序列化自定义 View](#为什么不能简单序列化自定义-view)
+    - [点击与集合模板](#点击与集合模板)
+- [7. SystemUI 与 Framework 协作](#7-systemui-与-framework-协作)
   - [7.1 通知协作流程](#71-通知协作流程)
-
-- [第8章 通知渲染流程](#8-通知渲染流程)
+- [8. 通知渲染流程](#8-通知渲染流程)
   - [8.1 渲染架构](#81-渲染架构)
   - [8.2 渲染流程详解](#82-渲染流程详解)
-
-- [第9章 通知模板系统](#9-通知模板系统)
+    - [接收与集合更新](#接收与集合更新)
+    - [建表、准备与内容绑定](#建表准备与内容绑定)
+    - [复用与重建的判断](#复用与重建的判断)
+- [9. 通知模板系统](#9-通知模板系统)
   - [9.1 通知模板类型](#91-通知模板类型)
   - [9.2 模板使用示例](#92-模板使用示例)
   - [9.3 模板底层实现](#93-模板底层实现)
-
-### 四、通知高级特性
-
-- [第11章 NotificationManagerService 高级特性](#11-notificationmanagerservice-高级特性)
-  - [11.1 NMS 核心数据结构](#111-nms-核心数据结构)
-  - [11.2 通知排名算法](#112-通知排名算法)
-  - [11.3 通知分组机制](#113-通知分组机制)
-  - [11.4 通知气泡 (Bubble)](#114-通知气泡-bubble)
-  - [11.5 通知声音和振动](#115-通知声音和振动)
-  - [11.6 通知持久化存储](#116-通知持久化存储)
-  - [11.7 通知历史机制](#117-通知历史机制)
-
-### 五、Keyguard 锁屏
-
-- [第13章 Keyguard 锁屏系统](#13-keyguard-锁屏系统)
-  - [13.1 Keyguard 概述](#131-keyguard-概述)
-  - [13.2 源码目录结构](#132-keyguard-源码目录结构-android-16)
-  - [13.3 启动流程](#133-keyguard-启动流程)
-  - [13.4 KeyguardViewMediator 源码](#133-keyguardviewmediator-源码分析)
-  - [13.5 KeyguardUpdateMonitor 状态管理](#134-keyguardupdatemonitor-状态管理)
-  - [13.6 安全验证机制](#135-安全验证机制)
-  - [13.7 图案解锁源码](#136-图案解锁源码分析)
-  - [13.8 生物识别解锁](#137-生物识别解锁)
-  - [13.9 锁屏与 SystemUI 交互](#138-锁屏与-systemui-交互)
-  - [13.10 Keyguard 状态机](#139-keyguard-状态机)
-  - [13.11 锁屏安全最佳实践](#1310-锁屏安全最佳实践)
-
-- [第14章 Keyguard 面试常见问题](#14-keyguard-面试常见问题)
-
-### 六、面试与总结
-
-- [第10章 面试常见问题](#10-面试常见问题)
+- [10. 面试常见问题](#10-面试常见问题)
   - [10.1 SystemUI 基础](#101-systemui-基础)
   - [10.2 AOD](#102-aod)
   - [10.3 通知系统](#103-通知系统)
-  - [10.4 通知系统完整链路](#101-通知系统完整链路)
-  - [10.5 RemoteViews 深度解析](#102-remoteviews-深度解析)
-  - [10.6 AOD 状态机深度解析](#103-aod-状态机深度解析)
+- [11. NotificationManagerService 高级特性](#11-notificationmanagerservice-高级特性)
+  - [11.1 NMS 核心数据结构与更新事务](#111-nms-核心数据结构与更新事务)
+  - [11.2 当前排序算法：两轮排序与 group proxy](#112-当前排序算法两轮排序与-group-proxy)
+  - [11.3 通知分组：身份、summary 与子通知](#113-通知分组身份summary-与子通知)
+  - [11.4 通知气泡：元数据不是资格豁免](#114-通知气泡元数据不是资格豁免)
+  - [11.5 声音与振动：提醒策略和视觉打断分别建模](#115-声音与振动提醒策略和视觉打断分别建模)
+  - [11.6 偏好持久化与活跃通知不是一个数据库](#116-偏好持久化与活跃通知不是一个数据库)
+  - [11.7 通知历史：条件记录、缓冲、保留与关闭清理](#117-通知历史条件记录缓冲保留与关闭清理)
+- [12. AOD 高级特性](#12-aod-高级特性)
+  - [12.1 AOD 与 WakefulnessLifecycle：中间态必须回到策略判断](#121-aod-与-wakefulnesslifecycle中间态必须回到策略判断)
+  - [12.2 显示状态管理：pending、延迟和取消](#122-显示状态管理pending延迟和取消)
+  - [12.3 传感器：监听资格与注册行为分离](#123-传感器监听资格与注册行为分离)
+  - [12.4 AmbientDisplayConfiguration：available 不等于 enabled](#124-ambientdisplayconfigurationavailable-不等于-enabled)
+  - [12.5 贯穿通知到 AOD 的可观测链路](#125-贯穿通知到-aod-的可观测链路)
+  - [12.6 RemoteViews 异步绑定的代际与资源寿命](#126-remoteviews-异步绑定的代际与资源寿命)
+  - [12.7 Pulse 和防烧屏：状态与动画边界](#127-pulse-和防烧屏状态与动画边界)
+  - [12.8 为什么不能用一句“通知列表不适合 RecyclerView”解释架构](#128-为什么不能用一句通知列表不适合-recyclerview解释架构)
+- [13. Keyguard 锁屏系统](#13-keyguard-锁屏系统)
+  - [13.1 Keyguard 概述](#131-keyguard-概述)
+  - [13.2 源码目录与实现边界](#132-源码目录与实现边界)
+  - [13.3 启动链：system_server 绑定与 SystemUI startable 协作](#133-启动链system_server-绑定与-systemui-startable-协作)
+  - [13.4 Mediator 的显示、隐藏与完成处理](#134-mediator-的显示隐藏与完成处理)
+  - [13.5 KeyguardUpdateMonitor：监听与信任语义](#135-keyguardupdatemonitor监听与信任语义)
+  - [13.6 安全模式与图案认证完整回调](#136-安全模式与图案认证完整回调)
+  - [13.7 生物识别：认证结果到解锁模式](#137-生物识别认证结果到解锁模式)
+  - [13.8 锁屏通知、隐私与窗口交互](#138-锁屏通知隐私与窗口交互)
+  - [13.9 真实状态模型与 scene 迁移](#139-真实状态模型与-scene-迁移)
+  - [13.10 安全与生命周期实践](#1310-安全与生命周期实践)
+- [14. Keyguard 面试常见问题](#14-keyguard-面试常见问题)
+  - [14.1 谁启动 Keyguard？](#141-谁启动-keyguard)
+  - [14.2 认证成功为什么还没有立即隐藏锁屏？](#142-认证成功为什么还没有立即隐藏锁屏)
+  - [14.3 Trust managed 可以跳过 bouncer 吗？](#143-trust-managed-可以跳过-bouncer-吗)
+  - [14.4 锁屏与 AOD 是同一个状态机吗？](#144-锁屏与-aod-是同一个状态机吗)
+  - [14.5 如何定位通知只在锁屏消失？](#145-如何定位通知只在锁屏消失)
+- [总结](#总结)
 
 ---
 
@@ -110,7 +117,7 @@
 
 ### 1.1 什么是 SystemUI
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                       SystemUI 在系统中的位置                              │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -128,7 +135,7 @@
                                     │
                                     ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                      Framework 层 (Java)                                   │
+│                      系统 UI 应用（独立进程，通过 Binder 与 Framework 服务协作）                                   │
 │  ┌─────────────────────────────────────────────────────────────────┐      │
 │  │                      SystemUI                                      │      │
 │  │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐         │      │
@@ -158,669 +165,571 @@
 
 ### 1.2 SystemUI 包含的组件
 
+SystemUI 覆盖状态栏、通知、锁屏、快捷设置、音量、电源交互和 AOD 等 UI。功能名不等于固定 Java 类名：旧文的 AODView、FingerprintUnlockView、EdgeNavStrategy 等不应被当作此 tag 的类路径索引。
+
+```text
+SystemUI process
+  status/notification: NotificationListener, NotifCollection, NotifPipeline,
+                       ShadeListBuilder, ExpandableNotificationRow,
+                       NotificationStackScrollLayout
+  doze: DozeService, DozeMachine, DozeTriggers, DozeSensors,
+        DozeScreenState, DozeUi, DozeHost
+  keyguard: KeyguardService, KeyguardViewMediator, KeyguardUpdateMonitor,
+            credential view/controllers, repositories/interactors
+  other UI: navigation, quick settings, volume, power, screen decorations
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                       SystemUI 核心组件                                   │
-└─────────────────────────────────────────────────────────────────────────────┘
 
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  StatusBar (状态栏)                                                        │
-│  ├── StatusBarIconView - 状态栏图标                                       │
-│  ├── SignalIconView - 信号图标                                            │
-│  ├── BatteryIconView - 电池图标                                           │
-│  ├── ClockView - 时间显示                                                 │
-│  └── NotificationIconContainer - 通知图标容器                              │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  NavigationBar (导航栏)                                                    │
-│  ├── NavBarView - 导航栏容器                                               │
-│  ├── BackButton - 返回按钮                                                │
-│  ├── HomeButton - Home 按钮                                               │
-│  ├── RecentButton - 多任务按钮                                            │
-│  └── EdgeNavStrategy - 边缘滑动策略                                        │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  Notification (通知)                                                       │
-│  ├── NotificationPanelView - 通知面板                                       │
-│  ├── NotificationStackScrollLayout - 通知列表                             │
-│  ├── NotificationView - 单条通知视图                                       │
-│  ├── ExpandableNotificationRow - 可展开通知行                              │
-│  └── MediaNotificationView - 媒体通知                                      │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  Keyguard (锁屏)                                                           │
-│  ├── KeyguardHostView - 锁屏主视图                                         │
-│  ├── LockPatternView - 图案解锁                                           │
-│  ├── FingerprintUnlockView - 指纹解锁                                     │
-│  └── BiometricUnlockView - 生物识别解锁                                   │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  AOD (Always On Display)                                                  │
-│  ├── AODView - AOD 主视图                                                 │
-│  ├── AODDisplayView - AOD 显示区域                                       │
-│  ├── AODClockView - AOD 时钟                                             │
-│  ├── AODNotificationView - AOD 通知视图                                   │
-│  └── DozeMachine - Doze 状态机                                           │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  PowerMenu (电源菜单)                                                     │
-│  ├── GlobalActionsDialog - 全局操作对话框                                 │
-│  ├── PowerMenuView - 电源菜单视图                                         │
-│  └── PowerButton - 电源按钮                                               │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
+并非所有控制器都实现 CoreStartable，也并非所有功能都在同一设备构建中启用。Recents/手势导航与 Launcher/Quickstep、WM Shell 的分工由产品配置决定，不能声称所有最近任务界面都绘制在 SystemUI 中。
 
 ### 1.3 SystemUI 进程
 
-```java
-/**
- * SystemUI 是一个运行在 system_server 进程中的系统级应用
- * 进程名: com.android.systemui
- * 进程名: com.android.systemui:pixel (在某些设备上)
- */
+SystemUI 是独立系统应用，常规主进程为 `com.android.systemui`，**不运行在 system_server 进程中**。SystemServer 发起组件启动，AMS 负责应用进程与 Service 调度；进程启动后先创建 Application，再创建 Service。
 
-// SystemUI 进程创建流程
-// 1. system_server 启动时创建 SystemUIService
-// 2. SystemUIService.onStart() 启动 SystemUIApplication
-// 3. SystemUIApplication.onCreate() 初始化各个组件
-// 4. 每个组件都是一个独立的服务/控制器
+```text
+system_server: SystemServer.startSystemUi(context, windowManager)
+  -> PackageManagerInternal.getSystemUiServiceComponent()
+  -> context.startServiceAsUser(intent, UserHandle.SYSTEM)
+  -> windowManager.onSystemUiStarted()
+
+com.android.systemui process:
+  AppComponentFactory -> application.impl.SystemUIApplicationImpl
+  Application.onCreate -> dependency graph
+  SystemUIService.onCreate -> startSystemUserServicesIfNeeded
 ```
 
----
+这里没有 `SystemServiceManager.startService(SystemUIService.class)`；SystemUIService 是 Android Service，不是 system_server 内的 SystemService。`windowManager.onSystemUiStarted()` 也不等于所有 SystemUI UI 已完成首帧，是启动协作节点。
 
-## 2. SystemUI 启动流程 (Android 16)
+多用户会建立相应用户的 SystemUI 生命周期；带冒号的子进程不应无条件启动全部 startables。判断应来自实际 Application/ProcessWrapper 路径，不能凭某厂商的 `:pixel` 进程名推导 AOSP 规则。
 
-> **源码路径**: `frameworks/base/packages/SystemUI/src/com/android/systemui/`
->
-> 关键文件:
-> - `SystemUIApplication.java` - 应用入口
-> - `SystemUIService.java` - 服务入口
-> - `SystemUIInitializer.java` - 初始化器
-> - `CoreStartable.java` - 核心启动接口
+## 2. SystemUI 启动流程（Android 17）
 
-### 2.1 整体架构 (Android 16 Dagger 注入)
+### 2.1 整体架构：接口入口、实现入口与注入
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                SystemUI 启动架构 (Android 16 Dagger)                        │
-└─────────────────────────────────────────────────────────────────────────────┘
+固定 tag 将 Application 抽象接口与初始化实现拆分到不同构建目标。入口不在旧 `src/com/android/systemui/SystemUIApplication.java`：
 
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         System Server 进程                                  │
-│                                                                             │
-│  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │                    SystemServer.main()                               │   │
-│  │                                                                      │   │
-│  │   1. startBootstrapServices()  - 引导服务                           │   │
-│  │   2. startCoreServices()       - 核心服务                           │   │
-│  │   3. startOtherServices()      - 其他服务                           │   │
-│  │                              │                                       │   │
-│  │                              ▼                                       │   │
-│  │   ┌────────────────────────────────────────────────────────────┐    │   │
-│  │   │  SystemServiceManager.startService(SystemUIService.class)  │    │   │
-│  │   └────────────────────────────────────────────────────────────┘    │   │
-│  └─────────────────────────────────────────────────────────────────────┘   │
-│                                    │                                        │
-└─────────────────────────────────────────────────────────────────────────────┘
-                                     │
-                                     ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                     SystemUIApplication.onCreate()                          │
-│                                                                             │
-│  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │  1. Dagger 依赖注入初始化                                            │   │
-│  │     mInitializer = mContextAvailableCallback.onContextAvailable()   │   │
-│  │     mSysUIComponent = mInitializer.getSysUIComponent()              │   │
-│  │                                                                      │   │
-│  │  2. 设置主题和 GPU 优先级                                            │   │
-│  │     setTheme(R.style.Theme_SystemUI)                                │   │
-│  │     ThreadedRenderer.setContextPriority()                           │   │
-│  │                                                                      │   │
-│  │  3. 注册 BOOT_COMPLETED 广播                                        │   │
-│  │     registerReceiver(mBootCompletedReceiver)                        │   │
-│  └─────────────────────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────────────────────┘
-                                     │
-                                     ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                     SystemUIService.onCreate()                              │
-│                                                                             │
-│  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │  ((SystemUIApplication) getApplication())                            │   │
-│  │      .startSystemUserServicesIfNeeded();                            │   │
-│  └─────────────────────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────────────────────┘
-                                     │
-                                     ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│              SystemUIApplication.startSystemUserServicesIfNeeded()          │
-│                                                                             │
-│  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │  CoreStartable 启动 (Dagger Map 注入):                               │   │
-│  │                                                                      │   │
-│  │  Map<Class<?>, Provider<CoreStartable>> sortedStartables =          │   │
-│  │      mSysUIComponent.getStartables();        // 系统用户服务         │   │
-│  │  sortedStartables.putAll(                                            │   │
-│  │      mSysUIComponent.getPerUserStartables()); // 每用户服务          │   │
-│  │                                                                      │   │
-│  │  // 拓扑排序启动 (处理依赖关系)                                      │   │
-│  │  startServicesIfNeeded(sortedStartables, "StartServices", ...);     │   │
-│  └─────────────────────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────────────────────┘
+| 文件 | 职责 |
+|---|---|
+| `application/SystemUIApplication.kt` | 抽象 Application，声明系统用户/次用户启动方法 |
+| `application/impl/SystemUIApplicationImpl.java` | 实现 onCreate、startables、boot/configuration 分发 |
+| `SystemUIAppComponentFactoryBase.kt` | 创建 Application 并注入 Context 可用回调，解析受注入组件 |
+| `SystemUIInitializer.java` | 构建 root/SysUI/WM 依赖图，处理初始化协作 |
+| `SystemUIService.java` | Service 的 onCreate 触发系统用户 startables |
+
+以上路径均相对于 `frameworks/base/packages/SystemUI/src/com/android/systemui/`。SystemUI manifest 的 `android:name` 指向 `.application.impl.SystemUIApplicationImpl`，`appComponentFactory` 指向 PhoneSystemUIAppComponentFactory。抽象基类不是可以直接实例化的 Application。
+
+```text
+AppComponentFactory.instantiateApplicationCompat
+  -> super instantiate concrete Application
+  -> require ApplicationContextInitializer
+  -> setContextAvailableCallback
+       -> createSystemUIInitializerInternal(context)
+            cached initializer ? reuse
+            else createSystemUIInitializer(applicationContext)
+                 -> init(false)
+                 -> sysUIComponent.inject(factory)
+
+SystemUIApplicationImpl.onCreate
+  -> callback.onContextAvailable(this)
+  -> mInitializer / mSysUIComponent / mBootCompleteCache
+  -> main-thread LockPatternUtils initialization
+  -> looper tracing / theme / graphics and UI setup
+  -> system user: boot/locale receivers
+     secondary main process: per-user startables
+     subprocess: do not start all services
 ```
 
-### 2.2 核心源码分析 (Android 16 AOSP)
+为什么工厂要在创建 Application 时设置回调，而不是 Service 自己 new 初始化器？因为 Application、Provider 与其他注入组件共享同一依赖图，Context 可用的时刻决定初始化顺序。provider context initializer 也可能经工厂触发初始化；`createSystemUIInitializerInternal()` 的缓存避免每个入口各建一套 graph。
 
-#### SystemUIApplication.java
+### 2.2 核心源码分析
 
-> **源码路径**: `frameworks/base/packages/SystemUI/src/com/android/systemui/SystemUIApplication.java`
+#### 抽象入口与真实状态字段
+
+`SystemUIApplication` 仅声明 `startSystemUserServicesIfNeeded()` 与 `startSecondaryUserServicesIfNeeded()`，注释要求主线程调用。实现类中的关键字段为：
 
 ```java
-/**
- * SystemUI 应用入口 (Android 16 AOSP)
- *
- * 位置: frameworks/base/packages/SystemUI/src/com/android/systemui/SystemUIApplication.java
- */
-public class SystemUIApplication extends Application implements
-        SystemUIAppComponentFactoryBase.ContextInitializer, HasWMComponent {
+// SystemUIApplicationImpl 的关键字段结构（省略注入与非核心字段）
+private final AtomicReference<CoreStartable[]> mServices = new AtomicReference<>();
+private final AtomicBoolean mServicesStarted = new AtomicBoolean(false);
+private ApplicationContextAvailableCallback mContextAvailableCallback;
+private SysUIComponent mSysUIComponent;
+private SystemUIInitializer mInitializer;
+private ProcessWrapper mProcessWrapper;
+private BootCompleteCacheImpl mBootCompleteCache;
+```
 
-    public static final String TAG = "SystemUIService";
+AtomicReference/AtomicBoolean 是此版本真实字段，不能用旧数组加普通 boolean 冒充。原子字段不意味着入口变成任意线程可并发启动的通用 API；主线程契约、回调线程与依赖初始化顺序仍需遵守。
 
-    private CoreStartable[] mServices;
-    private boolean mServicesStarted;
-    private SysUIComponent mSysUIComponent;
-    private SystemUIInitializer mInitializer;
-    private ProcessWrapper mProcessWrapper;
+#### onCreate：引导配置和 boot 分发
 
-    public SystemUIApplication() {
-        super();
-        if (!isSubprocess()) {
-            Trace.registerWithPerfetto();
-        }
-        // SysUI may be building without protolog preprocessing
-        ProtoLog.REQUIRE_PROTOLOGTOOL = false;
+onCreate 的第一段执行 Context 回调获取 graph，再初始化 LockPatternUtils，设置 Looper trace、主题等。GPU 优先级设置是条件逻辑：只有系统用户分支且 SF priority 对应特定值才提升 renderer context priority，不是强制所有 GPU 操作 realtime。
+
+boot 接收的是 `ACTION_LOCKED_BOOT_COMPLETED`。`handleBootCompletedOnSeparateThread()` 开关为真时，receiver 可在 background Handler 收到广播，再由 mainExecutor 设置 boot cache 并通知 startables；非该分支在默认接收线程执行。次用户主进程直接启动 per-user startables，子进程提前退出其启动分支。
+
+
+源码：[SystemUIApplicationImpl.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/packages/SystemUI/src/com/android/systemui/application/impl/SystemUIApplicationImpl.java)。下方为该 tag 的方法/类型节选，省略所在类的其他成员与 imports，不作为独立工程。
+
+
+```java
+public void onCreate() {
+    super.onCreate();
+    Log.v(TAG, "SystemUIApplication created.");
+    // This line is used to setup Dagger's dependency injection and should be kept at the
+    // top of this method.
+    TimingsTraceLog log = new TimingsTraceLog("SystemUIBootTiming",
+            Trace.TRACE_TAG_APP);
+    log.traceBegin("DependencyInjection");
+    mInitializer = mContextAvailableCallback.onContextAvailable(this);
+    mSysUIComponent = mInitializer.getSysUIComponent();
+    mBootCompleteCache = mSysUIComponent.provideBootCacheImpl();
+    log.traceEnd();
+
+    log.traceBegin("LockPatterUtils");
+    // This is only here to ensure that LockPatternUtils is instantiated from the main thread
+    // first to help avoid situations when it's instantiated from a background thread, which
+    // makes it unsafe to use with the version of checkCredential that takes a non-null
+    // progressCallback.
+    mSysUIComponent.getLockPatternUtils();
+    log.traceEnd();
+
+    GlobalRootComponent rootComponent = mInitializer.getRootComponent();
+
+    // Enable Looper trace points.
+    // This allows us to see Handler callbacks on traces.
+    rootComponent.getMainLooper().setTraceTag(Trace.TRACE_TAG_APP);
+    mProcessWrapper = rootComponent.getProcessWrapper();
+    ComposeView_androidKt.disableWindowInsetsRulers(ComposeView.Companion);
+
+    // TODO(b/458193632): Re-enable once the crash is fixed in Compose.
+    ComposeFoundationFlags.isCacheWindowForPagerEnabled = false;
+
+    // Set the application theme that is inherited by all services. Note that setting the
+    // application theme in the manifest does only work for activities. Keep this in sync with
+    // the theme set there.
+    setTheme(R.style.Theme_SystemUI);
+
+    View.setTraceLayoutSteps(
+            rootComponent.getSystemPropertiesHelper()
+                    .getBoolean("persist.debug.trace_layouts", false));
+    View.setTracedRequestLayoutClassClass(
+            rootComponent.getSystemPropertiesHelper()
+                    .get("persist.debug.trace_request_layout_class", null));
+
+    if (Flags.enableLayoutTracing()) {
+        View.setTraceLayoutSteps(true);
     }
+    Animator.setPostNotifyEndListenerEnabled(true);
 
-    @Override
-    public void onCreate() {
-        super.onCreate();
-        Log.v(TAG, "SystemUIApplication created.");
+    if (mProcessWrapper.isSystemUser()) {
+        IntentFilter bootCompletedFilter = new
+                IntentFilter(Intent.ACTION_LOCKED_BOOT_COMPLETED);
+        bootCompletedFilter.setPriority(IntentFilter.SYSTEM_HIGH_PRIORITY);
 
-        // 1. Dagger 依赖注入初始化
-        TimingsTraceLog log = new TimingsTraceLog("SystemUIBootTiming", Trace.TRACE_TAG_APP);
-        log.traceBegin("DependencyInjection");
-        mInitializer = mContextAvailableCallback.onContextAvailable(this);
-        mSysUIComponent = mInitializer.getSysUIComponent();
-        mBootCompleteCache = mSysUIComponent.provideBootCacheImpl();
-        log.traceEnd();
+        // If SF GPU context priority is set to realtime, then SysUI should run at high.
+        // The priority is defaulted at medium.
+        int sfPriority = SurfaceControl.getGPUContextPriority();
+        Log.i(TAG, "Found SurfaceFlinger's GPU Priority: " + sfPriority);
+        if (sfPriority == ThreadedRenderer.EGL_CONTEXT_PRIORITY_REALTIME_NV) {
+            Log.i(TAG, "Setting SysUI's GPU Context priority to: "
+                    + ThreadedRenderer.EGL_CONTEXT_PRIORITY_HIGH_IMG);
+            ThreadedRenderer.setContextPriority(
+                    ThreadedRenderer.EGL_CONTEXT_PRIORITY_HIGH_IMG);
+        }
 
-        GlobalRootComponent rootComponent = mInitializer.getRootComponent();
-
-        // 2. 设置 Looper 追踪标签
-        rootComponent.getMainLooper().setTraceTag(Trace.TRACE_TAG_APP);
-        mProcessWrapper = rootComponent.getProcessWrapper();
-
-        // 3. 设置应用主题
-        setTheme(R.style.Theme_SystemUI);
-
-        // 4. GPU 优先级设置
-        if (mProcessWrapper.isSystemUser()) {
-            int sfPriority = SurfaceControl.getGPUContextPriority();
-            if (sfPriority == ThreadedRenderer.EGL_CONTEXT_PRIORITY_REALTIME_NV) {
-                ThreadedRenderer.setContextPriority(
-                        ThreadedRenderer.EGL_CONTEXT_PRIORITY_HIGH_IMG);
-            }
-
-            // 5. 注册 BOOT_COMPLETED 广播
-            IntentFilter bootCompletedFilter = new IntentFilter(
-                    Intent.ACTION_LOCKED_BOOT_COMPLETED);
-            bootCompletedFilter.setPriority(IntentFilter.SYSTEM_HIGH_PRIORITY);
+        if (Flags.handleBootCompletedOnSeparateThread()) {
+            final Handler bgHandler = mSysUIComponent.getBackgroundHandler();
+            final Executor mainExecutor = mSysUIComponent.getMainExecutor();
             registerReceiver(new BroadcastReceiver() {
                 @Override
                 public void onReceive(Context context, Intent intent) {
                     if (mBootCompleteCache.isBootComplete()) return;
+
+                    if (DEBUG) Log.v(TAG, "BOOT_COMPLETED received");
+                    unregisterReceiver(this);
+                    mainExecutor.execute(() -> {
+                        Trace.traceBegin(Trace.TRACE_TAG_APP,
+                                "signaling onBootCompleted");
+                        mBootCompleteCache.setBootComplete();
+                        if (mServicesStarted.get()) {
+                            final CoreStartable[] services = mServices.get();
+                            for (int i = 0; i < services.length; i++) {
+                                notifyBootCompleted(services[i]);
+                            }
+                        }
+                        Trace.traceEnd(Trace.TRACE_TAG_APP);
+                    });
+                }
+            }, bootCompletedFilter, null, bgHandler);
+        } else {
+            registerReceiver(new BroadcastReceiver() {
+                @Override
+                public void onReceive(Context context, Intent intent) {
+                    if (mBootCompleteCache.isBootComplete()) return;
+
+                    if (DEBUG) Log.v(TAG, "BOOT_COMPLETED received");
                     unregisterReceiver(this);
                     mBootCompleteCache.setBootComplete();
-                    if (mServicesStarted) {
-                        for (CoreStartable service : mServices) {
-                            notifyBootCompleted(service);
+                    if (mServicesStarted.get()) {
+                        final CoreStartable[] services = mServices.get();
+                        final int N = services.length;
+                        for (int i = 0; i < N; i++) {
+                            notifyBootCompleted(services[i]);
                         }
                     }
                 }
             }, bootCompletedFilter);
-        } else if (!isSubprocess()) {
-            // 非系统用户：启动二级用户服务
-            startSecondaryUserServicesIfNeeded();
+        }
+
+        IntentFilter localeChangedFilter = new IntentFilter(Intent.ACTION_LOCALE_CHANGED);
+        if (Flags.handleBootCompletedOnSeparateThread()) {
+            final Handler bgHandler = mSysUIComponent.getBackgroundHandler();
+            registerReceiver(new BroadcastReceiver() {
+                @Override
+                public void onReceive(Context context, Intent intent) {
+                    if (Intent.ACTION_LOCALE_CHANGED.equals(intent.getAction())) {
+                        if (!mBootCompleteCache.isBootComplete()) return;
+                        // Update names of SystemUi notification channels
+                        NotificationChannels.createAll(context);
+                    }
+                }
+            }, localeChangedFilter, null, bgHandler);
+        } else {
+            registerReceiver(new BroadcastReceiver() {
+                @Override
+                public void onReceive(Context context, Intent intent) {
+                    if (Intent.ACTION_LOCALE_CHANGED.equals(intent.getAction())) {
+                        if (!mBootCompleteCache.isBootComplete()) return;
+                        // Update names of SystemUi notification channels
+                        NotificationChannels.createAll(context);
+                    }
+                }
+            }, localeChangedFilter);
+        }
+    } else {
+        // We don't need to startServices for sub-process that is doing some tasks.
+        // (screenshots, sweetsweetdesserts or tuner ..)
+        if (isSubprocess()) {
+            return;
+        }
+        // For a secondary user, boot-completed will never be called because it has already
+        // been broadcasted on startup for the primary SystemUI process.  Instead, for
+        // components which require the SystemUI component to be initialized per-user, we
+        // start those components now for the current non-system user.
+        startSecondaryUserServicesIfNeeded();
+    }
+}
+```
+
+
+#### 系统用户与次用户服务集合
+
+系统用户合并 `getStartables()` 与 `getPerUserStartables()`，次用户只加入 per-user map。TreeMap 以类名排序保证确定性，但类名顺序不等于依赖顺序；真正的依赖调度发生在 startServicesIfNeeded 中。
+
+
+```java
+public void startSystemUserServicesIfNeeded() {
+    if (!shouldStartSystemUserServices()) {
+        Log.wtf(TAG, "Tried starting SystemUser services on non-SystemUser");
+        return;  // Per-user startables are handled in #startSystemUserServicesIfNeeded.
+    }
+    final String vendorComponent = mInitializer.getVendorComponent(getResources());
+
+    // Sort the startables so that we get a deterministic ordering.
+    // TODO: make #start idempotent and require users of CoreStartable to call it.
+    Map<Class<?>, Provider<CoreStartable>> sortedStartables = new TreeMap<>(
+            Comparator.comparing(Class::getName));
+    sortedStartables.putAll(mSysUIComponent.getStartables());
+    sortedStartables.putAll(mSysUIComponent.getPerUserStartables());
+    startServicesIfNeeded(
+            sortedStartables, "StartServices", vendorComponent);
+}
+
+public void startSecondaryUserServicesIfNeeded() {
+    if (!shouldStartSecondaryUserServices()) {
+        return;  // Per-user startables are handled in #startSystemUserServicesIfNeeded.
+    }
+    // Sort the startables so that we get a deterministic ordering.
+    Map<Class<?>, Provider<CoreStartable>> sortedStartables = new TreeMap<>(
+            Comparator.comparing(Class::getName));
+    sortedStartables.putAll(mSysUIComponent.getPerUserStartables());
+    startServicesIfNeeded(
+            sortedStartables, "StartSecondaryServices", null);
+}
+```
+
+
+#### 依赖驱动的启动算法
+
+算法逐轮扫描尚未启动的条目，只有依赖集合已包含在 startedStartables 中时，才 `Provider.get()`、`CoreStartable.start()` 并记录完成。未满足的条目进入下一轮；一轮没有进展而队列仍非空时，说明有缺失依赖或环，记录错误并失败，而不是静默跳过。
+
+这种实现不是优化后的入度队列式 Kahn 算法：在依赖链很长时会重复扫描；注释假设大多数组件无依赖、两三轮足够。N 个组件、K 轮扫描的成本大致随 N*K 和依赖集合检查增长，不能声称恒定时间。启动回调抛异常也不会自动回滚之前所有组件。
+
+启动前检查 `sys.boot_completed` 处理进程晚启动/重启；vendor component 按专门分支创建；所有组件随后注册到 DumpManager，必要时收到 onBootCompleted，最后执行 post-init tasks 并置 started 状态。
+
+
+```java
+private void startServicesIfNeeded(
+        Map<Class<?>, Provider<CoreStartable>> startables,
+        String metricsPrefix,
+        String vendorComponent) {
+    if (mServicesStarted.get()) {
+        return;
+    }
+    final CoreStartable[] services =
+            new CoreStartable[startables.size() + (vendorComponent == null ? 0 : 1)];
+    mServices.set(services);
+
+    if (!mBootCompleteCache.isBootComplete()) {
+        // check to see if maybe it was already completed long before we began
+        // see ActivityManagerService.finishBooting()
+        if ("1".equals(getRootComponent().getSystemPropertiesHelper()
+                .get("sys.boot_completed"))) {
+            mBootCompleteCache.setBootComplete();
+            if (DEBUG) {
+                Log.v(TAG, "BOOT_COMPLETED was already sent");
+            }
         }
     }
 
-    /**
-     * 启动系统用户的所有 CoreStartable 服务
-     */
-    public void startSystemUserServicesIfNeeded() {
-        if (!shouldStartSystemUserServices()) {
-            Log.wtf(TAG, "Tried starting SystemUser services on non-SystemUser");
-            return;
+    DumpManager dumpManager = mSysUIComponent.createDumpManager();
+
+    Log.v(TAG, "Starting SystemUI services for user "
+            + Process.myUserHandle().getIdentifier() + ".");
+    TimingsTraceLog log = new TimingsTraceLog("SystemUIBootTiming",
+            Trace.TRACE_TAG_APP);
+    log.traceBegin(metricsPrefix);
+
+    HashSet<Class<?>> startedStartables = new HashSet<>();
+
+    // Perform a form of topological sort:
+    // 1) Iterate through a queue of all non-started startables
+    //   If the startable has all of its dependencies met
+    //     - start it
+    //   Else
+    //     - enqueue it for the next iteration
+    // 2) If anything was started and the "next" queue is not empty, loop back to 1
+    // 3) If we're done looping and there are any non-started startables left, throw an error.
+    //
+    // This "sort" is not very optimized. We assume that most CoreStartables don't have many
+    // dependencies - zero in fact. We assume two or three iterations of this loop will be
+    // enough. If that ever changes, it may be worth revisiting.
+
+    log.traceBegin("Topologically start Core Startables");
+    boolean startedAny = false;
+    ArrayDeque<Map.Entry<Class<?>, Provider<CoreStartable>>> queue;
+    ArrayDeque<Map.Entry<Class<?>, Provider<CoreStartable>>> nextQueue =
+            new ArrayDeque<>(startables.entrySet());
+    int numIterations = 0;
+
+    int serviceIndex = 0;
+
+    do {
+        startedAny = false;
+        queue = nextQueue;
+        nextQueue = new ArrayDeque<>(startables.size());
+
+        while (!queue.isEmpty()) {
+            Map.Entry<Class<?>, Provider<CoreStartable>> entry = queue.removeFirst();
+
+            Class<?> cls = entry.getKey();
+            Set<Class<? extends CoreStartable>> deps =
+                    mSysUIComponent.getStartableDependencies().get(cls);
+            if (deps == null || startedStartables.containsAll(deps)) {
+                String clsName = cls.getName();
+                int i = serviceIndex;  // Copied to make lambda happy.
+                timeInitialization(
+                        clsName,
+                        () -> services[i] = startStartable(clsName, entry.getValue()),
+                        log,
+                        metricsPrefix);
+                startedStartables.add(cls);
+                startedAny = true;
+                serviceIndex++;
+            } else {
+                nextQueue.add(entry);
+            }
         }
+        numIterations++;
+    } while (startedAny && !nextQueue.isEmpty()); // if none were started, stop.
 
-        final String vendorComponent = mInitializer.getVendorComponent(getResources());
-
-        // 获取 Dagger 注入的 Startables (按类名排序)
-        Map<Class<?>, Provider<CoreStartable>> sortedStartables = new TreeMap<>(
-                Comparator.comparing(Class::getName));
-        sortedStartables.putAll(mSysUIComponent.getStartables());        // 系统用户服务
-        sortedStartables.putAll(mSysUIComponent.getPerUserStartables()); // 每用户服务
-
-        startServicesIfNeeded(sortedStartables, "StartServices", vendorComponent);
-    }
-
-    /**
-     * 启动二级用户服务
-     */
-    void startSecondaryUserServicesIfNeeded() {
-        if (!shouldStartSecondaryUserServices()) {
-            return;
-        }
-        Map<Class<?>, Provider<CoreStartable>> sortedStartables = new TreeMap<>(
-                Comparator.comparing(Class::getName));
-        sortedStartables.putAll(mSysUIComponent.getPerUserStartables());
-        startServicesIfNeeded(sortedStartables, "StartSecondaryServices", null);
-    }
-
-    /**
-     * 拓扑排序启动 CoreStartable (处理依赖关系)
-     */
-    private void startServicesIfNeeded(
-            Map<Class<?>, Provider<CoreStartable>> startables,
-            String metricsPrefix,
-            String vendorComponent) {
-        if (mServicesStarted) {
-            return;
-        }
-        mServices = new CoreStartable[startables.size() + (vendorComponent == null ? 0 : 1)];
-
-        DumpManager dumpManager = mSysUIComponent.createDumpManager();
-        TimingsTraceLog log = new TimingsTraceLog("SystemUIBootTiming", Trace.TRACE_TAG_APP);
-        log.traceBegin(metricsPrefix);
-
-        HashSet<Class<?>> startedStartables = new HashSet<>();
-
-        // 拓扑排序启动:
-        // 1) 遍历队列中所有未启动的 startables
-        // 2) 如果 startable 的所有依赖都已满足，启动它
-        // 3) 否则放入下一轮队列
-        // 4) 重复直到没有更多可启动的
-
-        log.traceBegin("Topologically start Core Startables");
-        ArrayDeque<Map.Entry<Class<?>, Provider<CoreStartable>>> nextQueue =
-                new ArrayDeque<>(startables.entrySet());
-        int serviceIndex = 0;
-        boolean startedAny;
-        int numIterations = 0;
-
-        do {
-            startedAny = false;
-            ArrayDeque<Map.Entry<Class<?>, Provider<CoreStartable>>> queue = nextQueue;
-            nextQueue = new ArrayDeque<>(startables.size());
-
-            while (!queue.isEmpty()) {
-                Map.Entry<Class<?>, Provider<CoreStartable>> entry = queue.removeFirst();
-                Class<?> cls = entry.getKey();
-
-                // 检查依赖是否满足
-                Set<Class<? extends CoreStartable>> deps =
-                        mSysUIComponent.getStartableDependencies().get(cls);
-                if (deps == null || startedStartables.containsAll(deps)) {
-                    // 依赖满足，启动服务
-                    String clsName = cls.getName();
-                    int i = serviceIndex;
-                    timeInitialization(clsName,
-                            () -> mServices[i] = startStartable(clsName, entry.getValue()),
-                            log, metricsPrefix);
-                    startedStartables.add(cls);
-                    startedAny = true;
-                    serviceIndex++;
-                } else {
-                    // 依赖未满足，放入下一轮
-                    nextQueue.add(entry);
+    if (!nextQueue.isEmpty()) { // If some startables were left over, throw an error.
+        while (!nextQueue.isEmpty()) {
+            Map.Entry<Class<?>, Provider<CoreStartable>> entry = nextQueue.removeFirst();
+            Class<?> cls = entry.getKey();
+            Set<Class<? extends CoreStartable>> deps =
+                    mSysUIComponent.getStartableDependencies().get(cls);
+            StringJoiner stringJoiner = new StringJoiner(", ");
+            for (Class<? extends CoreStartable> c : deps) {
+                if (!startedStartables.contains(c)) {
+                    stringJoiner.add(c.getName());
                 }
             }
-            numIterations++;
-        } while (startedAny && !nextQueue.isEmpty());
-
-        // 如果还有未启动的，抛出错误
-        if (!nextQueue.isEmpty()) {
-            // 记录缺失的依赖
-            throw new RuntimeException("Failed to start all CoreStartables. Check logcat!");
+            Log.e(TAG, "Failed to start " + cls.getName()
+                    + ". Missing dependencies: [" + stringJoiner + "]");
         }
 
-        // 注册 dump 处理
-        for (int i = 0; i < mServices.length; i++) {
-            final CoreStartable service = mServices[i];
-            if (mBootCompleteCache.isBootComplete()) {
-                notifyBootCompleted(service);
-            }
-            if (service.isDumpCritical()) {
-                dumpManager.registerCriticalDumpable(service);
-            } else {
-                dumpManager.registerNormalDumpable(service);
-            }
+        throw new RuntimeException("Failed to start all CoreStartables. Check logcat!");
+    }
+    Log.i(TAG, "Topological CoreStartables completed in " + numIterations + " iterations");
+    log.traceEnd();
+
+    if (vendorComponent != null) {
+        timeInitialization(
+                vendorComponent,
+                () -> {
+                    services[services.length - 1] =
+                            startAdditionalStartable(vendorComponent);
+                },
+                log,
+                metricsPrefix);
+    }
+
+    for (serviceIndex = 0; serviceIndex < services.length; serviceIndex++) {
+        final CoreStartable service = services[serviceIndex];
+        if (mBootCompleteCache.isBootComplete()) {
+            notifyBootCompleted(service);
         }
 
-        mSysUIComponent.getInitController().executePostInitTasks();
-        log.traceEnd();
-        mServicesStarted = true;
+        if (service.isDumpCritical()) {
+            dumpManager.registerCriticalDumpable(service);
+        } else {
+            dumpManager.registerNormalDumpable(service);
+        }
     }
+    mSysUIComponent.getInitController().executePostInitTasks();
+    log.traceEnd();
 
-    private static CoreStartable startStartable(
-            String clsName, Provider<CoreStartable> provider) {
-        Trace.traceBegin(Trace.TRACE_TAG_APP, "Provider<" + clsName + "">.get()");
-        CoreStartable startable = provider.get();
-        Trace.endSection();
-        return startStartable(startable);
-    }
+    mServicesStarted.set(true);
+}
 
-    private static CoreStartable startStartable(CoreStartable startable) {
-        Trace.traceBegin(Trace.TRACE_TAG_APP,
-                startable.getClass().getSimpleName() + ".start()");
-        startable.start();
-        Trace.endSection();
-        return startable;
+private static void notifyBootCompleted(CoreStartable coreStartable) {
+    if (Trace.isEnabled()) {
+        Trace.traceBegin(
+                Trace.TRACE_TAG_APP,
+                coreStartable.getClass().getSimpleName() + ".onBootCompleted()");
     }
+    coreStartable.onBootCompleted();
+    Trace.endSection();
 }
 ```
 
-#### SystemUIService.java
 
-> **源码路径**: `frameworks/base/packages/SystemUI/src/com/android/systemui/SystemUIService.java`
+#### SystemUIService：启动门面，不是应用入口替代物
+
+服务的 onCreate 首先调用 Application 的 `startSystemUserServicesIfNeeded()`，之后配置日志冻结、异常日志、电池通知和调试 Binder 计数等。构造器通过依赖注入提供 Handler/DumpHandler 等，不是无参创建每个控制器。
+
+
+源码：[SystemUIService.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/packages/SystemUI/src/com/android/systemui/SystemUIService.java)。下方为该 tag 的方法/类型节选，省略所在类的其他成员与 imports，不作为独立工程。
+
 
 ```java
-/**
- * SystemUI 服务入口 (Android 16 AOSP)
- *
- * 位置: frameworks/base/packages/SystemUI/src/com/android/systemui/SystemUIService.java
- */
-public class SystemUIService extends Service {
+public void onCreate() {
+    super.onCreate();
 
-    private final Handler mMainHandler;
-    private final DumpHandler mDumpHandler;
-    private final BroadcastDispatcher mBroadcastDispatcher;
-    private final LogBufferEulogizer mLogBufferEulogizer;
-    private final LogBufferFreezer mLogBufferFreezer;
-    private final BatteryStateNotifier mBatteryStateNotifier;
+    // Start all of SystemUI
+    ((SystemUIApplication) getApplication()).startSystemUserServicesIfNeeded();
 
-    @Inject
-    public SystemUIService(
-            @Main Handler mainHandler,
-            DumpHandler dumpHandler,
-            BroadcastDispatcher broadcastDispatcher,
-            LogBufferEulogizer logBufferEulogizer,
-            LogBufferFreezer logBufferFreezer,
-            BatteryStateNotifier batteryStateNotifier,
-            UncaughtExceptionPreHandlerManager uncaughtExceptionPreHandlerManager) {
-        super();
-        mMainHandler = mainHandler;
-        mDumpHandler = dumpHandler;
-        mBroadcastDispatcher = broadcastDispatcher;
-        mLogBufferEulogizer = logBufferEulogizer;
-        mLogBufferFreezer = logBufferFreezer;
-        mBatteryStateNotifier = batteryStateNotifier;
+    // Finish initializing dump logic
+    mLogBufferFreezer.attach(mBroadcastDispatcher);
+
+    // Attempt to dump all LogBuffers for any uncaught exception
+    mUncaughtExceptionPreHandlerManager.registerHandler(
+            (thread, throwable) -> mLogBufferEulogizer.record(throwable));
+
+    // If configured, set up a battery notification
+    if (getResources().getBoolean(R.bool.config_showNotificationForUnknownBatteryState)) {
+        mBatteryStateNotifier.startListening();
     }
 
-    @Override
-    public void onCreate() {
-        super.onCreate();
-
-        // 启动所有 SystemUI 服务 (系统用户)
-        ((SystemUIApplication) getApplication()).startSystemUserServicesIfNeeded();
-
-        // 日志缓冲区冻结器
-        mLogBufferFreezer.attach(mBroadcastDispatcher);
-
-        // 注册未捕获异常处理器
-        mUncaughtExceptionPreHandlerManager.registerHandler(
-                (thread, throwable) -> mLogBufferEulogizer.record(throwable));
-
-        // 电池状态通知
-        if (getResources().getBoolean(
-                R.bool.config_showNotificationForUnknownBatteryState)) {
-            mBatteryStateNotifier.startListening();
-        }
-
-        // 调试模式: Binder 代理计数
-        if (Build.IS_DEBUGGABLE) {
-            BinderInternal.nSetBinderProxyCountEnabled(true);
-            BinderInternal.nSetBinderProxyCountWatermarks(1000, 900, 950);
-        }
-
-        // 启动辅助 dump 服务
-        startServiceAsUser(
-                new Intent(getApplicationContext(), SystemUIAuxiliaryDumpService.class),
-                UserHandle.SYSTEM);
+    // For debugging RescueParty
+    if (Build.IS_DEBUGGABLE && SystemProperties.getBoolean("debug.crash_sysui", false)) {
+        throw new RuntimeException();
     }
 
-    @Override
-    public IBinder onBind(Intent intent) {
-        return null;
+    if (Build.IS_DEBUGGABLE) {
+        // b/71353150 - looking for leaked binder proxies
+        BinderInternal.nSetBinderProxyCountEnabled(true);
+        BinderInternal.nSetBinderProxyCountWatermarks(
+                /* high= */ 1000, /* low= */ 900, /* warning= */ 950);
+        BinderInternal.setBinderProxyCountCallback(
+                new BinderInternal.BinderProxyCountEventListener() {
+                    @Override
+                    public void onLimitReached(int uid) {
+                        Slog.w(TAG,
+                                "uid " + uid + " sent too many Binder proxies to uid "
+                                + Process.myUid());
+                    }
+                }, mMainHandler);
     }
 
-    @Override
-    protected void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
-        mDumpHandler.dump(fd, pw, massagedArgs);
-    }
+    // Bind the dump service so we can dump extra info during a bug report
+    startServiceAsUser(
+            new Intent(getApplicationContext(), SystemUIAuxiliaryDumpService.class),
+            UserHandle.SYSTEM);
 }
 ```
 
-#### CoreStartable.java - 核心启动接口
-
-> **源码路径**: `frameworks/base/packages/SystemUI/src/com/android/systemui/CoreStartable.java`
-
-```java
-/**
- * CoreStartable 接口 (Android 16 AOSP)
- *
- * 位置: frameworks/base/packages/SystemUI/src/com/android/systemui/CoreStartable.java
- *
- * 所有需要随 SystemUI 启动的组件都实现此接口。
- * 通过 Dagger 绑定到 CoreStartable Map 中。
- */
-public interface CoreStartable extends Dumpable {
-    String STARTABLE_DEPENDENCIES = "startable_dependencies";
-
-    /**
-     * 主入口点。SystemUI 启动后不久调用。
-     */
-    void start();
-
-    /**
-     * 系统广播 ACTION_LOCKED_BOOT_COMPLETED 后立即调用，
-     * 或启动时如果 sys.boot_completed 已为 1。
-     */
-    default void onBootCompleted() {}
-
-    /**
-     * 是否作为关键 dump 注册
-     */
-    default boolean isDumpCritical() {
-        return true;
-    }
-
-    @Override
-    default void dump(@NonNull PrintWriter pw, @NonNull String[] args) {}
-
-    /** 空实现 */
-    CoreStartable NOP = new Nop();
-
-    class Nop implements CoreStartable {
-        @Override
-        public void start() {}
-    }
-}
-```
 
 ### 2.3 Dagger 组件绑定示例
 
+下面是**自定义功能示例**，展示 multibinding，不伪造某两项 AOSP 组件间的依赖关系：
+
 ```java
-/**
- * CoreStartable 的 Dagger 绑定方式
- *
- * 在 Dagger Module 中绑定:
- */
-
 @Module
-public abstract class SystemUIModule {
+abstract class ExampleStartableModule {
+    @Binds @IntoMap @ClassKey(ExampleStartable.class)
+    abstract CoreStartable bindExample(ExampleStartable implementation);
+}
 
-    /**
-     * 绑定 CoreStartable 到 Map
-     * 使用 @ClassKey 注解指定类名作为 key
-     */
-    @Binds
-    @IntoMap
-    @ClassKey(CentralSurfacesImpl.class)
-    abstract CoreStartable bindCentralSurfaces(CentralSurfacesImpl impl);
-
-    @Binds
-    @IntoMap
-    @ClassKey(KeyguardViewMediator.class)
-    abstract CoreStartable bindKeyguardViewMediator(KeyguardViewMediator impl);
-
-    @Binds
-    @IntoMap
-    @ClassKey(NotificationListener.class)
-    abstract CoreStartable bindNotificationListener(NotificationListener impl);
-
-    /**
-     * 声明依赖关系
-     * NotificationListener 依赖 CentralSurfacesImpl 先启动
-     */
-    @Provides
-    @IntoMap
-    @Dependencies  // com.android.systemui.startable.Dependencies
-    @ClassKey(NotificationListener.class)
-    static Set<Class<? extends CoreStartable>> provideNotificationListenerDeps() {
-        return Set.of(CentralSurfacesImpl.class);
+final class ExampleStartable implements CoreStartable {
+    @Inject ExampleStartable(ExampleRepository repository) {
+        // 保存依赖，不在构造器偷偷启动重复监听。
+    }
+    @Override public void start() {
+        // 启动这一功能；由宿主保证正确线程和调用时机。
+    }
+    @Override public void onBootCompleted() {
+        // 需要 boot 完成的任务放在这里；不能反向依赖未声明组件。
     }
 }
 ```
 
+`ExampleRepository` 是业务占位类型。真实工程需按本构建目标的模块/qualifier 将依赖 map 提供给 `SysUIComponent.getStartableDependencies()`；不要把示例里的 `NotificationListener -> CentralSurfacesImpl` 当固定 tag 的真实边。
+
+CoreStartable 是普通进程内启动契约，不等于每项都声明 Android Service。实例构造、start、boot callback、dump 注册属于不同阶段；代码不能仅在构造器里做完副作用就认为拓扑关系已生效。
+
 ### 2.4 启动时序图
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                SystemUI 启动时序 (Android 16)                                │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-时间线:
-│
-├─── SystemServer.startOtherServices()
-│   │
-│   └─── ActivityManagerService.startService(SystemUIService)
-│
-├─── SystemUIApplication 构造函数
-│   │   Trace.registerWithPerfetto()
-│   │   ProtoLog.REQUIRE_PROTOLOGTOOL = false
-│
-├─── SystemUIApplication.onCreate()
-│   │
-│   ├─── [DependencyInjection] Dagger 初始化
-│   │   mInitializer.onContextAvailable()
-│   │   mSysUIComponent = mInitializer.getSysUIComponent()
-│   │
-│   ├─── setTheme(R.style.Theme_SystemUI)
-│   │
-│   └─── registerReceiver(BOOT_COMPLETED)
-│
-├─── SystemUIService 构造函数 (@Inject)
-│   │   Dagger 注入: Handler, DumpHandler, BroadcastDispatcher, etc.
-│
-├─── SystemUIService.onCreate()
-│   │
-│   ├─── startSystemUserServicesIfNeeded()
-│   │
-│   ├─── mLogBufferFreezer.attach()
-│   │
-│   └─── startService(SystemUIAuxiliaryDumpService)
-│
-├─── startSystemUserServicesIfNeeded()
-│   │
-│   ├─── 获取 mSysUIComponent.getStartables()
-│   ├─── 获取 mSysUIComponent.getPerUserStartables()
-│   │
-│   └─── 拓扑排序启动:
-│       │
-│       ├─── [Round 1] 启动无依赖的 CoreStartable
-│       │   - CentralSurfacesImpl.start()
-│       │   - KeyguardViewMediator.start()
-│       │   - etc.
-│       │
-│       ├─── [Round 2] 启动依赖已满足的 CoreStartable
-│       │   - NotificationListener.start() (依赖 CentralSurfacesImpl)
-│       │   - etc.
-│       │
-│       └─── [Round N] 直到所有服务启动完成
-│
-├─── BOOT_COMPLETED 广播
-│   │
-│   └─── 遍历所有 CoreStartable.onBootCompleted()
-│
-└─── SystemUI 启动完成
+```text
+system_server                 SystemUI Application                    Service
+startSystemUi
+  startServiceAsUser -------> instantiate Application
+                              set context callback
+                              onCreate -> graph/theme/receivers
+                                                        ------------> onCreate
+                              <--------------------------- startSystemUserServicesIfNeeded
+                              merge/sort maps
+                              topological rounds: provider.get -> start
+                              vendor startable / dump registration
+                              executePostInitTasks -> servicesStarted
+LOCKED_BOOT_COMPLETED ------> receiver -> boot cache -> onBootCompleted
+                              (or already-booted property branch)
 ```
 
-### 2.5 主要 CoreStartable 服务列表
+图中 boot 信号与服务初始化可能交错，boot cache 和 started 状态负责判断何时分发；不可把 boot 广播写成所有 startable 都只会在其到达后才创建。启动完成也不是每个功能异步数据加载或首帧完成。
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│              主要 CoreStartable 服务 (Android 16)                           │
-└─────────────────────────────────────────────────────────────────────────────┘
+### 2.5 主要启动组件与核验方法
 
-系统用户服务:
-┌───────────────────────────────────┬───────────────────────────────────────┐
-│           类名                     │                  功能                  │
-├───────────────────────────────────┼───────────────────────────────────────┤
-│  CentralSurfacesImpl              │  状态栏/导航栏/锁屏中央管理             │
-│  KeyguardViewMediator             │  锁屏中介                              │
-│  NotificationListener             │  通知监听器                            │
-│  VolumeUI                         │  音量 UI                              │
-│  PowerUI                          │  电源 UI                              │
-│  DockUI                           │  底座 UI                              │
-│  ShortcutKeyDispatcher            │  快捷键分发                            │
-│  LatencyTester                    │  延迟测试                              │
-│  GarbageMonitor$Service           │  GC 监控                              │
-│  KeyguardClipController           │  锁屏裁剪控制器                        │
-│  EdgeBackGestureHandler           │  边缘返回手势                          │
-│  UiModeManagerService             │  UI 模式管理                          │
-│  DisplayViewportUpdater           │  显示视口更新                          │
-│  ScreenDecorations                │  屏幕装饰 (圆角/刘海)                  │
-│  SlicePermissionManager           │  Slice 权限管理                        │
-│  TouchAnalyticsManager            │  触摸分析                              │
-│  AccessibilityFloatingMenu        │  无障碍悬浮菜单                        │
-└───────────────────────────────────┴───────────────────────────────────────┘
+可以从 `CentralSurfacesImpl`、`KeyguardViewMediator` 等实现及 `SysUIComponent` 的 map 绑定查找具体功能。旧表把 UiModeManagerService、普通控制器、Activity 和所有平台分支都当 CoreStartable，是分类错误；完整集合应由该产品最终依赖图决定。
 
-每用户服务:
-┌───────────────────────────────────┬───────────────────────────────────────┐
-│           类名                     │                  功能                  │
-├───────────────────────────────────┼───────────────────────────────────────┤
-│  NotificationShadeWindowController│  通知 Shade 窗口控制器                 │
-│  StatusBarCoordinator             │  状态栏协调器                          │
-│  ConfigurationControllerStartable │  配置变更控制器                        │
-│  AppClipsService                  │  App Clips 服务                       │
-│  CaptivePortalLoginActivityNotifier│  强制门户登录通知                      │
-│  TvPipManager                     │  TV PiP 管理器                        │
-└───────────────────────────────────┴───────────────────────────────────────┘
-```
+审阅一个组件时，要依次确认实现契约、map key、provider、依赖 map、start 副作用和 boot callback。若功能没启动，先看是否进入 map/是否被依赖阻塞，再看 start 后异步工作；不要仅凭类存在就推断它在每个用户与设备上都已启动。
 
----
+平台调试可结合 SystemUIBootTiming trace、`dumpsys activity service com.android.systemui/.SystemUIService` 的 dump 参数以及对应日志分析。命令可用性和 dump 输出受构建权限与产品影响；本轮未运行设备验证。
 
 ## 3. AOD (Always On Display) 详解
 
 ### 3.1 AOD 概述
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                       AOD (Always On Display)                             │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -849,25 +758,25 @@ AOD (Always On Display) 是一种在手机息屏后仍然显示部分信息的�
 │    │                                          │                          │
 │    └─────────────────────────────────────────┘                          │
 │                                                                           │
-│    屏幕显示区域外 (LCD 关闭，只有部分像素点亮)                             │
+│    OLED 示例：大部分像素保持黑色；面板低功耗能力由硬件实现决定                             │
 │                                                                           │
 └─────────────────────────────────────────────────────────────────────────────┘
 
 AOD 技术特点:
-1. 低功耗: 只点亮少量像素
+1. 低功耗: 低亮度/低刷新/局部内容及低功耗显示状态协作，不只由像素数量决定
 2. 显示内容可定制
 3. 支持通知显示
 4. 支持触控唤醒
 5. 支持手势唤醒
 ```
 
-### 3.2 AOD 架构 (Android 16)
+### 3.2 AOD 架构（Android 17 职责示意）
 
 > **源码路径**: `frameworks/base/packages/SystemUI/src/com/android/systemui/doze/`
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                    AOD 架构 (Android 16 AOSP)                              │
+│                    AOD 架构（职责示意）                              │
 └─────────────────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -949,1278 +858,1176 @@ AOD 技术特点:
 
 #### 源码文件结构
 
+本轮直接核对的实现位于 `packages/SystemUI/src/com/android/systemui/doze/`：
+
+```text
+DozeService.java       DreamService entry
+DozeMachine.java       State / Part / Service + transition logic
+DozeTriggers.java      notification / proximity / sensor decisions
+DozeSensors.java       sensor registration + callbacks
+DozeScreenState.java   display state timing
+DozeUi.java            pulse callback + time tick
+DozeHost.java          SystemUI host contract
+DozeLog.java           reason/state logging
 ```
-frameworks/base/packages/SystemUI/src/com/android/systemui/doze/
-├── DozeService.java              # DreamService 入口
-├── DozeMachine.java              # 状态机核心
-├── DozeMachine.State             # 状态枚举 (内部类)
-├── DozeMachine.Part              # Part 接口 (内部类)
-├── DozeMachine.Service           # Service 接口 (内部类)
-├── DozeTriggers.java             # 触发器管理 (实现 Part)
-├── DozeSensors.java              # 传感器管理
-├── DozeScreenState.java          # 屏幕状态控制 (实现 Part)
-├── DozeScreenBrightness.java     # 亮度控制
-├── DozeHost.java                 # SystemUI 通信接口
-├── DozeHost.Callback             # 回调接口
-├── DozeLog.java                  # 日志工具
-├── DozeLogger.kt                 # Kotlin 日志
-├── DozePauser.java               # 暂停控制
-├── DozeReceiver.java             # 广播接收器
-├── DozeDockHandler.java          # 底座事件处理
-├── DozeFalsingManagerAdapter.java # 误触管理
-├── DozeFactory.java              # 工厂类
-├── DozePausingService.java       # 暂停服务
-├── DozeWakeLock.java             # WakeLock 管理
-├── DozeUi.java                   # UI 控制
-├── AlwaysOnDisplayPolicy.java    # AOD 策略
-├── DozeAuthRemover.java          # 认证移除
-├── DozeBrightnessHostForwarder.java # 亮度转发
-├── DozeSuspendScreenState.java   # 挂起屏幕状态
-├── DozeScreenStatePreventingAdapter.java # 状态适配器
-└── dagger/
-    ├── DozeComponent.java        # Dagger 组件
-    ├── DozeModule.java           # Dagger 模块
-    └── DozeScope.java            # Dagger 作用域
-```
+
+Dagger 组件与资源策略决定各 Part 的实际注入。DozeMachine 的 Service 是内部控制接口，不要与 Android Service 或设备空闲管理的 Doze 混为一谈。PowerManager/DreamManager 的 dozing dream 协作与应用后台 DeviceIdleController 是不同责任体系。
 
 ### 3.3 AOD 状态机 (DozeMachine)
 
-> **源码路径**: `frameworks/base/packages/SystemUI/src/com/android/systemui/doze/DozeMachine.java`
+Android 17 当前枚举不仅包含 DOZE/DOZE_AOD/常规 pulse，还包含 `DOZE_PULSING_WITHOUT_UI`、`DOZE_PULSING_AUTH_UI` 和 `DOZE_AOD_MINMODE`。旧文深度段中的 DOZE_INIT、DOZE_REST、EXITED_DOZE 等不是这个状态机的真实枚举。
+
+State 中的 canPulse、staysAwake、isAlwaysOn 与 screenState 分别回答：能否提出脉冲、是否需要持有状态唤醒、是否属于 AOD 状态族、期望 Display 状态。四者并不等价，尤其 AOD_DOCKED/MINMODE 可映射 STATE_ON，而普通 AOD 映射 DOZE_SUSPEND。
+
+
+源码：[DozeMachine.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/packages/SystemUI/src/com/android/systemui/doze/DozeMachine.java)。下方为该 tag 的方法/类型节选，省略所在类的其他成员与 imports，不作为独立工程。
+
 
 ```java
-/**
- * DozeMachine 状态机 (Android 16 AOSP)
- *
- * 位置: frameworks/base/packages/SystemUI/src/com/android/systemui/doze/DozeMachine.java
- *
- * DozeMachine 实现状态机来协调 UI 和触发器如何工作，
- * 并与电源和屏幕状态进行交互。
- */
-
-@DozeScope
-public class DozeMachine {
-
-    static final String TAG = "DozeMachine";
-    static final boolean DEBUG = DozeService.DEBUG;
-
+public enum State {
+    /** Default state. Transition to INITIALIZED to get Doze going. */
+    UNINITIALIZED,
+    /** Doze components are set up. Followed by transition to DOZE or DOZE_AOD. */
+    INITIALIZED,
+    /** Regular doze. Device is asleep and listening for pulse triggers. */
+    DOZE,
+    /** Deep doze. Device is asleep and is not listening for pulse triggers. */
+    DOZE_SUSPEND_TRIGGERS,
+    /** Always-on doze. Device is asleep, showing UI and listening for pulse triggers. */
+    DOZE_AOD,
+    /** Pulse has been requested. Device is awake and preparing UI */
+    DOZE_REQUEST_PULSE,
+    /** Pulse is showing. Device is awake and showing UI. */
+    DOZE_PULSING,
+    /** Pulse is showing with bright wallpaper. Device is awake and showing UI. */
+    DOZE_PULSING_BRIGHT,
+    /** Device is awake and not showing any UI. */
+    DOZE_PULSING_WITHOUT_UI,
+    /** Device is awake and showing authentication UI (any relevant biometric UI and auth
+     * messages. */
+    DOZE_PULSING_AUTH_UI,
+    /** Pulse is done showing. Followed by transition to DOZE or DOZE_AOD. */
+    DOZE_PULSE_DONE,
+    /** Doze is done. DozeService is finished. */
+    FINISH,
+    /** AOD, but the display is temporarily off. */
+    DOZE_AOD_PAUSED,
+    /** AOD, prox is near, transitions to DOZE_AOD_PAUSED after a timeout. */
+    DOZE_AOD_PAUSING,
     /**
-     * Doze 状态枚举 - 定义所有可能的 Doze 状态
-     */
-    public enum State {
-        /** 默认状态。转换到 INITIALIZED 来启动 Doze */
-        UNINITIALIZED,
+     * Always-on doze. Device is awake, showing docking UI and listening
+     * for pulse triggers.
+    */
+    DOZE_AOD_DOCKED,
+    /**
+     * Always-on doze. Device is awake, showing min-mode UI and listening
+     * for pulse triggers.
+    */
+    DOZE_AOD_MINMODE;
 
-        /** Doze 组件已设置。接下来转换到 DOZE 或 DOZE_AOD */
-        INITIALIZED,
-
-        /** 常规 Doze。设备休眠，监听脉冲触发器 */
-        DOZE,
-
-        /** 深度 Doze。设备休眠，不监听脉冲触发器 */
-        DOZE_SUSPEND_TRIGGERS,
-
-        /** 常亮显示。设备休眠，显示 UI，监听脉冲触发器 */
-        DOZE_AOD,
-
-        /** 已请求脉冲。设备唤醒，准备 UI */
-        DOZE_REQUEST_PULSE,
-
-        /** 正在显示脉冲。设备唤醒，显示 UI */
-        DOZE_PULSING,
-
-        /** 正在显示明亮壁纸的脉冲 */
-        DOZE_PULSING_BRIGHT,
-
-        /** 脉冲显示完成。接下来转换到 DOZE 或 DOZE_AOD */
-        DOZE_PULSE_DONE,
-
-        /** Doze 完成。DozeService 已结束 */
-        FINISH,
-
-        /** AOD 但显示屏暂时关闭 */
-        DOZE_AOD_PAUSED,
-
-        /** AOD，距离传感器接近，超时后转换到 DOZE_AOD_PAUSED */
-        DOZE_AOD_PAUSING,
-
-        /** 常亮显示。设备唤醒，显示底座 UI，监听脉冲触发器 */
-        DOZE_AOD_DOCKED;
-
-        /** 是否可以触发脉冲 */
-        boolean canPulse() {
-            switch (this) {
-                case DOZE:
-                case DOZE_AOD:
-                case DOZE_AOD_PAUSED:
-                case DOZE_AOD_PAUSING:
-                case DOZE_AOD_DOCKED:
-                    return true;
-                default:
-                    return false;
-            }
-        }
-
-        /** 是否保持唤醒状态 */
-        boolean staysAwake() {
-            switch (this) {
-                case DOZE_REQUEST_PULSE:
-                case DOZE_PULSING:
-                case DOZE_PULSING_BRIGHT:
-                case DOZE_AOD_DOCKED:
-                    return true;
-                default:
-                    return false;
-            }
-        }
-
-        /** 是否是常亮显示状态 */
-        boolean isAlwaysOn() {
-            return this == DOZE_AOD || this == DOZE_AOD_DOCKED;
-        }
-
-        /** 获取对应的屏幕状态 */
-        int screenState(DozeParameters parameters) {
-            switch (this) {
-                case UNINITIALIZED:
-                case INITIALIZED:
-                    return parameters.shouldControlScreenOff()
-                            ? Display.STATE_ON : Display.STATE_OFF;
-                case DOZE_REQUEST_PULSE:
-                    return parameters.getDisplayNeedsBlanking()
-                            ? Display.STATE_OFF : Display.STATE_ON;
-                case DOZE_AOD_PAUSED:
-                case DOZE:
-                case DOZE_SUSPEND_TRIGGERS:
-                    return Display.STATE_OFF;
-                case DOZE_PULSING:
-                case DOZE_PULSING_BRIGHT:
-                case DOZE_AOD_DOCKED:
-                    return Display.STATE_ON;
-                case DOZE_AOD:
-                case DOZE_AOD_PAUSING:
-                    return Display.STATE_DOZE_SUSPEND;
-                default:
-                    return Display.STATE_UNKNOWN;
-            }
+    boolean canPulse() {
+        switch (this) {
+            case DOZE:
+            case DOZE_AOD:
+            case DOZE_AOD_PAUSED:
+            case DOZE_AOD_PAUSING:
+            case DOZE_AOD_DOCKED:
+            case DOZE_AOD_MINMODE:
+                return true;
+            default:
+                return false;
         }
     }
 
-    // 核心依赖 (通过 Dagger 注入)
-    private final Service mDozeService;
-    private final WakeLock mWakeLock;
-    private final AmbientDisplayConfiguration mAmbientDisplayConfig;
-    private final WakefulnessLifecycle mWakefulnessLifecycle;
-    private final DozeHost mDozeHost;
-    private final DockManager mDockManager;
-    private final Part[] mParts;
-    private final UserTracker mUserTracker;
-
-    // 当前状态
-    private State mState = State.UNINITIALIZED;
-    private int mPulseReason;
-
-    @Inject
-    public DozeMachine(@WrappedService Service service,
-            AmbientDisplayConfiguration ambientDisplayConfig,
-            WakeLock wakeLock, WakefulnessLifecycle wakefulnessLifecycle,
-            DozeLog dozeLog, DockManager dockManager,
-            DozeHost dozeHost, Part[] parts, UserTracker userTracker) {
-        // 初始化...
-    }
-}
-```
-
-#### 状态转换图
-
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                    DozeMachine 状态转换图 (Android 16)                      │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-                              ┌─────────────────┐
-                              │ UNINITIALIZED   │ ← 初始状态
-                              └────────┬────────┘
-                                       │ requestState(INITIALIZED)
-                                       ▼
-                              ┌─────────────────┐
-                              │  INITIALIZED    │ ← 组件初始化完成
-                              └────────┬────────┘
-                                       │
-                    ┌──────────────────┼──────────────────┐
-                    │                  │                  │
-                    ▼                  ▼                  ▼
-           ┌───────────────┐  ┌───────────────┐  ┌────────────────┐
-           │     DOZE      │  │   DOZE_AOD    │  │DOZE_AOD_DOCKED │
-           │ (屏幕关闭)     │  │ (常亮显示)    │  │  (底座模式)     │
-           └───────┬───────┘  └───────┬───────┘  └───────┬────────┘
-                   │                  │                  │
-                   │  requestPulse()  │                  │
-                   ▼                  ▼                  ▼
-           ┌───────────────────────────────────────────────────┐
-           │              DOZE_REQUEST_PULSE                    │
-           │              (请求脉冲)                             │
-           └───────────────────────┬───────────────────────────┘
-                                   │
-                                   ▼
-                    ┌──────────────────────────┐
-                    │      DOZE_PULSING        │ ← 显示脉冲
-                    │    (或 DOZE_PULSING_BRIGHT)│
-                    └────────────┬─────────────┘
-                                 │
-                                 ▼
-                    ┌──────────────────────────┐
-                    │     DOZE_PULSE_DONE      │ ← 脉冲完成
-                    └────────────┬─────────────┘
-                                 │
-                                 ▼ (返回 DOZE/DOZE_AOD)
-
-           ┌───────────────────────────────────────────────────────┐
-           │                    特殊状态                            │
-           ├───────────────────────────────────────────────────────┤
-           │  DOZE_AOD_PAUSING  →  DOZE_AOD_PAUSED  (距离传感器接近)│
-           │  DOZE_SUSPEND_TRIGGERS (车载模式，禁用触发器)          │
-           │  FINISH (Doze 结束)                                   │
-           └───────────────────────────────────────────────────────┘
-```
-
-### 3.4 AOD 显示流程 (Android 16)
-
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                    AOD 启动流程 (Android 16)                                │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  1. DreamService 启动                                                      │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-PowerManagerService:
-├── 屏幕关闭超时
-├── 调用 DreamManager.startDream()
-└── 启动 DozeService
-
-DozeService:
-├── onCreate() → setWindowless(true)
-├── 构建 Dagger DozeComponent
-└── 获取 DozeMachine 实例
-
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  2. 状态初始化                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-DozeService.onDreamingStarted():
-├── mDozeMachine.requestState(State.INITIALIZED)
-└── startDozing()
-
-DozeMachine.transitionTo(UNINITIALIZED → INITIALIZED):
-├── 执行所有 Part.transitionTo()
-├── DozeTriggers: registerCallbacks()
-├── DozeSensors: requestTemporaryDisable()
-└── resolveIntermediateState(INITIALIZED)
-
-resolveIntermediateState():
-├── 检查 DockManager.isDocked() → DOZE_AOD_DOCKED
-├── 检查 alwaysOnEnabled() → DOZE_AOD
-└── 否则 → DOZE
-
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  3. 进入 AOD 模式                                                          │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-DozeMachine.transitionTo(INITIALIZED → DOZE_AOD):
-├── DozeTriggers.transitionTo():
-│   ├── mWantProxSensor = true
-│   ├── mWantSensors = true
-│   └── mDozeSensors.setListening(true, true, true)
-├── DozeScreenState.transitionTo():
-│   ├── screenState = Display.STATE_DOZE_SUSPEND
-│   └── mHandler.postDelayed(mApplyPendingScreenState, ENTER_DOZE_DELAY)
-└── mDozeLog.traceState(DOZE_AOD)
-
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  4. 传感器触发脉冲                                                         │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-DozeSensors 触发流程:
-├── 传感器触发 (pickup/doubleTap/tap)
-├── TriggerSensor.onTrigger()
-├── mSensorCallback.onSensorPulse(reason, x, y, values)
-└── DozeTriggers.onSensor()
-
-DozeTriggers.onSensor():
-├── proximityCheckThenCall() - 检查距离传感器
-├── gentleWakeUp(reason) - 唤醒设备
-│   └── mMachine.wakeUp(reason)
-└── 或 requestPulse(reason) - 请求脉冲
-
-DozeMachine.requestPulse():
-├── 检查 canPulse(currentState)
-├── mDozeHost.setPulsePending(true)
-├── transitionTo(DOZE_REQUEST_PULSE)
-└── transitionTo(DOZE_PULSING)
-
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  5. 脉冲显示                                                               │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-DozeScreenState.transitionTo(DOZE_PULSING):
-├── screenState = Display.STATE_ON
-└── applyScreenState(Display.STATE_ON)
-
-DozeHost.pulseWhileDozing():
-├── 显示脉冲内容 (通知、时钟等)
-└── PulseCallback.onPulseFinished()
-
-DozeMachine.transitionTo(DOZE_PULSE_DONE):
-├── resolveIntermediateState(DOZE_PULSE_DONE)
-└── 返回 DOZE 或 DOZE_AOD
-```
-
-#### 脉冲触发原因 (DozeLog.PULSE_REASON_*)
-
-```java
-/**
- * 脉冲触发原因常量 (来自 DozeLog.java)
- */
-public class DozeLog {
-
-    public static final int PULSE_REASON_NONE = 0;
-    public static final int PULSE_REASON_INTENT = 1;
-    public static final int PULSE_REASON_NOTIFICATION = 2;
-    public static final int PULSE_REASON_SENSOR_SIGMOTION = 3;
-    public static final int REASON_SENSOR_PICKUP = 4;
-    public static final int REASON_SENSOR_DOUBLE_TAP = 5;
-    public static final int PULSE_REASON_SENSOR_LONG_PRESS = 6;
-    public static final int PULSE_REASON_DOCKING = 7;
-    public static final int REASON_SENSOR_WAKEUP = 8;
-    public static final int REASON_SENSOR_TAP = 9;
-    public static final int REASON_SENSOR_UDFPS_LONG_PRESS = 10;
-    public static final int REASON_SENSOR_WAKE_REACH = 11;
-    public static final int PULSE_REASON_FINGERPRINT_ACTIVATED = 12;
-    public static final int REASON_SENSOR_QUICK_PICKUP = 13;
-}
-```
-
-### 3.5 AOD 核心组件源码 (Android 16)
-
-#### DozeService - Doze 服务入口
-
-> **源码路径**: `frameworks/base/packages/SystemUI/src/com/android/systemui/doze/DozeService.java`
-
-```java
-/**
- * DozeService - Doze 服务的入口点
- *
- * 位置: frameworks/base/packages/SystemUI/src/com/android/systemui/doze/DozeService.java
- *
- * DozeService 继承自 DreamService，是 Android Doze 模式的入口。
- * 它通过 Dagger 注入 DozeComponent 来构建完整的 Doze 功能。
- */
-public class DozeService extends DreamService
-        implements DozeMachine.Service, RequestDoze, PluginListener<DozeServicePlugin> {
-
-    private static final String TAG = "DozeService";
-    static final boolean DEBUG = Log.isLoggable(TAG, Log.DEBUG);
-
-    private final DozeComponent.Builder mDozeComponentBuilder;
-    private DozeMachine mDozeMachine;
-    private DozeServicePlugin mDozePlugin;
-    private PluginManager mPluginManager;
-    private DozeLog mDozeLog;
-    private Executor mBgExecutor;
-
-    @Inject
-    public DozeService(DozeComponent.Builder dozeComponentBuilder, PluginManager pluginManager,
-            DozeLog dozeLog, @UiBackground Executor bgExecutor) {
-        mDozeLog = dozeLog;
-        mBgExecutor = bgExecutor;
-        mDozeComponentBuilder = dozeComponentBuilder;
-        setDebug(DEBUG);
-        mPluginManager = pluginManager;
-    }
-
-    @Override
-    public void onCreate() {
-        super.onCreate();
-        setWindowless(true);
-
-        mPluginManager.addPluginListener(this, DozeServicePlugin.class, false);
-        DozeComponent dozeComponent = mDozeComponentBuilder.build(this);
-        mDozeMachine = dozeComponent.getDozeMachine();
-        mDozeMachine.onConfigurationChanged(getResources().getConfiguration());
-    }
-
-    @Override
-    public void onDreamingStarted() {
-        super.onDreamingStarted();
-        // 请求初始化状态
-        mDozeMachine.requestState(DozeMachine.State.INITIALIZED);
-        startDozing();
-        if (mDozePlugin != null) {
-            mDozePlugin.onDreamingStarted();
+    boolean staysAwake() {
+        switch (this) {
+            case DOZE_REQUEST_PULSE:
+            case DOZE_PULSING:
+            case DOZE_PULSING_BRIGHT:
+            case DOZE_PULSING_WITHOUT_UI:
+            case DOZE_PULSING_AUTH_UI:
+            case DOZE_AOD_DOCKED:
+            case DOZE_AOD_MINMODE:
+                return true;
+            default:
+                return false;
         }
     }
 
-    @Override
-    public void onDreamingStopped() {
-        super.onDreamingStopped();
-        // 请求结束状态
-        mDozeMachine.requestState(DozeMachine.State.FINISH);
-        if (mDozePlugin != null) {
-            mDozePlugin.onDreamingStopped();
-        }
+    boolean isAlwaysOn() {
+        return this == DOZE_AOD || this == DOZE_AOD_DOCKED || this == DOZE_AOD_MINMODE;
     }
 
-    @Override
-    public void requestWakeUp(@DozeLog.Reason int reason) {
-        final PowerManager pm = getSystemService(PowerManager.class);
-        pm.wakeUp(SystemClock.uptimeMillis(), DozeLog.getPowerManagerWakeReason(reason),
-                "com.android.systemui:NODOZE " + DozeLog.reasonToString(reason));
-    }
-
-    @Override
-    public void setDozeScreenState(int state) {
-        mDozeLog.traceDisplayState(state, false);
-        super.setDozeScreenState(state);
-        mDozeLog.traceDisplayState(state, true);
-        if (mDozeMachine != null) {
-            mDozeMachine.onScreenState(state);
+    int screenState(DozeParameters parameters) {
+        switch (this) {
+            case UNINITIALIZED:
+            case INITIALIZED:
+                return parameters.shouldControlScreenOff() ? Display.STATE_ON
+                        : Display.STATE_OFF;
+            case DOZE_REQUEST_PULSE:
+                return parameters.getDisplayNeedsBlanking() ? Display.STATE_OFF
+                        : Display.STATE_ON;
+            case DOZE_AOD_PAUSED:
+            case DOZE:
+            case DOZE_SUSPEND_TRIGGERS:
+                return Display.STATE_OFF;
+            case DOZE_PULSING:
+            case DOZE_PULSING_WITHOUT_UI:
+            case DOZE_PULSING_AUTH_UI:
+            case DOZE_PULSING_BRIGHT:
+            case DOZE_AOD_DOCKED:
+            case DOZE_AOD_MINMODE:
+                return Display.STATE_ON;
+            case DOZE_AOD:
+            case DOZE_AOD_PAUSING:
+                return Display.STATE_DOZE_SUSPEND;
+            default:
+                return Display.STATE_UNKNOWN;
         }
     }
 }
 ```
 
-#### DozeHost - Doze 与 SystemUI 的通信接口
 
-> **源码路径**: `frameworks/base/packages/SystemUI/src/com/android/systemui/doze/DozeHost.java`
+状态请求必须在主线程；`requestState()` 禁止用普通入口请求 DOZE_REQUEST_PULSE，脉冲原因由 requestPulse 专门传入。请求进入队列，当前切换期间 Part 再请求新状态时由队列继续处理，避免简单递归立即打乱当前切换。
+
 
 ```java
-/**
- * DozeHost - Doze 服务与 SystemUI 其他部分通信的接口
- *
- * 位置: frameworks/base/packages/SystemUI/src/com/android/systemui/doze/DozeHost.java
- */
-public interface DozeHost {
+public void requestState(State requestedState) {
+    Preconditions.checkArgument(requestedState != State.DOZE_REQUEST_PULSE);
+    requestState(requestedState, DozeLog.PULSE_REASON_NONE);
+}
 
-    /** 添加/移除回调 */
-    void addCallback(@NonNull Callback callback);
-    void removeCallback(@NonNull Callback callback);
+public void requestPulse(int pulseReason) {
+    // Must not be called during a transition. There's no inherent problem with that,
+    // but there's currently no need to execute from a transition and it simplifies the
+    // code to not have to worry about keeping the pulseReason in mQueuedRequests.
+    Preconditions.checkState(!isExecutingTransition());
+    requestState(State.DOZE_REQUEST_PULSE, pulseReason);
+}
 
-    /** 开始/停止 Doze */
-    void startDozing();
-    void stopDozing();
-
-    /** 脉冲控制 */
-    void pulseWhileDozing(@NonNull PulseCallback callback, int reason);
-    void extendPulse(int reason);
-    void stopPulsing();
-
-    /** 时间更新 */
-    @MainThread
-    void dozeTimeTick();
-
-    /** 状态查询 */
-    boolean isPowerSaveActive();
-    boolean isPulsingBlocked();
-    boolean isProvisioned();
-    boolean isPulsePending();
-    boolean isAlwaysOnSuppressed();
-
-    /** 设置脉冲待定状态 */
-    void setPulsePending(boolean isPulsePending);
-
-    /** 设置唤醒动画 */
-    void setAnimateWakeup(boolean animateWakeup);
-
-    /** SLPI 触摸事件 */
-    void onSlpiTap(float x, float y);
-
-    /** AOD 调光 */
-    default void setAodDimmingScrim(float scrimOpacity) {}
-
-    /** 屏幕亮度 */
-    void setDozeScreenBrightness(int value);
-    void setDozeScreenBrightnessFloat(float value);
-
-    /** 温柔睡眠准备 */
-    void prepareForGentleSleep(Runnable onDisplayOffCallback);
-    void cancelGentleSleep();
-
-    /** 脉冲时忽略触摸 */
-    void onIgnoreTouchWhilePulsing(boolean ignore);
-
-    /**
-     * 回调接口 - 接收 Doze 事件
-     */
-    interface Callback {
-        /** 高优先级通知到达 */
-        default void onNotificationAlerted(Runnable onPulseSuppressedListener) {}
-
-        /** 省电模式变化 */
-        default void onPowerSaveChanged(boolean active) {}
-
-        /** 常亮显示抑制状态变化 */
-        default void onAlwaysOnSuppressedChanged(boolean suppressed) {}
-
-        /** Dozing 状态可能更新 */
-        default void onDozingChanged(boolean isDozing) {}
-
-        /** 侧边指纹采集开始 */
-        default void onSideFingerprintAcquisitionStarted() {}
+private void requestState(State requestedState, int pulseReason) {
+    Assert.isMainThread();
+    if (DEBUG) {
+        Log.i(TAG, "request: current=" + mState + " req=" + requestedState,
+                new Throwable("here"));
     }
 
-    /**
-     * 脉冲回调接口
-     */
-    interface PulseCallback {
-        void onPulseStarted();
-        void onPulseFinished();
+    boolean runNow = !isExecutingTransition();
+    mQueuedRequests.add(requestedState);
+    if (runNow) {
+        mWakeLock.acquire(REASON_CHANGE_STATE);
+        for (int i = 0; i < mQueuedRequests.size(); i++) {
+            // Transitions in Parts can call back into requestState, which will
+            // cause mQueuedRequests to grow.
+            transitionTo(mQueuedRequests.get(i), pulseReason);
+        }
+        mQueuedRequests.clear();
+        mWakeLock.release(REASON_CHANGE_STATE);
     }
 }
 ```
 
-#### DozeTriggers - 触发器管理
 
-> **源码路径**: `frameworks/base/packages/SystemUI/src/com/android/systemui/doze/DozeTriggers.java`
+真正切换先应用 transitionPolicy，再校验转换、更新状态、通知所有 Part、调整状态 WakeLock，最后解析中间态。FINISH 是终止状态；不能直接从任意状态跳入 pulsing，不能把每个传感器事件都解释为必然发生完整一次 pulse。
+
 
 ```java
-/**
- * DozeTriggers - 处理环境状态变化的触发器
- *
- * 位置: frameworks/base/packages/SystemUI/src/com/android/systemui/doze/DozeTriggers.java
- *
- * 实现 DozeMachine.Part 接口，响应各种触发事件：
- * - 通知到达
- * - 传感器事件 (抬起、双击、长按等)
- * - 距离传感器
- * - 底座事件
- */
-@DozeScope
-public class DozeTriggers implements DozeMachine.Part {
+private void transitionTo(State requestedState, int pulseReason) {
+    State newState = transitionPolicy(requestedState);
 
-    private static final String TAG = "DozeTriggers";
-    private static final int PROXIMITY_TIMEOUT_DELAY_MS = 500;
-
-    private final Context mContext;
-    private DozeMachine mMachine;
-    private final DozeLog mDozeLog;
-    private final DozeSensors mDozeSensors;
-    private final DozeHost mDozeHost;
-    private final AmbientDisplayConfiguration mConfig;
-    private final DozeParameters mDozeParameters;
-    private final WakeLock mWakeLock;
-    private final DockManager mDockManager;
-    private final ProximityCheck mProxCheck;
-
-    @Inject
-    public DozeTriggers(Context context, DozeHost dozeHost,
-            AmbientDisplayConfiguration config,
-            DozeParameters dozeParameters, AsyncSensorManager sensorManager,
-            WakeLock wakeLock, DockManager dockManager,
-            ProximitySensor proximitySensor, ProximityCheck proxCheck,
-            DozeLog dozeLog, BroadcastDispatcher broadcastDispatcher,
-            SecureSettings secureSettings, AuthController authController,
-            UiEventLogger uiEventLogger, SessionTracker sessionTracker,
-            KeyguardStateController keyguardStateController,
-            DevicePostureController devicePostureController,
-            UserTracker userTracker,
-            SelectedUserInteractor selectedUserInteractor) {
-        // 初始化...
-        mDozeSensors = new DozeSensors(mContext.getResources(), mSensorManager,
-                dozeParameters, config, wakeLock, this::onSensor, this::onProximityFar,
-                dozeLog, proximitySensor, secureSettings, authController,
-                devicePostureController, selectedUserInteractor);
+    if (DEBUG) {
+        Log.i(TAG, "transition: old=" + mState + " req=" + requestedState + " new=" + newState);
     }
 
-    /**
-     * 传感器事件处理
-     */
-    @VisibleForTesting
-    void onSensor(int pulseReason, float screenX, float screenY, float[] rawValues) {
-        boolean isDoubleTap = pulseReason == DozeLog.REASON_SENSOR_DOUBLE_TAP;
-        boolean isTap = pulseReason == DozeLog.REASON_SENSOR_TAP;
-        boolean isPickup = pulseReason == DozeLog.REASON_SENSOR_PICKUP;
-        boolean isLongPress = pulseReason == DozeLog.PULSE_REASON_SENSOR_LONG_PRESS;
-        boolean isWakeOnPresence = pulseReason == DozeLog.REASON_SENSOR_WAKE_UP_PRESENCE;
+    if (newState == mState) {
+        return;
+    }
 
-        if (isDoubleTap || isTap) {
-            mDozeHost.onSlpiTap(screenX, screenY);
-            gentleWakeUp(pulseReason);
-        } else if (isPickup) {
-            if (shouldDropPickupEvent()) {
-                mDozeLog.traceSensorEventDropped(pulseReason, "keyguard occluded");
+    validateTransition(newState);
+
+    State oldState = mState;
+    mState = newState;
+
+    mDozeLog.traceState(newState);
+    TrackTracer.instantForGroup("keyguard", "doze_machine_state", newState.ordinal());
+
+    updatePulseReason(newState, oldState, pulseReason);
+    performTransitionOnComponents(oldState, newState);
+    updateWakeLockState(newState);
+
+    resolveIntermediateState(newState);
+}
+
+private State transitionPolicy(State requestedState) {
+    if (mState == State.FINISH) {
+        return State.FINISH;
+    }
+
+    if (mDozeHost.isAlwaysOnSuppressed() && requestedState.isAlwaysOn()) {
+        Log.i(TAG, "Doze is suppressed by an app. Suppressing state: " + requestedState);
+        mDozeLog.traceAlwaysOnSuppressed(requestedState, "app");
+        return State.DOZE;
+    }
+    if (mDozeHost.isPowerSaveActive() && requestedState.isAlwaysOn()) {
+        Log.i(TAG, "Doze is suppressed by battery saver. Suppressing state: " + requestedState);
+        mDozeLog.traceAlwaysOnSuppressed(requestedState, "batterySaver");
+        return State.DOZE;
+    }
+    if ((mState == State.DOZE_AOD_PAUSED || mState == State.DOZE_AOD_PAUSING
+            || mState == State.DOZE_AOD || mState == State.DOZE
+            || mState == State.DOZE_AOD_MINMODE
+            || mState == State.DOZE_AOD_DOCKED || mState == State.DOZE_SUSPEND_TRIGGERS)
+            && requestedState == State.DOZE_PULSE_DONE) {
+        Log.i(TAG, "Dropping pulse done because current state is already done: " + mState);
+        return mState;
+    }
+    if (requestedState == State.DOZE_REQUEST_PULSE && !mState.canPulse()) {
+        Log.i(TAG, "Dropping pulse request because current state can't pulse: " + mState);
+        return mState;
+    }
+    return requestedState;
+}
+```
+
+
+```text
+UNINITIALIZED -> INITIALIZED -> policy chooses DOZE / AOD / DOCKED / MINMODE
+                                  |
+                     allowed pulse request + reason
+                                  v
+                           DOZE_REQUEST_PULSE
+                                  |
+                       host pulse started callback
+                                  v
+       DOZE_PULSING / BRIGHT / WITHOUT_UI / AUTH_UI (condition-dependent)
+                                  |
+                       host pulse finished callback
+                                  v
+                          DOZE_PULSE_DONE
+                                  |
+                         resolveIntermediateState
+                      -> resting doze state or FINISH
+
+proximity: AOD -> AOD_PAUSING -> AOD_PAUSED; far -> AOD
+service dream stopped -> FINISH
+```
+
+这是主干和分支摘要，不声称图中任意节点可彼此跳转；合法前驱以 validateTransition 为准。状态图是软件逻辑，并不等于每一步都立即对应硬件屏幕状态完成。
+
+### 3.4 AOD 显示流程（Android 17）
+
+DozeService 是 windowless DreamService，不额外创建一个名叫 AODView 的独立窗口。onCreate 构建 DozeComponent；onDreamingStarted 请求 INITIALIZED 并调用 startDozing；onDreamingStopped 请求 FINISH。显示内容由 SystemUI 的锁屏/AOD UI 协作提供。
+
+```text
+Dream / power coordination -> DozeService.onDreamingStarted
+  -> DozeMachine.requestState(INITIALIZED)
+  -> Part.transitionTo callbacks
+  -> resolveIntermediateState: min mode / wakefulness / dock / always-on policy
+  -> DozeScreenState.transitionTo -> pending display state
+  -> DozeMachine.Service.setDozeScreenState -> DreamService/power display path
+```
+
+通知/手势到达后，DozeTriggers 根据设置、pulse pending、距离传感器及是否允许脉冲作决定。有的 tap/pickup 路径直接 gentleWakeUp，有的请求 pulse，有的只 extendPulse；不是“收到手势就进入 DOZE_PULSING”。
+
+requestPulse 只提出请求态；**实际进入 pulsing 由 DozeUi 的 host pulse callback 驱动**。旧图把 requestPulse 后立刻同步 transitionTo(DOZE_PULSING) 是错误的。
+
+
+源码：[DozeUi.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/packages/SystemUI/src/com/android/systemui/doze/DozeUi.java)。下方为该 tag 的方法/类型节选，省略所在类的其他成员与 imports，不作为独立工程。
+
+
+```java
+private void pulseWhileDozing(int reason) {
+    mHost.pulseWhileDozing(
+            new DozeHost.PulseCallback() {
+                @Override
+                public void onPulseStarted() {
+                    try {
+                        DozeMachine.State requestState = DozeMachine.State.DOZE_PULSING;
+                        if (reason == DozeLog.PULSE_REASON_SENSOR_WAKE_REACH) {
+                            requestState = DozeMachine.State.DOZE_PULSING_BRIGHT;
+                        } else if (reason == DozeLog.REASON_SENSOR_UDFPS_LONG_PRESS
+                                || reason == DozeLog.REASON_SENSOR_QUICK_PICKUP) {
+                            requestState = DozeMachine.State.DOZE_PULSING_WITHOUT_UI;
+                        } else if (reason
+                                == DozeLog.PULSE_REASON_FINGERPRINT_PULSE_SHOW_AUTH_UI) {
+                            requestState = DozeMachine.State.DOZE_PULSING_AUTH_UI;
+                        }
+
+                        mMachine.requestState(requestState);
+                    } catch (IllegalStateException e) {
+                        // It's possible that the pulse was asynchronously cancelled while
+                        // we were waiting for it to start (under stress conditions.)
+                        // In those cases we should just ignore it. b/127657926
+                    }
+                }
+
+                @Override
+                public void onPulseFinished() {
+                    mMachine.requestState(DozeMachine.State.DOZE_PULSE_DONE);
+                }
+            }, reason);
+}
+```
+
+
+常规脉冲结束请求 PULSE_DONE，然后由 DozeMachine 判断返回 AOD/DOZE 或因正在唤醒而 FINISH。时间更新的 `scheduleTimeTick()` / `onTimeTick()` 属于显示内容更新，并不意味着每分钟必须跑一次完整 pulse 状态链。
+
+#### 触发原因与调试
+
+DozeLog 中 reason 用于区分通知、手势、认证等来源；不同 reason 可能影响 pulse UI 类型。应使用源码常量名，不创造 PULSE_REASON_TIMER 等任意枚举，并核对触发者是否实际传该值。
+
+```text
+request origin -> DozeTriggers decision -> requestPulse(reason)
+  -> DozeMachine stores reason -> DozeUi selects pulse state
+  -> DozeLog / trace: rejected, suppressed, proximity, state, display application
+```
+
+诊断需区分“触发没有到达”“被 proximity/策略抑制”“状态已转换但 pending display 尚未应用”“buffer/UI 未更新”。只有单条 screen on/off 日志不能证明整条 AOD 链都成功。
+
+### 3.5 AOD 核心组件源码（Android 17）
+
+#### DozeService：框架生命周期到状态机
+
+插件监听仍可能使用弃用兼容的 onPluginConnected/onPluginDisconnected 回调；这不意味着 17 的 PluginListener 只有两阶段。Service 销毁需撤销监听并销毁状态机，dream 停止与 Android Service destroy 不是相同回调。
+
+
+源码：[DozeService.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/packages/SystemUI/src/com/android/systemui/doze/DozeService.java)。下方为该 tag 的方法/类型节选，省略所在类的其他成员与 imports，不作为独立工程。
+
+
+```java
+public void onCreate() {
+    super.onCreate();
+
+    setWindowless(true);
+
+    mPluginManager.addPluginListener(this, DozeServicePlugin.class, false /* allowMultiple */);
+    DozeComponent dozeComponent = mDozeComponentBuilder.build(this);
+    mDozeMachine = dozeComponent.getDozeMachine();
+}
+
+public void onDestroy() {
+    if (mPluginManager != null) {
+        mPluginManager.removePluginListener(this);
+    }
+    super.onDestroy();
+    mDozeMachine.destroy();
+    mDozeMachine = null;
+}
+
+public void onDreamingStarted() {
+    super.onDreamingStarted();
+    mDozeMachine.requestState(DozeMachine.State.INITIALIZED);
+    startDozing();
+    if (mDozePlugin != null) {
+        mDozePlugin.onDreamingStarted();
+    }
+}
+
+public void onDreamingStopped() {
+    super.onDreamingStopped();
+    mDozeMachine.requestState(DozeMachine.State.FINISH);
+    if (mDozePlugin != null) {
+        mDozePlugin.onDreamingStopped();
+    }
+}
+
+public void setDozeScreenState(int state) {
+    mDozeLog.traceDisplayState(state, /* afterRequest */ false);
+    super.setDozeScreenState(state);
+    mDozeLog.traceDisplayState(state, /* afterRequest */ true);
+    if (mDozeMachine != null) {
+        mDozeMachine.onScreenState(state);
+    }
+}
+```
+
+
+#### DozeHost：UI 与控制策略的边界
+
+DozeHost 把 SystemUI 显示/动画/pulse 行为与 DozeMachine 的状态控制分离。Part 通过接口请求工作，而不是直接操作整个锁屏树。pulseWhileDozing 带 started/finished 回调；startDozing/stopDozing 与 DreamService 同名方法属于不同对象职责。
+
+```text
+DozeMachine Parts -> DozeHost
+  startDozing / stopDozing
+  pulseWhileDozing(PulseCallback, reason) / extendPulse
+  isPowerSaveActive / isPulsePending / isAlwaysOnSuppressed
+  dozeTimeTick / brightness / gentle-sleep coordination
+```
+
+组件注册的 host callback 应按生命周期撤销。仅 setDozeScreenBrightness 改数值不能跳过真实 Display/Dream 协议或设备亮度策略。
+
+#### DozeTriggers：通知、手势与 proximity
+
+以下保留该 tag 的传感器决策方法，而不是把所有非 tap 事件合并为 extendPulse 的伪实现。事件能否进入状态机受理由、遮挡、低功耗/配置和 proximity 等条件影响。
+
+
+源码：[DozeTriggers.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/packages/SystemUI/src/com/android/systemui/doze/DozeTriggers.java)。下方为该 tag 的方法/类型节选，省略所在类的其他成员与 imports，不作为独立工程。
+
+
+```java
+void onSensor(int pulseReason, float screenX, float screenY, float[] rawValues) {
+    boolean isDoubleTap = pulseReason == DozeLog.REASON_SENSOR_DOUBLE_TAP;
+    boolean isTap = pulseReason == DozeLog.REASON_SENSOR_TAP;
+    boolean isPickup = pulseReason == DozeLog.REASON_SENSOR_PICKUP;
+    boolean isLongPress = pulseReason == DozeLog.PULSE_REASON_SENSOR_LONG_PRESS;
+    boolean isWakeOnPresence = pulseReason == DozeLog.REASON_SENSOR_WAKE_UP_PRESENCE;
+    boolean isWakeOnReach = pulseReason == DozeLog.PULSE_REASON_SENSOR_WAKE_REACH;
+    boolean isUdfpsLongPress = pulseReason == DozeLog.REASON_SENSOR_UDFPS_LONG_PRESS;
+    boolean isQuickPickup = pulseReason == DozeLog.REASON_SENSOR_QUICK_PICKUP;
+    boolean isWakeDisplayEvent = isQuickPickup || ((isWakeOnPresence || isWakeOnReach)
+            && rawValues != null && rawValues.length > 0 && rawValues[0] != 0);
+
+    if (isWakeOnPresence) {
+        onWakeScreen(isWakeDisplayEvent,
+                mMachine.getState(),
+                pulseReason);
+    } else if (isLongPress) {
+        requestPulse(pulseReason, true /* alreadyPerformedProxCheck */,
+                null /* onPulseSuppressedListener */);
+    } else if (isWakeOnReach || isQuickPickup) {
+        if (isWakeDisplayEvent) {
+            requestPulse(pulseReason, true /* alreadyPerformedProxCheck */,
+                    null /* onPulseSuppressedListener */);
+        }
+    } else {
+        proximityCheckThenCall((isNear) -> {
+            if (isNear != null && isNear) {
+                // In pocket, drop event.
+                mDozeLog.traceSensorEventDropped(pulseReason, "prox reporting near");
                 return;
             }
-            gentleWakeUp(pulseReason);
-        } else {
-            mDozeHost.extendPulse(pulseReason);
-        }
-    }
-
-    /**
-     * 距离传感器事件处理
-     */
-    private void onProximityFar(boolean far) {
-        if (mMachine.isExecutingTransition()) {
-            return;
-        }
-
-        final boolean near = !far;
-        final DozeMachine.State state = mMachine.getState();
-        final boolean paused = (state == DozeMachine.State.DOZE_AOD_PAUSED);
-        final boolean pausing = (state == DozeMachine.State.DOZE_AOD_PAUSING);
-        final boolean aod = (state == DozeMachine.State.DOZE_AOD);
-
-        if (far && (paused || pausing)) {
-            // 距离传感器远离，恢复 AOD
-            mMachine.requestState(DozeMachine.State.DOZE_AOD);
-        } else if (near && aod) {
-            // 距离传感器接近，开始暂停 AOD 倒计时
-            mMachine.requestState(DozeMachine.State.DOZE_AOD_PAUSING);
-        }
-    }
-
-    /**
-     * 状态转换处理
-     */
-    @Override
-    public void transitionTo(DozeMachine.State oldState, DozeMachine.State newState) {
-        switch (newState) {
-            case INITIALIZED:
-                registerCallbacks();
-                mDozeSensors.requestTemporaryDisable();
-                break;
-            case DOZE:
-                mWantSensors = true;
-                mInAod = false;
-                break;
-            case DOZE_AOD:
-                mWantProxSensor = true;
-                mWantSensors = true;
-                mInAod = true;
-                break;
-            case DOZE_SUSPEND_TRIGGERS:
-            case FINISH:
-                stopListeningToAllTriggers();
-                break;
-        }
-        mDozeSensors.setListening(mWantSensors, mWantTouchScreenSensors, mInAod);
-    }
-}
-```
-
-#### DozeSensors - 传感器管理
-
-> **源码路径**: `frameworks/base/packages/SystemUI/src/com/android/systemui/doze/DozeSensors.java`
-
-```java
-/**
- * DozeSensors - 跟踪和注册/注销传感器
- *
- * 位置: frameworks/base/packages/SystemUI/src/com/android/systemui/doze/DozeSensors.java
- *
- * 传感器注册取决于:
- * - 传感器存在性/可用性
- * - 用户配置 (某些可通过设置开关)
- * - 距离传感器使用
- * - 触摸状态
- * - 设备姿态
- *
- * 支持的传感器:
- * - 抬起手势 (pickup gesture)
- * - 单击和双击手势 (single and double tap)
- * - UDFPS 长按手势
- * - reach 和 presence 手势
- * - 快速抬起手势 (quick pickup)
- */
-public class DozeSensors {
-    private static final String TAG = "DozeSensors";
-
-    private final AsyncSensorManager mSensorManager;
-    private final AmbientDisplayConfiguration mConfig;
-    private final WakeLock mWakeLock;
-    private final DozeLog mDozeLog;
-    private final ProximitySensor mProximitySensor;
-
-    // 触发传感器数组
-    @VisibleForTesting
-    protected TriggerSensor[] mTriggerSensors;
-
-    // 传感器回调
-    private final Callback mSensorCallback;
-    private final Consumer<Boolean> mProxCallback;
-
-    DozeSensors(Resources resources, AsyncSensorManager sensorManager,
-            DozeParameters dozeParameters, AmbientDisplayConfiguration config,
-            WakeLock wakeLock, Callback sensorCallback, Consumer<Boolean> proxCallback,
-            DozeLog dozeLog, ProximitySensor proximitySensor,
-            SecureSettings secureSettings, AuthController authController,
-            DevicePostureController devicePostureController,
-            SelectedUserInteractor selectedUserInteractor) {
-        // ...
-        mTriggerSensors = new TriggerSensor[] {
-            // 显著运动传感器
-            new TriggerSensor(
-                    mSensorManager.getDefaultSensor(Sensor.TYPE_SIGNIFICANT_MOTION),
-                    null, dozeParameters.getPulseOnSigMotion(),
-                    DozeLog.PULSE_REASON_SENSOR_SIGMOTION,
-                    false, false),
-            // 抬起手势传感器
-            new TriggerSensor(
-                    mSensorManager.getDefaultSensor(Sensor.TYPE_PICK_UP_GESTURE),
-                    Settings.Secure.DOZE_PICK_UP_GESTURE,
-                    config.dozePickupSensorAvailable(),
-                    DozeLog.REASON_SENSOR_PICKUP,
-                    false, false),
-            // 双击传感器
-            new TriggerSensor(
-                    findSensor(config.doubleTapSensorType()),
-                    Settings.Secure.DOZE_DOUBLE_TAP_GESTURE,
-                    true, DozeLog.REASON_SENSOR_DOUBLE_TAP,
-                    dozeParameters.doubleTapReportsTouchCoordinates(),
-                    true),
-            // 单击传感器
-            new TriggerSensor(
-                    findSensors(config.tapSensorTypeMapping()),
-                    Settings.Secure.DOZE_TAP_SCREEN_GESTURE,
-                    true, DozeLog.REASON_SENSOR_TAP,
-                    true, true),
-            // UDFPS 长按传感器
-            new TriggerSensor(
-                    findSensor(config.udfpsLongPressSensorType()),
-                    "doze_pulse_on_auth", true,
-                    udfpsLongPressConfigured(),
-                    DozeLog.REASON_SENSOR_UDFPS_LONG_PRESS,
-                    true, true),
-            // 唤醒显示手势
-            new PluginSensor(
-                    new SensorManagerPlugin.Sensor(TYPE_WAKE_DISPLAY),
-                    Settings.Secure.DOZE_WAKE_DISPLAY_GESTURE,
-                    mConfig.wakeScreenGestureAvailable(),
-                    DozeLog.REASON_SENSOR_WAKE_UP_PRESENCE,
-                    false, false),
-            // 快速抬起传感器
-            new TriggerSensor(
-                    findSensor(config.quickPickupSensorType()),
-                    Settings.Secure.DOZE_QUICK_PICKUP_GESTURE,
-                    true, quickPickUpConfigured(),
-                    DozeLog.REASON_SENSOR_QUICK_PICKUP,
-                    false, false),
-        };
-    }
-
-    /**
-     * 设置传感器监听状态
-     */
-    public void setListening(boolean listen, boolean includeTouchScreenSensors,
-            boolean includeAodOnlySensors) {
-        mListening = listen;
-        mListeningTouchScreenSensors = includeTouchScreenSensors;
-        mListeningAodOnlySensors = includeAodOnlySensors;
-        updateListening();
-    }
-
-    /**
-     * 传感器回调接口
-     */
-    public interface Callback {
-        /**
-         * 传感器请求脉冲时调用
-         * @param pulseReason 请求传感器，如 REASON_SENSOR_PICKUP
-         * @param screenX 传感器触发的屏幕位置 X，或 -1
-         * @param screenY 传感器触发的屏幕位置 Y，或 -1
-         * @param rawValues 事件的原始值数组
-         */
-        void onSensorPulse(int pulseReason, float screenX, float screenY, float[] rawValues);
-    }
-}
-```
-
-#### DozeScreenState - 屏幕状态控制
-
-> **源码路径**: `frameworks/base/packages/SystemUI/src/com/android/systemui/doze/DozeScreenState.java`
-
-```java
-/**
- * DozeScreenState - 控制 Doze 时的屏幕状态
- *
- * 位置: frameworks/base/packages/SystemUI/src/com/android/systemui/doze/DozeScreenState.java
- */
-@DozeScope
-public class DozeScreenState implements DozeMachine.Part {
-
-    private static final String TAG = "DozeScreenState";
-
-    /** 进入低功耗模式的延迟 */
-    private static final int ENTER_DOZE_DELAY = 4000;
-    /** 进入低功耗模式前隐藏壁纸的延迟 */
-    public static final int ENTER_DOZE_HIDE_WALLPAPER_DELAY = 2500;
-    /** UDFPS 激活时额外的显示状态延迟 */
-    public static final int UDFPS_DISPLAY_STATE_DELAY = 1200;
-
-    private final DozeMachine.Service mDozeService;
-    private final Handler mHandler;
-    private final DozeParameters mParameters;
-    private final DozeHost mDozeHost;
-    private final AuthController mAuthController;
-    private final DozeLog mDozeLog;
-    private final DozeScreenBrightness mDozeScreenBrightness;
-
-    @Inject
-    public DozeScreenState(
-            @WrappedService DozeMachine.Service service,
-            @Main Handler handler, DozeHost host,
-            DozeParameters parameters, WakeLock wakeLock,
-            AuthController authController,
-            Provider<UdfpsController> udfpsControllerProvider,
-            DozeLog dozeLog, DozeScreenBrightness dozeScreenBrightness,
-            SelectedUserInteractor selectedUserInteractor) {
-        // 初始化...
-    }
-
-    @Override
-    public void transitionTo(DozeMachine.State oldState, DozeMachine.State newState) {
-        int screenState = newState.screenState(mParameters);
-        mDozeHost.cancelGentleSleep();
-
-        if (newState == DozeMachine.State.FINISH) {
-            mPendingScreenState = Display.STATE_UNKNOWN;
-            mHandler.removeCallbacks(mApplyPendingScreenState);
-            applyScreenState(screenState);
-            mWakeLock.setAcquired(false);
-            return;
-        }
-
-        final boolean pulseEnding = oldState == DOZE_PULSE_DONE && newState.isAlwaysOn();
-        final boolean turningOn = (oldState == DOZE_AOD_PAUSED || oldState == DOZE)
-                && newState.isAlwaysOn();
-        final boolean justInitialized = oldState == DozeMachine.State.INITIALIZED;
-
-        if (justInitialized || pulseEnding || turningOn) {
-            mPendingScreenState = screenState;
-            mHandler.post(mApplyPendingScreenState);
-        } else {
-            applyScreenState(screenState);
-        }
-    }
-
-    private void applyScreenState(int screenState) {
-        if (screenState != Display.STATE_UNKNOWN) {
-            mDozeService.setDozeScreenState(screenState);
-            if (screenState == Display.STATE_DOZE) {
-                mDozeScreenBrightness.updateBrightnessAndReady(false);
+            if (isDoubleTap || isTap) {
+                mDozeHost.onSlpiTap(screenX, screenY);
+                gentleWakeUp(pulseReason);
+            } else if (isPickup) {
+                if (shouldDropPickupEvent())  {
+                    mDozeLog.traceSensorEventDropped(pulseReason, "keyguard occluded");
+                    return;
+                }
+                gentleWakeUp(pulseReason);
+            } else if (isUdfpsLongPress) {
+                if (canPulse(mMachine.getState(), true)) {
+                    mDozeLog.d("updfsLongPress - setting aodInterruptRunnable to run when "
+                            + "the display is on");
+                    // Since the gesture won't be received by the UDFPS view, we need to
+                    // manually inject an event once the display is ON
+                    mAodInterruptRunnable = () ->
+                            mAuthController.onAodInterrupt((int) screenX, (int) screenY,
+                                    rawValues[3] /* major */, rawValues[4] /* minor */);
+                } else {
+                    mDozeLog.d("udfpsLongPress - Not sending aodInterrupt. "
+                            + "Unsupported doze state.");
+                }
+                requestPulse(DozeLog.REASON_SENSOR_UDFPS_LONG_PRESS, true, null);
+            } else {
+                mDozeHost.extendPulse(pulseReason);
             }
-        }
+        }, true /* alreadyPerformedProxCheck */, pulseReason);
     }
+
+    if (isPickup && !shouldDropPickupEvent()) {
+        final long timeSinceNotification =
+                SystemClock.elapsedRealtime() - mNotificationPulseTime;
+        final boolean withinVibrationThreshold =
+                timeSinceNotification < mDozeParameters.getPickupVibrationThreshold();
+        mDozeLog.tracePickupWakeUp(withinVibrationThreshold);
+    }
+}
+
+private void onProximityFar(boolean far) {
+    // Proximity checks are asynchronous and the user might have interacted with the phone
+    // when a new event is arriving. This means that a state transition might have happened
+    // and the proximity check is now obsolete.
+    if (mMachine.isExecutingTransition()) {
+        mDozeLog.d("onProximityFar called during transition. Ignoring sensor response.");
+        return;
+    }
+
+    final boolean near = !far;
+    final DozeMachine.State state = mMachine.getState();
+    final boolean paused = (state == DozeMachine.State.DOZE_AOD_PAUSED);
+    final boolean pausing = (state == DozeMachine.State.DOZE_AOD_PAUSING);
+    final boolean aod = (state == DozeMachine.State.DOZE_AOD);
+
+    if (state == DozeMachine.State.DOZE_PULSING
+            || state == DozeMachine.State.DOZE_PULSING_BRIGHT
+            || state == State.DOZE_PULSING_WITHOUT_UI
+            || state == State.DOZE_PULSING_AUTH_UI) {
+        mDozeLog.traceSetIgnoreTouchWhilePulsing(near);
+        mDozeHost.onIgnoreTouchWhilePulsing(near);
+    }
+
+    if (far && (paused || pausing)) {
+        mDozeLog.d("Prox FAR, unpausing AOD");
+        mMachine.requestState(DozeMachine.State.DOZE_AOD);
+    } else if (near && aod) {
+        mDozeLog.d("Prox NEAR, starting pausing AOD countdown");
+        mMachine.requestState(DozeMachine.State.DOZE_AOD_PAUSING);
+    }
+}
+
+public void transitionTo(DozeMachine.State oldState, DozeMachine.State newState) {
+    if (oldState == DOZE_SUSPEND_TRIGGERS && (newState != FINISH
+            && newState != UNINITIALIZED)) {
+        // Register callbacks that were unregistered when we switched to
+        // DOZE_SUSPEND_TRIGGERS state.
+        registerCallbacks();
+    }
+    switch (newState) {
+        case INITIALIZED:
+            mAodInterruptRunnable = null;
+            sWakeDisplaySensorState = true;
+            registerCallbacks();
+            mDozeSensors.requestTemporaryDisable();
+            break;
+        case DOZE:
+            mAodInterruptRunnable = null;
+            mWantProxSensor = false;
+            mWantSensors = true;
+            mWantTouchScreenSensors = true;
+            mInAod = false;
+            break;
+        case DOZE_AOD:
+            mAodInterruptRunnable = null;
+            mWantProxSensor = true;
+            mWantSensors = true;
+            mWantTouchScreenSensors = true;
+            mInAod = true;
+            if (!sWakeDisplaySensorState) {
+                onWakeScreen(false, newState, DozeLog.REASON_SENSOR_WAKE_UP_PRESENCE);
+            }
+            break;
+        case DOZE_AOD_PAUSED:
+        case DOZE_AOD_PAUSING:
+            mWantProxSensor = true;
+            break;
+        case DOZE_PULSING:
+        case DOZE_PULSING_WITHOUT_UI:
+        case DOZE_PULSING_AUTH_UI:
+        case DOZE_PULSING_BRIGHT:
+            mWantProxSensor = true;
+            mWantTouchScreenSensors = false;
+            break;
+        case DOZE_AOD_DOCKED:
+            mWantProxSensor = false;
+            mWantTouchScreenSensors = false;
+            break;
+        case DOZE_AOD_MINMODE:
+            mWantProxSensor = false;
+            mWantTouchScreenSensors = false;
+            break;
+        case DOZE_PULSE_DONE:
+            mDozeSensors.requestTemporaryDisable();
+            break;
+        case DOZE_SUSPEND_TRIGGERS:
+        case FINISH:
+            stopListeningToAllTriggers();
+            break;
+        default:
+    }
+    mDozeSensors.setListening(mWantSensors, mWantTouchScreenSensors, mInAod);
 }
 ```
 
----
+
+#### DozeSensors：注册不等于传感器一定可用
+
+实际 TriggerSensor 数组由设备资源、用户设置、传感器存在性和姿态决定；PluginSensor 还依赖插件协议。不存在的传感器不会因为 settings put 一个开关就出现。订阅与停止订阅必须随 Doze state/触摸/屏幕状态更新，不能一直注册全部传感器。
+
+
+源码：[DozeSensors.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/packages/SystemUI/src/com/android/systemui/doze/DozeSensors.java)。下方为该 tag 的方法/类型节选，省略所在类的其他成员与 imports，不作为独立工程。
+
+
+```java
+public void setListening(boolean listen, boolean includeTouchScreenSensors,
+        boolean includeAodOnlySensors) {
+    if (mListening == listen && mListeningTouchScreenSensors == includeTouchScreenSensors
+            && mListeningAodOnlySensors == includeAodOnlySensors) {
+        return;
+    }
+    mListening = listen;
+    mListeningTouchScreenSensors = includeTouchScreenSensors;
+    mListeningAodOnlySensors = includeAodOnlySensors;
+    updateListening();
+}
+```
+
+
+这段仅展示订阅控制入口，构造器的完整硬件组合没有在文章复制。定位某一个设备手势应沿 TriggerSensor.updateListening/onTrigger、SensorManager callback、DozeTriggers.onSensor 逐层查，并核对资源 sensor type 与 setting；具体硬件触发结果不是静态源码能证明的。
+
+#### DozeScreenState：目标状态与实际应用分开
+
+进入 AOD、pulse 结束、从暂停恢复、显示消隐、UDFPS finger-down 都会影响何时应用目标状态。FINISH 时撤销 pending callback，避免 Service 结束后继续应用旧屏幕状态。详细分支与延时常量放在第 12 章，避免用一个简化 if/else 冒充完整实现。
+
+在本 tag，applyScreenState 除转发 Service 外还更新 DozeInteractor；亮度同步和 STATE_DOZE 处理也有各自条件。后续 UI 层应消费一致的状态，而不是仅观察旧的 screen boolean。
+
+
+源码：[DozeScreenState.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/packages/SystemUI/src/com/android/systemui/doze/DozeScreenState.java)。下方为该 tag 的方法/类型节选，省略所在类的其他成员与 imports，不作为独立工程。
+
+
+```java
+private void applyScreenState(int screenState) {
+    if (screenState != Display.STATE_UNKNOWN) {
+        if (DEBUG) Log.d(TAG, "setDozeScreenState(" + screenState + ")");
+        mDozeService.setDozeScreenState(screenState);
+        mDozeInteractor.setDozeScreenState(screenState);
+        if (screenState == Display.STATE_DOZE) {
+            // If we're entering doze, update the doze screen brightness. We might have been
+            // clamping it to the dim brightness during the screen off animation, and we should
+            // now change it to the brightness we actually want according to the sensor.
+            mDozeScreenBrightness.updateBrightnessAndReady(false /* force */);
+        }
+        mPendingScreenState = Display.STATE_UNKNOWN;
+        mWakeLock.setAcquired(false);
+    }
+}
+```
 
 ## 4. 通知系统详解
 
 ### 4.1 通知系统概述
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                       Android 通知系统架构                                 │
-└─────────────────────────────────────────────────────────────────────────────┘
+通知系统跨 App、system_server 与 SystemUI 三个责任域：App 生成声明式 Notification，NMS 验证/保存运行时记录并分发监听事件，SystemUI 建立可显示条目、分组/过滤/排序并绑定视图。NMS 不直接操纵 SystemUI 的 View。
 
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                           应用层 (Apps)                                    │
-│  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐        │
-│  │ 微信    │ │ 钉钉    │ │ 支付宝  │ │ 抖音    │ │  Phone  │        │
-│  └────┬────┘ └────┬────┘ └────┬────┘ └────┬────┘ └────┬────┘        │
-│       │           │           │           │           │               │
-│       └───────────┴───────────┴───────────┴───────────┘               │
-│                               │                                       │
-│                               ▼                                       │
-│              ┌─────────────────────────────────────┐                │
-│              │     NotificationCompat.Builder       │                │
-│              │     - 创建通知                       │                │
-│              │     - 设置样式                       │                │
-│              │     - 设置动作                       │                │
-│              └──────────────────┬──────────────────┘                │
-│                                  │                                      │
-└──────────────────────────────────┼──────────────────────────────────────┘
-                                   │ NotificationManager.notify()
-                                   ▼
-┌──────────────────────────────────┼──────────────────────────────────────┐
-│                                  │     Framework 层                    │
-│                                  │                                      │
-│              ┌──────────────────┴──────────────────┐                │
-│              │     NotificationManagerService        │                │
-│              │     (NMS) - 通知管理服务             │                │
-│              │                                      │                │
-│              │  ┌────────────────────────────┐   │                │
-│              │  │  NotificationRecord         │   │                │
-│              │  │  - 通知数据                 │   │                │
-│              │  │  - PostNotificationRunnable │   │                │
-│              │  │  - EnqueueCallback         │   │                │
-│              │  └────────────────────────────┘   │                │
-│              └──────────────────┬──────────────────┘                │
-│                                  │                                      │
-└──────────────────────────────────┼──────────────────────────────────────┘
-                                   │ Binder IPC
-                                   ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                        SystemUI 进程                                    │
-│                                                                          │
-│  ┌──────────────────────────────────────────────────────────────────┐   │
-│  │                    NotificationListenerService                    │   │
-│  │   - 接收 NMS 通知                                                │   │
-│  │   - 转发给 NotificationEntryManager                               │   │
-│  └──────────────────────────────────────────────────────────────────┘   │
-│                                  │                                      │
-│                                  ▼                                      │
-│  ┌──────────────────────────────────────────────────────────────────┐   │
-│  │                    NotificationEntryManager                       │   │
-│  │   - 管理通知条目                                                  │   │
-│  │   - 处理通知状态                                                  │   │
-│  └──────────────────────────────────────────────────────────────────┘   │
-│                                  │                                      │
-│                                  ▼                                      │
-│  ┌──────────────────────────────────────────────────────────────────┐   │
-│  │                    NotificationViewManager                        │   │
-│  │   ┌──────────────┐  ┌──────────────┐  ┌──────────────┐         │   │
-│  │   │StatusBarIcon │  │ Notification │  │  Notification │         │   │
-│  │   │    通知图标  │  │   PanelView  │  │   StackView   │         │   │
-│  │   └──────────────┘  └──────────────┘  └──────────────┘         │   │
-│  └──────────────────────────────────────────────────────────────────┘   │
-│                                                                          │
-└──────────────────────────────────────────────────────────────────────────────┘
+```text
+App NotificationManager.notify
+  -> INotificationManager.enqueueNotificationWithTag
+system_server NotificationManagerService
+  -> enqueueNotificationInternal
+  -> EnqueueNotificationRunnable -> PostNotificationRunnable
+  -> NotificationListeners.notifyPostedLocked -> listener Binder callback
+SystemUI NotificationListener
+  -> registered NotificationHandler (including NotifCollection)
+  -> NotifCollection -> NotifPipeline / ShadeListBuilder
+  -> preparation / inflation / view manager -> notification rows
 ```
+
+旧 NotificationEntryManager 管线不是此 tag 的当前收集链。要区分 NMS 排名信息与 SystemUI 最终列表排序：后者还受 grouping、section、coordinator、stability 及 UI 状态等影响。
 
 ### 4.2 通知发送流程
 
+```java
+// Android 17 应用侧示例。调用前已满足适用的 POST_NOTIFICATIONS 授权。
+NotificationManager nm = context.getSystemService(NotificationManager.class);
+String channelId = "messages";
+nm.createNotificationChannel(new NotificationChannel(
+        channelId, "消息", NotificationManager.IMPORTANCE_DEFAULT));
+Intent open = new Intent(context, TargetActivity.class);
+PendingIntent click = PendingIntent.getActivity(context, 0, open,
+        PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+Notification notification = new Notification.Builder(context, channelId)
+        .setSmallIcon(R.drawable.ic_notification)
+        .setContentTitle("新消息")
+        .setContentText("点击查看")
+        .setStyle(new Notification.BigTextStyle().bigText("完整消息正文"))
+        .setContentIntent(click)
+        .setAutoCancel(true)
+        .build();
+nm.notify(100, notification);
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                       通知发送完整流程                                    │
-└─────────────────────────────────────────────────────────────────────────────┘
 
-┌─────────────────────────────────────────────────────────────────────────────┐
-│ 1. 应用层: 创建通知                                                       │
-└─────────────────────────────────────────────────────────────────────────────┘
+渠道重要性和用户设置决定实际提醒策略；`.setPriority()` 的旧优先级不能覆盖现代 channel 配置。创建 Notification 不代表已经显示：权限拒绝、channel 禁用、速率/数量限制、DND、用户状态及监听可见性会影响结果。
 
-// 创建通知
-NotificationCompat.Builder builder = new NotificationCompat.Builder(context, channelId)
-    .setSmallIcon(R.drawable.ic_notification)    // 小图标
-    .setContentTitle("标题")                     // 标题
-    .setContentText("内容")                       // 内容
-    .setStyle(new NotificationCompat.BigTextStyle().bigText("长文本内容..."))
-    .setPriority(NotificationCompat.PRIORITY_HIGH) // 优先级
-    .setCategory(NotificationCompat.CATEGORY_MESSAGE) // 类别
-    .setAutoCancel(true);                         // 点击取消
+Binder 入口读取调用 UID/PID 与包身份，内部解析用户与渠道，构造 StatusBarNotification/NotificationRecord，经过过滤、信号提取及入队。Enqueue 与 Post 是两个不同阶段：mEnqueuedNotifications 是 ArrayList，不是可以按 key 调 add/get 的 map。
 
-// 发送通知
-NotificationManager notificationManager = 
-    (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
-notificationManager.notify(notificationId, builder.build());
-
-┌─────────────────────────────────────────────────────────────────────────────┐
-│ 2. Framework 层: NotificationManagerService 处理                          │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-NotificationManagerService:
-│
-├── 接收通知
-│   └── mBinderService.enqueueNotificationWithTag()
-│
-├── 创建 NotificationRecord
-│   ├── 解析 Notification 对象
-│   ├── 创建 NotificationRecord
-│   └── 设置 tag 和 id
-│
-├── 验证通知
-│   ├── 检查权限
-│   ├── 检查 AppOps
-│   └── 检查 Bundle
-│
-├── 检查过滤规则
-│   ├── App 通知过滤
-│   └── 渠道通知过滤
-│
-├── 检查静默规则
-│   ├── 免打扰模式
-│   └── 优先级过滤
-│
-├── 记录统计信息
-│   └── NotificationStats
-│
-└── 准备传递
-
-┌─────────────────────────────────────────────────────────────────────────────┐
-│ 3. 投递通知: PostNotificationRunnable                                     │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-PostNotificationRunnable.run():
-│
-├── 将通知加入队列
-│   └── mEnqueuedNotifications.add(key, record)
-│
-├── 检查权限并发布
-│   └── mHandler.post(this)
-│
-├── 执行发布
-│   ├── 绑定 NotificationChannel
-│   ├── 提取 RemoteViews
-│   ├── 提取气泡信息
-│   └── 提取 People 路径
-│
-├── 持久化通知
-│   └── 保存到 NotificationStore
-│
-└── 通知 SystemUI
-    └── mSystemUI.onNotificationPosted(key, ranking)
-
-┌─────────────────────────────────────────────────────────────────────────────┐
-│ 4. SystemUI 层: 接收并显示通知                                            │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-NotificationListenerService.onNotificationPosted():
-│
-├── NotificationEntryManager.onNotificationPosted()
-│   ├── 创建 NotificationEntry
-│   ├── 添加到 mNotificationList
-│   └── 触发更新回调
-│
-├── StatusBarNotificationController.onNotificationAdded()
-│   ├── 更新状态栏图标
-│   ├── 更新通知面板
-│   └── 触发视图更新
-│
-└── NotificationRowPresenter.bindRow()
-    ├── 展开通知行
-    ├── 设置通知内容
-    ├── 设置 RemoteViews
-    └── 设置点击事件
+```text
+enqueueNotificationInternal
+  -> caller/user/channel/notification validation
+  -> record + signals + disqualifying feature checks
+  -> handler EnqueueNotificationRunnable
+       -> under mNotificationLock add to pending collection
+       -> assist/ranking-related scheduling
+       -> handler PostNotificationRunnable
+            -> locate pending record / compare existing record
+            -> insert or replace active record + key index
+            -> rank, attention, listener events
+            -> history condition
+            -> finally remove pending record
 ```
+
+这是关键职责序列，省略锁内细分与功能开关；不是所有通知都先持久化磁盘再回调。活动通知主要在内存，通知历史是条件记录，不支持将任意活动 Notification 自动从磁盘恢复。
 
 ### 4.3 通知核心组件
 
-```java
-/**
- * 通知核心组件
- */
+| 类型 | 所在进程 | 实际责任 |
+|---|---|---|
+| NotificationRecord | system_server | StatusBarNotification、channel、importance、ranking/统计状态 |
+| NotificationEntry | SystemUI | sbn/ranking、绑定任务、dismiss/lifetime 状态 |
+| NotifCollection | SystemUI | 处理 post/update/remove 与集合事件 |
+| ShadeListBuilder | SystemUI | 分组、过滤、section/sort/stability 等建表 |
+| ExpandableNotificationRow | SystemUI | 通知行交互、可展开内容与组子项 |
+| NotificationContentView | SystemUI | contracted/expanded/heads-up 等内容 View 容器 |
 
-// 1. NotificationRecord - 通知记录 (NMS 端)
-// 位置: services/core/java/com/android/server/notification/NotificationRecord.java
-public class NotificationRecord {
-    private final StatusBarNotification sbn;     // 核心：包含 pkg/tag/id/userId/key/notification
-    private NotificationChannel mChannel;        // 渠道（含 channelId）
-    private int mImportance;                     // 重要性级别
-    private float mRankingScore;                 // 排名分数
-    private int mUserSentiment;                  // 用户情感评分
-    private long mCreationTimeMs;                // 创建时间
-    private long mUpdateTimeMs;                  // 更新时间
-    private long mInterruptionTimeMs;            // 打断时间
+ExpandableNotificationRow 的真实继承链经过 ExpandableOutlineView 等，不是简单 `extends FrameLayout` 加三份 NotificationContentView 的虚构类。实际 private/public layout 与内容 slot 也不是“一个字段 mExpanded 对应全部 RemoteViews”。
 
-    // 获取 key（来自 sbn）
-    public String getKey() { return sbn.getKey(); }
-    // 获取通知对象
-    public Notification getNotification() { return sbn.getNotification(); }
-    // 获取渠道 ID
-    public String getChannelId() { return mChannel != null ? mChannel.getId() : null; }
-}
-
-// 2. NotificationEntry - 通知条目 (SystemUI 端)
-// 位置: packages/SystemUI/src/com/android/systemui/statusbar/notification/collection/NotificationEntry.java
-public class NotificationEntry extends ListEntry {
-    private StatusBarNotification mSbn;           // 系统通知对象（含 key）
-    private Ranking mRanking;                     // 排名信息
-    private ExpandableNotificationRow row;        // 通知行视图（注意：非 mRow）
-
-    // 消除状态（注意：是枚举，非 boolean）
-    public enum DismissState {
-        NOT_DISMISSED,    // 未消除
-        DISMISSED,        // 已消除
-        PARENT_DISMISSED, // 父组已消除
-    }
-    private DismissState mDismissState = DismissState.NOT_DISMISSED;
-
-    // key 来自父类 ListEntry，通过 mSbn.getKey() 初始化
-    // notification 通过 mSbn.getNotification() 获取
-    // 是否移除通过 row.isRemoved() 方法判断
-}
-
-// 3. ExpandableNotificationRow - 可展开通知行
-public class ExpandableNotificationRow extends FrameLayout {
-    private NotificationEntry mEntry;           // 通知数据
-    private NotificationContentView mExpanded;  // 展开视图
-    private NotificationContentView mCollapsed; // 折叠视图
-    private NotificationContentView mHeadsUp;   // 悬浮视图
-    private RemoteViews mBigContentView;       // 大视图
-    
-    // 展开状态
-    public enum ExpandState {
-        COLLAPSED,      // 折叠
-        EXPANDED,       // 展开
-        HEADS_UP,       // 悬浮通知
-    }
-}
-```
-
----
+分离模型与视图的意义在于异步 inflate、过滤暂不可见条目、处理延长 lifetime 与移除事件。notification 已从 App 发出、已被 NMS 接受、已进入 collection、row 已 inflate、最终进入可见列表，是五个不同检查点。
 
 ## 5. NotificationManagerService 深入分析
 
 ### 5.1 NMS 架构
 
+```text
+NotificationManagerService (SystemService in system_server)
+  mService: INotificationManager.Stub -> public Binder entry
+  mNotificationLock
+    mEnqueuedNotifications: ArrayList<NotificationRecord>
+    mNotificationList: ArrayList<NotificationRecord>
+    mNotificationsByKey: ArrayMap<String, NotificationRecord>
+    mSummaryByGroupKey: ArrayMap<String, NotificationRecord>
+  RankingHelper / PreferencesHelper / ZenModeHelper / ConditionProviders
+  NotificationAttentionHelper / NotificationUsageStats
+  NotificationListeners / NotificationAssistants
+  NotificationHistoryManager
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                    NotificationManagerService 架构                         │
-└─────────────────────────────────────────────────────────────────────────────┘
 
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                        System Server 进程                                  │
-│                                                                          │
-│  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │                      NotificationManagerService                      │   │
-│  │                                                                   │   │
-│  │  ┌─────────────────────────────────────────────────────────────┐  │   │
-│  │  │                    核心组件                                    │  │   │
-│  │  │                                                              │  │   │
-│  │  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐    │  │   │
-│  │  │  │NotificationRecord│ │NotificationList│ │NotificationStore│   │  │   │
-│  │  │  │  通知记录     │  │  通知列表    │  │  通知持久化   │    │  │   │
-│  │  │  └──────────────┘  └──────────────┘  └──────────────┘    │  │   │
-│  │  └─────────────────────────────────────────────────────────────┘  │   │
-│  │                                                                   │   │
-│  │  ┌─────────────────────────────────────────────────────────────┐  │   │
-│  │  │                    管理组件                                    │  │   │
-│  │  │                                                              │  │   │
-│  │  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐    │  │   │
-│  │  │  │ RankingHelper│ │ConditionHelper│ │ZenModeHelper │    │  │   │
-│  │  │  │  排名助手    │  │  条件助手    │  │  勿扰助手     │    │  │   │
-│  │  │  └──────────────┘  └──────────────┘  └──────────────┘    │  │   │
-│  │  └─────────────────────────────────────────────────────────────┘  │   │
-│  └─────────────────────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
+NotificationRecord 是独立源文件，不是 NMS 内部类；NotificationRankingUpdate 来自 framework service API；ManagedServiceInfo 来自托管服务体系。旧图中的 NotificationList、NotificationStore、ConditionalNotificationCenter 不能作为当前实现类证明。
+
+NMS 的 Binder 服务字段是 `mService`。onStart 发布服务与生命周期初始化相互协作，不能用四个无来源 new 构造器概括整个依赖图。对应用调用，NMS 首先是系统边界：客户端自行拼装的数据不能绕过权限/包身份/用户检查。
 
 ### 5.2 NMS 核心流程
 
+以下保留当前 tag 的入队实现，阅读时重点看锁、pending 集合和 Post 调度，而不是把它等同最终发布。后台 Handler 排队也意味着 notify 返回不等于已经在通知栏看见内容。
+
+
+源码：[NotificationManagerService.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/services/core/java/com/android/server/notification/NotificationManagerService.java)。下方为该 tag 的方法/类型节选，省略所在类的其他成员与 imports，不作为独立工程。
+
+
 ```java
-/**
- * NotificationManagerService 核心实现
- */
+protected class EnqueueNotificationRunnable implements Runnable {
+    private final NotificationRecord r;
+    private final int userId;
+    private final boolean isAppForeground;
+    private final boolean isAppProvided;
+    private final PostNotificationTracker mTracker;
 
-// 1. 服务入口
-public class NotificationManagerService extends SystemService {
-    
-    @Override
-    public void onStart() {
-        // 发布 Binder 服务
-        publishBinderService(Context.NOTIFICATION_SERVICE, mBinderService);
-        
-        // 初始化组件
-        mRankingHelper = new RankingHelper(getContext(), mPm);
-        mZenModeHelper = new ZenModeHelper(getContext());
-        mConditionHelper = new ConditionHelper(getContext());
-        mNotificationList = new NotificationList();
-        
-        // 注册监听器
-        registerListeners();
+    EnqueueNotificationRunnable(int userId, NotificationRecord r, boolean foreground,
+            boolean isAppProvided, PostNotificationTracker tracker) {
+        this.userId = userId;
+        this.r = r;
+        this.isAppForeground = foreground;
+        this.isAppProvided = isAppProvided;
+        this.mTracker = checkNotNull(tracker);
     }
-    
-    // Binder 服务实现
-    private final IBinder mBinderService = new INotificationManager.Stub() {
-        
-        @Override
-        public void enqueueNotificationWithTag(String pkg, String opPkg, 
-                String tag, int id, Notification notification, int userId) {
-            
-            // 检查权限
-            checkCallerIsSystemOrSameApp(pkg);
-            
-            // 创建 NotificationRecord
-            final NotificationRecord r = new NotificationRecord(
-                getContext(), notification, pkg, tag, id, userId);
-            
-            // 排名
-            mRankingHelper.extractSignals(r);
-            
-            // 检查是否应该拦截
-            if (isBlocked(r)) {
-                return;
-            }
-            
-            // 加入队列
-            mEnqueuedNotifications.add(r.getKey(), r);
-            
-            // 触发投递
-            mHandler.post(new PostNotificationRunnable(r.getKey()));
-        }
-        
-        @Override
-        public void cancelNotificationWithTag(String pkg, String tag, 
-                int id, int userId) {
-            
-            // 检查权限
-            checkCallerIsSystemOrSameApp(pkg);
-            
-            // 构造 key
-            final String key = Notification.keyFor(pkg, id, tag, userId);
-            
-            // 触发取消
-            mHandler.post(new CancelNotificationRunnable(key));
-        }
-    };
-}
 
-// 2. PostNotificationRunnable - 投递通知
-private class PostNotificationRunnable implements Runnable {
-    
-    private final String mKey;
-    
-    PostNotificationRunnable(String key) {
-        mKey = key;
-    }
-    
     @Override
     public void run() {
-        // 获取通知记录
-        final NotificationRecord r = mEnqueuedNotifications.get(mKey);
-        if (r == null) {
-            return;
+        boolean enqueued = false;
+        try {
+            enqueued = enqueueNotification();
+        } finally {
+            if (!enqueued) {
+                mTracker.cancel();
+                synchronized (mNotificationLock) {
+                    markOffloadedBitmapsForDeletion(r);
+                }
+            }
         }
-        
-        // 验证通知
-        if (!validateNotification(r)) {
-            mEnqueuedNotifications.remove(mKey);
-            return;
+    }
+
+    /**
+     * @return True if we successfully enqueued the notification and handed off the task of
+     * posting it to a background thread; false otherwise.
+     */
+    private boolean enqueueNotification() {
+        synchronized (mNotificationLock) {
+            // allowlistToken is populated by unparceling, so it will be absent if the
+            // EnqueueNotificationRunnable is created directly by NMS (as we do for group
+            // summaries) instead of via notify(). Fix that.
+            r.getNotification().overrideAllowlistToken(ALLOWLIST_TOKEN);
+
+            final long snoozeAt =
+                    mSnoozeHelper.getSnoozeTimeForUnpostedNotification(
+                            r.getUser().getIdentifier(),
+                            r.getSbn().getPackageName(), r.getSbn().getKey());
+            final long currentTime = System.currentTimeMillis();
+            if (snoozeAt > currentTime) {
+                (new SnoozeNotificationRunnable(r.getSbn().getKey(),
+                        snoozeAt - currentTime, null)).snoozeLocked(r);
+                return false;
+            }
+
+            final String contextId =
+                    mSnoozeHelper.getSnoozeContextForUnpostedNotification(
+                            r.getUser().getIdentifier(),
+                            r.getSbn().getPackageName(), r.getSbn().getKey());
+            if (contextId != null) {
+                (new SnoozeNotificationRunnable(r.getSbn().getKey(),
+                        0, contextId)).snoozeLocked(r);
+                return false;
+            }
+
+            final StatusBarNotification n = r.getSbn();
+            if (DBG) Slog.d(TAG, "EnqueueNotificationRunnable.run for: " + n.getKey());
+            NotificationRecord old = mNotificationsByKey.get(n.getKey());
+            if (old != null) {
+                // Retain ranking information from previous record
+                r.copyRankingInformation(old);
+            }
+
+            // If we don't have a previous record, before adding this record to enqueued list,
+            // see if we have a previously enqueued version of this notification so we can share
+            // instance ID if necessary.
+            NotificationRecord previouslyEnqueued = null;
+            if (old == null) {
+                previouslyEnqueued = findNotificationByListLocked(mEnqueuedNotifications,
+                        n.getKey());
+            }
+
+            mEnqueuedNotifications.add(r);
+            mTtlHelper.scheduleTimeoutLocked(r, SystemClock.elapsedRealtime());
+
+            // Either initialize instance ID for statsd logging, or carry over from old SBN.
+            if (old != null && old.getSbn().getInstanceId() != null) {
+                n.setInstanceId(old.getSbn().getInstanceId());
+            } else if (previouslyEnqueued != null
+                    && previouslyEnqueued.getSbn().getInstanceId() != null) {
+                n.setInstanceId(previouslyEnqueued.getSbn().getInstanceId());
+            } else {
+                n.setInstanceId(mNotificationInstanceIdSequence.newInstanceId());
+            }
+
+            final int callingUid = n.getUid();
+            final int callingPid = n.getInitialPid();
+            final Notification notification = n.getNotification();
+            final String pkg = n.getPackageName();
+            final int id = n.getId();
+            final String tag = n.getTag();
+
+            // We need to fix the notification up a little for bubbles
+            updateNotificationBubbleFlags(r, isAppForeground);
+
+            // Handle grouped notifications and bail out early if we
+            // can to avoid extracting signals.
+            handleGroupedNotificationLocked(r, old, callingUid, callingPid);
+
+            if (enablePersonalContextService()) {
+                final PersonalContextManagerInternal pcmi =
+                        getLocalService(PersonalContextManagerInternal.class);
+                if (pcmi != null) {
+                    final NotificationRankingUpdate update = makeRankingUpdateLocked(null);
+                    final NotificationEvent event =
+                            new NotificationEnqueuedEvent(
+                                    r.getSbn(), r.getChannel(), update.getRankingMap());
+                    pcmi.onNotificationEvent(event);
+                }
+            }
+
+            // if this is a group child, unsnooze parent summary
+            if (n.isGroup() && notification.isGroupChild()) {
+                mSnoozeHelper.repostGroupSummary(pkg, r.getUserId(), n.getGroupKey());
+            }
+
+            // This conditional is a dirty hack to limit the logging done on
+            //     behalf of the download manager without affecting other apps.
+            if (!pkg.equals("com.android.providers.downloads")
+                    || Log.isLoggable("DownloadManager", Log.VERBOSE)) {
+                int enqueueStatus = EVENTLOG_ENQUEUE_STATUS_NEW;
+                if (old != null) {
+                    enqueueStatus = EVENTLOG_ENQUEUE_STATUS_UPDATE;
+                }
+                int appProvided = isAppProvided ? 1 : 0;
+                EventLogTags.writeNotificationEnqueue(callingUid, callingPid,
+                        pkg, id, tag, userId, notification.toString(),
+                        enqueueStatus, appProvided);
+            }
+
+            // tell the assistant service about the notification
+            if (mAssistants.isEnabled()) {
+                mAssistants.onNotificationEnqueuedLocked(r);
+                mHandler.postDelayed(
+                        new PostNotificationRunnable(r.getKey(), r.getSbn().getPackageName(),
+                                r.getUid(), mTracker),
+                        DELAY_FOR_ASSISTANT_TIME);
+            } else {
+                mHandler.post(
+                        new PostNotificationRunnable(r.getKey(), r.getSbn().getPackageName(),
+                                r.getUid(), mTracker));
+            }
+            return true;
         }
-        
-        // 应用排名
-        mRankingHelper.rank(mNotificationList, r);
-        
-        // 应用勿扰
-        if (mZenModeHelper.shouldIntercept(r)) {
-            r.setIntercepted(true);
-        }
-        
-        // 添加到通知列表
-        mNotificationList.add(r);
-        
-        // 保存到持久化存储
-        mNotificationStore.add(r);
-        
-        // 通知监听器
-        notifyPosted(r);
-        
-        // 更新状态栏
-        updateStatusBarIcons();
     }
 }
 ```
 
----
+
+Post 阶段负责最终加入/更新活动记录。旧记录参与视觉中断判断和更新统计；终止路径也必须从 pending 列表移除相应条目，否则会留下“入队但永不发布”的残留状态。下列真实实现可用来核对这些分支：
+
+
+```java
+protected class PostNotificationRunnable implements Runnable {
+    private final String key;
+    private final String pkg;
+    private final int uid;
+    private final PostNotificationTracker mTracker;
+
+    PostNotificationRunnable(String key, String pkg, int uid, PostNotificationTracker tracker) {
+        this.key = key;
+        this.pkg = pkg;
+        this.uid = uid;
+        this.mTracker = checkNotNull(tracker);
+    }
+
+    @Override
+    public void run() {
+        boolean posted = false;
+        try {
+            posted = postNotification();
+        }  catch (Exception e) {
+            Slog.e(TAG, "Error posting", e);
+        } finally {
+            if (!posted) {
+                mTracker.cancel();
+            }
+        }
+    }
+
+    /**
+     * @return True if we successfully processed the notification and handed off the task of
+     * notifying all listeners to a background thread; false otherwise.
+     */
+    private boolean postNotification() {
+        boolean appBanned = !areNotificationsEnabledForPackageInt(uid);
+        boolean isCallNotification = isCallNotification(pkg, uid);
+        boolean posted = false;
+        synchronized (NotificationManagerService.this.mNotificationLock) {
+            try {
+                NotificationRecord r = findNotificationByListLocked(mEnqueuedNotifications,
+                        key);
+                if (r == null) {
+                    Slog.i(TAG, "Cannot find enqueued record for key: " + key);
+                    return false;
+                }
+
+                final StatusBarNotification n = r.getSbn();
+                final Notification notification = n.getNotification();
+                boolean isCallNotificationAndCorrectStyle = isCallNotification
+                        && notification.isStyle(Notification.CallStyle.class);
+
+                if (favoritesIncomingCallLights()) {
+                    int callType = notification.extras.getInt(Notification.EXTRA_CALL_TYPE, -1);
+                    boolean isIncomingCall =
+                            callType == Notification.CallStyle.CALL_TYPE_INCOMING;
+                    r.setIsRealCallIncomingNotification(
+                            isCallNotificationAndCorrectStyle && isIncomingCall);
+                }
+
+                if (!(notification.isMediaNotification() || isCallNotificationAndCorrectStyle)
+                        && (appBanned || isRecordBlockedLocked(r))) {
+                    mUsageStats.registerBlocked(r);
+                    if (DBG) {
+                        Slog.e(TAG, "Suppressing notification from package " + pkg);
+                    }
+                    return false;
+                }
+
+                if (isBridgedNotificationBlocked(r)) {
+                    mUsageStats.registerBlocked(r);
+                    if (DBG) {
+                        Slog.e(TAG, "Suppressing bridged notification on behalf of package "
+                                + r.getBridgedPackageName());
+                    }
+                    return false;
+                }
+
+                // Check if this is an updated for a summary for an aggregated sparse
+                // group and remove it because that summary has been canceled
+                if (mGroupHelper.isUpdateForCanceledSummary(r)) {
+                    if (DBG) {
+                        Log.w(TAG,
+                                "Suppressing notification because summary was canceled: "
+                                        + r);
+                    }
+                    String groupKey = r.getGroupKey();
+                    NotificationRecord groupSummary = mSummaryByGroupKey.get(groupKey);
+                    if (groupSummary != null && groupSummary.getKey().equals(r.getKey())) {
+                        mSummaryByGroupKey.remove(groupKey);
+                    }
+                    return false;
+                }
+
+                final boolean isPackageSuspended =
+                        isPackagePausedOrSuspended(r.getSbn().getPackageName(), r.getUid());
+                r.setHidden(isPackageSuspended);
+                if (isPackageSuspended) {
+                    mUsageStats.registerSuspendedByAdmin(r);
+                }
+                NotificationRecord old = mNotificationsByKey.get(key);
+
+                int index = indexOfNotificationLocked(n.getKey());
+                if (index < 0) {
+                    mNotificationList.add(r);
+                    mUsageStats.registerPostedByApp(r);
+                    mUsageStatsManagerInternal.reportNotificationPosted(r.getSbn().getOpPkg(),
+                            r.getSbn().getUser(), mTracker.getStartTime());
+                    final boolean isInterruptive = isVisuallyInterruptive(null, r);
+                    r.setInterruptive(isInterruptive);
+                    r.setTextChanged(isInterruptive);
+                } else {
+                    old = mNotificationList.get(index);  // Potentially *changes* old
+                    mNotificationList.set(index, r);
+                    mUsageStats.registerUpdatedByApp(r, old);
+                    mUsageStatsManagerInternal.reportNotificationUpdated(r.getSbn().getOpPkg(),
+                            r.getSbn().getUser(), mTracker.getStartTime());
+                    // Make sure we don't lose the foreground service state.
+                    notification.flags |=
+                            old.getNotification().flags & FLAG_FOREGROUND_SERVICE;
+                    // Make sure we don't lose the computer control flag state.
+                    if (android.companion.virtualdevice.flags.Flags.computerControlAccess()) {
+                        notification.flags |=
+                                old.getNotification().flags & FLAG_COMPUTER_CONTROL;
+                    }
+                    r.isUpdate = true;
+                    final boolean isInterruptive = isVisuallyInterruptive(old, r);
+                    r.setTextChanged(isInterruptive);
+                    if (isInterruptive) {
+                        r.resetRankingTime();
+                    }
+                    markOffloadedBitmapsForDeletion(old);
+                }
+
+                mNotificationsByKey.put(n.getKey(), r);
+
+                // Ensure if this is a foreground service that the proper additional
+                // flags are set.
+                if (notification.isForegroundService()) {
+                    notification.flags |= FLAG_NO_CLEAR;
+                }
+
+                // Ensure if this is a computer control notification that the proper additional
+                // flags are set.
+                if (android.companion.virtualdevice.flags.Flags.computerControlAccess()
+                        && notification.isComputerControl()) {
+                    notification.flags |= FLAG_NO_CLEAR | FLAG_NO_DISMISS;
+                    notification.flags &= ~FLAG_AUTO_CANCEL;
+                }
+
+                // Posts the notification if it has a small icon, and potentially autogroup
+                // the new notification.
+                if (notification.getSmallIcon() != null && !isCritical(r)) {
+                    StatusBarNotification oldSbn = (old != null) ? old.getSbn() : null;
+                    if (oldSbn == null || !Objects.equals(oldSbn.getGroup(), n.getGroup())
+                            || !Objects.equals(oldSbn.getNotification().getGroup(),
+                                n.getNotification().getGroup())
+                            || oldSbn.getNotification().flags
+                            != n.getNotification().flags
+                            || !old.getChannel().getId().equals(r.getChannel().getId())
+                            || old.hasAdjustment(KEY_GROUP_KEY)) {
+                        synchronized (mNotificationLock) {
+                            final String autogroupName
+                                    = GroupHelper.getFullAggregateGroupKey(r);
+                            boolean willBeAutogrouped =
+                                    mGroupHelper.onNotificationPosted(r,
+                                        hasAutoGroupSummaryLocked(r));
+                            if (willBeAutogrouped) {
+                                // The newly posted notification will be autogrouped, but
+                                // was not autogrouped onPost, to avoid an unnecessary sort.
+                                // We add the autogroup key to the notification without a
+                                // sort here, and it'll be sorted below with extractSignals.
+                                addAutogroupKeyLocked(key,
+                                        autogroupName, /*requestSort=*/false);
+                            } else {
+                                // Wait 3 seconds so that the app has a chance to post
+                                // a group summary or children (complete a group)
+                                mHandler.postDelayed(() -> {
+                                    synchronized (mNotificationLock) {
+                                        NotificationRecord record =
+                                                mNotificationsByKey.get(key);
+                                        if (record != null) {
+                                            mGroupHelper.onNotificationPostedWithDelay(
+                                                    record, mNotificationList,
+                                                    mSummaryByGroupKey);
+                                        }
+                                    }
+                                }, key, DELAY_FORCE_REGROUP_TIME);
+                            }
+                         }
+                    }
+                }
+
+                mRankingHelper.extractSignals(r);
+                mRankingHelper.sort(mNotificationList);
+                final int position = mRankingHelper.indexOf(mNotificationList, r);
+
+                int buzzBeepBlinkLoggingCode = 0;
+                if (!r.isHidden()) {
+                    if (mGroupHelper.isSummaryWithAllChildrenBundled(r, mNotificationList,
+                            mEnqueuedNotifications)) {
+                        notification.flags |= Notification.FLAG_SILENT;
+                    }
+
+                    buzzBeepBlinkLoggingCode = mAttentionHelper.buzzBeepBlinkLocked(r,
+                            new NotificationAttentionHelper.Signals(
+                                    mUserProfiles.isCurrentProfile(r.getUserId()),
+                                    mListenerHints));
+                }
+
+                if (notification.getSmallIcon() != null) {
+                    NotificationRecordLogger.NotificationReported maybeReport =
+                            mNotificationRecordLogger.prepareToLogNotificationPosted(r, old,
+                                    position, buzzBeepBlinkLoggingCode,
+                                    getGroupInstanceId(r.getSbn().getGroupKey()));
+                    notifyListenersPostedAndLogLocked(r, old, mTracker, maybeReport);
+                    posted = true;
+                } else {
+                    Slog.e(TAG, "Not posting notification without small icon: " + notification);
+                    if (old != null && !old.isCanceled) {
+                        mListeners.notifyRemovedLocked(r, REASON_ERROR, r.getStats());
+                        mHandler.post(() -> {
+                            synchronized (mNotificationLock) {
+                                mGroupHelper.onNotificationRemoved(r, mNotificationList,
+                                        /* sendingDelete= */ false);
+                            }
+                        });
+                    }
+
+                    if (callstyleCallbackApi()) {
+                        notifyCallNotificationEventListenerOnRemoved(r);
+                    }
+
+                    // ATTENTION: in a future release we will bail out here
+                    // so that we do not play sounds, show lights, etc. for invalid
+                    // notifications
+                    Slog.e(TAG, "WARNING: In a future release this will crash the app: "
+                            + n.getPackageName());
+                }
+
+                if (mShortcutHelper != null) {
+                    mShortcutHelper.maybeListenForShortcutChangesForBubbles(r,
+                            false /* isRemoved */);
+                }
+
+                maybeRecordInterruptionLocked(r);
+                maybeRegisterMessageSent(r);
+                maybeReportForegroundServiceUpdate(r, true);
+            } finally {
+                int N = mEnqueuedNotifications.size();
+                for (int i = 0; i < N; i++) {
+                    final NotificationRecord enqueued = mEnqueuedNotifications.get(i);
+                    if (Objects.equals(key, enqueued.getKey())) {
+                        mEnqueuedNotifications.remove(i);
+                        break;
+                    }
+                }
+            }
+        }
+        return posted;
+    }
+}
+```
+
+
+#### 取消、更新与用户可见性的区别
+
+同一通知 key 更新通常替换旧记录，而不是无条件 append 新 row。key 由 StatusBarNotification 的身份组成，不能调用不存在的 Notification.keyFor 伪造唯一规则。取消经过 NMS 的 cancel 相关校验与事件分发，SystemUI 还有消除拦截、lifetime extension 和动画收尾，不等于 removeView 立即完成全部删除。
+
+DND 拦截提醒、channel 禁用、锁屏隐私隐藏、SystemUI section 过滤是不同层次；“没响”和“没投递”和“列表不显示”不能混在一个 isBlocked 布尔量中排查。第 11 章进一步分析 rank、attention、偏好与历史存储的真实边界。
 
 ## 6. RemoteViews 深度解析
 
 ### 6.1 RemoteViews 原理
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                       RemoteViews 原理                                    │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -2310,526 +2117,231 @@ views.setImageViewBitmap(R.id.icon, bitmap);
 
 // 点击事件
 Intent intent = new Intent(context, TargetActivity.class);
-PendingIntent pendingIntent = PendingIntent.getActivity(context, 0, intent, 0);
+PendingIntent pendingIntent = PendingIntent.getActivity(context, 0, intent, PendingIntent.FLAG_IMMUTABLE);
 views.setOnClickPendingIntent(R.id.button, pendingIntent);
 ```
 
 ### 6.4 Actions 机制深度解析
 
+RemoteViews 不把运行中的 View 对象序列化到 SystemUI，而是传布局/资源来源、变体和可回放的 Action。View 持有 Context、Handler、窗口与 native 资源，这些不能按普通对象跨进程复制；Action 只记录目标 View ID、受支持的操作及数据。
+
+```text
+App: RemoteViews(pkg, layoutId)
+       -> setTextViewText(id, text) -> ReflectionAction
+       -> setImageViewBitmap(id, bitmap) -> BitmapReflectionAction / bitmap cache
+       -> setOnClickPendingIntent(id, pi) -> SetOnClickResponse
+       -> serialize Notification/RemoteViews
+
+SystemUI: decode -> choose layout variant -> inflate allowed Views
+          -> performApply -> action.apply(root, parent, ActionApplyParams)
+          -> render in SystemUI's own view tree
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                    RemoteViews Actions 机制                                 │
-│              每个 setXXX 调用的本质：创建一个 Action 对象                     │
-└─────────────────────────────────────────────────────────────────────────────┘
 
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  Action 类继承体系 (AOSP: frameworks/base/core/java/android/widget/)        │
-│                                              RemoteViews.java              │
-└─────────────────────────────────────────────────────────────────────────────┘
+#### 当前 Action 的真实映射
 
-                    ┌──────────────────────┐
-                    │  Action (abstract)   │  ← Parcelable 接口
-                    │  getActionTag()      │  ← 用于序列化标识
-                    │  apply(View, ...)    │  ← 执行操作的核心方法
-                    └──────────┬───────────┘
-                               │
-          ┌────────────────────┼────────────────────────┐
-          │                    │                        │
-          ▼                    ▼                        ▼
-┌──────────────────┐ ┌──────────────────┐  ┌──────────────────────┐
-│ ReflectionAction │ │ ViewGroupAction  │  │  特殊 Action          │
-│ (反射调用方法)    │ │ (添加/移除子View) │  │                      │
-└──────────────────┘ └──────────────────┘  ├──────────────────────┤
-                                            │ SetEmptyViewAction   │
-                                            │ SetPendingIntent     │
-                                            │   TemplateAction     │
-                                            │ SetOnClickFillIn     │
-                                            │   IntentAction       │
-                                            │ LayoutParamAction    │
-                                            │ TextViewDrawable     │
-                                            │   Action             │
-                                            │ SetRemoteViews       │
-                                            │   AdapterAction      │
-                                            │ SetTextViewCompound  │
-                                            │   DrawablesAction    │
-                                            └──────────────────────┘
+| API | 固定 tag 的相关实现 | 为什么不是统一 setXXX 类 |
+|---|---|---|
+| setTextViewText | ReflectionAction，setCharSequence("setText") | 方法名与参数类型受校验 |
+| setTextColor / setImageViewResource | ReflectionAction | 反射的是受支持单参数方法 |
+| setTextViewTextSize | TextViewSizeAction | units 与 size 两个参数需要专门 action |
+| setImageViewBitmap | BitmapReflectionAction | bitmap cache 与内存传输不同于普通参数 |
+| setOnClickPendingIntent | SetOnClickResponse | 点击响应、PendingIntent 与安全启动协作 |
+| setProgressBar | 多个 setBoolean/setInt 操作 | 不是虚构 SetProgressBarAction |
+| setViewPadding | ViewPaddingAction | 多参数操作 |
+| addView / removeAllViews | ViewGroupActionAdd / ViewGroupActionRemove | 子 RemoteViews 与回收/移除策略 |
 
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  ReflectionAction —— 最核心的 Action 子类                                   │
-│  几乎所有 setXXX 方法内部都创建 ReflectionAction                            │
-└─────────────────────────────────────────────────────────────────────────────┘
+这些类型是实现细节，不是 SDK 保证的序列化 ABI。ReflectionAction 的 tag 在该版为 2，点击 response tag 为 1；旧表颠倒了两者。不要编造通用 decoder 依赖 tag=1 是 ReflectionAction，更不要认为通知 Parcel 可以手写固定字段顺序跨版本解析。
 
-private static final class ReflectionAction extends Action {
-    int viewId;            // 目标 View 的 ID
-    String methodName;     // 要调用的方法名（如 "setText"）
-    int type;              // 参数类型标识
-    Object value;          // 参数值
+#### 反射不是任意方法执行
 
-    // type 取值（定义在 RemoteViews 中）:
-    static final int BOOLEAN       = 1;
-    static final int BYTE          = 2;
-    static final int SHORT         = 3;
-    static final int INT           = 4;
-    static final int LONG          = 5;
-    static final int FLOAT         = 6;
-    static final int DOUBLE        = 7;
-    static final int CHAR          = 8;
-    static final int STRING        = 9;
-    static final int CHAR_SEQUENCE = 10;
-    static final int URI           = 11;
-    static final int BITMAP        = 12;
-    static final int BUNDLE        = 13;
-    static final int INTENT        = 14;
-    static final int COLOR         = 15;
-    static final int ICON          = 16;
+`BaseReflectionAction` 先找到目标 View，并根据 action 类型确定参数类别；内部 `getMethod()` 检查方法签名及 `@RemotableViewMethod`，然后缓存 MethodHandle。带泛型参数的支持类型还有类型实参匹配，异步实现通过注解 asyncImpl 指向另一个返回 Runnable 的方法。
 
-    @Override
-    public void apply(View root, ViewGroup rootParent, OnClickHandler handler) {
-        // 1. 通过 viewId 找到目标 View
-        View view = root.findViewById(viewId);
-        if (view == null) return;
 
-        // 2. 通过反射调用方法
-        Class<?> paramType = getParameterType(type);
-        Method method = view.getClass().getMethod(methodName, paramType);
-        method.invoke(view, value);
-    }
-}
+源码：[RemoteViews.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/widget/RemoteViews.java)。下方为该 tag 的方法/类型节选，省略所在类的其他成员与 imports，不作为独立工程。
 
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  setXXX 方法 → Action 的映射关系                                            │
-└─────────────────────────────────────────────────────────────────────────────┘
 
-RemoteViews API                          实际创建的 Action
-──────────────────────────────────       ──────────────────────────────
-setTextViewText(id, text)           →    ReflectionAction(id, "setText",
-                                                    CHAR_SEQUENCE, text)
-setTextViewTextSize(id, units, size)→    ReflectionAction(id, "setTextSize",
-                                                    FLOAT, size)
-setTextColor(id, color)             →    ReflectionAction(id, "setTextColor",
-                                                    INT, color)
-setImageViewResource(id, resId)     →    ReflectionAction(id, "setImageResource",
-                                                    INT, resId)
-setImageViewBitmap(id, bitmap)      →    ReflectionAction(id, "setImageBitmap",
-                                                    BITMAP, bitmap)
-setViewVisibility(id, visibility)   →    ReflectionAction(id, "setVisibility",
-                                                    INT, visibility)
-setBoolean(id, methodName, value)   →    ReflectionAction(id, methodName,
-                                                    BOOLEAN, value)
-setInt(id, methodName, value)       →    ReflectionAction(id, methodName,
-                                                    INT, value)
-setLong(id, methodName, value)      →    ReflectionAction(id, methodName,
-                                                    LONG, value)
-setDouble(id, methodName, value)    →    ReflectionAction(id, methodName,
-                                                    DOUBLE, value)
-setCharSequence(id, method, value)  →    ReflectionAction(id, methodName,
-                                                    CHAR_SEQUENCE, value)
-setOnClickPendingIntent(id, pi)     →    SetOnClickPendingIntentAction
-setProgressBar(id, max, prog, ind)  →    SetProgressBarAction
-setViewPadding(id, l, t, r, b)     →    ViewPaddingAction
-addView(id, childRemoteViews)       →    ViewGroupAction (内嵌 RemoteViews)
-removeAllViews(id)                  →    ViewGroupAction (清空子 View)
-setRemoteAdapter(id, intent)        →    SetRemoteViewsAdapterIntent
+```java
+private static MethodHandle getMethod(View view, String methodName,
+        @Nullable Class<?> paramType, @Nullable Class<?> paramTypeArgument, boolean async) {
+    MethodArgs result;
+    Class<? extends View> klass = view.getClass();
 
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  Action 的序列化与反序列化流程                                               │
-└─────────────────────────────────────────────────────────────────────────────┘
+    synchronized (sMethods) {
+        // The key is defined by the view class, param class and method name.
+        sLookupKey.set(klass, paramType, paramTypeArgument, methodName);
+        result = sMethods.get(sLookupKey);
 
-序列化 (应用进程 — writeToParcel):
-┌─────────────────────────────────────────────────────────────────┐
-│  Parcel 数据布局:                                                │
-│  ┌──────────┬──────────┬──────────┬──────────────────────────┐ │
-│  │ mPackage │ mLayoutId│ count    │ Action[0]                │ │
-│  │ (String) │ (int)    │ (int)    │ ┌─────────┬────────────┐ │ │
-│  │          │          │          │ │ tag(int)│ data(...)  │ │ │
-│  │          │          │          │ └─────────┴────────────┘ │ │
-│  │          │          │          │ Action[1]                │ │
-│  │          │          │          │ ┌─────────┬────────────┐ │ │
-│  │          │          │          │ │ tag(int)│ data(...)  │ │ │
-│  │          │          │          │ └─────────┴────────────┘ │ │
-│  │          │          │          │ ...                      │ │
-│  └──────────┴──────────┴──────────┴──────────────────────────┘ │
-│                                                                  │
-│  ReflectionAction 序列化:                                        │
-│  ┌──────────┬──────────┬──────────┬──────────┬──────────┐      │
-│  │ TAG(1)   │ viewId   │methodName│ type     │ value    │      │
-│  │ (int)    │ (int)    │ (String) │ (int)    │ (varies) │      │
-│  └──────────┴──────────┴──────────┴──────────┴──────────┘      │
-└─────────────────────────────────────────────────────────────────┘
+        if (result == null) {
+            Method method;
+            try {
+                if (paramType != null && paramTypeArgument != null) {
+                    method = klass.getMethod(methodName, paramType);
+                    Type actualParam = method.getGenericParameterTypes()[0];
+                    if (!(actualParam instanceof ParameterizedType)) {
+                        throw new NoSuchMethodException(
+                                String.format("Found %s but its parameter is %s, not generic",
+                                        method, actualParam));
+                    }
+                    Type actualParamTypeArg =
+                            ((ParameterizedType) actualParam).getActualTypeArguments()[0];
+                    if (!paramTypeArgument.equals(actualParamTypeArg)) {
+                        throw new NoSuchMethodException(
+                                String.format(
+                                        "Found %s but it accepts %s and I wanted %s<%s>",
+                                        method, actualParam, paramType, paramTypeArgument));
+                    }
+                } else if (paramType != null) {
+                    method = klass.getMethod(methodName, paramType);
+                } else {
+                    method = klass.getMethod(methodName);
+                }
+                if (!method.isAnnotationPresent(RemotableViewMethod.class)) {
+                    throw new ActionException("view: " + klass.getName()
+                            + " can't use method with RemoteViews: "
+                            + methodName + parametersToString(paramType, paramTypeArgument));
+                }
 
-反序列化 (SystemUI 进程 — CREATOR.createFromParcel):
-┌─────────────────────────────────────────────────────────────────┐
-│  RemoteViews.CREATOR.createFromParcel(parcel):                  │
-│                                                                  │
-│  1. 读取 mPackage, mLayoutId                                    │
-│  2. 创建 RemoteViews 对象                                        │
-│  3. 读取 Action 数量                                             │
-│  4. for 每个 Action:                                             │
-│     ├── parcel.readInt() → actionTag                            │
-│     ├── 根据 actionTag 创建对应 Action 实例                      │
-│     │   (TAG = 1 → ReflectionAction                             │
-│     │    TAG = 2 → SetOnClickPendingIntentAction                │
-│     │    TAG = 3 → ReflectionActionWithoutParams                │
-│     │    TAG = 4 → SetEmptyView  ...等等)                       │
-│     ├── action.readFromParcel(parcel)                           │
-│     └── mActions.add(action)                                    │
-│  5. 返回完整的 RemoteViews                                       │
-└─────────────────────────────────────────────────────────────────┘
+                result = new MethodArgs();
+                result.syncMethod = MethodHandles.publicLookup().unreflect(method);
+                result.asyncMethodName =
+                        method.getAnnotation(RemotableViewMethod.class).asyncImpl();
+            } catch (NoSuchMethodException | IllegalAccessException ex) {
+                throw new ActionException("view: " + klass.getName() + " doesn't have method: "
+                        + methodName + parametersToString(paramType, paramTypeArgument), ex);
+            }
 
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  apply() 时执行所有 Actions                                                  │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-public View apply(Context context, ViewGroup parent, OnClickHandler handler) {
-    // 1. 使用过滤后的 LayoutInflater 加载布局
-    View result = inflateView(context, parent);   // ← 只能创建白名单 View
-
-    // 2. 依次执行所有 Action
-    performApply(result, parent, handler);
-    return result;
-}
-
-private void performApply(View root, ViewGroup rootParent, OnClickHandler handler) {
-    if (mActions != null) {
-        for (int i = 0; i < mActions.size(); i++) {
-            Action a = mActions.get(i);
-            a.apply(root, rootParent, handler);   // ← 每个Action各自apply
+            MethodKey key = new MethodKey();
+            key.set(klass, paramType, paramTypeArgument, methodName);
+            sMethods.put(key, result);
         }
+
+        if (!async) {
+            return result.syncMethod;
+        }
+        // Check this so see if async method is implemented or not.
+        if (result.asyncMethodName.isEmpty()) {
+            return null;
+        }
+        // Async method is lazily loaded. If it is not yet loaded, load now.
+        if (result.asyncMethod == null) {
+            MethodType asyncType = result.syncMethod.type()
+                    .dropParameterTypes(0, 1).changeReturnType(Runnable.class);
+            try {
+                result.asyncMethod = MethodHandles.publicLookup().findVirtual(
+                        klass, result.asyncMethodName, asyncType);
+            } catch (NoSuchMethodException | IllegalAccessException ex) {
+                throw new ActionException("Async implementation declared as "
+                        + result.asyncMethodName + " but not defined for " + methodName
+                        + ": public Runnable " + result.asyncMethodName + " ("
+                        + TextUtils.join(",", asyncType.parameterArray()) + ")");
+            }
+        }
+        return result.asyncMethod;
     }
 }
-
-// 以 ReflectionAction.apply() 为例:
-@Override
-public void apply(View root, ViewGroup rootParent, OnClickHandler handler) {
-    View target = root.findViewById(viewId);
-    if (target == null) return;
-
-    Class<?> argType = PARAM_TYPES[type];          // 根据 type 获取参数类型
-    Method method = target.getClass().getMethod(    // 反射获取方法
-        methodName, argType);
-    method.invoke(target, value);                   // 反射调用
-}
-
-// 关键：method.invoke() 在 SystemUI 进程执行
-// 应用进程只负责"记录操作"，SystemUI 进程负责"执行操作"
-// 这就是 RemoteViews 跨进程的本质
-
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  为什么用 Action 列表而不是直接序列化 View？                                  │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-方案对比:
-
-方案 A：直接序列化 View 对象                         ❌ 不可行
-├── View 有大量内部状态（Context、Window、Handler...）
-├── 很多字段不可序列化（Canvas、native 指针）
-├── 反序列化后 Context 丢失，View 无法正常工作
-└── 跨进程安全性无法保证
-
-方案 B：序列化布局 ID + 操作列表 (Action)             ✅ 实际方案
-├── 只记录"做什么"，不记录"怎么做"
-├── 在目标进程重新创建 View 并回放操作
-├── Action 是简单的数据类，容易序列化
-└── 目标进程拥有完整 Context，View 可以正常工作
-
-这就是 RemoteViews 的设计哲学：
-  应用进程：录制操作（布局 ID + Action 列表）
-  SystemUI 进程：回放操作（inflate 布局 + 执行 Action）
 ```
+
+
+因此安全性不来自“调用者只能写 SDK 硬编码 methodName”。`setInt/setBoolean/setCharSequence` 本身允许提供方法名，methodName 也会通过序列化传输；关键在接收端重新校验。直接 getMethod + invoke 而省略注解检查的旧示例，会错误表达安全边界。
+
+#### 序列化、缓存和变体
+
+RemoteViews 可包含 ApplicationInfo/资源来源、布局 ID、bitmap 缓存、action 列表以及多布局/尺寸变体等。Action 通过 tag 选择对应读入逻辑；完整 writeToParcel/read 构造器才是布局顺序依据，不能用“包名、布局、count、actions、bitmap”伪格式冒充。
+
+```text
+logical data, not a wire-format specification:
+  resource identity + layout variant
+  shared/cached bitmap data
+  ordered list of action type + action payload
+  additional flags / state required by this version
+```
+
+bitmap cache 可减少重复对象传输，但不取消 Binder/进程内存预算。大图应按显示需求缩小，通知更新也应控制频率；“只传 Action 所以无限便宜”是不成立的。
+
+#### apply/reapply 与异步绑定
+
+`apply()` 通常建立新 View 树并应用操作；`reapply()` 在满足布局/类型兼容条件时复用现有树。SystemUI 会检查 package/layout 与缓存等条件，再选择 apply/reapply 或异步版本，而不是每次通知更新都无条件复用。
+
+```text
+new content required?
+  -> yes: create/recover Notification.Builder and RemoteViews variants
+  -> same compatible layout + cached view?
+       yes: reapply/reapplyAsync
+       no:  apply/applyAsync
+  -> completion: attach correct content slot, update cache
+  -> failure/cancellation: discard obsolete result, report inflation error
+```
+
+异步 inflate 的耗时部分可在后台，最终 UI 更新需回到相应线程。旧任务取消与新通知版本更新之间存在竞态，必须避免旧结果覆盖新状态；文章不能通过一个同步 for-loop 忽略这些生命周期。
 
 ### 6.5 反射创建与 View 白名单机制
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│              RemoteViews 反射创建与 View 白名单机制                          │
-│         为什么 RemoteViews 只能使用特定 View？如何实现的？                    │
-└─────────────────────────────────────────────────────────────────────────────┘
+“白名单”可作为安全模型称呼，但当前实现并不是维护 `sAllowedViewClasses` 字符串数组。RemoteViews 实现 LayoutInflater.Filter；接口接收 `Class`，通过 `@RemoteViews.RemoteView` 检查类，不是 `onLoadClass(ClassLoader, String)`。
 
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  1. LayoutInflater 的过滤机制                                                │
-│     (AOSP: frameworks/base/core/java/android/widget/RemoteViews.java)       │
-└─────────────────────────────────────────────────────────────────────────────┘
 
-RemoteViews.apply() 加载布局时，不是直接使用普通 LayoutInflater，
-而是通过 RemoteViews.Context 的 inflate() 方法配合过滤机制:
-
-private View inflateView(Context context, ViewGroup parent) {
-    // 使用 RemoteViews 自己的 LayoutInflater
-    LayoutInflater inflater = LayoutInflater.from(context).cloneInContext(context);
-    inflater.setFilter(sLayoutInflaterFilter);   // ← 关键：设置过滤器
-    return inflater.inflate(mLayoutId, parent, false);
+```java
+public boolean onLoadClass(Class clazz) {
+    return clazz.isAnnotationPresent(RemoteView.class);
 }
-
-// LayoutInflater.Filter 接口
-public interface Filter {
-    boolean onLoadClass(ClassLoader loader, String className);
-    // 返回 true → 允许加载该 View
-    // 返回 false → 拒绝加载，抛出异常
-}
-
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  2. View 白名单的实现                                                       │
-│     sLayoutInflaterFilter 实际上是一个白名单检查器                            │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-// AOSP 中的白名单定义 (简化展示)
-private static final LayoutInflater.Filter sLayoutInflaterFilter =
-    (loader, className) -> {
-        // 检查类名是否在允许列表中
-        // 白名单在 RemoteViews 初始化时通过静态注册
-        return isAllowedViewClass(className);
-    };
-
-// AOSP 中实际的白名单注册方式:
-// 通过内部数组定义所有允许的 View 类名
-private static final String[] sAllowedViewClasses = {
-    // ──── 布局容器 ────
-    "android.widget.FrameLayout",
-    "android.widget.LinearLayout",
-    "android.widget.RelativeLayout",
-    "android.widget.GridLayout",
-    "android.widget.GridLayout$LayoutParams",
-
-    // ──── 基础视图 ────
-    "android.widget.TextView",
-    "android.widget.ImageView",
-    "android.widget.Button",
-    "android.widget.ImageButton",
-    "android.widget.ProgressBar",
-    "android.widget.Chronometer",
-
-    // ──── 高级视图 ────
-    "android.widget.ViewFlipper",
-    "android.widget.StackView",
-    "android.widget.AdapterViewFlipper",
-    "android.widget.ListView",
-    "android.widget.GridView",
-
-    // ──── 特殊视图 ────
-    "android.widget.AnalogClock",
-    "android.widget.TextClock",
-    "android.view.View",
-    "android.view.ViewGroup",
-    "android.widget.RemoteViews.RemoteView",  // 注解标记
-};
-
-// Android 12+ 还支持通过 @RemoteView 注解自动注册:
-@Target({ElementType.TYPE})
-@Retention(RetentionPolicy.RUNTIME)
-public @interface RemoteView {
-    // 标注了此注解的 View 自动加入白名单
-}
-
-// 例如:
-@RemoteView
-public class TextView extends View { ... }
-
-@RemoteView
-public class ImageView extends View { ... }
-
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  3. 反射创建 View 的完整流程                                                 │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-LayoutInflater.inflate() 内部创建 View 的过程:
-
-┌──────────────────────────────────────────────────────────────────────────┐
-│  LayoutInflater.createViewFromTag()                                       │
-│                                                                          │
-│  1. 解析 XML 标签名 → className (如 "TextView")                          │
-│                    ↓                                                     │
-│  2. 调用 mFilter.onLoadClass(loader, className)                          │
-│     ├── 返回 true  → 继续创建 View                                      │
-│     └── 返回 false → 抛出 InflateException                              │
-│                    ↓ (白名单通过)                                         │
-│  3. createView(className, ...) → 反射创建                                │
-│     ├── Class<?> clazz = loader.loadClass(fullClassName)                 │
-│     ├── Constructor<?> constructor = clazz.getConstructor(               │
-│     │       Context.class, AttributeSet.class)                           │
-│     └── return constructor.newInstance(context, attrs)                   │
-│                    ↓                                                     │
-│  4. 返回 View 实例                                                        │
-└──────────────────────────────────────────────────────────────────────────┘
-
-实际代码调用链:
-RemoteViews.apply(context, parent)
-    └── inflateView(context, parent)
-        └── LayoutInflater.inflate(layoutId, parent, false)
-            └── rInflateChildren(parser, root, attrs, true)
-                └── createViewFromTag(view, name, context, attrs)
-                    ├── mFilter.onLoadClass(...)     // 白名单检查
-                    └── createView(name, "...")       // 反射创建
-
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  4. 安全限制的三层防线                                                       │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-防线 1：布局加载时的 View 白名单过滤
-├── LayoutInflater.Filter 拦截非法 View 类
-├── 只允许白名单中的 View 被实例化
-└── 即使 XML 中写了 <com.evil.CustomView> 也会被拒绝
-
-防线 2：ReflectionAction 的方法调用限制
-├── 只能调用预定义的方法名（setText, setVisibility 等）
-├── 不能调用任意方法（方法名来自 API，不是来自 Parcel）
-├── 参数类型由 type 字段限定，不能伪造
-└── 实际上 ReflectionAction 的 methodName 只能是 SDK 中定义的名称
-
-防线 3：资源加载的包名隔离
-├── RemoteViews 中的 mPackage 决定了资源加载的来源
-├── SystemUI 使用应用的 Context 加载布局资源
-├── 但 View 类始终从 Framework (android.widget.*) 加载
-└── 应用的自定义 View 类不会在 SystemUI 进程中加载
-
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  5. 为什么不支持自定义 View？—— 完整技术分析                                 │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-原因 1: 进程隔离与类加载器不匹配
-├── 自定义 View 的 Class 文件在应用 APK 中
-├── SystemUI 进程的 ClassLoader 无法加载应用的类
-├── 即使加载了，Context、Resources 等依赖不匹配
-└── 这是最根本的技术障碍
-
-原因 2: 安全风险
-├── 自定义 View 可在构造函数/draw 中执行任意代码
-├── SystemUI 以 system uid 运行，权限极高
-├── 恶意应用可通过自定义 View 在 SystemUI 中执行特权操作
-└── 白名单机制确保只有 Google 审核过的 View 可以使用
-
-原因 3: 序列化限制
-├── 自定义 View 可能有复杂的内部状态
-├── 这些状态难以通过 Parcel 传递
-├── 反序列化后状态恢复不完整会导致异常
-└── Action 机制只能操作属性，无法传递 View 的行为逻辑
-
-原因 4: 兼容性与稳定性
-├── 不同应用的 View 实现可能依赖不同的 API 版本
-├── SystemUI 进程中的 View 可能与应用进程的版本不一致
-├── 应用更新后 View 行为变化可能导致 SystemUI 崩溃
-└── 白名单保证 SystemUI 不受第三方应用代码质量影响
-
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  6. RemoteViews 反射机制的类图                                              │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-                        ┌───────────────────┐
-                        │   RemoteViews     │
-                        │───────────────────│
-                        │ mPackage: String  │
-                        │ mLayoutId: int    │
-                        │ mActions: ArrayList│
-                        │ mBitmapCache      │
-                        │───────────────────│
-                        │ + apply()         │
-                        │ + reapply()       │
-                        │ + setXXX()        │
-                        └───────┬───────────┘
-                                │ 持有
-                                ▼
-                ┌───────────────────────────┐
-                │   Action (abstract)       │
-                │───────────────────────────│
-                │ + getActionTag(): int     │
-                │ + apply(View, ViewGroup,  │
-                │     OnClickHandler)       │
-                │ + writeToParcel()         │
-                └───────┬───────────────────┘
-                        │
-        ┌───────────────┼───────────────────┐
-        │               │                   │
-        ▼               ▼                   ▼
-┌───────────────┐ ┌──────────────┐ ┌────────────────────┐
-│ReflectionAction│ │ViewGroupAction│ │SetOnClickPending  │
-│───────────────│ │──────────────│ │  IntentAction      │
-│viewId: int   │ │mViews:       │ │────────────────────│
-│methodName:   │ │ RemoteViews[]│ │viewId: int         │
-│ String       │ │──────────────│ │pendingIntent:      │
-│type: int     │ │apply() →     │ │ PendingIntent      │
-│value: Object │ │ addView()    │ │────────────────────│
-│───────────────│ │ /removeView()│ │apply() →           │
-│apply() →     │ └──────────────┘ │ setOnClickListener │
-│ 反射调用方法  │                  │  + PendingIntent   │
-└───────────────┘                  └────────────────────┘
-        │
-        │ 反射调用原理:
-        │
-        │ Method m = view.getClass()
-        │     .getMethod(methodName, paramType);
-        │ m.invoke(view, value);
-        │
-        │ 例如: setTextViewText(id, "hello")
-        │   → methodName = "setText"
-        │   → paramType  = CharSequence.class
-        │   → value      = "hello"
-        │
-        │ 最终在 SystemUI 进程执行:
-        │   textView.setText("hello");
-
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  7. apply() vs reapply() 的区别                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-apply():
-├── 重新 inflate 布局 + 执行所有 Action
-├── 创建全新的 View 树
-├── 开销大，适合首次加载
-└── 返回新创建的 View
-
-reapply():
-├── 不重新 inflate，只执行 Action
-├── 在已有的 View 上重新应用操作
-├── 开销小，适合通知内容更新
-└── 不返回 View（使用已有的）
-
-// SystemUI 中的典型用法:
-// 首次加载通知
-View view = remoteViews.apply(context, parent);
-parent.addView(view);
-
-// 通知内容更新时
-remoteViews.reapply(context, existingView);
-// 不需要 remove → add，直接在原有 View 上刷新
-
-这就是为什么通知更新比首次显示快的原因。
 ```
 
----
+
+LayoutInflater 在加载/解析 Class 后检查 Filter，允许的类才进入构造流程。注解早于 Android 12 就已存在，不是该版才“自动注册”；RemoteView 注解自身也不是 View，GridLayout.LayoutParams 更不能列为可 inflate 的 View 类型。
+
+#### 三个需要同时存在的边界
+
+1. **资源 Context**：按发起方的资源身份解析布局、drawable、字符串，并处理用户/配置；不是用纯 SystemUI Resources 查应用 R.layout 数字。
+2. **类加载与 View Filter**：宿主不因此自动加载 App 自定义类代码，平台允许的 View 还要通过注解过滤。
+3. **Action 方法检查**：方法存在还不够，签名/参数类型及 RemotableViewMethod 都要满足。
+
+```text
+RemoteViews.apply
+  -> select matching remote layout
+  -> build resource-aware Context + cloned inflater
+  -> install RemoteViews class filter
+  -> inflate View tree
+       class load -> onLoadClass(Class) -> allowed constructor
+  -> performApply
+       target ID -> typed action -> checked MethodHandle / specific action
+```
+
+仅给第三方 View 标注 RemoteView 不会使其类自动可在 SystemUI 加载；也不应该把 SystemUI 插件代码机制与 RemoteViews 混合。前者是受信代码执行，后者面向外部应用的受限声明式 UI。
+
+#### 为什么不能简单序列化自定义 View
+
+构造函数/draw 可执行任意逻辑，若直接在高权限宿主中运行会破坏进程与权限边界。RemoteViews 因而传“布局身份和操作”，不是传“实现代码”。View 过滤、资源来源和方法检查保护不同阶段，缺少任意一层都会改变安全模型。
+
+这也解释为什么 RemoteViews 只能表达特定操作，不能像普通 View 那样任意调用业务方法。真正需要自定义交互时，应用应设计合适的通知样式和 PendingIntent，而不是尝试向 SystemUI 注入自定义控件类。
+
+#### 点击与集合模板
+
+单 View 点击使用 PendingIntent；集合子项的模板/fill-in Intent 是另一种协议。PendingIntent 的 creator 身份、mutable/immutable、目标显式性和后台 Activity 启动限制仍然生效。普通打开页面的点击通常选 immutable，RemoteInput 等需要系统补充数据的场景按其契约选择，不应统一给所有 pending intent 使用 flags=0。
+
+本文的独立 RemoteViews 示例用于展示 API，不包含完整通知 permission/channel 生命周期；应用在目标系统上应测试初次显示、同布局更新、布局变更、图片失败、取消与锁屏隐私两种内容版本。
 
 ## 7. SystemUI 与 Framework 协作
 
 ### 7.1 通知协作流程
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                    SystemUI 与 Framework 协作                              │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-应用进程:
-├── NotificationManager.notify()
-└── Binder IPC → NMS
-
-NMS (system_server):
-├── 创建 NotificationRecord
-├── 排名和过滤
-├── 持久化
-└── 回调 SystemUI
-
-SystemUI:
-├── NotificationListenerService.onNotificationPosted()
-├── 创建 NotificationEntry
-├── 提取 RemoteViews
-├── 渲染通知视图
-└── 更新状态栏图标
+```text
+Application -> NotificationManager -> NMS permission/channel/record
+NMS -> managed notification listener Binder callback
+SystemUI NotificationListener -> NotifCollection events
+NotifPipeline / ShadeListBuilder -> grouped/filtered ordered list
+Preparation/inflation -> content views
+ShadeViewManager / notification stack -> display and interaction
+User dismiss/click -> SystemUI event / PendingIntent -> system coordination
 ```
 
----
+资源 inflation 不发生在 NMS，它只传通知数据/受控信息。声音、振动、气泡资格与锁屏隐私也有不同所有者，不能画成 NMS 直接调用 `mSystemUI.onNotificationPosted()` 再向 row setContent 的同步方法调用。
+
+活动记录、用户偏好与通知历史三者要分开：活动列表在内存；偏好持久化保存渠道等策略；历史记录仅保留选定信息供用户查看，并非完整可重放的通知。这种分层使 SystemUI 重连可从 NMS 取活动快照，而不是从历史文件“恢复全部通知”。
 
 ## 8. 通知渲染流程
 
 ### 8.1 渲染架构
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                       通知渲染架构                                         │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -2868,78 +2380,173 @@ SystemUI:
 
 ### 8.2 渲染流程详解
 
+#### 接收与集合更新
+
+NotificationListener 把已处理的 post 事件派发给注册的 NotificationHandler，NotifCollection 消费 sbn 与 RankingMap，创建/更新 entry 并驱动重建。收集模型与视图建立分开，使取消、重复更新和异步 inflation 能按一致事件顺序处理。
+
+
+源码：[NotificationListener.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/packages/SystemUI/src/com/android/systemui/statusbar/NotificationListener.java)。下方为该 tag 的方法/类型节选，省略所在类的其他成员与 imports，不作为独立工程。
+
+
 ```java
-/**
- * 通知渲染流程
- */
-
-// 1. 接收通知
-NotificationListenerService.onNotificationPosted(sbn, rankingMap):
-│
-├── 提取 StatusBarNotification
-│   ├── Notification notification = sbn.getNotification()
-│   └── String key = sbn.getKey()
-│
-└── 通知 NotificationEntryManager
-    └── onNotificationPosted(sbn, rankingMap)
-
-// 2. 创建通知条目
-NotificationEntryManager.onNotificationPosted(sbn, rankingMap):
-│
-├── 创建 NotificationEntry
-│   └── entry = new NotificationEntry(sbn)
-│
-├── 应用排名
-│   └── mRankingManager.extractSignals(entry)
-│
-├── 添加到列表
-│   └── mNotificationList.add(entry)
-│
-└── 触发更新
-    └── mCallback.onNotificationAdded(entry)
-
-// 3. 创建通知视图
-NotificationRowBinderImpl.bindRow(entry, row):
-│
-├── 获取 RemoteViews
-│   ├── RemoteViews contentView = notification.contentView
-│   ├── RemoteViews bigContentView = notification.bigContentView
-│   └── RemoteViews headsUpContentView = notification.headsUpContentView
-│
-├── 应用 RemoteViews
-│   ├── row.setContentView(contentView)
-│   ├── row.setBigContentView(bigContentView)
-│   └── row.setHeadsUpView(headsUpContentView)
-│
-├── 设置展开状态
-│   └── row.setExpanded(isExpanded)
-│
-└── 添加到列表
-    └── mStackScrollLayout.addNotificationRow(row)
-
-// 4. 渲染通知内容
-NotificationContentView.setContent(RemoteViews views):
-│
-├── 清空现有视图
-│   └── removeAllViews()
-│
-├── 应用 RemoteViews
-│   └── View view = views.apply(mContext, this)
-│
-├── 添加到容器
-│   └── addView(view)
-│
-└── 触发布局
-    └── requestLayout()
+public void onNotificationPosted(final StatusBarNotification sbn,
+        final RankingMap rankingMap) {
+    if (DEBUG) Log.d(TAG, "onNotificationPosted: " + sbn);
+    String key = sbn.getKey();
+    if (!isKeyInRankingMap(key, rankingMap)) {
+        Log.wtf(TAG, "Got bad rankingMap in onNotificationPosted for "
+                + key);
+    }
+    if (sbn != null && !onPluginNotificationPosted(sbn, rankingMap)) {
+        if (!isKeyInRankingMap(key, rankingMap)) {
+            Log.wtf(TAG, "Missing ranking after plugins for " + key);
+        }
+        mMainExecutor.execute(() -> {
+            for (NotificationHandler handler : mNotificationHandlers) {
+                handler.onNotificationPosted(sbn, rankingMap);
+            }
+        });
+    } else if (isKeyInRankingMap(key, rankingMap)) {
+        Log.wtf(TAG, "Plugin prevented post but left ranking " + key);
+    }
+}
 ```
 
----
+
+源码：[NotifCollection.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/packages/SystemUI/src/com/android/systemui/statusbar/notification/collection/NotifCollection.java)。下方为该 tag 的方法/类型节选，省略所在类的其他成员与 imports，不作为独立工程。
+
+
+```java
+private void onNotificationPosted(StatusBarNotification sbn, RankingMap rankingMap) {
+    Assert.isMainThread();
+
+    postNotification(sbn, requireRanking(rankingMap, sbn.getKey()));
+    applyRanking(rankingMap);
+    dispatchEventsAndRebuildList("onNotificationPosted");
+}
+
+private void dispatchEventsAndRebuildList(String reason) {
+    Trace.beginSection("NotifCollection.dispatchEventsAndRebuildList");
+    if (mMainHandler.hasCallbacks(mRebuildListRunnable)) {
+        mMainHandler.removeCallbacks(mRebuildListRunnable);
+    }
+
+    dispatchEvents();
+
+    if (mBuildListener != null) {
+        mBuildListener.onBuildList(mReadOnlyNotificationSet, reason);
+    }
+    Trace.endSection();
+}
+```
+
+
+#### 建表、准备与内容绑定
+
+ShadeListBuilder 处理 grouping/filtering/排序稳定性，PreparationCoordinator 在合适阶段启动需要的 inflate，未完成或失败的条目可被过滤；并非所有组内 child 永远保持 fully inflated。视图绑定与最终加入列表要分别观察。
+
+`RowContentBindStage` 根据 dirty/required flags 请求绑定或释放内容。当前具体 binder 是 **`NotificationRowContentBinderImpl.kt`**，不是旧 `NotificationContentInflater.java`。源码保留的 `NotificationContentInflater...` trace 字符串同样不证明该旧类仍存在。
+
+
+源码：[NotificationRowContentBinderImpl.kt](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/packages/SystemUI/src/com/android/systemui/statusbar/notification/row/NotificationRowContentBinderImpl.kt)。下方为该 tag 的方法/类型节选，省略所在类的其他成员与 imports，不作为独立工程。
+
+
+```kotlin
+override fun bindContent(
+    entry: NotificationEntry,
+    row: ExpandableNotificationRow,
+    @InflationFlag contentToBind: Int,
+    bindParams: BindParams,
+    forceInflate: Boolean,
+    callback: InflationCallback?,
+) {
+    if (row.isRemoved) {
+        // We don't want to reinflate anything for removed notifications. Otherwise views might
+        // be readded to the stack, leading to leaks. This may happen with low-priority groups
+        // where the removal of already removed children can lead to a reinflation.
+        logger.logNotBindingRowWasRemoved(row.loggingKey)
+        return
+    }
+    logger.logBinding(row.loggingKey, contentToBind)
+    val sbn: StatusBarNotification = entry.sbn
+
+    // To check if the notification has inline image and preload inline image if necessary.
+    row.imageResolver.preloadImages(sbn.notification)
+    if (forceInflate) {
+        remoteViewCache.clearCache(entry)
+    }
+
+    // Cancel any pending frees on any view we're trying to bind since we should be bound after.
+    cancelContentViewFrees(row, contentToBind)
+    val task =
+        AsyncInflationTask(
+            inflationExecutor,
+            inflateSynchronously,
+            userProfileBadgeProvider,
+            /* reInflateFlags = */ contentToBind,
+            remoteViewCache,
+            entry,
+            conversationProcessor,
+            row,
+            bindParams,
+            callback,
+            remoteInputManager.remoteViewsOnClickHandler,
+            /* isMediaFlagEnabled = */ smartReplyStateInflater,
+            notifLayoutInflaterFactoryProvider,
+            headsUpStyleProvider,
+            promotedNotificationContentExtractor,
+            logger,
+        )
+    if (inflateSynchronously) {
+        task.onPostExecute(task.doInBackground())
+    } else {
+        task.executeOnExecutor(inflationExecutor)
+    }
+}
+```
+
+
+bindContent 会依据 flags、cache 与同步/异步选择建立任务。任务从通知恢复 Builder，根据 contracted/expanded/heads-up/public 等需要生成 RemoteViews，再走 apply/reapply。finish 阶段设置相应内容 slot、更新缓存并完成回调，失败时由 inflation error 路径处理。
+
+```text
+notification update -> abort/replace old binding task
+  -> recover Builder + resolve package resource Context
+  -> create requested RemoteViews variants
+  -> apply/reapply or async equivalents
+  -> valid latest task completes
+       -> update NotificationContentView children + cache
+       -> row update / inflation callback
+  -> obsolete/cancelled/failed task does not overwrite latest content
+```
+
+`ExpandableNotificationRow` 不是自己直接从 Notification.contentView 三字段同步 addView 的简化实现。现代 template 可在 SystemUI 端由 Builder 生成，原始 Notification 的这些字段不必全部预先填满。
+
+#### 复用与重建的判断
+
+复用需要新旧 RemoteViews 的 package/layout 等兼容，并且 view cache、绑定 flags、功能开关满足条件。布局 ID 相同也不能保证任何主题/配置/自定义 action 都可随意重用；出错时应重建或报告，而不是留下半更新界面。
+
+
+```kotlin
+fun canReapplyRemoteView(newView: RemoteViews?, oldView: RemoteViews?): Boolean {
+    return newView == null && oldView == null ||
+        newView != null &&
+            oldView != null &&
+            oldView.getPackage() != null &&
+            newView.getPackage() != null &&
+            newView.getPackage() == oldView.getPackage() &&
+            newView.layoutId == oldView.layoutId &&
+            !oldView.hasFlags(RemoteViews.FLAG_REAPPLY_DISALLOWED)
+}
+```
+
+
+静态分析能证明有这些条件与回调，不能证明某一通知在真机必然走 reapplyAsync、也不能估计其耗时。回归应覆盖同 key 更新、模板变更、取消途中完成、屏幕配置变化和 public/private 内容切换。
 
 ## 9. 通知模板系统
 
 ### 9.1 通知模板类型
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                       通知模板类型                                         │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -3031,7 +2638,7 @@ NotificationCompat.Builder builder = new NotificationCompat.Builder(context, cha
     .setContentText("点击查看大图")
     .setStyle(new NotificationCompat.BigPictureStyle()
         .bigPicture(bitmap)
-        .bigLargeIcon(null)  // 展开时隐藏大图标
+        .bigLargeIcon((Bitmap) null)  // 展开时隐藏大图标
         .setBigContentTitle("展开标题")
         .setSummaryText("图片描述"));
 
@@ -3050,7 +2657,7 @@ NotificationCompat.Builder builder = new NotificationCompat.Builder(context, cha
 // 4. MessagingStyle - 消息对话
 Person user1 = new Person.Builder()
     .setName("张三")
-    .setIcon(iconBitmap)
+    .setIcon(IconCompat.createWithBitmap(iconBitmap)) // 此示例使用 androidx.core.app.Person
     .build();
     
 Person user2 = new Person.Builder()
@@ -3081,10 +2688,10 @@ NotificationCompat.Builder builder = new NotificationCompat.Builder(context, cha
     .addAction(R.drawable.pause, "暂停", pausePendingIntent)
     .addAction(R.drawable.next, "下一曲", nextPendingIntent);
 
-// 6. CallStyle - 来电通知 (Android 11+)
+// 6. CallStyle：平台 API 31 起；NotificationCompat 按库与系统能力适配
 Person caller = new Person.Builder()
     .setName("张三")
-    .setIcon(iconBitmap)
+    .setIcon(IconCompat.createWithBitmap(iconBitmap)) // 此示例使用 androidx.core.app.Person
     .setImportant(true)
     .build();
 
@@ -3104,113 +2711,41 @@ NotificationCompat.Builder builder = new NotificationCompat.Builder(context, cha
 
 ### 9.3 模板底层实现
 
+模板是 Framework 的 Notification.Builder/Style 与平台布局资源共同生成的 RemoteViews，不是每个 Style 都实现 `populateContentView/populateBigContentView`。固定 tag 的入口包括 createContentView/createBigContentView/createHeadsUpContentView，Style 可提供相应 make 方法。
+
+App build Notification 时会保存样式数据；现代路径下，SystemUI 的内容绑定器可 recoverBuilder 并在需要时生成视图。因此不能说“所有 RemoteViews 都在 App 的 build() 里已经完全生成”，也不能只读取 notification.bigContentView 作为唯一来源。
+
+```text
+App Notification.Builder + Style + extras
+  -> Notification payload (may include custom RemoteViews)
+SystemUI NotificationRowContentBinderImpl
+  -> recovered Builder / package context
+  -> createContentView / createBigContentView / heads-up variant
+       -> Style make* method or standard template
+       -> framework layout resources + actions
+  -> inflate/bind according to content flags
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                    通知模板底层实现                                        │
-└─────────────────────────────────────────────────────────────────────────────┘
 
-模板的本质：预定义的 RemoteViews 布局
+系统模板的布局会包含大量 include、尺寸/字体/颜色资源以及内部控件。下方只展示**应用自定义布局示例**，不把简单 FrameLayout 冒充 `core/res/res/layout/notification_template_big_text.xml` 的原文：
 
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  1. 模板生成 RemoteViews                                                  │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-// Notification.Builder.build() 时，Style 会生成 RemoteViews
-
-public Notification build() {
-    // ...
-    
-    // 如果设置了 Style，让 Style 填充 RemoteViews
-    if (mStyle != null) {
-        mStyle.addExtras(mExtras);
-        mStyle.populateContentView(this);  // 填充折叠视图
-        mStyle.populateBigContentView(this);  // 填充展开视图
-        mStyle.populateHeadsUpContentView(this);  // 填充悬浮视图
-    }
-    
-    // ...
-}
-
-// BigTextStyle 的实现
-public class BigTextStyle extends Style {
-    @Override
-    public void populateBigContentView(Builder builder) {
-        // 创建展开视图的 RemoteViews
-        RemoteViews bigContentView = new RemoteViews(
-            builder.mContext.getPackageName(),
-            R.layout.notification_template_big_text
-        );
-        
-        // 填充内容
-        bigContentView.setTextViewText(R.id.title, mBigContentTitle);
-        bigContentView.setTextViewText(R.id.big_text, mBigText);
-        bigContentView.setTextViewText(R.id.text, mSummaryText);
-        
-        // 设置到 Notification
-        builder.setCustomBigContentView(bigContentView);
-    }
-}
-
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  2. 模板布局文件                                                           │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-// frameworks/base/core/res/res/layout/notification_template_big_text.xml
-
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+```xml
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
-    android:layout_height="wrap_content">
-    
-    <LinearLayout
+    android:layout_height="wrap_content"
+    android:orientation="vertical">
+    <TextView android:id="@+id/title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content" />
+    <TextView android:id="@+id/body"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical">
-        
-        <!-- 标题 -->
-        <TextView android:id="@+id/title"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content" />
-        
-        <!-- 大文本内容 -->
-        <TextView android:id="@+id/big_text"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content" />
-        
-        <!-- 摘要 -->
-        <TextView android:id="@+id/text"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content" />
-    
-    </LinearLayout>
-
-</FrameLayout>
-
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  3. SystemUI 渲染模板                                                      │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-// SystemUI 收到通知后，使用 RemoteViews.apply() 加载模板布局
-
-ExpandableNotificationRow.bindNotification():
-│
-├── 获取 RemoteViews
-│   RemoteViews bigContentView = notification.bigContentView;
-│
-├── 应用到视图
-│   NotificationContentView contentView = getExpandedView();
-│   contentView.setContent(bigContentView);
-│
-└── RemoteViews.apply()
-    // 加载模板布局
-    View view = inflater.inflate(R.layout.notification_template_big_text, parent, false);
-    
-    // 执行所有 Action
-    for (Action action : mActions) {
-        action.apply(view, parent, handler);
-    }
+        android:maxLines="3" />
+</LinearLayout>
 ```
 
----
+实际自定义通知也受目标 SDK 的系统装饰和尺寸限制；不应承诺完全替换通知外观。标准 MessagingStyle 不会自动因几条 Message 就出现回复输入框，仍需配合 RemoteInput action；CallStyle/fullScreenIntent 是否展示全屏还受权限、用途和系统策略影响。
+
+通知的样式数据、生成布局、RemoteViews 应用和最终通知 row 是四个层次。排查模板问题，应先看 Builder/Style extras 是否正确，再看 content flags/生成结果，最后看 apply 与 row slot，不能仅在最外层通知列表盲目强刷。
 
 ## 10. 面试常见问题
 
@@ -3220,7 +2755,7 @@ ExpandableNotificationRow.bindNotification():
 
 **A:**
 
-SystemUI 是 Android 系统的核心 UI 组件，运行在 system_server 进程中：
+SystemUI 是 Android 系统的核心 UI 组件，运行在独立的 com.android.systemui 进程中：
 
 核心组件：
 - StatusBar：状态栏
@@ -3238,7 +2773,7 @@ SystemUI 是 Android 系统的核心 UI 组件，运行在 system_server 进程�
 
 **A:**
 
-```
+```text
 AOD 实现机制：
 
 1. 硬件支持
@@ -3248,10 +2783,12 @@ AOD 实现机制：
 2. 软件架构
    - DozeService：管理 Doze 状态
    - DozeMachine：状态机控制
-   - AODView：AOD 显示内容
+   - DozeHost 与锁屏视图/状态管线：AOD 显示内容
 
-3. 状态流转 (Android 16)
-   UNINITIALIZED → INITIALIZED → DOZE_AOD → DOZE_PULSING → DOZE_PULSE_DONE → FINISH
+3. 典型状态流转（非全部 Android 17 分支）
+   UNINITIALIZED → INITIALIZED → DOZE_AOD
+   → DOZE_REQUEST_PULSE → DOZE_PULSING → DOZE_PULSE_DONE
+   → 按 wakefulness/设置解析回稳态；退出由 FINISH 收尾
 
 4. 显示内容
    - 时钟（防烧屏移动）
@@ -3259,7 +2796,7 @@ AOD 实现机制：
    - 通知预览
 
 5. 功耗优化
-   - 低刷新率（1fps）
+   - 显示低功耗模式（刷新率由设备能力/策略决定，不保证 1fps）
    - 部分像素点亮
    - 定时脉冲更新
 ```
@@ -3270,7 +2807,7 @@ AOD 实现机制：
 
 **A:**
 
-```
+```text
 通知流程：
 
 1. 应用层
@@ -3279,13 +2816,13 @@ AOD 实现机制：
 2. Framework 层 (NMS)
    - 创建 NotificationRecord
    - 排名和过滤
-   - 持久化
+   - 更新内存活跃集合；偏好与可选历史另行持久化
    ↓
 3. Binder IPC
    - 回调 NotificationListenerService
    ↓
 4. SystemUI 层
-   - NotificationEntryManager 处理
+   - NotificationListener → NotifCollection → 列表构建/绑定管线处理
    - 创建 NotificationEntry
    - 提取 RemoteViews
    - 渲染通知视图
@@ -3295,7 +2832,7 @@ AOD 实现机制：
 
 **A:**
 
-```
+```text
 RemoteViews 原理：
 
 1. 定义
@@ -3319,9 +2856,9 @@ RemoteViews 原理：
    - 执行所有 Action
 
 4. Action 列表
-   - SetTextAction
-   - SetImageResourceAction
-   - SetOnClickPendingIntentAction
+   - ReflectionAction（例如 setText 的参数化操作）
+   - ReflectionAction（例如 setImageResource）
+   - SetOnClickResponse（交互响应包装）
    - ...
 ```
 
@@ -3329,27 +2866,20 @@ RemoteViews 原理：
 
 **A:**
 
-```
-通知排名因素：
+```text
+通知排名不能表示成 importance/category 的统一加权得分：
+1. RankingHelper 当前先用 NotificationTimeComparator 生成初始 rank。
+2. 按 group proxy、criticality、summary 与 sortKey 构造 global sort key。
+3. 最终比较器排序；SystemUI 还有分组、section、过滤及视觉稳定性策略。
+渠道重要性影响提醒/展示资格，但不能据此推导所有通知的最终总序。
 
-1. 重要性级别 (IMPORTANCE_HIGH > DEFAULT > LOW)
-2. 通知渠道优先级
-3. 通知类别 (CALL > MESSAGE > OTHER)
-4. 通知时间
-5. 用户设置
-6. 通知频次
-
-排名算法：
-1. 按重要性分组
-2. 同组按类别排序
-3. 同类别按时间排序
 ```
 
 **Q6: 通知模板是如何工作的？**
 
 **A:**
 
-```
+```text
 通知模板工作原理：
 
 1. 模板本质
@@ -3359,7 +2889,7 @@ RemoteViews 原理：
 2. 使用流程
    - 创建 Style (BigTextStyle, MessagingStyle 等)
    - 设置内容
-   - Notification.Builder.build() 时生成 RemoteViews
+   - Builder 保存样式数据；部分视图由 SystemUI recoverBuilder 后按需生成
 
 3. 渲染流程
    - SystemUI 收到 RemoteViews
@@ -3371,848 +2901,541 @@ RemoteViews 原理：
 
 ## 11. NotificationManagerService 高级特性
 
-> 本节内容基于 Android 16 (API 36) AOSP 源码分析
-> 源码路径：frameworks/base/services/core/java/com/android/server/notification/
+本章沿用第 4–9 章的 Android 17 通知路径，进一步区分服务端记录、排序、分组、提醒策略与历史数据。这里的“通知入库”不能同时指代三个不同对象：活跃通知在内存中，渠道/偏好由策略文件保存，可选通知历史由独立管理器维护。
 
-### 11.1 NMS 核心数据结构
+### 11.1 NMS 核心数据结构与更新事务
 
+`NotificationRecord` 是同目录独立类，不是 NMS 的内部类；`StatusBarNotification` 是 framework 数据载体。实际活跃集合涉及 `mNotificationList`、`mNotificationsByKey`，尚未完成发布的记录在 `mEnqueuedNotifications`。不存在旧文所画的统一 `NotificationStore`、`NotificationList` 类型或 `ConditionalNotificationCenter`。
+
+```text
+notify Binder 请求
+  -> 校验调用方/权限/渠道与构造 NotificationRecord
+  -> EnqueueNotificationRunnable: pending/enqueued、分组及调度
+  -> PostNotificationRunnable: 找 old、替换/加入 active、排序、分发
+        + mNotificationList: 参与排序的活跃记录
+        + mNotificationsByKey: 按唯一 key 查询活跃记录
+        + mEnqueuedNotifications: 尚未发布完成的候选
+  -> NotificationListeners: 通知 SystemUI 等获准监听者
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                    NotificationManagerService 源码结构                     │
-└─────────────────────────────────────────────────────────────────────────────┘
 
-// 位置：frameworks/base/services/core/java/com/android/server/notification/
+第 4 章已给出两个 Runnable 的实际实现。它们不是“一个只封装参数，一个毫无条件地 append”：更新与新建路径不同，取消可能与排队发布竞争，发布前还要处理无效图标、权限/渠道变更等条件。阅读锁内代码时要同时检查 list 与 map 的更新，避免仅看某个 `add()` 就断言所有通知都已成功上屏。
 
-NotificationManagerService.java
-├── 内部类
-│   ├── NotificationRecord        // 通知记录
-│   ├── NotificationList          // 通知列表
-│   ├── PostNotificationRunnable  // 发布通知
-│   ├── CancelNotificationRunnable // 取消通知
-│   ├── NotificationRankingUpdate  // 排名更新
-│   └── ManagedServiceInfo         // 托管服务信息
-│
-├── 核心组件
-│   ├── RankingHelper            // 排名助手
-│   ├── ZenModeHelper            // 勿扰模式
-│   ├── NotificationUsageStats   // 使用统计
-│   ├── NotificationHistoryManager // 历史记录
-│   ├── BubbleController         // 气泡控制
-│   └── ConditionalNotificationCenter // 条件通知
-│
-└── Binder 服务
-    ├── INotificationManager.Stub  // 通知管理接口
-    └── NotificationManagerInternal // 内部接口
-```
+`RankingHelper`、`PreferencesHelper`、`ZenModeHelper`、`NotificationHistoryManager` 是分工协作对象；气泡窗口的 UI 控制不由一个 NMS 内部 `BubbleController` 完成。服务端资格判断和 SystemUI/Shell 展示是两层。
+
+### 11.2 当前排序算法：两轮排序与 group proxy
+
+不能用 `importance * 100 + category * 10 + timestamp` 冒充源码。该 tag 的初始比较器是 `NotificationTimeComparator`，比较记录的 ranking time；时间已经由记录构建/更新语义处理，不等于随手读取 `System.currentTimeMillis()`。
+
+
+源码：[NotificationTimeComparator.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/services/core/java/com/android/server/notification/NotificationTimeComparator.java)。下方为该 tag 的方法/类型节选，省略所在类的其他成员与 imports，不作为独立工程。
+
 
 ```java
-/**
- * NotificationManagerService 核心源码
- * 基于 Android 16 (API 36) AOSP
- * 源码路径：services/core/java/com/android/server/notification/NotificationManagerService.java
- */
+public int compare(NotificationRecord left, NotificationRecord right) {
+    // earliest first
+    return -1 * Long.compare(left.getRankingTimeMs(), right.getRankingTimeMs());
+}
+```
 
-public class NotificationManagerService extends SystemService {
+`RankingHelper.sort()` 首先清除旧 global sort key，进行初始排序并写入 authoritative rank，再为每组选择 proxy，形成结构化字符串，最后由 final comparator 排序：
 
-    // ====== 通知存储（实际字段名） ======
-    @GuardedBy("mNotificationLock")
-    final ArrayList<NotificationRecord> mNotificationList = new ArrayList<>();
-    @GuardedBy("mNotificationLock")
-    final ArrayMap<String, NotificationRecord> mNotificationsByKey = new ArrayMap<>();
-    @GuardedBy("mNotificationLock")
-    final ArrayList<NotificationRecord> mEnqueuedNotifications = new ArrayList<>();
-    @GuardedBy("mNotificationLock")
-    final ArrayMap<String, NotificationRecord> mSummaryByGroupKey = new ArrayMap<>();
 
-    // ====== 核心组件（通过构造器注入） ======
-    private RankingHelper mRankingHelper;
-    private ZenModeHelper mZenModeHelper;
-    private PreferencesHelper mPreferencesHelper;
-    private NotificationUsageStats mUsageStats;
-    private NotificationHistoryManager mHistoryManager;       // 非直接 new，由构造器注入
-    protected NotificationAttentionHelper mAttentionHelper;    // 声音/振动由此类处理
-    private ConditionProviders mConditionProviders;
+源码：[RankingHelper.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/services/core/java/com/android/server/notification/RankingHelper.java)。下方为该 tag 的方法/类型节选，省略所在类的其他成员与 imports，不作为独立工程。
 
-    // ====== 通知数量限制 ======
-    // 每个应用最多 50 条活跃通知
-    static final int MAX_PACKAGE_NOTIFICATIONS = 50;
 
-    /**
-     * Binder 服务实现
-     * 注意：字段名是 mService（非 mBinderService）
-     */
-    final IBinder mService = new INotificationManager.Stub() {
-
-        @Override
-        public void enqueueNotificationWithTag(String pkg, String opPkg,
-                String tag, int id, Notification notification, int userId)
-                throws RemoteException {
-            // 实际调用内部方法
-            enqueueNotificationInternal(pkg, opPkg, Binder.getCallingUid(),
-                    Binder.getCallingPid(), tag, id, notification, userId,
-                    false /* byForegroundService */, true /* isAppProvided */);
-        }
-        // ... cancelNotificationWithTag, cancelAllNotifications 等省略
-    };
-
-    /**
-     * EnqueueNotificationRunnable（入队）
-     * Android 16 中有两个 Runnable：
-     * 1. EnqueueNotificationRunnable — 入队排序
-     * 2. PostNotificationRunnable    — 实际发布
-     */
-    protected class EnqueueNotificationRunnable implements Runnable {
-        private final NotificationRecord r;
-        private final int userId;
-        private final boolean isAppForeground;
-        private final boolean isAppProvided;
-        private final PostNotificationTracker mTracker;
-
-        @Override
-        public void run() {
-            // 1. 验证通知 → 2. 排名 → 3. 勿扰检查
-            // → 4. 添加到 mNotificationList + mNotificationsByKey
-            // → 5. mAttentionHelper.buzzBeepBlinkLocked(r, signals) // 声音振动
-            // → 6. 通知监听器
-        }
+```java
+public void sort(ArrayList<NotificationRecord> notificationList) {
+    final int N = notificationList.size();
+    // clear global sort keys
+    for (int i = N - 1; i >= 0; i--) {
+        notificationList.get(i).setGlobalSortKey(null);
     }
 
-    protected class PostNotificationRunnable implements Runnable {
-        private final String key;
-        private final String pkg;
-        private final int uid;
-        private final PostNotificationTracker mTracker;
+    // Rank each record individually.
+    notificationList.sort(mPreliminaryComparator);
 
-        @Override
-        public void run() {
-            // 实际发布通知到 SystemUI
+    synchronized (mProxyByGroupTmp) {
+        // record individual ranking result and nominate proxies for each group
+        for (int i = 0; i < N; i++) {
+            final NotificationRecord record = notificationList.get(i);
+            record.setAuthoritativeRank(i);
+            final String groupKey = record.getGroupKey();
+             NotificationRecord existingProxy = mProxyByGroupTmp.get(groupKey);
+            // summaries are mostly hidden in systemui - if there is a child notification,
+            // use its rank
+            if (existingProxy == null || existingProxy.getNotification().isGroupSummary()) {
+                mProxyByGroupTmp.put(groupKey, record);
+            }
         }
+        // assign global sort key:
+        //   is_recently_intrusive:group_rank:is_group_summary:group_sort_key:rank
+        for (int i = 0; i < N; i++) {
+            final NotificationRecord record = notificationList.get(i);
+            NotificationRecord groupProxy = mProxyByGroupTmp.get(record.getGroupKey());
+            String groupSortKey = record.getNotification().getSortKey();
+
+            // We need to make sure the developer provided group sort key (gsk) is handled
+            // correctly:
+            //   gsk="" < gsk=non-null-string < gsk=null
+            //
+            // We enforce this by using different prefixes for these three cases.
+            String groupSortKeyPortion;
+            if (groupSortKey == null) {
+                groupSortKeyPortion = "nsk";
+            } else if (groupSortKey.equals("")) {
+                groupSortKeyPortion = "esk";
+            } else {
+                groupSortKeyPortion = "gsk=" + groupSortKey;
+            }
+
+            boolean isGroupSummary = record.getNotification().isGroupSummary();
+            char intrusiveRank = '2';
+            record.setGlobalSortKey(
+                    formatSimple("crtcl=0x%04x:intrsv=%c:grnk=0x%04x:gsmry=%c:%s:rnk=0x%04x",
+                    record.getCriticality(),
+                    intrusiveRank,
+                    groupProxy.getAuthoritativeRank(),
+                    isGroupSummary ? '0' : '1',
+                    groupSortKeyPortion,
+                    record.getAuthoritativeRank()));
+        }
+        mProxyByGroupTmp.clear();
+    }
+
+    // Do a second ranking pass, using group proxies
+    Collections.sort(notificationList, mFinalComparator);
+}
+```
+
+阅读这一实现时有五个容易漏掉的细节：
+
+1. `authoritativeRank` 是初排结果，不是开发者传入的固定名次。
+2. 组代理可以影响组内成员在全局序列中的位置，不能独立对每个 child 做简单 importance 排序。
+3. `groupSortKey` 的空字符串、非空字符串与 null 有专门前缀，字典序语义不同。
+4. summary 在 global sort key 中有独立位，不能仅靠通知发出时间决定它排在子项哪里。
+5. 服务端顺序不是最终屏幕上所有区域的单一总序。SystemUI 的 collection/list-builder/coordinator 还要处理 section、过滤、提升、分组及视觉稳定性。
+
+渠道重要性、用户设置、DND 与气泡资格仍然重要，但它们不是旧文声称的 `CALL > MESSAGE > OTHER` 固定类别总序。排查排序应记录 key、groupKey、rankingTime、authoritativeRank、globalSortKey 和 SystemUI section，而不是反复调整一个杜撰的权重函数。
+
+### 11.3 通知分组：身份、summary 与子通知
+
+应用的 `setGroup()` 是组标识的一部分，实际 `StatusBarNotification` 的 group key 还区分用户和包等身份；不同应用恰好使用字符串 `messages` 不会因此成为同一组。应用主动分组、服务端自动分组和 SystemUI 视觉分组也不是一个动作。
+
+```java
+// 应用示例：省略渠道建立、通知权限及资源定义。
+String group = "messages";
+Notification child = new Notification.Builder(context, channelId)
+        .setSmallIcon(R.drawable.ic_message)
+        .setContentTitle("Alice")
+        .setContentText("新消息")
+        .setGroup(group)
+        .setSortKey("001")
+        .build();
+Notification summary = new Notification.Builder(context, channelId)
+        .setSmallIcon(R.drawable.ic_message)
+        .setContentTitle("消息汇总")
+        .setGroup(group)
+        .setGroupSummary(true)
+        .setGroupAlertBehavior(Notification.GROUP_ALERT_CHILDREN)
+        .build();
+manager.notify(1001, child);
+manager.notify(1000, summary);
+```
+
+summary 的标题/样式和 child 是各自独立的通知记录。更新某个 child 应复用自己的 tag/id；不能让 summary 与 child 共用同一个 key 而把一次更新误认作“自动吞通知”。移除、展开、组抑制以及 summary 是否单独可见由后续管线判断，不能从发送顺序直接推导 UI 结果。
+
+提醒行为还要结合 group alert behavior。组内所有 child 与 summary 都配置高重要性并不意味着每项必然独立响铃；排查应区分“记录存在”“可见”“发生 alert”三个结果。
+
+### 11.4 通知气泡：元数据不是资格豁免
+
+气泡不是任意 `BubbleMetadata` 都能立即触发的悬浮窗。现代会话气泡还需要满足有效会话/shortcut、通知与渠道、用户气泡设置、目标 Activity 与 PendingIntent 的要求；SystemUI/Shell 可能保留普通通知而拒绝气泡展示。
+
+```java
+// 平台 API 示例片段：shortcutId 须对应应用已发布且合规的会话 shortcut。
+Notification.BubbleMetadata bubble =
+        new Notification.BubbleMetadata.Builder(shortcutId)
+                .setDesiredHeight(600)
+                .build();
+Notification message = new Notification.Builder(context, channelId)
+        .setSmallIcon(R.drawable.ic_message)
+        .setShortcutId(shortcutId)
+        .setStyle(messagingStyle)
+        .setBubbleMetadata(bubble)
+        .build();
+manager.notify(conversationId, message);
+```
+
+`setDesiredHeight()` 是期望尺寸，不是绕过窗口策略的绝对像素承诺。实际工程需要提供可用的对话内容 Activity、返回栈及普通通知降级体验；本片段省略这些业务定义，不是独立可运行工程。
+
+### 11.5 声音与振动：提醒策略和视觉打断分别建模
+
+当前 NMS 发布路径调用 `NotificationAttentionHelper` 处理提醒；它不能被简化成无条件调用 ringtone/vibrator。权限、渠道、用户设置、DND、分组提醒规则、更新节流和设备状态都会影响最终结果。
+
+**核验边界：**本轮已核对 NMS 中对 helper 的实际调用，但 helper 文件抓取遇到限流，未逐分支复核其内部实现。因此这里不继续保留旧文假装逐行源码的 `shouldMuteNotification()` 实现，也不宣称已验证 Android 17 所有音振组合。
+
+尤其不要把 `isVisuallyInterruptive()` 等同“确实响铃”。它检查新旧记录的可见内容变化，并对 summary、前台服务/UIJ 等更新做不同处理；下面是实际实现，用于解释历史记录触发与视觉变化的联系：
+
+
+源码：[NotificationManagerService.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/services/core/java/com/android/server/notification/NotificationManagerService.java)。下方为该 tag 的方法/类型节选，省略所在类的其他成员与 imports，不作为独立工程。
+
+
+```java
+protected boolean isVisuallyInterruptive(@Nullable NotificationRecord old,
+        @NonNull NotificationRecord r) {
+    // Ignore summary updates because we don't display most of the information.
+    if (r.getSbn().isGroup() && r.getSbn().getNotification().isGroupSummary()) {
+        if (DEBUG_INTERRUPTIVENESS) {
+            Slog.v(TAG, "INTERRUPTIVENESS: "
+                    +  r.getKey() + " is not interruptive: summary");
+        }
+        return false;
+    }
+
+    if (old == null) {
+        if (DEBUG_INTERRUPTIVENESS) {
+            Slog.v(TAG, "INTERRUPTIVENESS: "
+                    +  r.getKey() + " is interruptive: new notification");
+        }
+        return true;
+    }
+
+    Notification oldN = old.getSbn().getNotification();
+    Notification newN = r.getSbn().getNotification();
+    if (oldN.extras == null || newN.extras == null) {
+        if (DEBUG_INTERRUPTIVENESS) {
+            Slog.v(TAG, "INTERRUPTIVENESS: "
+                    +  r.getKey() + " is not interruptive: no extras");
+        }
+        return false;
+    }
+
+    // Ignore visual interruptions from FGS/UIJs because users
+    // consider them one 'session'. Count them for everything else.
+    if (r.getSbn().getNotification().isFgsOrUij()) {
+        if (DEBUG_INTERRUPTIVENESS) {
+            Slog.v(TAG, "INTERRUPTIVENESS: "
+                    + r.getKey() + " is not interruptive: FGS/UIJ");
+        }
+        return false;
+    }
+
+    final String oldTitle = String.valueOf(oldN.extras.get(EXTRA_TITLE));
+    final String newTitle = String.valueOf(newN.extras.get(EXTRA_TITLE));
+    if (!Objects.equals(oldTitle, newTitle)) {
+        if (DEBUG_INTERRUPTIVENESS) {
+            Slog.v(TAG, "INTERRUPTIVENESS: "
+                    +  r.getKey() + " is interruptive: changed title");
+            Slog.v(TAG, "INTERRUPTIVENESS: " + String.format("   old title: %s (%s@0x%08x)",
+                    oldTitle, oldTitle.getClass(), oldTitle.hashCode()));
+            Slog.v(TAG, "INTERRUPTIVENESS: " + String.format("   new title: %s (%s@0x%08x)",
+                    newTitle, newTitle.getClass(), newTitle.hashCode()));
+        }
+        return true;
+    }
+
+    // Do not compare Spannables (will always return false); compare unstyled Strings
+    final String oldText = String.valueOf(oldN.extras.get(EXTRA_TEXT));
+    final String newText = String.valueOf(newN.extras.get(EXTRA_TEXT));
+    if (!Objects.equals(oldText, newText)) {
+        if (DEBUG_INTERRUPTIVENESS) {
+            Slog.v(TAG, "INTERRUPTIVENESS: "
+                    + r.getKey() + " is interruptive: changed text");
+            Slog.v(TAG, "INTERRUPTIVENESS: " + String.format("   old text: %s (%s@0x%08x)",
+                    oldText, oldText.getClass(), oldText.hashCode()));
+            Slog.v(TAG, "INTERRUPTIVENESS: " + String.format("   new text: %s (%s@0x%08x)",
+                    newText, newText.getClass(), newText.hashCode()));
+        }
+        return true;
+    }
+
+    if (oldN.getProgressState() != newN.getProgressState()) {
+        if (DEBUG_INTERRUPTIVENESS) {
+            Slog.v(TAG, "INTERRUPTIVENESS: "
+                    + r.getKey() + " is interruptive: significantly changed progress");
+        }
+        return true;
+    }
+
+    if (Notification.areIconsDifferent(oldN, newN)) {
+        if (DEBUG_INTERRUPTIVENESS) {
+            Slog.v(TAG, "INTERRUPTIVENESS: "
+                    +  r.getKey() + " is interruptive: icons differ");
+        }
+        return true;
+    }
+
+    // Fields below are invisible to bubbles.
+    if (r.canBubble()) {
+        if (DEBUG_INTERRUPTIVENESS) {
+            Slog.v(TAG, "INTERRUPTIVENESS: "
+                    +  r.getKey() + " is not interruptive: bubble");
+        }
+        return false;
+    }
+
+    // Actions
+    if (Notification.areActionsVisiblyDifferent(oldN, newN)) {
+        if (DEBUG_INTERRUPTIVENESS) {
+            Slog.v(TAG, "INTERRUPTIVENESS: "
+                    +  r.getKey() + " is interruptive: changed actions");
+        }
+        return true;
+    }
+
+    try {
+        Notification.Builder oldB = Notification.Builder.recoverBuilder(getContext(), oldN);
+        Notification.Builder newB = Notification.Builder.recoverBuilder(getContext(), newN);
+
+        // Style based comparisons
+        if (Notification.areStyledNotificationsVisiblyDifferent(oldB, newB)) {
+            if (DEBUG_INTERRUPTIVENESS) {
+                Slog.v(TAG, "INTERRUPTIVENESS: "
+                        +  r.getKey() + " is interruptive: styles differ");
+            }
+            return true;
+        }
+
+        // Remote views
+        if (Notification.areRemoteViewsChanged(oldB, newB)) {
+            if (DEBUG_INTERRUPTIVENESS) {
+                Slog.v(TAG, "INTERRUPTIVENESS: "
+                        +  r.getKey() + " is interruptive: remoteviews differ");
+            }
+            return true;
+        }
+    } catch (Exception e) {
+        Slog.w(TAG, "error recovering builder", e);
+    }
+    return false;
+}
+```
+
+因此“静音通知一定不记历史”和“响铃一次就必然插入一条历史”都不是从该方法能推出的结论。应继续检查 `NotificationRecord` 的 interruption 状态与历史开关。
+
+### 11.6 偏好持久化与活跃通知不是一个数据库
+
+固定 tag 的 NMS 使用 `/data/system/notification_policy.xml`：`systemDir` 来自 `new File(Environment.getDataDirectory(), "system")`，再交给 `AtomicFile`。旧文写成 `/data/system_ce/<user>/notification_policy.xml` 是错误路径。这里保存策略、偏好等信息，不是把每条活跃 Notification 完整序列化后在重启时自动重放。
+
+`PreferencesHelper` 的 XML 读写负责应用/渠道/分组偏好。用户设置变更经过服务接口与权限检查，修改内存状态并按服务调度保存；不要将 XML 子段当成整个策略文件的唯一根节点。
+
+```text
+活跃通知: NMS 内存 list/map -> listener 分发 -> SystemUI UI
+偏好策略: PreferencesHelper 等 -> NMS AtomicFile 策略文件
+可选历史: NotificationHistoryManager -> 每用户数据库/缓冲/批量文件
+```
+
+这三条路径的寿命不同。进程重启后的重新投递、包重装后的渠道状态、用户锁定时历史目录不可用，必须分别分析。`dumpsys notification` 看到一条通知，并不证明它已经写入历史文件。
+
+### 11.7 通知历史：条件记录、缓冲、保留与关闭清理
+
+历史记录不是每次 notify 都写一个文件，也不是点击“清除通知”才开始保存。NMS 的 `maybeRecordInterruptionLocked()` 根据记录状态构造历史条目并交给历史管理器：
+
+
+源码：[NotificationManagerService.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/services/core/java/com/android/server/notification/NotificationManagerService.java)。下方为该 tag 的方法/类型节选，省略所在类的其他成员与 imports，不作为独立工程。
+
+
+```java
+protected void maybeRecordInterruptionLocked(NotificationRecord r) {
+    if (r.isInterruptive() && !r.hasRecordedInterruption()) {
+        String channelId = r.getNotification().getChannelId();
+        mAppUsageStats.reportInterruptiveNotification(r.getSbn().getPackageName(),
+                channelId,
+                getRealUserId(r.getSbn().getUserId()));
+        Trace.traceBegin(Trace.TRACE_TAG_SYSTEM_SERVER, "notifHistoryAddItem");
+        try {
+            if (r.getNotification().getSmallIcon() != null) {
+                final HistoricalNotification.Builder builder
+                        = new HistoricalNotification.Builder()
+                        .setPackage(r.getSbn().getPackageName())
+                        .setUid(r.getSbn().getUid())
+                        .setUserId(r.getSbn().getNormalizedUserId())
+                        .setChannelId(channelId)
+                        .setPostedTimeMs(System.currentTimeMillis())
+                        .setTitle(r.getNotification().getHistoryTitle(getContext()))
+                        .setText(r.getNotification().getHistoryText(getContext()))
+                        .setIcon(r.getNotification().getSmallIcon());
+                mHistoryManager.addNotification(builder.build());
+            }
+        } finally {
+            Trace.traceEnd(Trace.TRACE_TAG_SYSTEM_SERVER);
+        }
+        r.setRecordedInterruption(true);
     }
 }
 ```
 
-### 11.2 通知排名算法
+历史数据库有内存 buffer；该 tag 的 `WRITE_BUFFER_INTERVAL_MS` 为 20 分钟、`HISTORY_RETENTION_DAYS` 为 1。它按批次写文件并安排裁剪，这不同于“每通知一文件”，也不构成设备在任意时刻恰好仅有最后 24 小时数据的实时承诺。
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                    通知排名算法                                            │
-└─────────────────────────────────────────────────────────────────────────────┘
+序列化使用 NotificationHistoryProto，其中顶层包含 string pool、major version 和 repeated notification；每条记录有 package/channel 的文本或索引、uid/userId、posted time、title/text/icon、conversation id 等字段。这里不沿用旧文杜撰的字段编号与 protobuf schema。
 
-排名是多因素综合评估：
+关闭历史会调用清理，不是“仅停止写入但永不删除旧数据”。用户尚未解锁时需要延后访问对应目录：
 
-┌──────────────────┬──────────────────────────────────────────────────────────┐
-│      因素        │                       权重                              │
-├──────────────────┼──────────────────────────────────────────────────────────┤
-│  重要性级别      │  ★★★★★ (最重要)                                       │
-│  通知渠道        │  ★★★★☆                                                │
-│  通知类别        │  ★★★★☆                                                │
-│  用户亲密度      │  ★★★☆☆                                                │
-│  通知时间        │  ★★★☆☆                                                │
-│  通知频次        │  ★★☆☆☆ (频繁可能降级)                                 │
-│  应用优先级      │  ★★☆☆☆                                                │
-└──────────────────┴──────────────────────────────────────────────────────────┘
 
-排名流程：
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  RankingHelper.rank(NotificationList list, NotificationRecord record)      │
-│                                                                          │
-│  1. 提取信号 (extractSignals)                                            │
-│     ├── 读取 Notification 中的元数据                                     │
-│     ├── 分析 NotificationChannel 设置                                    │
-│     ├── 分析 Notification.Style                                          │
-│     └── 计算用户亲密度                                                    │
-│                                                                          │
-│  2. 计算排名分数                                                          │
-│     score = importanceScore * 100 +                                      │
-│             channelScore * 10 +                                          │
-│             categoryScore * 5 +                                          │
-│             affinityScore * 2 +                                          │
-│             timeScore                                                     │
-│                                                                          │
-│  3. 插入排序                                                              │
-│     for (int i = 0; i < list.size(); i++) {                              │
-│         if (record.getScore() > list.get(i).getScore()) {                │
-│             list.addAt(i, record);                                        │
-│             break;                                                        │
-│         }                                                                 │
-│     }                                                                     │
-│                                                                          │
-│  4. 生成 RankingMap                                                       │
-│     return new RankingMap(list);                                         │
-└─────────────────────────────────────────────────────────────────────────────┘
+源码：[NotificationHistoryManager.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/services/core/java/com/android/server/notification/NotificationHistoryManager.java)。下方为该 tag 的方法/类型节选，省略所在类的其他成员与 imports，不作为独立工程。
 
-重要性级别：
-IMPORTANCE_UNSPECIFIED = -1   // 未指定
-IMPORTANCE_NONE = 0          // 不显示
-IMPORTANCE_MIN = 1           // 最小
-IMPORTANCE_LOW = 2           // 低
-IMPORTANCE_DEFAULT = 3       // 默认
-IMPORTANCE_HIGH = 4          // 高
-IMPORTANCE_MAX = 5           // 最大
 
-通知类别优先级：
-CATEGORY_CALL > CATEGORY_MESSAGE > CATEGORY_EVENT > CATEGORY_ALARM > 
-CATEGORY_REMINDER > CATEGORY_SOCIAL > CATEGORY_EMAIL > CATEGORY_PROMO
-```
-
-### 11.3 通知分组机制
-
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                    通知分组机制                                            │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-通知分组允许将多个通知合并为一个组：
-
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  分组通知示例                                                              │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │  微信 (3 条消息)                                                    │   │
-│  │  ┌───────────────────────────────────────────────────────────────┐ │   │
-│  │  │  张三: 你好                                                   │ │   │
-│  │  │  李四: 在吗？                                                 │ │   │
-│  │  │  王五: 明天见                                                 │ │   │
-│  │  └───────────────────────────────────────────────────────────────┘ │   │
-│  └─────────────────────────────────────────────────────────────────────┘   │
-│                                                                          │
-│  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │  邮件 (5 封未读)                                                    │   │
-│  │  ┌───────────────────────────────────────────────────────────────┐ │   │
-│  │  │  邮件1: 标题...                                               │ │   │
-│  │  │  邮件2: 标题...                                               │ │   │
-│  │  │  +3 封未读                                                    │ │   │
-│  │  └───────────────────────────────────────────────────────────────┘ │   │
-│  └─────────────────────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-分组实现：
 ```java
-// 创建分组通知
-Notification groupSummary = new Notification.Builder(context, channelId)
-    .setSmallIcon(R.drawable.icon)
-    .setContentTitle("微信")
-    .setContentText("3 条消息")
-    .setGroup("wechat_group")  // 分组 key
-    .setGroupSummary(true)      // 标记为组摘要
-    .build();
-
-Notification notification1 = new Notification.Builder(context, channelId)
-    .setSmallIcon(R.drawable.icon)
-    .setContentTitle("张三")
-    .setContentText("你好")
-    .setGroup("wechat_group")  // 相同分组 key
-    .build();
-
-// 发送
-notificationManager.notify(0, groupSummary);
-notificationManager.notify(1, notification1);
-```
-
-分组规则：
-1. 相同 setGroup() 值的通知属于同一组
-2. 组摘要 (setGroupSummary(true)) 显示在组头部
-3. 子通知按时间排序
-4. 用户可以展开组查看所有子通知
-```
-
-### 11.4 通知气泡 (Bubble)
-
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                    通知气泡 (Bubble)                                       │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-气泡是 Android 11 引入的悬浮通知形式：
-
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  气泡显示效果                                                              │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-                    屏幕边缘
-                        │
-        ┌───────────────┼───────────────┐
-        │               │               │
-        │          ┌────┴────┐         │
-        │          │  气泡   │         │  ← 悬浮气泡
-        │          │   👤    │         │
-        │          └────┬────┘         │
-        │               │               │
-        │          点击展开            │
-        │               │               │
-        │               ▼               │
-        │    ┌─────────────────────┐   │
-        │    │  张三               │   │  ← 展开的气泡
-        │    │  你好！             │   │
-        │    │  [输入框]          │   │
-        │    │  [发送]             │   │
-        │    └─────────────────────┘   │
-        │               │               │
-        └───────────────┴───────────────┘
-
-气泡实现：
-```java
-// 创建气泡
-BubbleMetadata bubble = new BubbleMetadata.Builder()
-    .setIntent(bubbleIntent)  // 点击气泡打开的 Intent
-    .setDesiredHeight(600)    // 气泡高度
-    .setIcon(Icon.createWithResource(context, R.drawable.avatar))
-    .build();
-
-Notification notification = new Notification.Builder(context, channelId)
-    .setSmallIcon(R.drawable.icon)
-    .setContentTitle("张三")
-    .setContentText("你好！")
-    .setBubbleMetadata(bubble)  // 设置气泡
-    .build();
-```
-
-气泡规则：
-1. 需要 NotificationChannel 允许气泡
-2. 用户可以在设置中关闭气泡
-3. 气泡可以拖动和展开
-4. 展开时显示 Activity 内容
-```
-
-### 11.5 通知声音和振动
-
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                    通知声音和振动                                          │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-NMS 处理通知声音和振动的流程（Android 16 实际实现）：
-
-  声音/振动实际由 NotificationAttentionHelper 处理，非直接在 NMS 中：
-  NotificationAttentionHelper.buzzBeepBlinkLocked(NotificationRecord record, Signals signals):
-  │
-  ├── NMS 中的调用方式：
-  │   mAttentionHelper.buzzBeepBlinkLocked(r,
-  │       new NotificationAttentionHelper.Signals(
-  │           mUserProfiles.isCurrentProfile(r.getUserId()),
-  │           mListenerHints));
-  │
-  ├── 检查是否需要提醒
-  │   检查勿扰模式、中断信号等
-  │
-  ├── 播放声音
-  │   if (record.getSound() != null) → playSound()
-  │
-  ├── 触发振动
-  │   if (record.getVibration() != null) → vibrate()
-  │
-  └── 返回 bitfield 用于日志记录
-      返回值: (buzz ? 1 : 0) | (beep ? 2 : 0) | (blink ? 4 : 0) |
-              (polite_attenuated ? 8 : 0) | (polite_muted ? 16 : 0)
-
-  关键源码：
-  ─────────────────────────────────────────────────────────────────────────
-  NotificationAttentionHelper.java (services/core/java/.../notification/)
-  - buzzBeepBlinkLocked() 方法（非 NMS 中的 buzzBeepBlink）
-  - NMS 通过 mAttentionHelper 字段调用
-
-声音配置：
-NotificationChannel channel = new NotificationChannel(id, name, importance);
-channel.setSound(
-    Uri.parse("content://settings/system/notification_sound"),
-    new AudioAttributes.Builder()
-        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-        .setUsage(AudioAttributes.USAGE_NOTIFICATION)
-        .build()
-);
-
-振动配置：
-channel.enableVibration(true);
-channel.setVibrationPattern(new long[]{0, 500, 200, 500});  // 延迟, 振动, 静音, 振动...
-```
-
-### 11.6 通知持久化存储
-
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                    通知持久化存储架构 (Android 16 实际实现)                  │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-  ┌──────────────────────────────────────────────────────────────────────────┐
-  │                          内存层（运行时）                                │
-  │                                                                          │
-  │  NotificationManagerService 中的核心存储字段：                          │
-  │  ──────────────────────────────────────────────────────────────────────  │
-  │  ArrayList<NotificationRecord> mNotificationList       ← 通知列表      │
-  │  ArrayMap<String, NotificationRecord> mNotificationsByKey  ← 按 key 索引│
-  │  ArrayList<NotificationRecord> mEnqueuedNotifications  ← 待入队列表    │
-  │  ArrayMap<String, NotificationRecord> mSummaryByGroupKey  ← 分组摘要   │
-  │                                                                          │
-  │  所有字段都由 @GuardedBy("mNotificationLock") 保护                      │
-  │                                                                          │
-  │  特点：进程存活期间有效，进程死亡后丢失                                │
-  └──────────────────────────────────────────────────────────────────────────┘
-         │
-         │ 发布时触发 maybeRecordInterruptionLocked()
-         ▼
-  ┌──────────────────────────────────────────────────────────────────────────┐
-  │                       通知历史存储（ProtoBuf）                           │
-  │                                                                          │
-  │  实际类：NotificationHistoryManager + NotificationHistoryDatabase       │
-  │  路径：/data/system_ce/<userId>/notification_history/history/            │
-  │  ├── <timestamp_ms>        ← 以发布时间戳命名的 ProtoBuf 文件           │
-  │  ├── <timestamp_ms>.new    ← 写入中的临时文件（AtomicFile 机制）       │
-  │  └── <timestamp_ms>.bak    ← 备份文件                                  │
-  │                                                                          │
-  │  注意：不存在 NotificationRecordFile 类                                │
-  │  注意：不使用 Parcel 序列化，使用 Protocol Buffers                     │
-  │                                                                          │
-  │  序列化工具：NotificationHistoryProtoHelper                             │
-  │  Proto 定义：core/proto/android/server/notificationhistory.proto        │
-  │                                                                          │
-  │  Proto 字段：                                                            │
-  │  ──────────────────────────────────────────────────────────────────────  │
-  │  message HistoricalNotification {                                       │
-  │    optional string package = 1;                                         │
-  │    optional string channel_id = 2;                                      │
-  │    optional string channel_name = 3;                                    │
-  │    optional int32 uid = 4;                                              │
-  │    optional int32 user_id = 5;                                          │
-  │    optional int64 posted_time_ms = 6;                                   │
-  │    optional string title = 7;                                           │
-  │    optional string text = 8;                                            │
-  │    optional Icon icon = 9;                                              │
-  │    optional string conversation_id = 10;                                │
-  │  }                                                                      │
-  │                                                                          │
-  │  写入时机：通知发布时（非移除时！）                                    │
-  │  条件：r.isInterruptive() && !r.hasRecordedInterruption()               │
-  └──────────────────────────────────────────────────────────────────────────┘
-
-  关键源码路径（Android 16 实际）：
-  ─────────────────────────────────────────────────────────────────────────
-  services/core/java/com/android/server/notification/
-  ├── NotificationManagerService.java        ← 核心服务
-  ├── NotificationRecord.java                ← 通知记录
-  ├── NotificationHistoryManager.java        ← 历史管理（非构造器 new，由注入获取）
-  ├── NotificationHistoryDatabase.java       ← ProtoBuf 文件读写
-  ├── NotificationHistoryProtoHelper.java    ← Proto 序列化/反序列化
-  ├── NotificationAttentionHelper.java       ← 声音/振动（非 buzzBeepBlink）
-  └── PreferencesHelper.java                 ← 通知偏好设置
-```
-
-#### 通知偏好设置持久化
-
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                  通知偏好设置存储 (PreferencesHelper)                       │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-  存储内容：
-  ─────────────────────────────────────────────────────────────────────────
-  - NotificationChannel（通知渠道配置）
-  - 应用通知开关（是否允许通知）
-  - 渠道重要性级别
-  - 渠道声音/振动/LED 设置
-  - DND（勿扰）规则
-  - 通知排名配置
-
-  存储路径（Android 16 实际）：
-  ─────────────────────────────────────────────────────────────────────────
-  /data/system_ce/<userId>/notification_policy.xml       ← 通知策略（确认存在）
-
-  渠道存储：
-  ─────────────────────────────────────────────────────────────────────────
-  实际使用单一 XML 文件，根标签为 <ranking>，XML_VERSION = 4
-  使用 TypedXmlSerializer/TypedXmlPullParser 进行读写
-  每个应用的渠道嵌套在 <package name="..."> 标签内：
-
-  <ranking version="4">
-    <package name="com.example.app">
-      <channel id="messages" name="消息" importance="4" ... />
-      <channel id="silent" name="静默" importance="0" ... />
-      <channel_group id="social" name="社交" />
-    </package>
-  </ranking>
-
-  注意：不存在独立的 notification_channels.xml 或按包名分割的 XML 文件
-
-  限制常量（Android 16 实际）：
-  ─────────────────────────────────────────────────────────────────────────
-  NOTIFICATION_CHANNEL_COUNT_LIMIT = 5000           ← 每应用渠道数上限
-  NOTIFICATION_CHANNEL_GROUP_COUNT_LIMIT = 6000     ← 每应用渠道组上限
-  NOTIFICATION_CHANNEL_DELETION_RETENTION_DAYS = 30 ← 删除渠道保留天数
-```
-
----
-
-### 11.7 通知历史机制
-
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                    通知历史机制 (Notification History)                      │
-│                    基于 Android 16 AOSP 源码验证                           │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-  Android 10 引入通知历史功能，用户可以查看最近的通知记录。
-
-  入口：设置 → 应用和通知 → 通知 → 通知历史记录
-
-  ┌──────────────────────────────────────────────────────────────────────────┐
-  │                    通知历史架构（实际实现）                               │
-  │                                                                          │
-  │  ┌─────────────┐    ┌──────────────────────┐    ┌──────────────────┐   │
-  │  │    NMS      │───→│ NotificationHistory   │───→│ NotificationHistory│  │
-  │  │ (通知发布)  │    │ Manager (服务端)      │    │ Database (ProtoBuf)│  │
-  │  └─────────────┘    └──────────────────────┘    └──────────────────┘   │
-  │                                                           │              │
-  │                                                           │ ContentProvider│
-  │                                                           ▼              │
-  │  ┌───────────────────────────────────────────────────────────────────┐ │
-  │  │               通知历史设置页面 (Settings App)                     │ │
-  │  │  ┌─────────────────────────────────────────────────────────────┐ │ │
-  │  │  │  今天                                                      │ │ │
-  │  │  │  ┌───────────────────────────────────────────────────────┐ │ │ │
-  │  │  │  │ 微信 · 14:30                                          │ │ │ │
-  │  │  │  │ 张三: 你好                                             │ │ │ │
-  │  │  │  └───────────────────────────────────────────────────────┘ │ │ │
-  │  │  └─────────────────────────────────────────────────────────────┘ │ │
-  │  └───────────────────────────────────────────────────────────────────┘ │
-  └──────────────────────────────────────────────────────────────────────────┘
-```
-
-#### 通知历史存储（ProtoBuf，非 SQLite）
-
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                    通知历史存储 (Android 16 实际实现)                       │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-  注意：Android 16 不使用 SQLite 数据库存储通知历史！
-
-  存储路径：/data/system_ce/<userId>/notification_history/history/
-  存储格式：多个 Protocol Buffer 文件，以时间戳毫秒命名
-
-  Proto Schema（notificationhistory.proto）：
-  ─────────────────────────────────────────────────────────────────────────
-  message HistoricalNotifications {
-    repeated HistoricalNotification notifications = 1;
-  }
-
-  message HistoricalNotification {
-    optional string package = 1;           // 包名
-    optional string channel_id = 2;        // 渠道 ID
-    optional string channel_name = 3;      // 渠道名称
-    optional int32 uid = 4;                // UID
-    optional int32 user_id = 5;            // 用户 ID
-    optional int64 posted_time_ms = 6;     // 发布时间
-    optional string title = 7;             // 标题
-    optional string text = 8;              // 文本
-    optional Icon icon = 9;                // 图标
-    optional string conversation_id = 10;  // 会话 ID
-  }
-
-  写入时机（重要纠正）：
-  ─────────────────────────────────────────────────────────────────────────
-  通知历史在通知发布时写入，而非移除时！
-
-  NMS.maybeRecordInterruptionLocked() (line 3886):
-    if (r.isInterruptive() && !r.hasRecordedInterruption()) {
-        mHistoryManager.addNotification(builder.build());  // line 3911
+void onHistoryEnabledChanged(@UserIdInt int userId, boolean historyEnabled) {
+    synchronized (mLock) {
+        if (historyEnabled) {
+            mHistoryEnabled.put(userId, historyEnabled);
+        }
+        final NotificationHistoryDatabase userHistory =
+                getUserHistoryAndInitializeIfNeededLocked(userId);
+        if (userHistory != null) {
+            if (!historyEnabled) {
+                disableHistory(userHistory, userId);
+            }
+        } else {
+            mUserPendingHistoryDisables.put(userId, !historyEnabled);
+        }
     }
+}
 
-  只有「打断性通知」才会被记录到历史中（有声音/振动的通知）
+private void disableHistory(NotificationHistoryDatabase userHistory, @UserIdInt int userId) {
+    userHistory.disableHistory();
 
-  数据保留策略（Android 16 实际常量）：
-  ─────────────────────────────────────────────────────────────────────────
-  HISTORY_RETENTION_DAYS = 1            ← 仅保留 1 天（非 7 天！）
-  MAX_PACKAGE_NOTIFICATIONS = 50        ← 每应用最多 50 条活跃通知
-  渠道删除保留：NOTIFICATION_CHANNEL_DELETION_RETENTION_DAYS = 30
+    mUserPendingHistoryDisables.put(userId, false);
+    mHistoryEnabled.put(userId, false);
+    mUserState.put(userId, null);
+}
 ```
 
-#### 通知历史写入流程
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                    通知历史写入流程（Android 16 实际）                      │
-└─────────────────────────────────────────────────────────────────────────────┘
+源码：[NotificationHistoryDatabase.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/services/core/java/com/android/server/notification/NotificationHistoryDatabase.java)。下方为该 tag 的方法/类型节选，省略所在类的其他成员与 imports，不作为独立工程。
 
-  触发条件：通知发布时，且为「打断性通知」
-  入口：NotificationManagerService.maybeRecordInterruptionLocked()
 
-  流程：
-  ─────────────────────────────────────────────────────────────────────────
-  1. 通知发布到 NMS
-     EnqueueNotificationRunnable.run()
-       → ... 排名、勿扰检查 ...
-       → maybeRecordInterruptionLocked(r)  // line 3886
-
-  2. 检查是否为打断性通知
-     if (r.isInterruptive() && !r.hasRecordedInterruption()) {
-         // 只有发出声音/振动的通知才记录
-     }
-
-  3. 构建 HistoricalNotification
-     HistoricalNotification.Builder builder = new Builder()
-         .setPackage(r.getSbn().getPackageName())
-         .setChannelId(r.getChannelId())
-         .setChannelName(r.getChannelName())
-         .setTitle(title)
-         .setText(text)
-         .setPostedTimeMs(System.currentTimeMillis());
-
-  4. 通知 NotificationHistoryManager
-     mHistoryManager.addNotification(builder.build());
-
-  5. NotificationHistoryDatabase 写入 ProtoBuf
-     → 序列化为 NotificationHistoryProto
-     → 以 AtomicFile 写入 /data/system_ce/<userId>/notification_history/history/
-     → 文件名 = posted_time_ms
-
-  清理策略：
-  ─────────────────────────────────────────────────────────────────────────
-  NotificationHistoryJobService 定期执行：
-  - 删除超过 HISTORY_RETENTION_DAYS（1天）的文件
-  - 通过 NotificationHistoryFilter 清理
-
-  关键源码路径：
-  ─────────────────────────────────────────────────────────────────────────
-  services/core/java/com/android/server/notification/
-  ├── NotificationHistoryManager.java         ← 历史管理
-  ├── NotificationHistoryDatabase.java        ← ProtoBuf 文件读写
-  ├── NotificationHistoryProtoHelper.java     ← Proto 序列化
-  ├── NotificationHistoryJobService.java      ← 定期清理 Job
-  └── NotificationHistoryFilter.java          ← 过滤逻辑
-
-  Settings 应用中的展示：
-  ─────────────────────────────────────────────────────────────────────────
-  packages/apps/Settings/
-  └── src/com/android/settings/notification/
-      ├── NotificationHistoryActivity.java
-      └── NotificationHistorySettings.java
+```java
+public void disableHistory() {
+    synchronized (mLock) {
+        for (AtomicFile file : mHistoryFiles) {
+            file.delete();
+        }
+        mHistoryDir.delete();
+        mHistoryFiles.clear();
+    }
+}
 ```
 
-#### 通知历史的用户开关
+读取由 NMS 的受权限保护接口进入历史管理器，不是旧文声称 Settings 通过一个通用 ContentProvider 任意查表。历史可能包含敏感标题和正文，调试导出也应遵循最小化原则。
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                    通知历史开关控制                                          │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-  历史开关：Settings.Secure.NOTIFICATION_HISTORY_ENABLED
-
-  # 查看当前状态
-  $ adb shell settings get secure notification_history_enabled
-
-  # 开启通知历史（需要 root 或调试设备）
-  $ adb shell settings put secure notification_history_enabled 1
-
-  # 关闭通知历史
-  $ adb shell settings put secure notification_history_enabled 0
-
-  注意事项：
-  ─────────────────────────────────────────────────────────────────────────
-  - 关闭通知历史不会立即删除已有记录
-  - 关闭后新通知不再记录历史
-  - Android 16 默认仅保留 1 天历史（HISTORY_RETENTION_DAYS = 1）
-  - 某些 OEM 可能修改了保留天数
-
-  面试关键点：
-  ─────────────────────────────────────────────────────────────────────────
-  Q: 通知历史是在发布时还是移除时记录的？
-  A: Android 16 中是在发布时记录的（非移除时）。
-     只有打断性通知（isInterruptive() = true，即有声音/振动的通知）
-     才会被记录到历史中。条件判断在 NMS.maybeRecordInterruptionLocked()。
-
-  Q: 通知历史的存储格式是什么？
-  A: Protocol Buffers 文件（非 SQLite 数据库）。
-     每个通知历史记录存储为 /data/system_ce/<userId>/notification_history/history/
-     下的一个 ProtoBuf 文件，文件名为发布时间的毫秒时间戳。
-     使用 AtomicFile 机制保证写入安全。
-```
-
----
+排查“历史没有该条”应先核实用户与开关，再检查 interruption 条件、写入缓冲和用户解锁状态，最后检查读取权限与裁剪；不能只检查通知是否出现过图标。
 
 ## 12. AOD 高级特性
 
-> 本节内容基于 Android 16 (API 36) AOSP 源码分析
-> 源码路径：frameworks/base/packages/SystemUI/src/com/android/systemui/doze/
+第 3 章介绍部件分工，本章补充中间态消解、屏幕电源状态、传感器订阅、设置以及异步调试。这里的 Doze 是 SystemUI 的息屏显示控制，不能直接当成 DeviceIdleController 的应用待机状态机。
 
-### 12.1 AOD 与 WakefulnessLifecycle 交互
+### 12.1 AOD 与 WakefulnessLifecycle：中间态必须回到策略判断
 
-> **源码路径**:
-> - `frameworks/base/packages/SystemUI/src/com/android/systemui/keyguard/WakefulnessLifecycle.java`
-> - `frameworks/base/packages/SystemUI/src/com/android/systemui/doze/DozeMachine.java`
+`INITIALIZED` 和 `DOZE_PULSE_DONE` 并不是停留任意长时间的稳定显示模式。`resolveIntermediateState()` 会结合 wakefulness、dock、Always On 与 MINMODE 开关选择后续状态，不能把所有设备写死成 pulse done 后直接返回 DOZE_AOD：
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│              AOD 与 WakefulnessLifecycle 交互 (Android 16)                  │
-└─────────────────────────────────────────────────────────────────────────────┘
 
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                      WakefulnessLifecycle                                   │
-│  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │                    唤醒状态生命周期                                   │   │
-│  │                                                                   │   │
-│  │  @Wakefulness int:                                                │   │
-│  │  - WAKEFULNESS_ASLEEP      // 睡眠                                │   │
-│  │  - WAKEFULNESS_WAKING      // 正在唤醒                            │   │
-│  │  - WAKEFULNESS_AWAKE       // 已唤醒                              │   │
-│  │  - WAKEFULNESS_GOING_TO_SLEEP  // 进入睡眠                        │   │
-│  └─────────────────────────────────────────────────────────────────────┘   │
-│                                    │                                      │
-│                                    ▼                                      │
-│  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │                      DozeMachine                                    │   │
-│  │  ┌─────────────────────────────────────────────────────────────┐  │   │
-│  │  │                    状态机                                    │  │   │
-│  │  │  - resolveIntermediateState() 检查唤醒状态                   │  │   │
-│  │  │  - WAKEFULNESS_AWAKE/WAKING → FINISH                         │  │   │
-│  │  │  - 其他 → DOZE/DOZE_AOD/DOZE_AOD_DOCKED                      │  │   │
-│  │  └─────────────────────────────────────────────────────────────┘  │   │
-│  └─────────────────────────────────────────────────────────────────────┘   │
-│                                    │                                      │
-│                                    ▼                                      │
-│  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │                      DozeHost (接口)                                │   │
-│  │  - startDozing() / stopDozing()                                    │   │
-│  │  - pulseWhileDozing()                                              │   │
-│  │  - isAlwaysOnSuppressed() / isPowerSaveActive()                    │   │
-│  └─────────────────────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
+源码：[DozeMachine.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/packages/SystemUI/src/com/android/systemui/doze/DozeMachine.java)。下方为该 tag 的方法/类型节选，省略所在类的其他成员与 imports，不作为独立工程。
+
 
 ```java
-/**
- * DozeMachine 状态转换逻辑 (Android 16 AOSP)
- *
- * 位置: frameworks/base/packages/SystemUI/src/com/android/systemui/doze/DozeMachine.java
- */
-@DozeScope
-public class DozeMachine {
+private void resolveIntermediateState(State state) {
+    switch (state) {
+        case INITIALIZED:
+        case DOZE_PULSE_DONE:
+            final State nextState;
+            @Wakefulness int wakefulness = mWakefulnessLifecycle.getWakefulness();
+            if (state == State.INITIALIZED &&
+                    mMinModeManager.isPresent() &&
+                    MinModeManagerUtilsKt.isMinModeAvailable(mMinModeManager.get())) {
+                nextState = State.DOZE_AOD_MINMODE;
+            } else if (state != State.INITIALIZED && (wakefulness == WAKEFULNESS_AWAKE
+                    || wakefulness == WAKEFULNESS_WAKING)) {
+                nextState = State.FINISH;
+            } else if (mDockManager.isDocked()) {
+                nextState = mDockManager.isHidden() ? State.DOZE : State.DOZE_AOD_DOCKED;
+            } else if (mAmbientDisplayConfig.alwaysOnEnabled(mUserTracker.getUserId())) {
+                nextState = State.DOZE_AOD;
+            } else {
+                nextState = State.DOZE;
+            }
 
-    private final WakefulnessLifecycle mWakefulnessLifecycle;
-
-    /**
-     * 解析中间状态 - 根据 WakefulnessLifecycle 决定下一状态
-     */
-    private void resolveIntermediateState(State state) {
-        switch (state) {
-            case INITIALIZED:
-            case DOZE_PULSE_DONE:
-                final State nextState;
-                @Wakefulness int wakefulness = mWakefulnessLifecycle.getWakefulness();
-
-                // 如果设备已唤醒或正在唤醒，直接结束 Doze
-                if (state != State.INITIALIZED
-                        && (wakefulness == WAKEFULNESS_AWAKE
-                        || wakefulness == WAKEFULNESS_WAKING)) {
-                    nextState = State.FINISH;
-                } else if (mDockManager.isDocked()) {
-                    // 底座模式
-                    nextState = mDockManager.isHidden() ? State.DOZE : State.DOZE_AOD_DOCKED;
-                } else if (mAmbientDisplayConfig.alwaysOnEnabled(mUserTracker.getUserId())) {
-                    // AOD 已启用
-                    nextState = State.DOZE_AOD;
-                } else {
-                    // 常规 Doze
-                    nextState = State.DOZE;
-                }
-
-                transitionTo(nextState, DozeLog.PULSE_REASON_NONE);
-                break;
-            default:
-                break;
-        }
+            transitionTo(nextState, DozeLog.PULSE_REASON_NONE);
+            break;
+        default:
+            break;
     }
 }
 ```
 
-### 12.2 AOD 显示状态管理
+这里的几个层次必须区分：wakefulness 描述系统睡醒过程；DozeMachine.State 描述 SystemUI doze 控制；Display.STATE_* 描述显示电源状态。名字相似不代表枚举一一对应。
 
-> **源码路径**: `frameworks/base/packages/SystemUI/src/com/android/systemui/doze/DozeScreenState.java`
+当请求在已有转换处理中到达时，DozeMachine 通过请求队列和 wake lock 保持处理顺序；不要在部件 callback 中递归实现自己的“直接跳状态”。第 3 章的 `requestState()` / `transitionTo()` 已说明请求、校验、派发和收尾的关系。
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                    AOD 显示状态管理 (Android 16)                            │
-└─────────────────────────────────────────────────────────────────────────────┘
+### 12.2 显示状态管理：pending、延迟和取消
 
-Display.State 状态映射:
-┌─────────────────────┬───────────────────────────────────────────────────────┐
-│  DozeMachine.State  │                  Display.State                       │
-├─────────────────────┼───────────────────────────────────────────────────────┤
-│  UNINITIALIZED      │  STATE_ON (如果 shouldControlScreenOff) / STATE_OFF   │
-│  INITIALIZED        │  STATE_ON (如果 shouldControlScreenOff) / STATE_OFF   │
-│  DOZE               │  STATE_OFF                                          │
-│  DOZE_SUSPEND_TRIGGERS │ STATE_OFF                                        │
-│  DOZE_AOD           │  STATE_DOZE_SUSPEND                                 │
-│  DOZE_AOD_PAUSED    │  STATE_OFF                                          │
-│  DOZE_AOD_PAUSING   │  STATE_DOZE_SUSPEND                                 │
-│  DOZE_AOD_DOCKED    │  STATE_ON                                           │
-│  DOZE_REQUEST_PULSE │  STATE_OFF (如果需要消隐) / STATE_ON                 │
-│  DOZE_PULSING       │  STATE_ON                                           │
-│  DOZE_PULSING_BRIGHT│  STATE_ON                                           │
-│  DOZE_PULSE_DONE    │  STATE_UNKNOWN                                      │
-│  FINISH             │  STATE_UNKNOWN                                      │
-└─────────────────────┴───────────────────────────────────────────────────────┘
-```
+屏幕切换既要协调面板低功耗模式，又要避免动画、触摸或 UDFPS 工作还未结束就过早挂起。`DozeScreenState` 的 `mPendingScreenState` 以及 Handler callback 是实际状态的一部分，不应只画一条 `setDozeScreenState()` 直线。
+
+
+源码：[DozeScreenState.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/packages/SystemUI/src/com/android/systemui/doze/DozeScreenState.java)。下方为该 tag 的方法/类型节选，省略所在类的其他成员与 imports，不作为独立工程。
+
 
 ```java
-/**
- * DozeScreenState - 控制 Doze 时的屏幕状态 (Android 16 AOSP)
- *
- * 位置: frameworks/base/packages/SystemUI/src/com/android/systemui/doze/DozeScreenState.java
- */
-@DozeScope
-public class DozeScreenState implements DozeMachine.Part {
+public void transitionTo(DozeMachine.State oldState, DozeMachine.State newState) {
+    int screenState = newState.screenState(mParameters);
+    mDozeHost.cancelGentleSleep();
 
-    private static final String TAG = "DozeScreenState";
+    if (newState == DozeMachine.State.FINISH) {
+        // Make sure not to apply the screen state after DozeService was destroyed.
+        mPendingScreenState = Display.STATE_UNKNOWN;
+        mHandler.removeCallbacks(mApplyPendingScreenState);
 
-    /** 进入低功耗模式的延迟 (4秒) */
-    private static final int ENTER_DOZE_DELAY = 4000;
-    /** 进入低功耗模式前隐藏壁纸的延迟 (2.5秒) */
-    public static final int ENTER_DOZE_HIDE_WALLPAPER_DELAY = 2500;
-    /** UDFPS 激活时额外的显示状态延迟 */
-    public static final int UDFPS_DISPLAY_STATE_DELAY = 1200;
+        applyScreenState(screenState);
+        mWakeLock.setAcquired(false);
+        return;
+    }
 
-    private final DozeMachine.Service mDozeService;
-    private final Handler mHandler;
-    private final DozeParameters mParameters;
-    private final DozeHost mDozeHost;
-    private final DozeScreenBrightness mDozeScreenBrightness;
+    if (screenState == Display.STATE_UNKNOWN) {
+        // We'll keep it in the existing state
+        return;
+    }
 
-    @Override
-    public void transitionTo(DozeMachine.State oldState, DozeMachine.State newState) {
-        int screenState = newState.screenState(mParameters);
-        mDozeHost.cancelGentleSleep();
+    final boolean messagePending = mHandler.hasCallbacks(mApplyPendingScreenState);
+    final boolean pulseEnding = oldState == DOZE_PULSE_DONE && newState.isAlwaysOn();
+    final boolean turningOn = (oldState == DOZE_AOD_PAUSED || oldState == DOZE)
+            && newState.isAlwaysOn();
+    final boolean turningOff = (oldState.isAlwaysOn() && newState == DOZE)
+            || (oldState == DOZE_AOD_PAUSING && newState == DOZE_AOD_PAUSED);
+    final boolean justInitialized = oldState == DozeMachine.State.INITIALIZED;
+    if (messagePending || justInitialized || pulseEnding || turningOn) {
+        // During initialization, we hide the navigation bar. That is however only applied after
+        // a traversal; setting the screen state here is immediate however, so it can happen
+        // that the screen turns on again before the navigation bar is hidden. To work around
+        // that, wait for a traversal to happen before applying the initial screen state.
+        mPendingScreenState = screenState;
 
-        if (newState == DozeMachine.State.FINISH) {
-            // 确保在 DozeService 销毁后不应用屏幕状态
-            mPendingScreenState = Display.STATE_UNKNOWN;
-            mHandler.removeCallbacks(mApplyPendingScreenState);
-            applyScreenState(screenState);
-            mWakeLock.setAcquired(false);
-            return;
-        }
+        // Delay screen state transitions even longer while animations are running.
+        boolean shouldDelayTransitionEnteringDoze = newState == DOZE_AOD
+                && mParameters.shouldDelayDisplayDozeTransition() && !turningOn;
 
-        if (screenState == Display.STATE_UNKNOWN) {
-            return; // 保持现有状态
-        }
+        // Delay screen state transition longer if UDFPS is actively authenticating a fp
+        boolean shouldDelayTransitionForUDFPS = newState == DOZE_AOD
+                && mUdfpsController != null && mUdfpsController.isFingerDown();
 
-        final boolean pulseEnding = oldState == DOZE_PULSE_DONE && newState.isAlwaysOn();
-        final boolean turningOn = (oldState == DOZE_AOD_PAUSED || oldState == DOZE)
-                && newState.isAlwaysOn();
-        final boolean justInitialized = oldState == DozeMachine.State.INITIALIZED;
-
-        if (pulseEnding || turningOn || justInitialized) {
-            mPendingScreenState = screenState;
-
-            // 延迟屏幕状态转换
-            boolean shouldDelayTransitionEnteringDoze = newState == DOZE_AOD
-                    && mParameters.shouldDelayDisplayDozeTransition() && !turningOn;
-
-            // 如果 UDFPS 正在认证，延迟更长时间
-            boolean shouldDelayTransitionForUDFPS = newState == DOZE_AOD
-                    && mUdfpsController != null && mUdfpsController.isFingerDown();
+        if (!messagePending) {
+            if (DEBUG) {
+                Log.d(TAG, "Display state changed to " + screenState + " delayed by "
+                        + (shouldDelayTransitionEnteringDoze ? ENTER_DOZE_DELAY : 1));
+            }
 
             if (shouldDelayTransitionEnteringDoze) {
+                if (justInitialized) {
+                    // If we are delaying transitioning to doze and the display was not
+                    // turned on we set it to 'on' first to make sure that the animation
+                    // is visible before eventually moving it to doze state.
+                    // The display might be off at this point for example on foldable devices
+                    // when we switch displays and go to doze at the same time.
+                    applyScreenState(Display.STATE_ON);
+
+                    // Restore pending screen state as it gets cleared by 'applyScreenState'
+                    mPendingScreenState = screenState;
+                }
+
                 mHandler.postDelayed(mApplyPendingScreenState, ENTER_DOZE_DELAY);
             } else if (shouldDelayTransitionForUDFPS) {
                 mDozeLog.traceDisplayStateDelayedByUdfps(mPendingScreenState);
@@ -4220,1108 +3443,196 @@ public class DozeScreenState implements DozeMachine.Part {
             } else {
                 mHandler.post(mApplyPendingScreenState);
             }
-        } else if (turningOff) {
-            mDozeHost.prepareForGentleSleep(() -> applyScreenState(screenState));
-        } else {
+        } else if (DEBUG) {
+            Log.d(TAG, "Pending display state change to " + screenState);
+        }
+
+        if (shouldDelayTransitionEnteringDoze || shouldDelayTransitionForUDFPS) {
+            mWakeLock.setAcquired(true);
+        }
+    } else if (turningOff) {
+        if (SceneContainerFlag.isEnabled()) {
             applyScreenState(screenState);
+        } else {
+            mDozeHost.prepareForGentleSleep(() -> applyScreenState(screenState));
         }
-    }
-
-    private void applyScreenState(int screenState) {
-        if (screenState != Display.STATE_UNKNOWN) {
-            mDozeService.setDozeScreenState(screenState);
-            if (screenState == Display.STATE_DOZE) {
-                mDozeScreenBrightness.updateBrightnessAndReady(false);
-            }
-        }
+    } else {
+        applyScreenState(screenState);
     }
 }
 ```
 
-### 12.3 AOD 传感器集成 (Android 16)
+该实现中的延迟不是统一的“唤醒耗时”：`ENTER_DOZE_DELAY`、`ENTER_DOZE_HIDE_WALLPAPER_DELAY`、`UDFPS_DISPLAY_STATE_DELAY` 分别服务不同条件，该 tag 对应 4000/2500/1200ms。条件不满足时不会因为常量存在而强制等待。
 
-> **源码路径**: `frameworks/base/packages/SystemUI/src/com/android/systemui/doze/DozeSensors.java`
+屏幕状态的最终应用还会移除/更新待处理任务并释放对应 wake lock。FINISH、重复请求和新请求覆盖旧 pending state 都是调试重点：只看某次请求 log，不能证明它最后已经成为面板状态。
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                    AOD 传感器集成 (Android 16)                              │
-└─────────────────────────────────────────────────────────────────────────────┘
+### 12.3 传感器：监听资格与注册行为分离
 
-支持的传感器类型 (DozeSensors.TriggerSensor):
-┌───────────────────────────┬─────────────────────────────────────────────────┐
-│        传感器类型          │                    说明                         │
-├───────────────────────────┼─────────────────────────────────────────────────┤
-│  TYPE_SIGNIFICANT_MOTION  │  显著运动检测                                   │
-│  TYPE_PICK_UP_GESTURE     │  拾起手势 (Settings: DOZE_PICK_UP_GESTURE)      │
-│  doubleTapSensorType      │  双击屏幕 (Settings: DOZE_DOUBLE_TAP_GESTURE)   │
-│  tapSensorTypeMapping     │  单击屏幕 (Settings: DOZE_TAP_SCREEN_GESTURE)   │
-│  longPressSensorType      │  长按 (Settings: DOZE_PULSE_ON_LONG_PRESS)      │
-│  udfpsLongPressSensorType │  UDFPS 长按 (doze_pulse_on_auth)               │
-│  TYPE_WAKE_DISPLAY        │  唤醒显示手势 (PluginSensor)                    │
-│  TYPE_WAKE_LOCK_SCREEN    │  唤醒锁屏手势 (PluginSensor)                    │
-│  quickPickupSensorType    │  快速拾起 (Settings: DOZE_QUICK_PICKUP_GESTURE) │
-└───────────────────────────┴─────────────────────────────────────────────────┘
+DozeSensors 的设置、当前监听状态、触屏传感器是否允许以及功耗状态共同决定注册。它不是在构造函数中无条件同时打开所有传感器，更不是退出时只将一个 Boolean 清零就已撤销硬件订阅。
 
-距离传感器状态影响:
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  ProximitySensor 状态变化                                                   │
-├─────────────────────────────────────────────────────────────────────────────┤
-│  NEAR (接近):                                                               │
-│  - DOZE_AOD → DOZE_AOD_PAUSING → DOZE_AOD_PAUSED                           │
-│  - 屏幕状态: STATE_DOZE_SUSPEND → STATE_OFF                                │
-│                                                                             │
-│  FAR (远离):                                                                │
-│  - DOZE_AOD_PAUSED/DOZE_AOD_PAUSING → DOZE_AOD                             │
-│  - 屏幕状态: STATE_OFF → STATE_DOZE_SUSPEND                                │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
+
+源码：[DozeSensors.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/packages/SystemUI/src/com/android/systemui/doze/DozeSensors.java)。下方为该 tag 的方法/类型节选，省略所在类的其他成员与 imports，不作为独立工程。
+
 
 ```java
-/**
- * DozeSensors 传感器管理 (Android 16 AOSP)
- *
- * 位置: frameworks/base/packages/SystemUI/src/com/android/systemui/doze/DozeSensors.java
- */
-public class DozeSensors {
-    private static final String TAG = "DozeSensors";
+public void setListening(boolean listen, boolean includeTouchScreenSensors,
+        boolean includeAodOnlySensors) {
+    if (mListening == listen && mListeningTouchScreenSensors == includeTouchScreenSensors
+            && mListeningAodOnlySensors == includeAodOnlySensors) {
+        return;
+    }
+    mListening = listen;
+    mListeningTouchScreenSensors = includeTouchScreenSensors;
+    mListeningAodOnlySensors = includeAodOnlySensors;
+    updateListening();
+}
 
-    private final AsyncSensorManager mSensorManager;
-    private final AmbientDisplayConfiguration mConfig;
-    private final WakeLock mWakeLock;
-    private final DozeLog mDozeLog;
-    private final ProximitySensor mProximitySensor;
+public void setListeningWithPowerState(boolean listen, boolean includeTouchScreenSensors,
+        boolean includeAodRequiringSensors, boolean lowPowerStateOrOff) {
+    final boolean shouldRegisterProxSensors =
+            !mSelectivelyRegisterProxSensors || lowPowerStateOrOff;
+    if (mListening == listen
+            && mListeningTouchScreenSensors == includeTouchScreenSensors
+            && mListeningProxSensors == shouldRegisterProxSensors
+            && mListeningAodOnlySensors == includeAodRequiringSensors
+    ) {
+        return;
+    }
+    mListening = listen;
+    mListeningTouchScreenSensors = includeTouchScreenSensors;
+    mListeningProxSensors = shouldRegisterProxSensors;
+    mListeningAodOnlySensors = includeAodRequiringSensors;
+    updateListening();
+}
 
-    // 传感器数组
-    @VisibleForTesting
-    protected TriggerSensor[] mTriggerSensors;
+private void updateListening() {
+    boolean anyListening = false;
+    for (TriggerSensor s : mTriggerSensors) {
+        boolean listen = mListening
+                && (!s.mRequiresTouchscreen || mListeningTouchScreenSensors)
+                && (!s.mRequiresProx || mListeningProxSensors)
+                && (!s.mRequiresAod || mListeningAodOnlySensors);
 
-    // 传感器回调
-    private final Callback mSensorCallback;
-    private final Consumer<Boolean> mProxCallback;
-
-    DozeSensors(Resources resources, AsyncSensorManager sensorManager,
-            DozeParameters dozeParameters, AmbientDisplayConfiguration config,
-            WakeLock wakeLock, Callback sensorCallback, Consumer<Boolean> proxCallback,
-            DozeLog dozeLog, ProximitySensor proximitySensor,
-            SecureSettings secureSettings, AuthController authController,
-            DevicePostureController devicePostureController,
-            SelectedUserInteractor selectedUserInteractor) {
-
-        // 初始化触发传感器数组
-        mTriggerSensors = new TriggerSensor[] {
-            // 显著运动传感器
-            new TriggerSensor(
-                    mSensorManager.getDefaultSensor(Sensor.TYPE_SIGNIFICANT_MOTION),
-                    null, dozeParameters.getPulseOnSigMotion(),
-                    DozeLog.PULSE_REASON_SENSOR_SIGMOTION,
-                    false, false),
-
-            // 拾起手势
-            new TriggerSensor(
-                    mSensorManager.getDefaultSensor(Sensor.TYPE_PICK_UP_GESTURE),
-                    Settings.Secure.DOZE_PICK_UP_GESTURE,
-                    config.dozePickupSensorAvailable(),
-                    DozeLog.REASON_SENSOR_PICKUP,
-                    false, false),
-
-            // 双击传感器
-            new TriggerSensor(
-                    findSensor(config.doubleTapSensorType()),
-                    Settings.Secure.DOZE_DOUBLE_TAP_GESTURE,
-                    true, DozeLog.REASON_SENSOR_DOUBLE_TAP,
-                    dozeParameters.doubleTapReportsTouchCoordinates(),
-                    true),
-
-            // 单击传感器 (支持多姿态)
-            new TriggerSensor(
-                    findSensors(config.tapSensorTypeMapping()),
-                    Settings.Secure.DOZE_TAP_SCREEN_GESTURE,
-                    true, DozeLog.REASON_SENSOR_TAP,
-                    true, true),
-
-            // UDFPS 长按
-            new TriggerSensor(
-                    findSensor(config.udfpsLongPressSensorType()),
-                    "doze_pulse_on_auth", true,
-                    udfpsLongPressConfigured(),
-                    DozeLog.REASON_SENSOR_UDFPS_LONG_PRESS,
-                    true, true),
-
-            // 唤醒显示 (插件传感器)
-            new PluginSensor(
-                    new SensorManagerPlugin.Sensor(TYPE_WAKE_DISPLAY),
-                    Settings.Secure.DOZE_WAKE_DISPLAY_GESTURE,
-                    mConfig.wakeScreenGestureAvailable(),
-                    DozeLog.REASON_SENSOR_WAKE_UP_PRESENCE,
-                    false, false),
-
-            // 快速拾起
-            new TriggerSensor(
-                    findSensor(config.quickPickupSensorType()),
-                    Settings.Secure.DOZE_QUICK_PICKUP_GESTURE,
-                    true, quickPickUpConfigured(),
-                    DozeLog.REASON_SENSOR_QUICK_PICKUP,
-                    false, false),
-        };
-
-        // 注册距离传感器
-        mProximitySensor.register(proximityEvent -> {
-            if (proximityEvent != null) {
-                mProxCallback.accept(!proximityEvent.getBelow());
+        //AOD might be turned off in visual because of BetterySaver or isAlwaysOnSuppressed(),
+        //but AOD isn't really turned off, in these cases, udfpsLongPressSensor should be
+        //unregistered.
+        if (!mListeningAodOnlySensors && KEY_DOZE_PULSE_ON_AUTH.equals(s.mSetting)) {
+            if (mConfig.alwaysOnEnabled(mSelectedUserInteractor.getSelectedUserId())
+                    && !mConfig.screenOffUdfpsEnabled(
+                    mSelectedUserInteractor.getSelectedUserId())) {
+                listen = false;
             }
-        });
+        }
+
+        s.setListening(listen);
+        if (listen) {
+            anyListening = true;
+        }
     }
 
-    /**
-     * 设置传感器监听状态
-     */
-    public void setListening(boolean listen, boolean includeTouchScreenSensors,
-            boolean includeAodOnlySensors) {
-        mListening = listen;
-        mListeningTouchScreenSensors = includeTouchScreenSensors;
-        mListeningAodOnlySensors = includeAodOnlySensors;
-        updateListening();
+    if (!anyListening) {
+        mSecureSettings.unregisterContentObserverAsync(mSettingsObserver);
+    } else if (!mSettingRegistered) {
+        for (TriggerSensor s : mTriggerSensors) {
+            s.registerSettingsObserver(mSettingsObserver);
+        }
     }
-
-    /**
-     * 传感器回调接口
-     */
-    public interface Callback {
-        void onSensorPulse(int pulseReason, float screenX, float screenY, float[] rawValues);
-    }
+    mSettingRegistered = anyListening;
 }
 ```
 
-### 12.4 AOD 配置和设置 (Android 16)
+TriggerSensor 与 PluginSensor 的注册/回调方式不同；后者还依赖已连接的 SensorManagerPlugin。一次性 trigger 的重新武装和持续监听 sensor 的注销也不同。第 3 章的 trigger 处理说明了如何切回 Handler 并结合 proximity/状态门控请求 pulse。
 
-> **源码路径**: `frameworks/base/core/java/android/hardware/display/AmbientDisplayConfiguration.java`
+实际故障至少分三类：资源 overlay 没有提供目标传感器，监听资格计算得到 false，以及回调已经到达但 pulse 被当前状态或距离条件拒绝。三个阶段分别记录日志，才能避免把“屏幕没有亮”一概归为传感器驱动故障。
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                    AOD 配置项 (Android 16)                                  │
-└─────────────────────────────────────────────────────────────────────────────┘
+### 12.4 AmbientDisplayConfiguration：available 不等于 enabled
 
-Settings.Secure 配置项:
-┌─────────────────────────────────────┬───────────────────────────────────────┐
-│           配置项名称                  │                  说明                │
-├─────────────────────────────────────┼───────────────────────────────────────┤
-│  doze_enabled                       │  Doze 总开关                          │
-│  doze_always_on                     │  常亮显示开关                         │
-│  doze_pick_up_gesture               │  拾起唤醒                             │
-│  doze_double_tap_gesture            │  双击唤醒                             │
-│  doze_tap_screen_gesture            │  单击唤醒                             │
-│  doze_pulse_on_long_press           │  长按脉冲                             │
-│  doze_wake_display_gesture          │  唤醒显示手势                         │
-│  doze_wake_lock_screen_gesture      │  唤醒锁屏手势                         │
-│  doze_quick_pickup_gesture          │  快速拾起                             │
-└─────────────────────────────────────┴───────────────────────────────────────┘
+`available` 往往取决于硬件/资源和调试配置，`enabled(user)` 还要结合对应用户的 Secure 设置与策略。Always On、通知 pulse、tap/double tap、pickup 并非同一个总开关：
 
-AmbientDisplayConfiguration 关键方法:
-- alwaysOnEnabled(userId)          // 检查 AOD 是否启用
-- pulseOnNotificationEnabled(userId) // 通知脉冲是否启用
-- dozePickupSensorAvailable()      // 拾起传感器是否可用
-- wakeScreenGestureAvailable()     // 唤醒手势是否可用
-- screenOffUdfpsEnabled(userId)    // 熄屏 UDFPS 是否启用
-- quickPickupSensorEnabled(userId) // 快速拾起是否启用
-```
+
+源码：[AmbientDisplayConfiguration.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/hardware/display/AmbientDisplayConfiguration.java)。下方为该 tag 的方法/类型节选，省略所在类的其他成员与 imports，不作为独立工程。
+
 
 ```java
-/**
- * AmbientDisplayConfiguration - AOD 配置读取 (Android 16 AOSP)
- *
- * 位置: frameworks/base/core/java/android/hardware/display/AmbientDisplayConfiguration.java
- */
-public class AmbientDisplayConfiguration {
+public boolean pulseOnNotificationEnabled(int user) {
+    return boolSetting(Settings.Secure.DOZE_ENABLED, user,
+            mDozeEnabledByDefault ? 1 : 0)
+            && pulseOnNotificationAvailable();
+}
 
-    /**
-     * 检查常亮显示是否启用
-     */
-    public boolean alwaysOnEnabled(int user) {
-        // 检查设备支持 + 用户设置
-        return !accessibilityInversionEnabled(user)
-                && alwaysOnAvailable()
-                && (alwaysOnSettingsForUser(user)
-                || accessControlModeAlwaysOn(user));
-    }
+public boolean pulseOnNotificationAvailable() {
+    return mContext.getResources().getBoolean(R.bool.config_pulseOnNotificationsAvailable)
+            && ambientDisplayAvailable();
+}
 
-    /**
-     * 检查通知脉冲是否启用
-     */
-    public boolean pulseOnNotificationEnabled(int user) {
-        return pulseOnNotificationAvailable() && enabledBySetting(
-                Settings.Secure.DOZE_PULSE_ON_NOTIFICATIONS, user, DOZE_PULSE_ON_NOTIFICATIONS_DEF);
-    }
+public boolean alwaysOnEnabled(int user) {
+    return boolSetting(Settings.Secure.DOZE_ALWAYS_ON, user, mAlwaysOnByDefault ? 1 : 0)
+            && alwaysOnAvailable() && !accessibilityInversionEnabled(user);
+}
 
-    /**
-     * 检查拾起传感器是否可用
-     */
-    public boolean dozePickupSensorAvailable() {
-        return mResources.getBoolean(com.android.internal.R.bool.config_dozePickupGestureAvailable);
-    }
+public boolean alwaysOnAvailable() {
+    return (alwaysOnDisplayDebuggingEnabled() || alwaysOnDisplayAvailable())
+            && ambientDisplayAvailable();
+}
 
-    /**
-     * 获取双击传感器类型
-     */
-    public String doubleTapSensorType() {
-        return mResources.getString(com.android.internal.R.string.config_dozeDoubleTapSensorType);
-    }
-
-    /**
-     * 检查熄屏 UDFPS 是否启用
-     */
-    public boolean screenOffUdfpsEnabled(int userId) {
-        return enabledBySetting(Settings.Secure.DOZE_PULSE_ON_AUTH, userId, 1);
-    }
-
-    /**
-     * 检查快速拾起是否启用
-     */
-    public boolean quickPickupSensorEnabled(int userId) {
-        return enabledBySetting(Settings.Secure.DOZE_QUICK_PICKUP_GESTURE, userId, 1);
-    }
+public boolean ambientDisplayAvailable() {
+    return !TextUtils.isEmpty(ambientDisplayComponent());
 }
 ```
 
-### 10.1 通知系统完整链路
+这些方法说明为什么不能只写 `settings get secure doze_always_on` 就宣布硬件已支持 AOD。检查时要确定当前用户、overlay、资源对应的 sensor/display 能力和实际运行开关；本轮没有设备运行结果，不给出某机型默认值保证。
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                    通知系统完整链路（深度版）                               │
-└─────────────────────────────────────────────────────────────────────────────┘
+### 12.5 贯穿通知到 AOD 的可观测链路
 
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  第一步：应用创建通知 (Android SDK)                                        │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-应用进程:
-│
-├── 1.1 创建 NotificationChannel (Android 8.0+)
-│   NotificationChannel channel = new NotificationChannel(
-│       "channel_id",        // 渠道 ID
-│       "渠道名称",           // 用户可见名称
-│       NotificationManager.IMPORTANCE_HIGH  // 重要性级别
-│   );
-│   channel.setDescription("渠道描述");
-│   channel.enableLights(true);
-│   channel.setLightColor(Color.RED);
-│   channel.enableVibration(true);
-│   channel.setVibrationPattern(new long[]{100, 200, 300, 400});
-│   channel.setShowBadge(true);  // 启动器角标
-│   mNotificationManager.createNotificationChannel(channel);
-│
-├── 1.2 创建 Notification.Builder
-│   Notification.Builder builder = new Notification.Builder(context, channelId)
-│       .setSmallIcon(R.drawable.ic_notification)
-│       .setContentTitle("标题")
-│       .setContentText("内容")
-│       .setLargeIcon(bitmap)
-│       .setContentIntent(pendingIntent)
-│       .setDeleteIntent(deletePendingIntent)
-│       .setAutoCancel(true)
-│       .setOngoing(false)
-│       .setWhen(System.currentTimeMillis())
-│       .setShowWhen(true)
-│       .setCategory(Notification.CATEGORY_MESSAGE)
-│       .setPriority(Notification.PRIORITY_HIGH);
-│
-├── 1.3 创建 RemoteViews（自定义通知布局）
-│   RemoteViews contentView = new RemoteViews(pkgName, R.layout.notification);
-│   contentView.setTextViewText(R.id.title, "标题");
-│   contentView.setImageViewResource(R.id.icon, R.drawable.icon);
-│   contentView.setOnClickPendingIntent(R.id.button, pendingIntent);
-│   builder.setCustomContentView(contentView);  // 折叠视图
-│   builder.setCustomBigContentView(bigContentView);  // 展开视图
-│
-├── 1.4 添加 Action 按钮
-│   Notification.Action action = new Notification.Action.Builder(
-│       Icon.createWithResource(context, R.drawable.action_icon),
-│       "回复",
-│       replyPendingIntent
-│   )
-│   .addRemoteInput(remoteInput)  // 支持直接输入
-│   .setAllowGeneratedReplies(true)
-│   .build();
-│   builder.addAction(action);
-│
-├── 1.5 设置样式 (Style)
-│   // BigTextStyle
-│   builder.setStyle(new Notification.BigTextStyle()
-│       .bigText("长文本内容...")
-│       .setBigContentTitle("展开标题")
-│       .setSummaryText("摘要"));
-│   
-│   // MessagingStyle
-│   Person user = new Person.Builder().setName("张三").build();
-│   builder.setStyle(new Notification.MessagingStyle(user)
-│       .addMessage("你好", System.currentTimeMillis(), user)
-│       .setConversationTitle("对话标题"));
-│
-└── 1.6 发送通知
-    NotificationManager.notify(id, builder.build());
-
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  第二步：Framework 层处理 (NotificationManagerService)                      │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-system_server 进程 (NotificationManagerService):
-│
-├── 2.1 接收通知请求
-│   // INotificationManager.Stub.enqueueNotificationWithTag()
-│   public void enqueueNotificationWithTag(String pkg, String opPkg,
-│           String tag, int id, Notification notification, int userId) {
-│       
-│       // 检查调用者权限
-│       checkCallerIsSystemOrSameApp(pkg);
-│       
-│       // 检查通知限制
-│       enforceRateLimitingForNotification(pkg, userId);
-│       
-│       // 检查通知数量限制
-│       enforceNotificationCountLimit(pkg, userId);
-│   }
-│
-├── 2.2 创建 NotificationRecord
-│   final NotificationRecord r = new NotificationRecord(
-│       mContext,
-│       notification,   // 通知对象
-│       pkg,           // 包名
-│       tag,           // 标签
-│       id,            // ID
-│       userId         // 用户 ID
-│   );
-│   
-│   // 提取通知信号（用于排名）
-│   mRankingHelper.extractSignals(r);
-│
-├── 2.3 应用过滤规则
-│   // 检查应用通知权限
-│   if (mPreferencesHelper.isBlocked(pkg, userId)) {
-│       return;  // 应用通知被禁用
-│   }
-│   
-│   // 检查渠道通知权限
-│   if (mPreferencesHelper.isChannelBlocked(pkg, channelId, userId)) {
-│       return;  // 渠道通知被禁用
-│   }
-│   
-│   // 检查勿扰模式
-│   if (mZenModeHelper.shouldIntercept(r)) {
-│       r.setIntercepted(true);  // 被勿扰模式拦截
-│   }
-│
-├── 2.4 保存到 NotificationRecord 列表
-│   // 先移除旧通知（如果存在）
-│   mNotificationList.remove(key);
-│   
-│   // 添加新通知
-│   mNotificationList.add(r);
-│
-├── 2.5 持久化通知（重启后恢复）
-│   mNotificationStore.add(r);
-│
-└── 2.6 通知 SystemUI
-    // 回调所有注册的 NotificationListenerService
-    for (ManagedServiceInfo info : mListeners) {
-        // 通过 Binder IPC 回调
-        info.service.onNotificationPosted(sbn, rankingMap);
-    }
-
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  第三步：SystemUI 接收通知 (NotificationListenerService)                    │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-SystemUI 进程:
-│
-├── 3.1 NotificationListenerService.onNotificationPosted()
-│   @Override
-│   public void onNotificationPosted(StatusBarNotification sbn, 
-│           RankingMap rankingMap) {
-│       
-│       // 获取通知排名
-│       Ranking ranking = new Ranking();
-│       rankingMap.getRanking(sbn.getKey(), ranking);
-│       
-│       // 转发给 NotificationEntryManager
-│       mEntryManager.addNotification(sbn, ranking);
-│   }
-│
-├── 3.2 NotificationEntryManager.addNotification()
-│   // 创建 NotificationEntry
-│   NotificationEntry entry = new NotificationEntry(sbn);
-│   entry.setRanking(ranking);
-│   
-│   // 添加到通知列表
-│   mNotificationList.add(entry);
-│   
-│   // 通知监听器
-│   for (NotificationListener listener : mListeners) {
-│       listener.onNotificationAdded(entry);
-│   }
-│
-├── 3.3 NotificationRowBinder.bindRow()
-│   // 获取 RemoteViews
-│   RemoteViews contentView = notification.contentView;
-│   RemoteViews bigContentView = notification.bigContentView;
-│   RemoteViews headsUpContentView = notification.headsUpContentView;
-│   
-│   // 应用 RemoteViews 到通知行
-│   row.setContentView(contentView);
-│   row.setBigContentView(bigContentView);
-│   row.setHeadsUpView(headsUpContentView);
-│
-└── 3.4 更新状态栏图标
-    // 添加状态栏图标
-    mStatusBarIconController.addIcon(iconKey, icon);
-
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  第四步：通知渲染 (RemoteViews 展开与绑定)                                  │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-通知视图渲染:
-│
-├── 4.1 NotificationContentView.setContent()
-│   public void setContent(RemoteViews views) {
-│       // 清空现有内容
-│       removeAllViews();
-│       
-│       // 应用 RemoteViews
-│       View view = views.apply(mContext, this);
-│       addView(view);
-│   }
-│
-├── 4.2 RemoteViews.apply() 实现
-│   public View apply(Context context, ViewGroup parent) {
-│       // 1. 加载布局
-│       View result = inflateView(context, parent);
-│       
-│       // 2. 执行所有 Action
-│       performApply(result, parent);
-│       
-│       return result;
-│   }
-│
-├── 4.3 执行 RemoteViews Action
-│   private void performApply(View v, ViewGroup parent) {
-│       if (mActions != null) {
-│           for (Action action : mActions) {
-│               // 每个 Action 修改 View
-│               action.apply(v, parent, mOnClickHandler);
-│           }
-│       }
-│   }
-│
-└── 4.4 渲染完成，通知视图显示在通知面板
+```text
+App notify
+  -> NMS enqueue/post: key、channel、old/new、ranking/interruption
+  -> NotificationListener: listener 可见性与 ranking
+  -> NotifCollection: add/update/remove 生命周期
+  -> 列表构建 / 内容绑定 / 锁屏隐私与过滤
+  -> DozeHost / DozeTriggers: 当前状态、pulse reason、proximity
+  -> DozeMachine: request queue、transition、Part callbacks
+  -> DozeScreenState: pending display state、延迟任务、wake lock
+  -> Dream/Display 服务与硬件显示状态
 ```
 
-### 10.2 RemoteViews 深度解析
+这是跨组件诊断图，不代表 NotifCollection 的每次 add 都直接调用一次 pulse。通知发布、heads-up、AOD pulse、实际屏幕点亮有各自资格判断；相同 key 的多次更新也可能复用视图或被抑制。
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                    RemoteViews 完整原理                                   │
-└─────────────────────────────────────────────────────────────────────────────┘
+建议用 key 与时间戳关联服务端和 SystemUI 日志，并同时记录用户、group、渠道以及 doze 状态。若只对比 App notify 的时间与屏幕截图，会漏掉 Binder 排队、后台绑定与 pending display state 的取消。
 
-RemoteViews 的本质：序列化的视图操作
+### 12.6 RemoteViews 异步绑定的代际与资源寿命
 
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  1. RemoteViews 数据结构                                                   │
-└─────────────────────────────────────────────────────────────────────────────┘
+RemoteViews 传递的是布局标识与序列化 actions，不是发送方的 View 对象、ClassLoader 或任意 Java 闭包。第 5–9 章已经分别展示 class filter、允许调用的方法、Builder 恢复及 NotificationRowContentBinderImpl 的实际路径，本节不再构造一个不存在的自定义 wire format。
 
-public class RemoteViews implements Parcelable {
-    // 包名（用于加载资源）
-    private final String mPackage;
-    
-    // 布局 ID
-    private final int mLayoutId;
-    
-    // 操作列表（序列化后跨进程传递）
-    private ArrayList<Action> mActions;
-    
-    // 内存位图缓存
-    private BitmapCache mBitmapCache;
-    
-    // 是否是主题应用
-    private boolean mIsRoot;
-    
-    // 应用的包名（可能与 mPackage 不同）
-    private String mApplicationPackage;
-}
+同一个 notification key 可能在旧 inflation 尚未结束时更新。绑定流程必须处理取消/过期结果，避免将旧标题覆盖新内容；异步 inflate 完成也不等于 row 已经进入可见窗口。排查应区分 collection entry、content flags、inflate task、cached RemoteViews 和 row 的各个 content slot。
 
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  2. Action 列表（每个操作都是一个 Action）                                  │
-└─────────────────────────────────────────────────────────────────────────────┘
+`reapply` 只适用于兼容已有视图结构的更新。包或布局身份改变、重应用被禁止、缓存缺失或异常，都可能导致重新 apply。复用可以减少 inflate 成本，却不能免除 action 执行、图片处理和布局开销。
 
-// Action 基类
-private abstract static class Action implements Parcelable {
-    // 操作 ID（用于反序列化）
-    abstract public int getActionTag();
-    
-    // 应用操作到 View
-    abstract public void apply(View root, ViewGroup rootParent,
-            OnClickHandler handler);
-}
+回收/移除通知时要取消对应工作并释放 UI 引用。持有插件 Context 或旧通知 row 的长期单例缓存，可能在包更新后继续保留旧资源/ClassLoader；这属于资源寿命问题，不是单纯在列表上调用一次 notifyDataSetChanged 能修复的。
 
-// 具体的 Action 实现：
-├── SetTextAction          // 设置文本
-├── SetTextColorAction     // 设置文字颜色
-├── SetImageResourceAction // 设置图片资源
-├── SetImageBitmapAction   // 设置 Bitmap
-├── SetOnClickPendingIntentAction  // 设置点击事件
-├── SetViewVisibilityAction  // 设置可见性
-├── SetViewPaddingAction   // 设置内边距
-├── SetProgressBarAction   // 设置进度条
-├── SetChronometerAction   // 设置计时器
-└── AddViewAction          // 添加子 View
+### 12.7 Pulse 和防烧屏：状态与动画边界
 
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  3. RemoteViews 创建与操作（应用进程）                                      │
-└─────────────────────────────────────────────────────────────────────────────┘
+Android 17 的真实枚举以第 3 章 State 定义为准，没有旧文的 `DOZE_INIT`、`DOZE_REST`、`EXITED_DOZE`。Pulse 通过请求、中间态、host callback 及完成后的状态解析闭环运行；用户唤醒、finish 或其它请求到达时，不能继续播放预先硬编码的固定状态序列。
 
-// 创建 RemoteViews
-RemoteViews views = new RemoteViews(context.getPackageName(), R.layout.notification);
+防烧屏包括时钟/内容的有限位移及显示侧策略，但本文不把固定 ±10px 或固定 1fps 作为所有设备的源码常量。需要结合该产品的尺寸资源、显示模式和实际实现确认。降低刷新率也不意味着 SystemUI 可以在主线程阻塞：唤醒和认证 UI 仍依赖及时响应。
 
-// 每个 setXXX 方法都会创建一个 Action 并添加到 mActions 列表
-views.setTextViewText(R.id.title, "标题");
-// 内部实现：
-// mActions.add(new SetTextAction(R.id.title, "标题"));
+### 12.8 为什么不能用一句“通知列表不适合 RecyclerView”解释架构
 
-views.setImageViewResource(R.id.icon, R.drawable.icon);
-// 内部实现：
-// mActions.add(new SetImageResourceAction(R.id.icon, R.drawable.icon));
+通知交互包括组展开、heads-up、swipe、锁屏/解锁过渡、隐私内容切换和持续的行状态。列表实现需要协调这些状态，但 RecyclerView 并非原则上不支持重叠动画，通知数也不是跨配置永远固定在 50 以下。
 
-views.setOnClickPendingIntent(R.id.button, pendingIntent);
-// 内部实现：
-// mActions.add(new SetOnClickPendingIntentAction(R.id.button, pendingIntent));
+选择当前容器/渲染管线，是具体实现与迁移阶段的结果，不能用未经基准测试的“必然更快”证明。性能分析应拆分 collection/list build、RemoteViews inflate/reapply、measure/layout、draw、RenderThread 与合成，记录可重复 workload 后再比较。
 
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  4. RemoteViews 序列化（跨进程传递）                                        │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-// NotificationManager.notify() 时，Notification 中的 RemoteViews 会被序列化
-
-@Override
-public void writeToParcel(Parcel dest, int flags) {
-    // 1. 写入包名
-    dest.writeString(mPackage);
-    
-    // 2. 写入布局 ID
-    dest.writeInt(mLayoutId);
-    
-    // 3. 写入 Action 数量
-    dest.writeInt(mActions.size());
-    
-    // 4. 序列化每个 Action
-    for (Action action : mActions) {
-        dest.writeInt(action.getActionTag());  // Action 类型
-        action.writeToParcel(dest, flags);     // Action 数据
-    }
-    
-    // 5. 写入位图缓存
-    mBitmapCache.writeToParcel(dest, flags);
-}
-
-// Binder IPC 传递序列化后的 Parcel
-
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  5. RemoteViews 反序列化（SystemUI 进程）                                   │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-// NotificationListenerService 接收到通知后，RemoteViews 被反序列化
-
-public static RemoteViews createFromParcel(Parcel parcel) {
-    // 1. 读取包名
-    String packageName = parcel.readString();
-    
-    // 2. 读取布局 ID
-    int layoutId = parcel.readInt();
-    
-    // 3. 创建 RemoteViews
-    RemoteViews views = new RemoteViews(packageName, layoutId);
-    
-    // 4. 读取 Action 数量
-    int actionCount = parcel.readInt();
-    
-    // 5. 反序列化每个 Action
-    for (int i = 0; i < actionCount; i++) {
-        int actionTag = parcel.readInt();
-        Action action = createActionFromTag(actionTag);
-        action.readFromParcel(parcel);
-        views.mActions.add(action);
-    }
-    
-    return views;
-}
-
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  6. RemoteViews 应用（展开为 View）                                        │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-// SystemUI 调用 apply() 方法将 RemoteViews 展开为真正的 View
-
-public View apply(Context context, ViewGroup parent) {
-    // 1. 使用 LayoutInflater 加载布局
-    View result = inflateView(context, parent);
-    
-    // 2. 执行所有 Action，修改 View 属性
-    performApply(result, parent);
-    
-    return result;
-}
-
-private View inflateView(Context context, ViewGroup parent) {
-    // 使用 RemoteViews 的布局 ID 加载布局
-    // 注意：使用的是 SystemUI 的 Context，但资源来自应用
-    LayoutInflater inflater = LayoutInflater.from(context);
-    return inflater.inflate(mLayoutId, parent, false);
-}
-
-private void performApply(View v, ViewGroup parent) {
-    if (mActions != null) {
-        for (Action action : mActions) {
-            // 执行每个 Action
-            action.apply(v, parent, mOnClickHandler);
-        }
-    }
-}
-
-// SetTextAction 的 apply 实现
-private class SetTextAction extends Action {
-    int mViewId;
-    CharSequence mText;
-    
-    @Override
-    public void apply(View root, ViewGroup rootParent, OnClickHandler handler) {
-        TextView textView = root.findViewById(mViewId);
-        if (textView != null) {
-            textView.setText(mText);
-        }
-    }
-}
-
-// SetOnClickPendingIntentAction 的 apply 实现
-private class SetOnClickPendingIntentAction extends Action {
-    int mViewId;
-    PendingIntent mPendingIntent;
-    
-    @Override
-    public void apply(View root, ViewGroup rootParent, OnClickHandler handler) {
-        View target = root.findViewById(mViewId);
-        if (target != null && mPendingIntent != null) {
-            target.setOnClickListener(v -> {
-                try {
-                    mPendingIntent.send();
-                } catch (PendingIntent.CanceledException e) {
-                    // 处理取消异常
-                }
-            });
-        }
-    }
-}
-```
-
-### 10.3 AOD 状态机深度解析
-
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                    AOD DozeMachine 状态机                                  │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-DozeMachine 是 AOD 的核心，管理设备的 Doze 状态
-
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  状态定义                                                                  │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-public enum State {
-    // 初始状态
-    DOZE_INIT,              // 初始化状态
-    
-    // Doze 状态（屏幕关闭）
-    DOZE,                   // 深度睡眠，屏幕完全关闭
-    DOZE_AOD,              // AOD 模式，屏幕部分点亮
-    DOZE_AOD_PAUSING,      // AOD 暂停中
-    DOZE_AOD_PAUSED,       // AOD 已暂停
-    DOZE_SUSPEND,          // 挂起状态
-    
-    // 浅睡眠状态（屏幕微亮）
-    DOZE_REQUEST_PULSE,    // 请求脉冲
-    DOZE_PULSE_START,      // 脉冲开始
-    DOZE_PULSE_DOZE,       // 脉冲 Doze
-    DOZE_PULSE_DOZE_AOD,   // 脉冲 AOD
-    DOZE_PULSE_DONE,       // 脉冲完成
-    DOZE_REST,             // 浅睡眠休息
-    
-    // 退出状态
-    EXITED_DOZE,           // 已退出 Doze
-}
-
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  状态转换图                                                                │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-                          ┌──────────────┐
-                          │  DOZE_INIT   │
-                          └──────┬───────┘
-                                 │
-                                 ▼
-         ┌───────────────────────┴───────────────────────┐
-         │                                               │
-         ▼                                               ▼
-  ┌──────────────┐                              ┌──────────────┐
-  │     DOZE     │◀─────────────────────────────│   DOZE_AOD   │
-  │  (深度睡眠)  │                              │  (AOD模式)   │
-  └──────┬───────┘                              └──────┬───────┘
-         │                                             │
-         │                                             │
-         │    ┌────────────────────────────────────────┤
-         │    │                                        │
-         │    ▼                                        ▼
-         │  ┌──────────────┐                    ┌──────────────┐
-         │  │DOZE_REQUEST_ │                    │  DOZE_REST   │
-         │  │    PULSE     │                    │  (浅睡眠)    │
-         │  └──────┬───────┘                    └──────┬───────┘
-         │         │                                   │
-         │         ▼                                   │
-         │  ┌──────────────┐                          │
-         │  │DOZE_PULSE_   │                          │
-         │  │    START     │                          │
-         │  └──────┬───────┘                          │
-         │         │                                   │
-         │         ▼                                   │
-         │  ┌──────────────┐                          │
-         └─▶│DOZE_PULSE_   │◀─────────────────────────┘
-            │    DONE      │
-            └──────┬───────┘
-                   │
-                   ▼
-          ┌──────────────┐
-          │ EXITED_DOZE  │
-          │  (退出Doze)  │
-          └──────────────┘
-
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  状态转换触发条件                                                           │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-进入 DOZE_AOD:
-├── 屏幕关闭超时
-├── 用户触发 AOD（设置已开启）
-├── 传感器检测到设备静止
-└── 充电时
-
-从 DOZE_AOD 进入 DOZE_REST (脉冲):
-├── 通知到达
-├── 定时更新（每分钟）
-├── 传感器事件
-├── 电池状态变化
-└── 时间变化
-
-从 DOZE_AOD 进入 DOZE (深度睡眠):
-├── AOD 超时（设备长时间静止）
-├── 低电量
-├── 口袋模式检测
-└── 用户关闭 AOD
-
-退出 Doze (EXITED_DOZE):
-├── 用户触控屏幕
-├── 按下电源键
-├── 来电
-├── 闹钟响铃
-└── 拿起设备（传感器检测）
-
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  脉冲 (Pulse) 机制                                                         │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-脉冲是 AOD 的短暂唤醒，用于更新显示内容
-
-脉冲原因 (PulseReason):
-├── PULSE_REASON_NOTIFICATION  - 新通知到达
-├── PULSE_REASON_SENSOR        - 传感器触发
-├── PULSE_REASON_TAP           - 用户点击
-├── PULSE_REASON_LONG_TAP      - 用户长按
-├── PULSE_REASON_WAKE_DISPLAY  - 唤醒显示
-└── PULSE_REASON_TIMER         - 定时器
-
-脉冲流程:
-1. 触发脉冲请求
-   └── transitionTo(DOZE_REQUEST_PULSE)
-
-2. 开始脉冲
-   └── transitionTo(DOZE_PULSE_START)
-
-3. 显示脉冲内容
-   ├── 通知脉冲：显示通知内容
-   ├── 时间脉冲：更新时钟
-   └── 传感器脉冲：显示唤醒动画
-
-4. 脉冲完成
-   └── transitionTo(DOZE_PULSE_DONE)
-
-5. 返回 AOD 或 Doze
-   └── transitionTo(DOZE_AOD) 或 transitionTo(DOZE)
-
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  AOD 防烧屏 (Burn-in Protection)                                           │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-AMOLED 屏幕长时间显示同一图像会导致烧屏，AOD 使用以下策略防止烧屏:
-
-1. 位置偏移
-   - AOD 内容定期微移位置
-   - 偏移范围：±10 像素
-   - 偏移间隔：每分钟
-
-2. 亮度降低
-   - AOD 亮度远低于正常亮度
-   - 根据环境光调整
-
-3. 内容轮换
-   - 时钟位置变化
-   - 通知图标位置变化
-
-4. 定时关闭
-   - 长时间静止后关闭 AOD
-   - 设备放入口袋后关闭
-```
-
-### 10.4 面试常见问题
-
-**Q1: 通知从 App 发送到 SystemUI 显示的完整流程？**
-
-**A:**
-
-```
-1. App 创建 Notification
-   └── Notification.Builder.build()
-
-2. App 调用 NotificationManager.notify()
-   └── Binder IPC 调用 NMS
-
-3. NMS 处理通知
-   ├── 创建 NotificationRecord
-   ├── 应用过滤和排名
-   ├── 持久化通知
-   └── 回调 NotificationListenerService
-
-4. SystemUI 接收通知
-   ├── NotificationListenerService.onNotificationPosted()
-   ├── NotificationEntryManager 创建 NotificationEntry
-   └── 提取 RemoteViews
-
-5. SystemUI 渲染通知
-   ├── RemoteViews.apply() 展开为 View
-   ├── 添加到 NotificationStackScrollLayout
-   └── 更新状态栏图标
-```
-
-**Q2: RemoteViews 为什么不能使用自定义 View？**
-
-**A:**
-
-```
-原因:
-1. 安全性：RemoteViews 跨进程传递，使用自定义 View 可能带来安全风险
-2. 兼容性：不同应用的 View 实现可能不同
-3. 性能：跨进程加载自定义 View 开销大
-4. 序列化：自定义 View 可能包含无法序列化的状态
-
-支持的 View 类型：
-- 布局容器：FrameLayout, LinearLayout, RelativeLayout, GridLayout
-- 基础视图：TextView, ImageView, Button, ProgressBar
-- 特殊视图：Chronometer, ViewFlipper
-```
-
-**Q3: 为什么 SystemUI 通知列表使用 NotificationStackScrollLayout（自定义 ViewGroup）而不是 RecyclerView？**
-
-**A:**
-
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│    通知列表的布局选择：NotificationStackScrollLayout vs RecyclerView        │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-NotificationStackScrollLayout 继承自 FrameLayout，
-不是 RecyclerView，这是经过深思熟虑的设计决策。
-
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  原因 1：通知数量极少，不需要 ViewHolder 复用                               │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-RecyclerView 的核心优势是 ViewHolder 复用，适合大数据量列表:
-├── RecyclerView 设计目标：成百上千条数据
-├── 通知面板实际数量：通常 5-20 条，极端情况不超过 50 条
-├── ViewHolder 复用在通知场景收益极小
-└── 通知 View 之间差异大（不同模板、不同高度），复用反而增加复杂度
-
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  原因 2：复杂的堆叠和交互动画，FrameLayout 天然支持                          │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-通知面板有非常特殊的视觉交互:
-
-  ┌─────────────────────┐
-  │ 最新通知 (完全可见)   │  ← y 偏移 = 0
-  ├─────────────────────┤
-  │ 通知 2 (部分可见)    │  ← y 偏移 = -100px，被上面遮挡
-  │  ┌─────────────────┐│
-  │  │ 通知 3 (只露顶) ││  ← y 偏移 = -200px
-  │  │  ┌─────────────┐││
-  │  │  │  通知 4 ... │││
-  │  │  └─────────────┘││
-  │  └─────────────────┘│
-  └─────────────────────┘
-
-这种"堆叠"效果需要:
-├── 每个子 View 可以有任意的 translationY / translationZ
-├── 子 View 之间有重叠（overlap）
-├── 子 View 可以有独立的高度（elevation）阴影
-├── 展开/折叠时子 View 的位移是连续动画
-└── FrameLayout 允许子 View 自由定位和重叠，LinearLayout 不行
-
-RecyclerView 的局限:
-├── RecyclerView 强制线性排列（LinearLayoutManager）
-├── Item 之间不能重叠
-├── 自定义 LayoutController 可以实现，但代价很大
-├── 动画系统（ItemAnimator）不适合通知的堆叠动画
-└── 需要大量 hack 才能达到 NotificationStackScrollLayout 的效果
-
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  原因 3：每条通知高度不固定且可动态变化                                       │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-通知 View 的高度在运行时频繁变化:
-├── 展开/折叠切换 → 高度突变
-├── 智能回复按钮展开 → 高度增加
-├── 进度条通知 → 高度固定但内容更新
-├── 图片通知 → 大图展开/收起
-└── 通知组展开/折叠 → 子通知动态添加/移除
-
-RecyclerView 的挑战:
-├── 高度变化需要 notifyItemChanged → 触发重新 measure/layout
-├── 动态高度变化会导致其他 Item 抖动
-├── 需要手动管理 span size、view type
-└── 复杂度远超直接使用 FrameLayout + 手动布局
-
-NotificationStackScrollLayout 的方案:
-├── 每条通知是一个独立的 ExpandableNotificationRow (FrameLayout)
-├── 自行管理所有子 View 的 measure/layout
-├── 重写 onMeasure() 和 onLayout() 实现堆叠算法
-├── 高度变化通过 ValueAnimator 平滑过渡
-└── 完全掌控每个子 View 的位置和大小
-
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  原因 4：复杂的手势交互                                                     │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-通知面板的手势远比普通列表复杂:
-
-├── 单条通知滑动删除（swipe to dismiss）
-├── 下拉展开通知详情
-├── 通知之间的速度追踪和惯性
-├── "锁屏" 和 "通知面板" 的手势冲突处理
-├── 双指操作（展开/折叠通知组）
-├── 触摸事件的精确分发（通知内部按钮 vs 整体滑动）
-└── 长按进入通知设置
-
-RecyclerView 的 ItemTouchHelper 处理不了:
-├── ItemTouchHelper 支持简单的滑动/拖拽
-├── 但通知需要"滑动到一半弹回"（snooze）
-├── 滑动过程中显示底层的 snooze/time 按钮
-├── 这种交互需要完全自定义的触摸事件处理
-└── NotificationStackScrollLayout 直接处理 onTouchEvent
-
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  原因 5：性能考量                                                           │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-实际性能对比:
-
-RecyclerView:
-├── 每次 scroll → 需要计算 ViewHolder 复用
-├── 滑动时持续 inflate/deatch/recycle
-├── 对 5-20 条通知来说，管理开销 > 收益
-└── Adapter、LayoutController、Recycler 多层抽象有额外开销
-
-NotificationStackScrollLayout:
-├── 所有通知 View 始终在 View 树中
-├── 滑动只是修改 translationY，不需要 inflate/deatch
-├── 直接操作 Canvas 绘制，减少过度绘制
-├── 利用硬件加速的 translationZ 实现阴影
-└── 通知数量少时，直接布局比 ViewHolder 复用更快
-
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  总结                                                                       │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-                    ┌──────────────────────────────┐
-                    │     RecyclerView 适合:        │
-                    │  ✓ 数据量大 (100+)            │
-                    │  ✓ Item 布局统一              │
-                    │  ✓ 线性排列，无重叠            │
-                    │  ✓ 简单手势                   │
-                    └──────────────────────────────┘
-                                vs
-                    ┌──────────────────────────────┐
-                    │  通知面板实际需求:             │
-                    │  ✗ 数据量小 (5-20)            │
-                    │  ✗ Item 布局差异大            │
-                    │  ✗ 需要堆叠/重叠效果          │
-                    │  ✗ 复杂手势交互               │
-                    └──────────────────────────────┘
-
-结论：NotificationStackScrollLayout (FrameLayout) 是更合适的选择。
-      RecyclerView 在通知面板场景下没有优势，反而增加了复杂度。
-      这也是 SystemUI 团队从 Android 4.x 开始就使用自定义 ViewGroup 的原因。
-```
-
-**Q4: AOD 是如何实现低功耗的？**
-
-**A:**
-
-```
-硬件层面:
-1. AMOLED 屏幕可单独点亮像素
-2. Display HAL 支持 AOD 模式
-3. 低刷新率（1fps）
-
-软件层面:
-1. DozeMachine 状态机控制
-2. 定时脉冲更新（减少唤醒次数）
-3. 防烧屏机制（位置偏移）
-4. 传感器辅助（口袋模式检测）
-```
-
-**Q5: 通知渠道 (NotificationChannel) 的作用？**
-
-**A:**
-
-```
-作用:
-1. 分类管理：将通知按类型分组
-2. 用户控制：用户可独立控制每类通知
-3. 重要性级别：决定通知的显示方式
-4. 统一管理：同一渠道的通知统一配置
-
-属性:
-- ID：唯一标识
-- 名称：用户可见
-- 重要性：IMPORTANCE_NONE 到 IMPORTANCE_MAX
-- 声音、振动、灯光
-- 是否显示角标
-```
-
----
+本轮只做文档与关键源码路径静态审阅，没有做 Perfetto、功耗或帧率实验。因此保留分层分析方法，删除旧文伪造的绝对性能结论。
 
 ## 13. Keyguard 锁屏系统
 
-> 本节内容基于 **Android 16 (API 36)** 源码分析
-> 源码路径：`frameworks/base/packages/SystemUI/src/com/android/keyguard/`
+Keyguard 分布在 SystemUI UI/认证控制和 system_server 的窗口策略、凭据/生物识别服务两侧。不能把一个应用 BiometricPrompt demo 当成系统锁屏解锁实现；也不能把 UI 隐藏等同安全凭据已通过。
 
 ### 13.1 Keyguard 概述
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                       Keyguard 锁屏系统概述 (Android 16)                     │
+│                       Keyguard 锁屏系统概述 (Android 17)                     │
 └─────────────────────────────────────────────────────────────────────────────┘
 
 Keyguard 是 Android 系统的锁屏实现，负责：
@@ -5331,16 +3642,16 @@ Keyguard 是 Android 系统的锁屏实现，负责：
 4. 与 SystemUI 的状态同步
 
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                 Android 16 Keyguard 分层架构                                 │
+│                 Android 17 Keyguard 分层架构                                 │
 └─────────────────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                          View Layer (视图层)                                │
 │  ┌─────────────────────────────────────────────────────────────────────┐   │
 │  │                    KeyguardSecurityContainer                        │   │
-│  │  ├── PatternKeyguardView    (图案解锁)                              │   │
-│  │  ├── PasswordKeyguardView    (密码解锁)                              │   │
-│  │  ├── PINKeyguardView         (PIN 解锁)                              │   │
+│  │  ├── KeyguardPatternView    (图案解锁)                              │   │
+│  │  ├── KeyguardPasswordView    (密码解锁)                              │   │
+│  │  ├── KeyguardPINView         (PIN 解锁)                              │   │
 │  │  ├── KeyguardSimPinView      (SIM PIN)                               │   │
 │  │  └── KeyguardSimPukView      (SIM PUK)                               │   │
 │  └─────────────────────────────────────────────────────────────────────┘   │
@@ -5367,9 +3678,9 @@ Keyguard 是 Android 系统的锁屏实现，负责：
 │  └─────────────────────────────────────────────────────────────────────┘   │
 │  ┌─────────────────────────────────────────────────────────────────────┐   │
 │  │                    *ViewController (各视图控制器)                     │   │
-│  │  - PatternKeyguardViewController                                    │   │
-│  │  - PasswordKeyguardViewController                                   │   │
-│  │  - PinViewController                                                │   │
+│  │  - KeyguardPatternViewController                                    │   │
+│  │  - KeyguardPasswordViewController                                   │   │
+│  │  - KeyguardPINViewController                                                │   │
 │  └─────────────────────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────────────────────┘
                                     │
@@ -5391,7 +3702,7 @@ Keyguard 是 Android 系统的锁屏实现，负责：
                                     │
                                     ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                      Domain Layer (业务逻辑层) [Android 16 新增]            │
+│                      Domain Layer (业务逻辑层) [架构分工示意，不表示版本引入时间]            │
 │  ┌─────────────────────────────────────────────────────────────────────┐   │
 │  │                    domain/interactor/                                │   │
 │  │  - KeyguardKeyboardInteractor (键盘显示逻辑)                        │   │
@@ -5412,7 +3723,7 @@ Keyguard 是 Android 系统的锁屏实现，负责：
                                     │
                                     ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                      Logging Layer (日志层) [Android 16 新增]               │
+│                      Logging Layer (日志层) [架构分工示意，不表示版本引入时间]               │
 │  ┌─────────────────────────────────────────────────────────────────────┐   │
 │  │                    logging/                                          │   │
 │  │  - KeyguardLogger (核心日志)                                        │   │
@@ -5422,1035 +3733,896 @@ Keyguard 是 Android 系统的锁屏实现，负责：
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 13.2 Keyguard 源码目录结构 (Android 16)
 
-```
-frameworks/base/packages/SystemUI/src/com/android/keyguard/
-├── KeyguardUpdateMonitor.java          # 核心状态监控器
-├── KeyguardUpdateMonitorCallback.java  # 状态变化回调
-├── KeyguardViewController.java         # 视图控制器接口
-├── KeyguardSecurityModel.java          # 安全模式模型
-├── KeyguardSecurityCallback.java       # 安全验证回调
-├── KeyguardDisplayManager.java         # 显示管理器
-│
-├── security/                           # 安全验证视图
-│   ├── KeyguardSecurityContainer.java
-│   ├── KeyguardSecurityContainerController.java
-│   ├── KeyguardSecurityView.java
-│   ├── KeyguardSecurityViewFlipper.java
-│   └── KeyguardSecurityViewTransition.kt
-│
-├── PinShapeAdapter.kt                  # PIN 形状适配器
-├── PinShapeHintingView.java            # PIN 提示视图
-├── NumPadKey.java                      # 数字键盘按键
-├── NumPadButton.java                   # 数字按钮
-├── NumPadAnimator.java                 # 按键动画
-│
-├── dagger/                             # Dagger 依赖注入
-│   ├── KeyguardBouncerComponent.java
-│   ├── KeyguardBouncerModule.java
-│   ├── KeyguardBouncerScope.java
-│   └── KeyguardDisplayModule.kt
-│
-├── domain/interactor/                  # 业务逻辑层 [新增]
-│   └── KeyguardKeyboardInteractor.kt
-│
-├── logging/                            # 日志模块 [新增]
-│   ├── KeyguardLogger.kt
-│   ├── BiometricUnlockLogger.kt
-│   └── KeyguardTransitionAnimationLogger.kt
-│
-└── mediator/                           # 协调器
-    └── ScreenOnCoordinator.kt
+### 13.2 源码目录与实现边界
+
+```text
+packages/SystemUI/src/com/android/
+  keyguard/
+    KeyguardUpdateMonitor.java
+    KeyguardPatternViewController.java
+    KeyguardSecurityContainerController.java
+  systemui/keyguard/
+    KeyguardService.java
+    KeyguardViewMediator.java
+    shared/model/KeyguardState.kt
+services/core/java/com/android/server/policy/
+  PhoneWindowManager.java
+  keyguard/KeyguardServiceDelegate.java
+core/java/com/android/internal/widget/
+  LockPatternChecker.java
 ```
 
-### 13.3 Keyguard 启动流程
+此处列出已取得固定 tag 源码的核心入口，不再画不存在的 `com/android/keyguard/security/` 通用子目录。UI 视图控制、monitor、mediator 与 scene/transition 模型并不是同一个层次；产品开关决定部分新旧 UI 路径，不能把某个类存在解释成所有产品必经。
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                       Keyguard 启动流程                                      │
-└─────────────────────────────────────────────────────────────────────────────┘
+### 13.3 启动链：system_server 绑定与 SystemUI startable 协作
 
-SystemServer 启动:
-│
-├── 1. SystemServer.startOtherServices()
-│   │
-│   ├── WindowManagerService.onDisplayReady()
-│   │   │
-│   │   └── mPolicy.onDisplayReady()
-│   │       │
-│   │       └── PhoneWindowManager.onDisplayReady()
-│   │           │
-│   │           └── KeyguardViewMediator.onSystemReady()
-│   │
-│   └── KeyguardViewMediator 开始工作
-│
-├── 2. KeyguardViewMediator.onSystemReady()
-│   │
-│   ├── 读取锁屏配置
-│   │   mLockPatternUtils.isSecure()  // 是否设置安全锁
-│   │
-│   ├── 读取设备策略
-│   │   mDevicePolicyManager.getPasswordQuality()
-│   │
-│   └── 通知状态变化
-│       mUpdateMonitor.registerCallback(mCallback)
-│
-├── 3. SystemUI KeyguardService 绑定
-│   │
-│   ├── KeyguardService.bindService()
-│   │   Intent intent = new Intent(KeyguardService.ACTION_BIND_SERVICE);
-│   │   mContext.bindService(intent, mConnection, Context.BIND_AUTO_CREATE);
-│   │
-│   └── KeyguardService.onCreate()
-│       ├── 创建 KeyguardViewMediator
-│       └── 初始化 KeyguardUpdateMonitor
-│
-└── 4. Keyguard 界面创建
-    │
-    ├── KeyguardBouncer.show()
-    │   ├── inflateView()  // 加载锁屏视图
-    │   └── showPrimaryBouncer()  // 显示安全验证
-    │
-    └── KeyguardHostView.onFinishInflate()
-        ├── 初始化状态栏
-        ├── 初始化时钟
-        └── 初始化安全容器
+```text
+SystemUI Application 的 DI/startables 启动
+  -> KeyguardViewMediator.start() -> setupLocked()
+
+system_server PhoneWindowManager.bindKeyguard()
+  -> KeyguardServiceDelegate.bindService()
+  -> bindServiceAsUser -> SystemUI KeyguardService Binder
+  -> onSystemReady 等事件 -> mediator Handler
+  -> handleSystemReady() -> doKeyguardLocked()/注册状态监听
 ```
 
-### 13.3 KeyguardViewMediator 源码分析
+两条路径需要协作，不是 SystemServer 直接 new Mediator 并调用其私有初始化方法。`KeyguardServiceDelegate` 缓存尚未连通时的系统状态，连接建立后回放；Binder 已绑定、system ready、keyguard 已显示以及首帧完成分别有不同时间点。
+
+
+源码：[KeyguardServiceDelegate.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/services/core/java/com/android/server/policy/keyguard/KeyguardServiceDelegate.java)。下方为该 tag 的方法/类型节选，省略所在类的其他成员与 imports，不作为独立工程。
+
 
 ```java
-/**
- * KeyguardViewMediator - 锁屏中介器
- * 位置：frameworks/base/packages/SystemUI/src/com/android/keyguard/
- */
+public void bindService(@NonNull Context context, @NonNull Handler handler) {
+    Intent intent = new Intent();
+    final Resources resources = context.getApplicationContext().getResources();
 
-public class KeyguardViewMediator extends SystemUI {
+    final ComponentName keyguardComponent = ComponentName.unflattenFromString(
+            resources.getString(com.android.internal.R.string.config_keyguardComponent));
+    intent.addFlags(Intent.FLAG_DEBUG_TRIAGED_MISSING);
+    intent.setComponent(keyguardComponent);
 
-    // 锁屏状态
-    private boolean mShowing;
-    private boolean mOccluded;      // 被其他应用遮挡
-    private boolean mSecure;        // 是否需要安全验证
-    private boolean mScreenOn;      // 屏幕是否开启
-
-    // 核心组件
-    private KeyguardUpdateMonitor mUpdateMonitor;
-    private KeyguardBouncer mBouncer;
-    private KeyguardLifecyclesObserver mLifecyclesObserver;
-
-    // 状态回调
-    private final KeyguardUpdateMonitorCallback mCallback =
-        new KeyguardUpdateMonitorCallback() {
-
-        @Override
-        public void onScreenTurnedOff() {
-            mScreenOn = false;
-            // 屏幕关闭时显示锁屏
-            if (shouldShowLockScreen()) {
-                showLocked(null);
-            }
-        }
-
-        @Override
-        public void onScreenTurnedOn() {
-            mScreenOn = true;
-            notifyScreenOnChanged();
-        }
-
-        @Override
-        public void onUserSwitchComplete(int userId) {
-            // 用户切换时重置锁屏
-            resetStateLocked();
-        }
-
-        @Override
-        public void onKeyguardVisibilityChanged(boolean showing) {
-            if (showing) {
-                // 锁屏显示时播放动画
-                mBouncer.show(false /* resetSecuritySelection */);
-            }
-        }
-
-        @Override
-        public void onTrustGranted(boolean newlyAcquired) {
-            // 信任授权（如可信设备）
-            if (newlyAcquired && mShowing) {
-                dismissKeyguard();
-            }
-        }
-    };
-
-    /**
-     * 显示锁屏
-     */
-    public void showLocked(Bundle options) {
-        synchronized (this) {
-            // 1. 检查是否需要显示
-            if (!mSystemReady || mShowing) {
-                return;
-            }
-
-            // 2. 设置显示状态
-            mShowing = true;
-
-            // 3. 更新状态
-            mUpdateMonitor.reportKeyguardShowing(true);
-
-            // 4. 显示 Bouncer
-            mHandler.post(() -> {
-                playSounds(true);  // 播放锁屏音效
-                mBouncer.show(true /* resetSecuritySelection */);
-            });
-
-            // 5. 通知状态变化
-            notifyKeyguardStateChanged();
-        }
+    if (!context.bindServiceAsUser(intent, mKeyguardConnection, Context.BIND_AUTO_CREATE,
+            handler, UserHandle.SYSTEM)) {
+        Log.v(TAG, "*** Keyguard: can't bind to " + keyguardComponent);
+        mKeyguardReportedState.disable();
+    } else {
+        if (DEBUG) Log.v(TAG, "*** Keyguard started");
     }
 
-    /**
-     * 隐藏锁屏（解锁成功后）
-     */
-    public void hideLocked() {
-        synchronized (this) {
-            // 1. 检查是否可以隐藏
-            if (!mShowing) {
-                return;
-            }
+    final DreamManagerInternal dreamManager =
+            LocalServices.getService(DreamManagerInternal.class);
+    if (dreamManager != null) {
+        dreamManager.registerDreamManagerStateListener(mDreamManagerStateListener);
+    }
+}
 
-            // 2. 验证是否允许解锁
-            if (!mUpdateMonitor.canDismissKeyguard()) {
-                return;
-            }
+public void onSystemReady() {
+    if (mKeyguardService != null) {
+        try {
+            mKeyguardService.onSystemReady();
+        } catch (RemoteException e) {
+            Slog.w(TAG, "Remote Exception", e);
+        }
+    } else {
+        mKeyguardState.systemReady = true;
+    }
+}
+```
 
-            // 3. 设置隐藏状态
-            mShowing = false;
 
-            // 4. 隐藏 Bouncer
-            mHandler.post(() -> {
-                playSounds(false);  // 播放解锁音效
-                mBouncer.hide();
-            });
+源码：[KeyguardViewMediator.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/packages/SystemUI/src/com/android/systemui/keyguard/KeyguardViewMediator.java)。下方为该 tag 的方法/类型节选，省略所在类的其他成员与 imports，不作为独立工程。
 
-            // 5. 通知状态变化
-            notifyKeyguardStateChanged();
+
+```java
+public void start() {
+    synchronized (this) {
+        setupLocked();
+    }
+}
+
+private void handleSystemReady() {
+    synchronized (this) {
+        if (DEBUG) Log.d(TAG, "onSystemReady");
+        mSystemReady = true;
+        doKeyguardLocked(null);
+        mUpdateMonitor.registerCallback(mUpdateCallback);
+        adjustStatusBarLocked();
+        mDreamOverlayStateController.addCallback(mDreamOverlayStateCallback);
+
+        mHandler.obtainMessage(BOOT_INTERACTOR).sendToTarget();
+
+        final DreamViewModel dreamViewModel = mDreamViewModel.get();
+        final CommunalTransitionViewModel communalViewModel =
+                mCommunalTransitionViewModel.get();
+
+        mJavaAdapter.alwaysCollectFlow(dreamViewModel.getDreamAlpha(),
+                getRemoteSurfaceAlphaApplier());
+        mJavaAdapter.alwaysCollectFlow(dreamViewModel.getTransitionEnded(),
+                getFinishedCallbackConsumerForDream());
+        mJavaAdapter.alwaysCollectFlow(dreamViewModel.getTransitioningFromOrToDream(),
+                (relevantToDream) -> mIsKeyguardStateRelevantToDream = relevantToDream);
+        mJavaAdapter.alwaysCollectFlow(communalViewModel.getShowCommunalFromOccluded(),
+                (showCommunalFromOccluded) -> {
+                    mShowCommunalWhenUnoccluding = showCommunalFromOccluded;
+                });
+        mJavaAdapter.alwaysCollectFlow(communalViewModel.getTransitionFromOccludedEnded(),
+                getFinishedCallbackConsumer());
+
+        // System ready can be invoked in the middle of user switching, so check for this state
+        // and issue the call manually as that important event was missed.
+        if (mUserTracker.isUserSwitching()) {
+            mUserChangedCallback.onUserChanging(mUserTracker.getUserId(), mContext, () -> {});
         }
     }
+    // Most services aren't available until the system reaches the ready state, so we
+    // send it here when the device first boots.
+    maybeSendUserPresentBroadcast();
+}
+```
 
-    /**
-     * 尝试解锁
-     */
-    public void dismissKeyguard() {
-        synchronized (this) {
-            // 1. 检查是否允许解锁
-            if (!mSecure) {
-                // 无安全锁，直接解锁
-                hideLocked();
-                return;
-            }
+`KeyguardViewMediator` 实现 CoreStartable，不是旧教程中的 `extends SystemUI`。启动方法中的监听注册与安全显示策略不能删成一句“显示锁屏”：当前用户切换、provisioning、外部禁用请求和设备状态都可能改变后续流程。
 
-            // 2. 检查信任状态
-            if (mUpdateMonitor.getUserTrustIsManaged()) {
-                // 信任设备，直接解锁
-                hideLocked();
-                return;
-            }
+### 13.4 Mediator 的显示、隐藏与完成处理
 
-            // 3. 需要安全验证
-            mBouncer.show(true /* resetSecuritySelection */);
-        }
+Mediator 用 Handler 串行化重要事件，并与 view controller、窗口状态、解锁转场及用户状态协调。以下是该 tag 的实际关键处理方法；字段和分支保留，避免用一个 `mShowing = false` 伪装解锁：
+
+
+源码：[KeyguardViewMediator.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/packages/SystemUI/src/com/android/systemui/keyguard/KeyguardViewMediator.java)。下方为该 tag 的方法/类型节选，省略所在类的其他成员与 imports，不作为独立工程。
+
+
+```java
+private void handleShow(Bundle options) {
+    Trace.beginSection("KeyguardViewMediator#handleShow");
+    try {
+        handleShowInner(options);
+    } finally {
+        Trace.endSection();
     }
+}
 
-    /**
-     * 验证成功回调
-     */
-    public void onPasswordChecked(boolean success, int timeoutMs) {
-        if (success) {
-            // 验证成功，隐藏锁屏
-            hideLocked();
+private void handleShowInner(Bundle options) {
+    final boolean showUnlocked = options != null
+            && options.getBoolean(OPTION_SHOW_DISMISSIBLE, false);
+    final int currentUser = mSelectedUserInteractor.getSelectedUserId();
+    if (showUnlocked) {
+        // tell KeyguardUpdateMonitor to keep the device unlocked until the next lock signal
+        mUpdateMonitor.tryForceIsDismissibleKeyguard();
+    } else if (mLockPatternUtils.isSecure(currentUser)) {
+        mLockPatternUtils.getDevicePolicyManager().reportKeyguardSecured(currentUser);
+    }
+    synchronized (KeyguardViewMediator.this) {
+        if (!mSystemReady) {
+            if (DEBUG) Log.d(TAG, "ignoring handleShow because system is not ready.");
+            notifyLockNowCallback();
+            return;
+        }
+        if (DEBUG) Log.d(TAG, "handleShow");
+
+        mKeyguardExitTransition = null;
+        mWakeAndUnlocking = false;
+        setUnlockAndWakeFromDream(false, WakeAndUnlockUpdateReason.SHOW);
+        setPendingLock(false);
+
+        final boolean forceCallback;
+        if (ENABLE_NEW_KEYGUARD_SHELL_TRANSITIONS) {
+            // Always update to the future showing state before the transaction.
+            forceCallback = true;
         } else {
-            // 验证失败，显示错误提示
-            mBouncer.showTimeout();
+            final boolean hidingOrGoingAway =
+                    mHiding || mKeyguardStateController.isKeyguardGoingAway();
+            if (hidingOrGoingAway) {
+                Log.d(TAG, "Forcing setShowingLocked because one of these is true:"
+                        + "mHiding=" + mHiding
+                        + ", keyguardGoingAway="
+                        + mKeyguardStateController.isKeyguardGoingAway()
+                        + ", which means we're showing in the middle of hiding.");
+            }
+            forceCallback = hidingOrGoingAway;
+        }
 
-            // 延迟后允许重试
-            mHandler.postDelayed(() -> {
-                mBouncer.reset();
-            }, timeoutMs);
+        // Force if we're showing in the middle of unlocking, to ensure we end up in the
+        // correct state.
+        setShowingLocked(true, forceCallback /* force */, "handleShowInner");
+        mHiding = false;
+
+        // Any valid exit animation will set this to false before proceeding
+        mIsKeyguardExitAnimationCanceled = true;
+        // Make sure to remove any pending exit animation requests that would override a SHOW
+        mHandler.removeMessages(START_KEYGUARD_EXIT_ANIM);
+        mHandler.removeMessages(HIDE);
+        mKeyguardInteractor.showKeyguard();
+        mShadeController.get().instantCollapseShade();
+        mKeyguardStateController.notifyKeyguardGoingAway(false);
+
+        if (!KeyguardWmStateRefactor.isEnabled()) {
+            // Handled directly in StatusBarKeyguardViewManager if enabled.
+            mKeyguardViewControllerLazy.get().show(options);
+        }
+
+        resetKeyguardDonePendingLocked();
+        mHideAnimationRun = false;
+        adjustStatusBarLocked();
+        userActivity();
+        mUpdateMonitor.setKeyguardGoingAway(false);
+        mKeyguardViewControllerLazy.get().setKeyguardGoingAwayState(false);
+        mShowKeyguardWakeLock.release();
+    }
+    mKeyguardDisplayManager.show();
+
+    scheduleNonStrongBiometricIdleTimeout();
+}
+
+private void handleKeyguardDone() {
+    Trace.beginSection("KeyguardViewMediator#handleKeyguardDone");
+    final int currentUser = mSelectedUserInteractor.getSelectedUserId();
+    mUiBgExecutor.execute(() -> {
+        if (mLockPatternUtils.isSecure(currentUser)) {
+            mLockPatternUtils.getDevicePolicyManager().reportKeyguardDismissed(currentUser);
+        }
+    });
+    if (DEBUG) Log.d(TAG, "handleKeyguardDone");
+    synchronized (this) {
+        resetKeyguardDonePendingLocked();
+    }
+
+    if (mGoingToSleep) {
+        mUpdateMonitor.clearFingerprintRecognizedWhenKeyguardDone(currentUser);
+        Log.i(TAG, "Device is going to sleep, aborting keyguardDone");
+    } else {
+        setPendingLock(false); // user may have authenticated during the screen off animation
+
+        handleHide();
+        mKeyguardInteractor.keyguardDoneAnimationsFinished();
+        mUpdateMonitor.clearFingerprintRecognizedWhenKeyguardDone(currentUser);
+    }
+    Trace.endSection();
+}
+
+private void handleHide() {
+    Trace.beginSection("KeyguardViewMediator#handleHide");
+
+    // It's possible that the device was unlocked (via BOUNCER) while dozing. It's time to
+    // wake up.
+    if (mAodShowing) {
+        mPM.wakeUp(mSystemClock.uptimeMillis(), PowerManager.WAKE_REASON_GESTURE,
+                "com.android.systemui:BOUNCER_DOZING");
+    }
+
+    synchronized (KeyguardViewMediator.this) {
+        if (DEBUG) Log.d(TAG, "handleHide");
+
+        // If waking and unlocking, waking from dream has been set properly.
+        if (!mWakeAndUnlocking) {
+            setUnlockAndWakeFromDream(mStatusBarStateController.isDreaming()
+                    && mPM.isInteractive(), WakeAndUnlockUpdateReason.HIDE);
+        }
+
+        if (mBootCompleted && ((mShowing && !mOccluded) || mUnlockingAndWakingFromDream)) {
+            if (mUnlockingAndWakingFromDream) {
+                Log.d(TAG, "hiding keyguard before waking from dream");
+            }
+            mHiding = true;
+            mLastHideRequest = mLastShowRequest;
+            mKeyguardGoingAwayRunnable.run();
+        } else {
+            if (!KeyguardWmStateRefactor.isEnabled()) {
+                mKeyguardViewControllerLazy.get().hide(
+                        mSystemClock.uptimeMillis() + mHideAnimation.getStartOffset(),
+                        mHideAnimation.getDuration());
+            }
+
+            onKeyguardExitFinished("Hiding keyguard while occluded. Just hide the keyguard "
+                    + "view and exit.");
+        }
+
+        // It's possible that the device was unlocked (via BOUNCER or Fingerprint) while
+        // dreaming. It's time to wake up.
+        if ((mDreamOverlayShowing || mUpdateMonitor.isDreaming()) && !mOrderUnlockAndWake) {
+            mPM.wakeUp(mSystemClock.uptimeMillis(), PowerManager.WAKE_REASON_GESTURE,
+                    "com.android.systemui:UNLOCK_DREAMING");
         }
     }
+    Trace.endSection();
 }
 ```
 
-### 13.4 KeyguardUpdateMonitor 状态管理
+这些分支说明“认证成功”和“锁屏已经消失”之间仍有工作：核实当前用户/睡眠状态、处理 going-away/远程动画、同步窗口可见性和完成回调。代码出现 legacy/new 路径分支时必须保留 flag 条件，不能挑一个分支写成 Android 17 的唯一流程。
+
+调试时至少同时记录 showing、occluded、going-away、wakefulness 和 bouncer/scene 状态。应用盖在锁屏上（occluded）不必然意味着设备已认证；反过来，认证已满足也可能仍在执行退出动画。
+
+### 13.5 KeyguardUpdateMonitor：监听与信任语义
+
+monitor 汇集电池、SIM、用户和认证相关状态。回调集合使用 WeakReference；注册后会发送当前状态快照，重复注册与失效引用也需要处理。即使用弱引用，拥有明确生命周期的控制器仍应成对注册/移除，不能依赖 GC 决定什么时候停止业务回调。
+
+
+源码：[KeyguardUpdateMonitor.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/packages/SystemUI/src/com/android/keyguard/KeyguardUpdateMonitor.java)。下方为该 tag 的方法/类型节选，省略所在类的其他成员与 imports，不作为独立工程。
+
 
 ```java
-/**
- * KeyguardUpdateMonitor - 锁屏状态监听器
- * 位置：frameworks/base/packages/SystemUI/src/com/android/keyguard/
- */
+public void registerCallback(KeyguardUpdateMonitorCallback callback) {
+    Assert.isMainThread();
+    mLogger.logRegisterCallback(callback);
+    // Prevent adding duplicate callbacks
 
-public class KeyguardUpdateMonitor {
-
-    // 状态标志
-    private boolean mDeviceInteractive;     // 设备是否可交互
-    private boolean mScreenOn;              // 屏幕是否开启
-    private boolean mKeyguardShowing;       // 锁屏是否显示
-    private boolean mBouncerShowing;        // 安全验证是否显示
-
-    // 安全状态
-    private int mFailedPasswordAttempts;    // 密码尝试失败次数
-    private boolean mStrongAuthRequired;    // 是否需要强认证
-    private boolean mTrustManaged;          // 是否信任设备
-
-    // 回调列表
-    private final ArrayList<KeyguardUpdateMonitorCallback> mCallbacks =
-        new ArrayList<>();
-
-    /**
-     * 注册回调
-     */
-    public void registerCallback(KeyguardUpdateMonitorCallback callback) {
-        synchronized (mCallbacks) {
-            mCallbacks.add(callback);
+    for (int i = 0; i < mCallbacks.size(); i++) {
+        if (mCallbacks.get(i).get() == callback) {
+            mLogger.logException(
+                    new Exception("Called by"),
+                    "Object tried to add another callback");
+            return;
         }
     }
+    mCallbacks.add(new WeakReference<>(callback));
+    removeCallback(null); // remove unused references
+    sendUpdates(callback);
+}
 
-    /**
-     * 报告锁屏显示状态
-     */
-    public void reportKeyguardShowing(boolean showing) {
-        if (mKeyguardShowing != showing) {
-            mKeyguardShowing = showing;
-            notifyKeyguardVisibilityChanged();
-        }
-    }
+public void removeCallback(KeyguardUpdateMonitorCallback callback) {
+    Assert.isMainThread();
+    mLogger.logUnregisterCallback(callback);
 
-    /**
-     * 报告安全验证结果
-     */
-    public void reportSuccessfulAuthentication() {
-        // 1. 重置失败计数
-        mFailedPasswordAttempts = 0;
+    mCallbacks.removeIf(el -> el.get() == callback);
+}
 
-        // 2. 清除强认证要求
-        mStrongAuthRequired = false;
+public boolean getUserCanSkipBouncer(int userId) {
+    return getUserHasTrust(userId) || getUserUnlockedWithBiometric(userId)
+            || forceIsDismissibleIsKeepingDeviceUnlocked();
+}
 
-        // 3. 通知回调
-        for (KeyguardUpdateMonitorCallback callback : mCallbacks) {
-            callback.onStrongAuthStateChanged(false);
-        }
-    }
+public boolean getUserHasTrust(int userId) {
+    return !isTrustDisabled() && mUserHasTrust.get(userId)
+            && isUnlockingWithTrustAgentAllowed();
+}
 
-    /**
-     * 报告安全验证失败
-     */
-    public void reportFailedAuthentication() {
-        // 1. 增加失败计数
-        mFailedPasswordAttempts++;
-
-        // 2. 检查是否需要锁定
-        int maxAttempts = getMaxFailedPasswordAttempts();
-        if (mFailedPasswordAttempts >= maxAttempts) {
-            // 达到最大尝试次数，锁定设备
-            lockDevice();
-        }
-
-        // 3. 通知回调
-        for (KeyguardUpdateMonitorCallback callback : mCallbacks) {
-            callback.onFailedAuthenticationAttempt();
-        }
-    }
-
-    /**
-     * 检查是否可以解锁
-     */
-    public boolean canDismissKeyguard() {
-        // 1. 无安全锁
-        if (!isSecure()) {
-            return true;
-        }
-
-        // 2. 信任设备
-        if (mTrustManaged) {
-            return true;
-        }
-
-        // 3. 生物识别已验证
-        if (mBiometricAuthenticated) {
-            return true;
-        }
-
-        return false;
-    }
-
-    // 内部监听器
-    private final BroadcastReceiver mBroadcastReceiver = new BroadcastReceiver() {
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            String action = intent.getAction();
-
-            if (Intent.ACTION_TIME_TICK.equals(action)) {
-                // 时间变化
-                handleTimeTick();
-            } else if (Intent.ACTION_BATTERY_CHANGED.equals(action)) {
-                // 电池状态变化
-                handleBatteryUpdate(intent);
-            } else if (TelephonyManager.ACTION_SIM_CARD_STATE_CHANGED.equals(action)) {
-                // SIM 卡状态变化
-                handleSimStateChange(intent);
-            }
-        }
-    };
-
-    private void handleTimeTick() {
-        for (KeyguardUpdateMonitorCallback callback : mCallbacks) {
-            callback.onTimeChanged();
-        }
-    }
+public boolean getUserTrustIsManaged(int userId) {
+    return mUserTrustIsManaged.get(userId) && !isTrustDisabled();
 }
 ```
 
-### 13.5 安全验证机制
+`getUserTrustIsManaged()` 描述信任是否受管理，并不代表当前用户已经被信任。是否能跳过 bouncer 应遵循 `getUserCanSkipBouncer()` 所组合的 trust/biometric 与 strong-auth 约束，不能写 `if (isManaged) dismiss()`。
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                       安全验证机制                                           │
-└─────────────────────────────────────────────────────────────────────────────┘
+一次生物识别回调也不必然满足所有认证强度要求。重启后、lockout、管理员策略或强认证状态变化时，界面必须按系统策略要求主凭据；不要用 UI 布尔值绕过服务器侧凭据判断。
 
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  安全验证类型                                                                │
-└─────────────────────────────────────────────────────────────────────────────┘
+### 13.6 安全模式与图案认证完整回调
 
-┌──────────────────┬──────────────────────────────────────────────────────────┐
-│      类型        │                       说明                              │
-├──────────────────┼──────────────────────────────────────────────────────────┤
-│  Pattern         │  图案解锁（3x3 点阵）                                   │
-│  PIN             │  PIN 码解锁（4-16 位数字）                               │
-│  Password        │  密码解锁（4-16 位字符）                                 │
-│  Fingerprint     │  指纹解锁                                               │
-│  Face            │  人脸解锁                                               │
-│  Iris            │  虹膜解锁                                               │
-└──────────────────┴──────────────────────────────────────────────────────────┘
+PIN、图案、密码、SIM PIN/PUK 和生物识别不是可以互换的 UI 皮肤。SecurityContainerController 根据安全模式和认证结果决定继续显示哪一个安全屏幕、是否允许 finish；SIM 解锁成功也不等于用户的设备凭据已验证。
 
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  验证流程图                                                                  │
-└─────────────────────────────────────────────────────────────────────────────┘
+图案入口在 `KeyguardPatternViewController.OnPatternListener.onPatternDetected()`，不是 `PatternKeyguardView.onPatternDetected()`。它禁用输入、取消先前待完成检查、构造 LockscreenCredential 并异步调用 LockPatternChecker；短图案和有效凭据路径的统计/回调不同：
 
-用户触发解锁:
-│
-├── 1. 选择验证方式
-│   KeyguardSecurityContainer.showSecurityScreen(mode)
-│   │
-│   ├── Pattern  → PatternKeyguardView
-│   ├── PIN      → PINKeyguardView
-│   ├── Password → PasswordKeyguardView
-│   └── Biometric→ BiometricKeyguardView
-│
-├── 2. 用户输入
-│   ├── 图案：绘制 3x3 点阵
-│   ├── PIN：输入数字
-│   ├── 密码：输入字符
-│   └── 生物识别：扫描指纹/人脸
-│
-├── 3. 验证
-│   KeyguardSecurityView.verifyPassword(password)
-│   │
-│   ├── LockPatternUtils.checkPattern(pattern)
-│   ├── LockPatternUtils.checkPassword(password)
-│   └── BiometricManager.authenticate()
-│
-├── 4. 验证结果
-│   │
-│   ├── 成功
-│   │   ├── mUpdateMonitor.reportSuccessfulAuthentication()
-│   │   └── mMediator.onPasswordChecked(true, 0)
-│   │       └── hideLocked()  // 隐藏锁屏
-│   │
-│   └── 失败
-│       ├── mUpdateMonitor.reportFailedAuthentication()
-│       └── mMediator.onPasswordChecked(false, timeout)
-│           ├── 显示错误提示
-│           └── 延迟后允许重试
-│
-└── 5. 更新统计
-    mLockSettingsService.reportSuccessfulAuthentication()
-```
 
-### 13.6 图案解锁源码分析
+源码：[KeyguardPatternViewController.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/packages/SystemUI/src/com/android/keyguard/KeyguardPatternViewController.java)。下方为该 tag 的方法/类型节选，省略所在类的其他成员与 imports，不作为独立工程。
+
 
 ```java
-/**
- * PatternKeyguardView - 图案解锁视图
- * 位置：frameworks/base/packages/SystemUI/src/com/android/keyguard/
- */
-
-public class PatternKeyguardView extends KeyguardSecurityView {
-
-    private LockPatternView mLockPatternView;
-    private KeyguardUpdateMonitor mUpdateMonitor;
-    private LockPatternUtils mLockPatternUtils;
-
-    // 图案状态
-    private enum PatternState {
-        STATE_INPUT,       // 输入中
-        STATE_CHECKING,    // 验证中
-        STATE_SUCCESS,     // 验证成功
-        STATE_FAILED,      // 验证失败
+public void onPatternDetected(final List<LockPatternView.Cell> pattern) {
+    mKeyguardUpdateMonitor.setCredentialAttempted();
+    mLockPatternView.disableInput();
+    if (mPendingLockCheck != null) {
+        mPendingLockCheck.cancel(false);
     }
 
-    /**
-     * 图案绘制监听
-     */
-    private LockPatternView.OnPatternListener mPatternListener =
-        new LockPatternView.OnPatternListener() {
-
-        @Override
-        public void onPatternStart() {
-            // 开始绘制图案
-            mLockPatternView.removeCallbacks(mResetPatternRunnable);
-            mLockPatternView.setDisplayMode(DisplayMode.Correct);
+    final int userId = mSelectedUserInteractor.getSelectedUserId();
+    if (pattern.size() < LockPatternUtils.MIN_PATTERN_REGISTER_FAIL) {
+        // Treat single-sized patterns as erroneous taps.
+        if (pattern.size() == 1) {
+            mFalsingCollector.updateFalseConfidence(FalsingClassifier.Result.falsed(
+                    0.7, getClass().getSimpleName(), "empty pattern input"));
         }
+        mLockPatternView.enableInput();
+        onPatternChecked(userId, false, Duration.ZERO,
+                false /* not valid - too short */, false /* isDuplicate */);
+        return;
+    }
 
-        @Override
-        public void onPatternCleared() {
-            // 图案清除
-            mLockPatternView.removeCallbacks(mResetPatternRunnable);
-        }
+    mLatencyTracker.onActionStart(ACTION_CHECK_CREDENTIAL);
+    mLatencyTracker.onActionStart(ACTION_CHECK_CREDENTIAL_UNLOCKED);
+    mPendingLockCheck = LockPatternChecker.checkCredential(
+            mLockPatternUtils,
+            LockscreenCredential.createPattern(pattern),
+            userId,
+            new LockPatternChecker.OnCheckCallback() {
 
-        @Override
-        public void onPatternCellAdded(List<Cell> pattern) {
-            // 添加一个点
-            // 播放触觉反馈
-            performHapticFeedback();
-        }
-
-        @Override
-        public void onPatternDetected(List<Cell> pattern) {
-            // 图案绘制完成
-            verifyPattern(pattern);
-        }
-    };
-
-    /**
-     * 验证图案
-     */
-    private void verifyPattern(List<Cell> pattern) {
-        // 1. 显示验证中状态
-        mLockPatternView.setEnabled(false);
-        setState(STATE_CHECKING);
-
-        // 2. 异步验证
-        new AsyncTask<List<Cell>, Void, Boolean>() {
-            @Override
-            protected Boolean doInBackground(List<Cell>... patterns) {
-                return mLockPatternUtils.checkPattern(patterns[0]);
-            }
-
-            @Override
-            protected void onPostExecute(Boolean success) {
-                if (success) {
-                    // 验证成功
-                    setState(STATE_SUCCESS);
-                    mLockPatternView.setDisplayMode(DisplayMode.Correct);
-
-                    // 通知验证成功
-                    mUpdateMonitor.reportSuccessfulAuthentication();
-                    mCallback.reportUnlockAttempt(true, 0);
-
-                    // 解锁
-                    mCallback.dismiss(true, KeyguardUpdateMonitor.getCurrentUser());
-                } else {
-                    // 验证失败
-                    setState(STATE_FAILED);
-                    mLockPatternView.setDisplayMode(DisplayMode.Wrong);
-
-                    // 通知验证失败
-                    mUpdateMonitor.reportFailedAuthentication();
-                    mCallback.reportUnlockAttempt(false, 0);
-
-                    // 显示错误提示
-                    showError(getString(R.string.kg_wrong_pattern));
-
-                    // 延迟后重置
-                    mLockPatternView.postDelayed(mResetPatternRunnable, 2000);
+                @Override
+                public void onEarlyMatched() {
+                    mLatencyTracker.onActionEnd(ACTION_CHECK_CREDENTIAL);
+                    onPatternChecked(
+                            userId,
+                            true /* matched */,
+                            Duration.ZERO /* timeout */,
+                            true /* isValidPattern */,
+                            false /* isDuplicate */);
                 }
-            }
-        }.execute(pattern);
-    }
 
-    // 重置图案
-    private final Runnable mResetPatternRunnable = () -> {
-        mLockPatternView.clearPattern();
-        mLockPatternView.setEnabled(true);
-        setState(STATE_INPUT);
-    };
+                @Override
+                public void onChecked(VerifyCredentialResponse response) {
+                    boolean matched = response.isMatched();
+                    Duration timeout = response.getTimeout();
+                    boolean isDuplicate = lockscreenIndicateDuplicateGuesses()
+                            && response.isCredAlreadyTried();
+                    mLatencyTracker.onActionEnd(ACTION_CHECK_CREDENTIAL_UNLOCKED);
+                    mLockPatternView.enableInput();
+                    mPendingLockCheck = null;
+                    if (!matched) {
+                        onPatternChecked(
+                                userId,
+                                false /* matched */,
+                                timeout,
+                                true /* isValidPattern */,
+                                isDuplicate);
+                    }
+                }
+
+                @Override
+                public void onCancelled() {
+                    // We already got dismissed with the early matched callback, so we
+                    // cancelled the check. However, we still need to note down the latency.
+                    mLatencyTracker.onActionEnd(ACTION_CHECK_CREDENTIAL_UNLOCKED);
+                }
+            });
+    if (pattern.size() > MIN_PATTERN_BEFORE_POKE_WAKELOCK) {
+        getKeyguardSecurityCallback().userActivity();
+        getKeyguardSecurityCallback().onUserInput();
+    }
+}
+
+private void onPatternChecked(int userId, boolean matched, Duration timeout,
+        boolean isValidPattern, boolean isDuplicate) {
+    boolean dismissKeyguard = mSelectedUserInteractor.getSelectedUserId() == userId;
+    if (matched) {
+        mBouncerHapticPlayer.playAuthenticationFeedback(
+                /* authenticationSucceeded= */true
+        );
+        getKeyguardSecurityCallback().reportUnlockAttempt(userId, true,
+                Duration.ZERO, isDuplicate);
+        if (dismissKeyguard) {
+            mLockPatternView.setDisplayMode(LockPatternView.DisplayMode.Correct);
+            mLatencyTracker.onActionStart(LatencyTracker.ACTION_LOCKSCREEN_UNLOCK);
+            mUiLatencyStatsManager.ifPresent(m -> m.reportEvent(
+                    UiLatencyStatsManager.EVENT_LOCK_SCREEN_UNLOCK_START,
+                    SystemClock.elapsedRealtime()));
+            Log.i(TAG,
+                    "StartUnlock. "
+                    + "User: " + userId
+                    + " TS: " + SystemClock.uptimeMillis()
+            );
+            getKeyguardSecurityCallback().dismiss(true, userId, SecurityMode.Pattern);
+        }
+    } else {
+        mBouncerHapticPlayer.playAuthenticationFeedback(
+                /* authenticationSucceeded= */false
+        );
+        mLockPatternView.setDisplayMode(LockPatternView.DisplayMode.Wrong);
+        if (isValidPattern) {
+            getKeyguardSecurityCallback()
+                    .reportUnlockAttempt(userId, false, timeout, isDuplicate);
+            if (timeout.isPositive()) {
+                Duration lockoutEndTime = mLockPatternUtils.getLockoutEndTime(userId);
+                handleAttemptLockout(lockoutEndTime);
+            }
+        }
+        if (timeout.isZero()) {
+            int wrongPatternStringId =
+                    isDuplicate
+                            ? R.string.kg_primary_auth_duplicate_guess_pattern
+                            : R.string.kg_wrong_pattern;
+            mMessageAreaController.setMessage(wrongPatternStringId);
+            mLockPatternView.postDelayed(mCancelPatternRunnable, PATTERN_CLEAR_TIMEOUT_MS);
+        }
+    }
 }
 ```
 
-### 13.7 生物识别解锁
+该 tag 的结果参数使用 `Duration timeout`，并包含重复尝试等信息，不能把旧版 `int timeoutMs` 接口原封不动标为 Android 17。结果到达时还要核对用户身份，成功路径报告解锁并 dismiss，失败路径恢复输入/显示错误或进入锁定倒计时。
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                       生物识别解锁                                           │
-└─────────────────────────────────────────────────────────────────────────────┘
+超时策略来自凭据校验与系统安全策略，不能固定宣称“失败 5 次就 30 秒、10 次就清空设备”。设备管理器的数据擦除阈值、Gatekeeper/凭据限流与 UI 提示是不同层次；本轮未做恶意尝试或设备策略测试。
 
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  生物识别类型                                                                │
-└─────────────────────────────────────────────────────────────────────────────┘
+`LockPatternChecker` 是异步协作入口，不是在 SystemUI 本地比较明文图案字符串。业务日志不能记录图案点序列、PIN/密码或认证 token；取消与清理同样属于敏感数据寿命管理。
 
-┌──────────────────┬──────────────────────────────────────────────────────────┐
-│      类型        │                       说明                              │
-├──────────────────┼──────────────────────────────────────────────────────────┤
-│  Fingerprint     │  指纹识别（Android 6.0+）                                │
-│  Face            │  人脸识别（Android 10+）                                 │
-│  Iris            │  虹膜识别（Android 10+）                                 │
-└──────────────────┴──────────────────────────────────────────────────────────┘
+### 13.7 生物识别：认证结果到解锁模式
 
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  生物识别架构                                                                │
-└─────────────────────────────────────────────────────────────────────────────┘
+系统锁屏的结果由 KeyguardUpdateMonitor 等状态输入进入 BiometricUnlockController。不同传感器和交互状态会选择不同解锁模式：息屏唤醒、保持 bouncer、解除锁屏、仅处理已唤醒 UI 并不是统一的 `authenticate -> hide`。
 
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                          Framework 层                                        │
-│  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │                    BiometricManager                                  │   │
-│  │  - 生物识别能力查询                                                  │   │
-│  │  - 认证请求调度                                                      │   │
-│  └─────────────────────────────────────────────────────────────────────┘   │
-│                                    │                                      │
-│                                    ▼                                      │
-│  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │                    BiometricService                                  │   │
-│  │  - 生物识别服务管理                                                  │   │
-│  │  - 认证流程控制                                                      │   │
-│  └─────────────────────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────────────────────┘
-                                    │
-                                    ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                          HAL 层                                             │
-│  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │                    Biometric HAL                                     │   │
-│  │  - IBiometricsFingerprint                                           │   │
-│  │  - IFace                                                            │   │
-│  │  - IIris                                                            │   │
-│  └─────────────────────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
+
+源码：[BiometricUnlockController.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/packages/SystemUI/src/com/android/systemui/statusbar/phone/BiometricUnlockController.java)。下方为该 tag 的方法/类型节选，省略所在类的其他成员与 imports，不作为独立工程。
+
 
 ```java
-/**
- * BiometricKeyguardView - 生物识别解锁视图
- * 位置：frameworks/base/packages/SystemUI/src/com/android/keyguard/
- */
+public void onBiometricAuthenticated(int userId, BiometricSourceType biometricSourceType,
+        boolean isStrongBiometric) {
+    Trace.beginSection("BiometricUnlockController#onBiometricAuthenticated");
+    try {
+        if (mUpdateMonitor.isGoingToSleep()) {
+            mLogger.deferringAuthenticationDueToSleep(userId,
+                    biometricSourceType,
+                    mPendingAuthenticated != null);
+            mPendingAuthenticated = new PendingAuthenticated(userId, biometricSourceType,
+                    isStrongBiometric);
+            return;
+        }
+        mBiometricType = biometricSourceType;
+        mMetricsLogger.write(new LogMaker(MetricsEvent.BIOMETRIC_AUTH)
+                .setType(MetricsEvent.TYPE_SUCCESS).setSubtype(toSubtype(biometricSourceType)));
+        Optional.ofNullable(
+                        BiometricUiEvent.SUCCESS_EVENT_BY_SOURCE_TYPE.get(biometricSourceType))
+                .ifPresent(event -> UI_EVENT_LOGGER.log(event, getSessionId()));
 
-public class BiometricKeyguardView extends KeyguardSecurityView {
+        boolean unlockWithBypassAllowed =
+                mKeyguardStateController.isOccluded()
+                        || mKeyguardBypassController.onBiometricAuthenticated(
+                        biometricSourceType, isStrongBiometric);
 
-    private BiometricManager mBiometricManager;
-    private BiometricPrompt mBiometricPrompt;
-    private KeyguardUpdateMonitor mUpdateMonitor;
+        if (secureLockDevice() && mSecureLockDeviceInteractor.get().isSecureLockDeviceEnabled()
+                .getValue() && biometricSourceType == BiometricSourceType.FACE
+        ) {
+            mLogger.d("Delaying face authenticated signal until user confirmation on the "
+                    + "Secure Lock Device UI.");
+            return;
+        } else if (unlockWithBypassAllowed) {
+            mKeyguardViewMediator.userActivity();
+            startWakeAndUnlock(biometricSourceType, isStrongBiometric);
+        } else {
+            if (SceneContainerFlag.isEnabled()) {
+                // Always unlock with scene container enabled. device unlock state should always
+                // be consistent with auth success event, whether lockscreen gets dismissed or
+                // not is determined later by DeviceEntryInteractor.
+                startWakeAndUnlock(MODE_NONE_UNLOCKED,
+                        BiometricUnlockSource.Companion.fromBiometricSourceType(
+                                biometricSourceType));
+            }
+            mLogger.d("onBiometricUnlocked aborted by bypass controller");
+        }
+    } finally {
+        Trace.endSection();
+    }
+}
 
-    /**
-     * 初始化生物识别
-     */
-    public void initializeBiometric() {
-        // 1. 检查生物识别能力
-        int result = mBiometricManager.canAuthenticate(
-            BiometricManager.Authenticators.BIOMETRIC_STRONG);
+private @WakeAndUnlockMode int calculateMode(BiometricSourceType biometricSourceType,
+        boolean isStrongBiometric) {
+    if (biometricSourceType == BiometricSourceType.FACE
+            || biometricSourceType == BiometricSourceType.IRIS) {
+        return calculateModeForPassiveAuth(isStrongBiometric);
+    } else {
+        return calculateModeForFingerprint(isStrongBiometric);
+    }
+}
 
-        if (result == BiometricManager.BIOMETRIC_SUCCESS) {
-            // 2. 创建 BiometricPrompt
-            mBiometricPrompt = new BiometricPrompt(
-                mContext,
-                ContextCompat.getMainExecutor(mContext),
-                mAuthenticationCallback
-            );
+private @WakeAndUnlockMode int calculateModeForFingerprint(boolean isStrongBiometric) {
+    final boolean unlockingAllowed =
+            mUpdateMonitor.isUnlockingWithBiometricAllowed(isStrongBiometric);
+    final boolean deviceInteractive = mUpdateMonitor.isDeviceInteractive();
+    final boolean keyguardShowing = mKeyguardStateController.isShowing();
+    final boolean deviceDreaming = mUpdateMonitor.isDreaming();
 
-            // 3. 配置提示信息
-            PromptInfo promptInfo = new BiometricPrompt.PromptInfo.Builder()
-                .setTitle("解锁设备")
-                .setSubtitle("使用生物识别解锁")
-                .setNegativeButtonText("使用密码")
-                .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG)
-                .build();
+    logCalculateModeForFingerprint(unlockingAllowed, deviceInteractive,
+            keyguardShowing, deviceDreaming, isStrongBiometric);
+    if (!deviceInteractive) {
+        if (!keyguardShowing && !mScreenOffAnimationController.isKeyguardShowDelayed()) {
+            if (mKeyguardStateController.isUnlocked()) {
+                return MODE_WAKE_AND_DISMISS;
+            }
+            return MODE_ONLY_WAKE;
+        } else if (mDozeScrimController.isPulsing() && unlockingAllowed) {
+            return MODE_WAKE_AND_DISMISS_PULSING;
+        } else if (unlockingAllowed || !mKeyguardStateController.isMethodSecure()) {
+            return MODE_WAKE_AND_DISMISS;
+        } else {
+            return MODE_SHOW_BOUNCER;
         }
     }
-
-    /**
-     * 开始生物识别认证
-     */
-    public void startAuthentication() {
-        if (mBiometricPrompt != null) {
-            mBiometricPrompt.authenticate(promptInfo);
+    if (unlockingAllowed && deviceDreaming) {
+        return MODE_WAKE_AND_DISMISS_FROM_DREAM;
+    }
+    if (keyguardShowing) {
+        if (isPrimaryBouncerShowing() && unlockingAllowed) {
+            return MODE_DISMISS_BOUNCER;
+        } else if (unlockingAllowed) {
+            return MODE_DISMISS;
+        } else if (!isBouncerShowing()) {
+            return MODE_SHOW_BOUNCER;
         }
     }
+    return MODE_NONE;
+}
 
-    /**
-     * 认证回调
-     */
-    private BiometricPrompt.AuthenticationCallback mAuthenticationCallback =
-        new BiometricPrompt.AuthenticationCallback() {
+private @WakeAndUnlockMode int calculateModeForPassiveAuth(boolean isStrongBiometric) {
+    final boolean deviceInteractive = mUpdateMonitor.isDeviceInteractive();
+    final boolean isKeyguardShowing = mKeyguardStateController.isShowing();
+    final boolean unlockingAllowed =
+            mUpdateMonitor.isUnlockingWithBiometricAllowed(isStrongBiometric);
+    final boolean deviceDreaming = mUpdateMonitor.isDreaming();
+    final boolean bypass = mKeyguardBypassController.getBypassEnabled()
+            || mAuthController.isUdfpsFingerDown();
+    final boolean isBouncerShowing = isBouncerShowing();
 
-        @Override
-        public void onAuthenticationSucceeded(BiometricPrompt.AuthenticationResult result) {
-            // 认证成功
-            mUpdateMonitor.reportSuccessfulAuthentication();
-            mCallback.dismiss(true, KeyguardUpdateMonitor.getCurrentUser());
-        }
-
-        @Override
-        public void onAuthenticationFailed() {
-            // 认证失败（可重试）
-            showError("识别失败，请重试");
-        }
-
-        @Override
-        public void onAuthenticationError(int errorCode, CharSequence errString) {
-            // 认证错误
-            switch (errorCode) {
-                case BiometricPrompt.ERROR_LOCKOUT:
-                    // 锁定，需要使用其他方式解锁
-                    mCallback.switchToSecurityView(SECURITY_PASSWORD);
-                    break;
-                case BiometricPrompt.ERROR_CANCELED:
-                    // 取消认证
-                    break;
-                case BiometricPrompt.ERROR_TIMEOUT:
-                    // 超时
-                    showError("认证超时");
-                    break;
+    logCalculateModeForPassiveAuth(unlockingAllowed, deviceInteractive, isKeyguardShowing,
+            deviceDreaming, bypass, isStrongBiometric);
+    if (!deviceInteractive) {
+        if (!unlockingAllowed) {
+            return bypass ? MODE_SHOW_BOUNCER : MODE_NONE;
+        } else if (!isKeyguardShowing) {
+            return bypass ? MODE_WAKE_AND_DISMISS : MODE_ONLY_WAKE_UNLOCKED;
+        } else if (mDozeScrimController.isPulsing()) {
+            return MODE_WAKE_AND_DISMISS_PULSING; // always unlock from the pulsing state
+        } else {
+            if (bypass) {
+                // Wake-up fading out nicely
+                return MODE_WAKE_AND_DISMISS_PULSING;
+            } else {
+                // We could theoretically return MODE_NONE_UNLOCKED, but this means that the
+                // device would be not interactive, unlocked, and the user would not see the
+                // device state.
+                return MODE_ONLY_WAKE_UNLOCKED;
             }
         }
-    };
+    }
+    if (unlockingAllowed && deviceDreaming) {
+        final boolean wakeAndUnlock = bypass || (dreamsV2() && isBouncerShowing);
+        return wakeAndUnlock ? MODE_WAKE_AND_DISMISS_FROM_DREAM : MODE_ONLY_WAKE_UNLOCKED;
+    }
+    if (unlockingAllowed && mKeyguardStateController.isOccluded()) {
+        return MODE_DISMISS;
+    }
+    if (isKeyguardShowing) {
+        if (unlockingAllowed) {
+            if (isBouncerShowing) {
+                return MODE_DISMISS_BOUNCER;
+            } else if (bypass) {
+                return MODE_DISMISS;
+            } else {
+                return MODE_NONE_UNLOCKED;
+            }
+        } else {
+            return bypass ? MODE_SHOW_BOUNCER : MODE_NONE;
+        }
+    }
+    return MODE_NONE;
 }
 ```
 
-### 13.8 锁屏与 SystemUI 交互
+指纹与被动认证分支不同，还要考虑认证强度、bypass、交互状态、bouncer 和强认证要求。生物识别不能笼统断言“全部弱于凭据且都用同一种 HAL”；具体强度分类与系统策略以设备实现和安全规范为准。
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                       锁屏与 SystemUI 交互                                   │
-└─────────────────────────────────────────────────────────────────────────────┘
+应用层 framework/AndroidX BiometricPrompt 用于应用自己的认证请求，不会让普通应用拥有 KeyguardUpdateMonitor 的系统级控制权。旧文混合两套 Prompt API 的片段已移除，避免复制后既无法编译又产生“可代替系统解锁”的错误理解。
 
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  交互场景                                                                    │
-└─────────────────────────────────────────────────────────────────────────────┘
+### 13.8 锁屏通知、隐私与窗口交互
 
-场景 1: 通知显示在锁屏
-│
-├── 1.1 通知到达
-│   NMS → NotificationListenerService → NotificationEntryManager
-│
-├── 1.2 检查锁屏状态
-│   if (KeyguardUpdateMonitor.isKeyguardShowing()) {
-│       // 在锁屏上显示通知
-│   }
-│
-├── 1.3 通知可见性控制
-│   ├── 公开通知：锁屏上完整显示
-│   ├── 私密通知：锁屏上隐藏内容
-│   └── 隐藏通知：锁屏上不显示
-│
-└── 1.4 锁屏通知渲染
-    KeyguardNotificationView.bindNotification(entry)
+通知路径仍是 NMS -> NotificationListener -> NotifCollection/后续列表管线，不是旧 NotificationEntryManager。通知在锁屏上是否显示、是否隐藏正文、工作资料是否受限，需要综合当前用户、锁屏设置、通知 visibility/publicVersion 和 SystemUI 的锁屏用户策略。
 
-场景 2: 锁屏快捷设置
-│
-├── 2.1 下拉状态栏（锁屏状态）
-│   StatusBar.expandNotificationsPanel()
-│
-├── 2.2 检查权限
-│   if (KeyguardUpdateMonitor.canPerformLockScreenActions()) {
-│       // 允许操作快捷设置
-│   }
-│
-└── 2.3 快捷设置操作
-    ├── 开关 Wi-Fi
-    ├── 开关蓝牙
-    ├── 调节亮度
-    └── 切换铃声模式
-
-场景 3: 电源键锁屏
-│
-├── 3.1 按下电源键
-│   PowerManagerService.goToSleep()
-│
-├── 3.2 屏幕关闭
-│   DisplayManagerService.onScreenTurnedOff()
-│
-├── 3.3 显示锁屏
-│   KeyguardViewMediator.showLocked()
-│
-└── 3.4 锁屏状态通知
-    KeyguardUpdateMonitor.reportKeyguardShowing(true)
-
-场景 4: 解锁后恢复
-│
-├── 4.1 验证成功
-│   KeyguardViewMediator.onPasswordChecked(true, 0)
-│
-├── 4.2 隐藏锁屏
-│   KeyguardViewMediator.hideLocked()
-│
-├── 4.3 恢复应用状态
-│   ├── Activity 恢复
-│   ├── 通知可交互
-│   └── 快捷设置完全可用
-│
-└── 4.4 状态同步
-    StatusBar.onKeyguardStateChanged(false)
+```text
+同一 NotificationEntry
+  -> 全量 private 内容: 用户已获准查看时
+  -> public/redacted 内容: 锁屏敏感内容受限时
+  -> 过滤/不展示: 用户或渠道策略不允许时
 ```
 
-### 13.9 Keyguard 状态机
+展示 public 内容不应泄露 private 标题、图片、远程输入草稿或隐私摘要；也不能通过复用上一条已解锁 row 的缓存绕过重新绑定。用户切换/资料锁定与 keyguard 状态变化都可能要求更新已有行，而不仅仅影响新来的通知。
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                       Keyguard 状态机                                        │
-└─────────────────────────────────────────────────────────────────────────────┘
+WindowManager 侧 keyguard 可见性、occlusion 与应用窗口策略需要同步，导航/状态栏和通知 shade 也随之调整。这不表示 Keyguard 是一个额外 system_server View；实际 UI 仍位于 SystemUI 进程。
 
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  状态定义                                                                    │
-└─────────────────────────────────────────────────────────────────────────────┘
+### 13.9 真实状态模型与 scene 迁移
 
-enum KeyguardState {
-    STATE_HIDE,              // 隐藏（已解锁）
-    STATE_SHOW,              // 显示锁屏
-    STATE_BOUNCER,           // 显示安全验证
-    STATE_OCCLUDED,          // 被遮挡（如来电）
-    STATE_SLEEP,             // 睡眠状态
+旧文的 `STATE_HIDE/STATE_SHOW/STATE_BOUNCER/STATE_OCCLUDED` 是概念草图，不是 Android 17 的统一源码枚举。当前 KeyguardState 定义如下，保留弃用注解与 scene-container 提示，防止将迁移期模型冒充唯一 UI 状态源：
+
+
+源码：[KeyguardState.kt](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/packages/SystemUI/src/com/android/systemui/keyguard/shared/model/KeyguardState.kt)。下方为该 tag 的方法/类型节选，省略所在类的其他成员与 imports，不作为独立工程。
+
+
+```kotlin
+enum class KeyguardState {
+    /**
+     * The display is completely off, as well as any sensors that would trigger the device to wake
+     * up.
+     */
+    OFF,
+    /**
+     * The device has entered a special low-power mode within SystemUI. Doze is technically a
+     * special dream service implementation. No UI is visible. In this state, a least some
+     * low-powered sensors such as lift to wake or tap to wake are enabled, or wake screen for
+     * notifications is enabled, allowing the device to quickly wake up.
+     */
+    DOZING,
+    /**
+     * A device state after the device times out, which can be from both LOCKSCREEN or GONE states.
+     * DOZING is an example of special version of this state. Dreams may be implemented by third
+     * parties to present their own UI over keyguard, like a screensaver.
+     */
+    @Deprecated(
+        "This state won't exist anymore when scene container gets enabled. If you are " +
+            "writing prod code today, make sure to either use flag aware APIs in " +
+            "[KeyguardTransitionInteractor] or flag appropriately with [SceneContainerFlag]."
+    )
+    DREAMING,
+    /**
+     * The device has entered a special low-power mode within SystemUI, also called the Always-on
+     * Display (AOD). A minimal UI is presented to show critical information. If the device is in
+     * low-power mode without a UI, then it is DOZING.
+     */
+    AOD,
+    /**
+     * The security screen prompt containing UI to prompt the user to use a biometric credential
+     * (ie: fingerprint). When supported, this may show before showing the primary bouncer.
+     */
+    ALTERNATE_BOUNCER,
+    /**
+     * The security screen prompt UI, containing PIN, Password, Pattern for the user to verify their
+     * credentials.
+     */
+    @Deprecated(
+        "This state won't exist anymore when scene container gets enabled. If you are " +
+            "writing prod code today, make sure to either use flag aware APIs in " +
+            "[KeyguardTransitionInteractor] or flag appropriately with [SceneContainerFlag]."
+    )
+    PRIMARY_BOUNCER,
+    /**
+     * Device is actively displaying keyguard UI and is not in low-power mode. Device may be
+     * unlocked if SWIPE security method is used, or if face lockscreen bypass is false.
+     */
+    LOCKSCREEN,
+    /**
+     * Device is locked or on dream and user has swiped from the right edge to enter the glanceable
+     * hub UI. From this state, the user can swipe from the left edge to go back to the lock screen
+     * or dream, as well as swipe down for the notifications and up for the bouncer.
+     */
+    @Deprecated(
+        "This state won't exist anymore when scene container gets enabled. If you are " +
+            "writing prod code today, make sure to either use flag aware APIs in " +
+            "[KeyguardTransitionInteractor] or flag appropriately with [SceneContainerFlag]."
+    )
+    GLANCEABLE_HUB,
+    /**
+     * Keyguard is no longer visible. In most cases the user has just authenticated and keyguard is
+     * being removed, but there are other cases where the user is swiping away keyguard, such as
+     * with SWIPE security method or face unlock without bypass.
+     */
+    @Deprecated(
+        "This state won't exist anymore when scene container gets enabled. If you are " +
+            "writing prod code today, make sure to either use flag aware APIs in " +
+            "[KeyguardTransitionInteractor] or flag appropriately with [SceneContainerFlag]."
+    )
+    GONE,
+    /**
+     * Only used in scene framework. This means we are currently on any scene framework scene that
+     * is not Lockscreen. Transitions to and from UNDEFINED are always bound to the
+     * [SceneTransitionLayout] scene transition that either transitions to or from the Lockscreen
+     * scene. These transitions are automatically handled by [LockscreenSceneTransitionInteractor].
+     */
+    UNDEFINED,
+    /** An activity is displaying over the keyguard. */
+    @Deprecated(
+        "This state won't exist anymore when scene container gets enabled. If you are " +
+            "writing prod code today, make sure to either use flag aware APIs in " +
+            "[KeyguardTransitionInteractor] or flag appropriately with [SceneContainerFlag]."
+    )
+    OCCLUDED;
+
+    fun checkValidState() {
+        val isStateValid: Boolean
+        val isEnabled: String
+        if (SceneContainerFlag.isEnabled) {
+            isStateValid = this === mapToSceneContainerState()
+            isEnabled = "enabled"
+        } else {
+            isStateValid = this !== UNDEFINED
+            isEnabled = "disabled"
+        }
+
+        if (!isStateValid) {
+            throw IllegalStateException(
+                "State $this is not a valid state when scene container is $isEnabled"
+            )
+        }
+    }
+
+    fun mapToSceneContainerState(): KeyguardState {
+        return when (this) {
+            OFF,
+            DOZING,
+            AOD,
+            ALTERNATE_BOUNCER,
+            LOCKSCREEN -> this
+            GLANCEABLE_HUB,
+            PRIMARY_BOUNCER,
+            GONE,
+            OCCLUDED,
+            DREAMING,
+            UNDEFINED -> UNDEFINED
+        }
+    }
+
+    fun mapToSceneContainerContent(): ContentKey? {
+        return when (this) {
+            OFF,
+            DOZING,
+            AOD,
+            ALTERNATE_BOUNCER,
+            LOCKSCREEN -> Scenes.Lockscreen
+            GLANCEABLE_HUB -> Scenes.Communal
+            PRIMARY_BOUNCER -> Overlays.Bouncer
+            GONE -> Scenes.Gone
+            OCCLUDED -> Scenes.Occluded
+            DREAMING -> Scenes.Dream
+            UNDEFINED -> null
+        }
+    }
+
+    companion object {
+
+        /**
+         * Whether the device is awake ([PowerInteractor.isAwake]) when we're FINISHED in the given
+         * keyguard state.
+         */
+        fun deviceIsAwakeInState(state: KeyguardState, scene: ContentKey?): Boolean {
+            state.checkValidState()
+            return when (state) {
+                OFF -> false
+                DOZING -> false
+                DREAMING -> false
+                GLANCEABLE_HUB -> true
+                AOD -> false
+                ALTERNATE_BOUNCER -> true
+                PRIMARY_BOUNCER -> true
+                LOCKSCREEN -> true
+                GONE -> true
+                OCCLUDED -> true
+                UNDEFINED -> deviceIsAwakeInScene(scene!!)
+            }
+        }
+
+        private fun deviceIsAwakeInScene(scene: ContentKey): Boolean {
+            return scene != Scenes.Dream
+        }
+
+        /**
+         * Whether the device is awake ([PowerInteractor.isAsleep]) when we're FINISHED in the given
+         * keyguard state.
+         */
+        fun deviceIsAsleepInState(state: KeyguardState, scene: ContentKey?): Boolean {
+            return !deviceIsAwakeInState(state, scene)
+        }
+    }
 }
-
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  状态转换图                                                                  │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-                         ┌──────────────┐
-                         │  STATE_SLEEP │
-                         │   (睡眠)     │
-                         └──────┬───────┘
-                                │ 屏幕亮起
-                                ▼
-         ┌──────────────────────┴──────────────────────┐
-         │                                             │
-         ▼                                             ▼
-  ┌──────────────┐                              ┌──────────────┐
-  │  STATE_SHOW  │◀─────────────────────────────│STATE_OCCLUDED│
-  │  (显示锁屏)  │       遮挡结束                │  (被遮挡)    │
-  └──────┬───────┘                              └──────────────┘
-         │                                             ▲
-         │ 需要验证                                    │
-         ▼                                             │
-  ┌──────────────┐                                     │
-  │STATE_BOUNCER │─────────────────────────────────────┘
-  │ (安全验证)   │            来电等遮挡
-  └──────┬───────┘
-         │
-         │ 验证成功
-         ▼
-  ┌──────────────┐
-  │  STATE_HIDE  │
-  │   (已解锁)   │
-  └──────────────┘
-
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  状态转换触发条件                                                            │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-STATE_SLEEP → STATE_SHOW:
-├── 屏幕亮起
-├── 电源键按下
-└── 通知唤醒
-
-STATE_SHOW → STATE_BOUNCER:
-├── 用户上滑
-├── 需要安全验证
-└── 生物识别失败
-
-STATE_BOUNCER → STATE_HIDE:
-├── 验证成功
-├── 信任设备
-└── Smart Lock 解锁
-
-STATE_SHOW/STATE_BOUNCER → STATE_OCCLUDED:
-├── 来电
-├── 闹钟响铃
-└── 全屏 Intent
-
-STATE_OCCLUDED → STATE_SHOW:
-├── 来电结束
-├── 闹钟关闭
-└── 全屏 Activity 退出
-
-任何状态 → STATE_SLEEP:
-├── 屏幕超时
-├── 电源键按下
-└── 主动休眠
 ```
 
-### 13.10 锁屏安全最佳实践
+状态模型、Mediator 的 mShowing/occluded、认证授权状态是不同维度。一次 LOCKSCREEN -> GONE 的视觉转场，不能单独证明凭据验证来自哪种安全途径；发生 OCCLUDED 也不应清空所有锁屏安全状态。
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                       锁屏安全最佳实践                                       │
-└─────────────────────────────────────────────────────────────────────────────┘
+监听状态转场的消费者需要处理 started/running/finished/canceled 等转场寿命以及 scope 取消；本章没有逐项审计全部 scene/interactor 实现，不提供超出已核验入口的统一替代代码。
 
-1. 密码强度要求
-├── 图案：至少 4 个点
-├── PIN：至少 4 位数字
-├── 密码：至少 4 位字符
-└── 建议：使用复杂密码
+### 13.10 安全与生命周期实践
 
-2. 尝试限制
-├── 5 次失败后：延迟 30 秒
-├── 10 次失败后：延迟 60 秒
-├── 30 次失败后：恢复出厂设置警告
-└── 企业策略：可能更严格
+认证 UI 的输入监听、monitor callback、异步 credential task 和动画各有寿命。View detach 或当前用户变化时，应按控制器实际实现取消/解除旧工作，不能等旧结果回来后再盲目修改新用户界面。
 
-3. 强认证要求
-├── 设备重启后
-├── 72 小时未验证
-├── 添加新指纹后
-└── 企业策略触发
+显示错误与失败统计要使用系统提供的结果，避免客户端自己计数作为认证依据。处理 lockout 时，倒计时只是 UI 表达，真正重试资格仍应由认证服务判断。
 
-4. 通知隐私
-├── 敏感通知隐藏内容
-├── 使用 Visibility 特性
-└── 公开版本显示摘要
-
-5. 生物识别注意事项
-├── 不如密码安全
-├── 可能被强制解锁
-├── 设置备用密码
-└── 定期更新生物数据
-
-6. 设备管理
-├── 启用 Find My Device
-├── 设置远程锁定
-├── 定期备份
-└── 敏感数据加密
-```
-
----
+锁屏通知默认采用最小必要内容，并提供可靠的 publicVersion；日志排障应优先 key、状态和时序，而不是凭据或通知正文。生物识别可用性、强度、管理策略和设备功耗需要实机验证，本次文档核验不代替这些安全验收。
 
 ## 14. Keyguard 面试常见问题
 
-> 本节补充 Keyguard 锁屏系统相关的面试问题
+### 14.1 谁启动 Keyguard？
 
-### 14.1 Keyguard 启动与验证
+SystemUI startables 初始化 Mediator；system_server 的 PhoneWindowManager 通过 KeyguardServiceDelegate 绑定 SystemUI 的 KeyguardService，并传递系统 ready 等事件。它不是 SystemServer 直接 new 一个运行在本进程的 Keyguard View。
 
-**Q1: Keyguard 的启动流程是什么？**
+### 14.2 认证成功为什么还没有立即隐藏锁屏？
 
-**A:**
+先区分认证结果、当前用户/strong-auth 状态、Mediator 完成处理以及退出转场。结果可能需要主凭据补充，用户可能已经切换，也可能已经认证但还在完成 going-away/窗口动画。应沿结果到模式选择再到 Handler/视图的链路分析，而不是强制设 mShowing=false。
 
-```
-Keyguard 启动流程：
+### 14.3 Trust managed 可以跳过 bouncer 吗？
 
-1. SystemServer 启动
-   └── WindowManagerService.onDisplayReady()
-       └── PhoneWindowManager.onDisplayReady()
-           └── KeyguardViewMediator.onSystemReady()
+不可以这样判断。managed 与 has trust 是不同含义；`getUserCanSkipBouncer()` 还组合认证/强认证条件。UI 不得把“由信任服务管理”当作“已经认证”。
 
-2. KeyguardViewMediator 初始化
-   ├── 读取锁屏配置
-   ├── 注册状态监听
-   └── 绑定 KeyguardService
+### 14.4 锁屏与 AOD 是同一个状态机吗？
 
-3. SystemUI KeyguardService
-   ├── onCreate() 创建服务
-   ├── 初始化 KeyguardUpdateMonitor
-   └── 创建 KeyguardHostView
+不是。DozeMachine 控制息屏显示过程；keyguard 模型和 scene/transition 控制锁屏 UI；wakefulness 和显示电源状态又是另外维度。它们协作，但不能将各自枚举混成一条五态循环。
 
-4. 显示锁屏
-   └── KeyguardBouncer.show()
-       └── 显示安全验证界面
-```
+### 14.5 如何定位通知只在锁屏消失？
 
-**Q2: 生物识别解锁的原理？**
-
-**A:**
-
-```
-生物识别解锁原理：
-
-1. 架构层次
-   Framework: BiometricManager/BiometricService
-   Native:    BiometricService
-   HAL:       IBiometricsFingerprint/IFace/IIris
-
-2. 认证流程
-   a. 应用请求认证
-   b. BiometricService 检查能力
-   c. HAL 层进行生物特征比对
-   d. 返回认证结果
-
-3. 安全机制
-   - 生物数据存储在 TEE (可信执行环境)
-   - 原始生物数据不出安全区
-   - 仅存储特征模板
-
-4. 限制
-   - 不如密码安全
-   - 可能被物理强制
-   - 需要备用解锁方式
-```
-
-**Q3: 锁屏上通知的可见性控制？**
-
-**A:**
-
-```
-锁屏通知可见性控制：
-
-1. 通知可见性级别
-   VISIBILITY_PUBLIC:    完全可见
-   VISIBILITY_SECRET:    完全隐藏
-   VISIBILITY_PRIVATE:   显示基本信息
-
-2. 设置方式
-   Notification.Builder.setVisibility(visibility)
-
-3. 锁屏显示逻辑
-   if (isSecure() && !isKeyguardUnlocked()) {
-       switch (visibility) {
-           case SECRET:    // 不显示
-           case PRIVATE:   // 显示 "内容已隐藏"
-           case PUBLIC:    // 完整显示
-       }
-   }
-
-4. 用户控制
-   设置 → 应用 → 通知 → 锁屏通知
-```
-
----
+先确认 NMS 和 NotifCollection 中记录仍存在，再看当前用户/资料、通知 visibility/publicVersion、锁屏用户设置和过滤/分组策略，最后检查内容绑定与窗口可见性。不要仅凭截图断言通知已被 NMS 删除。
 
 ## 总结
 
-### SystemUI 核心要点
+SystemUI 是独立进程的系统应用；Android 17 的 Application 入口、startables 和插件 Kotlin 路径需要从固定 tag 追踪。通知、Doze 和 Keyguard 各有服务端策略、状态控制与 UI 渲染边界，理解异步回调、取消、用户切换和产品开关，比记住一条没有条件分支的伪调用链更重要。
 
-1. **SystemUI**：系统级 UI（状态栏、导航栏、通知、锁屏）
-2. **AOD**：DozeMachine 状态机 + 低功耗显示 + 传感器集成
-3. **通知系统**：NMS + RemoteViews + SystemUI 协作
-4. **RemoteViews**：跨进程视图，序列化操作
-5. **Keyguard**：锁屏安全验证 + 生物识别 + 状态管理
+本文保留基础概念、架构图、应用通知示例和设计解释，用真实方法替换旧版/虚构实现。源码节选并非可独立编译工程；本轮全文阅读与关键源码静态核验不等于对全部 AOSP 断言、所有开关组合或硬件行为的穷举验证。
 
-### 文档章节概览
-
-| 章节 | 主题 | 重点内容 |
-|------|------|----------|
-| 1-2 | SystemUI 基础 | 概述、启动流程 |
-| 3 | AOD | Doze 状态机、HAL、功耗优化 |
-| 4-9 | 通知系统 | NMS、RemoteViews、渲染、模板 |
-| 10 | Framework 协作 | SystemUI 与 Framework 交互 |
-| 11-12 | 高级特性 | NMS 高级、AOD 高级 |
-| 13 | Keyguard | 锁屏系统、安全验证 |
-| 14 | 面试指南 | Keyguard 面试问题 |
-
----
-
-**文档版本**：v3.0
-**更新时间**：2026-03-12
-**参考源码**：Android 16 (API 36)
-
-> 本文档基于 Android 16 (API 36) 源码分析
-> 源码地址：https://android.googlesource.com/platform/frameworks/base/+/refs/heads/main/packages/SystemUI/
+**源码基线：** AOSP `android-17.0.0_r1`；**审阅日期：** 2026-09-10。

@@ -5,7 +5,7 @@
 
 > 作者：OpenClaw | 初稿日期：2026-03-08
 
-> AOSP 17 源码基线：`android-17.0.0_r1` 的 `frameworks/base/core/java/android/view/Window.java`，用于说明 Window 参数、Insets 与 ViewRootImpl 之间的边界。
+> 窗口回调契约：AOSP 17 `Window.Callback.dispatchTouchEvent` 与 `Window.superDispatchTouchEvent`。窗口入口、Activity 回调与子树分发在正文分别分析。
 
 ---
 
@@ -28,19 +28,24 @@
   - [6.1 WMS 角色](#61-wms-角色)
   - [6.2 Input 事件路由](#62-input-事件路由)
 - [7. App层 - ViewRootImpl](#7-app层---viewrootimpl)
-  - [7.1 ViewRootImpl 角色](#71-viewrootimpl-角色)
-  - [7.2 Input 事件接收](#72-input-事件接收)
+  - [7.1 从 InputEventReceiver 进入 Java](#71-从-inputeventreceiver-进入-java)
+  - [7.2 InputStage 责任链与选路](#72-inputstage-责任链与选路)
+  - [7.3 ViewPostImeInputStage：pointer 与非触摸 motion](#73-viewpostimeinputstagepointer-与非触摸-motion)
+  - [7.4 finishInputEvent：结束应用端处理](#74-finishinputevent结束应用端处理)
 - [8. App层 - Activity](#8-app层---activity)
-  - [8.1 Activity 分发入口](#81-activity-分发入口)
+  - [8.1 DecorView、Window.Callback 与 Activity](#81-decorviewwindowcallback-与-activity)
+  - [8.2 为什么不会无限递归](#82-为什么不会无限递归)
 - [9. App层 - ViewGroup](#9-app层---viewgroup)
-  - [9.1 分发入口](#91-分发入口)
-  - [9.2 命中顺序和坐标变换](#92-命中顺序和坐标变换)
-  - [9.3 中途拦截与多指](#93-中途拦截与多指)
-  - [9.4 TouchDelegate 与普通子项的优先关系](#94-touchdelegate-与普通子项的优先关系)
-  - [9.5 建议的验证序列](#95-建议的验证序列)
+  - [9.1 分发状态与完整主干](#91-分发状态与完整主干)
+  - [9.2 TouchTarget 链：建立、复用、移除](#92-touchtarget-链建立复用移除)
+  - [9.3 拦截、CANCEL 与当前 MOVE 的去向](#93-拦截cancel-与当前-move-的去向)
+  - [9.4 命中测试：父滚动、子位置与逆矩阵](#94-命中测试父滚动子位置与逆矩阵)
+  - [9.5 split：每个子项拥有自己的动作序列](#95-split每个子项拥有自己的动作序列)
+  - [9.6 Z 轴、绘制顺序与 bringToFront](#96-z-轴绘制顺序与-bringtofront)
 - [10. App层 - View](#10-app层---view)
-  - [10.1 View 事件处理](#101-view-事件处理)
-  - [10.2 View 事件处理流程图](#102-view-事件处理流程图)
+  - [10.1 dispatchTouchEvent 与 performOnTouchCallback](#101-dispatchtouchevent-与-performontouchcallback)
+  - [10.2 onTouchEvent 的字段与返回值](#102-ontouchevent-的字段与返回值)
+  - [10.3 onTouchEvent 源码与状态转换](#103-ontouchevent-源码与状态转换)
 - [11. 完整流程图汇总](#11-完整流程图汇总)
   - [11.1 从内核到 View 的完整链路](#111-从内核到-view-的完整链路)
 - [12. 核心方法详解](#12-核心方法详解)
@@ -58,6 +63,11 @@
 - [16. 进阶知识点](#16-进阶知识点)
   - [16.1 多指触控](#161-多指触控)
   - [16.2 TouchDelegate 扩大点击区域](#162-touchdelegate-扩大点击区域)
+    - [16.2.1 为什么代理要装在父 View 上](#1621-为什么代理要装在父-view-上)
+    - [16.2.2 字段、构造与注册](#1622-字段构造与注册)
+    - [16.2.3 转发源码：锁定 DOWN，重写坐标](#1623-转发源码锁定-down重写坐标)
+    - [16.2.4 在 View.onTouchEvent 中的调用位置](#1624-在-viewontouchevent-中的调用位置)
+    - [16.2.5 实战：布局变化时重建扩展区域](#1625-实战布局变化时重建扩展区域)
   - [16.3 异步事件处理](#163-异步事件处理)
 
 ---
@@ -485,6 +495,8 @@ ViewPostImeInputStage
 ```
 
 两个 DecorView 入口职责不同：普通 dispatch 负责进入窗口 callback，superDispatch 则明确调用父类实现，避免再次回到 Activity。触摸首先进入 DecorView 再回调 Activity；教学中的“Activity → Window → DecorView”只描述 Activity 已进入后的下行半段。
+
+`Window` 本身声明抽象的 `superDispatchTouchEvent(MotionEvent)`；`Window.Callback` 声明窗口回调 `dispatchTouchEvent(MotionEvent)`。PhoneWindow 与 Activity 分别实现这两侧的职责，所以“superDispatch”不是把原事件重新送到 InputDispatcher，而是从窗口回调进入 Decor 的父类子树分发路径。固定源码：[Window.java](https://cs.android.com/android/platform/superproject/+/android-17.0.0_r1:frameworks/base/core/java/android/view/Window.java)。
 
 该 tag 的 DecorView 还在窗口 callback 之前调用 `interceptBackProgress(ev)`；不能把预测返回等窗口行为与普通子项分发混为一个始终线性的调用链。应用在 Activity.dispatchTouchEvent 做日志时应委托 super，而不是同时手动再调 decorView.dispatchTouchEvent。
 
@@ -1363,7 +1375,7 @@ DOWN:
         → 返回 true
 
 MOVE/UP:
-  (不再调用 onInterceptTouchEvent，直接发给目标)
+  (已有目标且未设置 FLAG_DISALLOW_INTERCEPT 时，父仍会调用 onInterceptTouchEvent；未拦截才发给目标)
   → ChildView.dispatchTouchEvent → onTouchEvent → 返回 true
 ```
 
@@ -1392,64 +1404,93 @@ MOVE/UP:
 
 ### 15.1 外部拦截法
 
-```java
-public class HorizontalViewGroup extends ViewGroup {
-    private int mLastX;
-    private int mLastY;
-    private int mTouchSlop;
+父容器应在 DOWN 记录起点但暂不拦截，超过 touchSlop 并确认方向后再接管。以下示例基于已有布局能力的 FrameLayout；没有复制一份缺构造函数、缺 onLayout 的抽象 ViewGroup 作为可运行类。
 
-    @Override
-    public boolean onInterceptTouchEvent(MotionEvent ev) {
-        switch (ev.getAction()) {
-            case MotionEvent.ACTION_DOWN:
-                mLastX = (int) ev.getX();
-                mLastY = (int) ev.getY();
-                // 不拦截 DOWN，让子 View 处理
-                return false;
+```kotlin
+class HorizontalDragLayout @JvmOverloads constructor(
+    context: Context, attrs: AttributeSet? = null
+) : FrameLayout(context, attrs) {
+    private val slop = ViewConfiguration.get(context).scaledTouchSlop
+    private var downX = 0f
+    private var downY = 0f
+    private var lastX = 0f
+    private var dragging = false
 
-            case MotionEvent.ACTION_MOVE:
-                int deltaX = (int) (ev.getX() - mLastX);
-                int deltaY = (int) (ev.getY() - mLastY);
-
-                // 水平滑动距离大于垂直，拦截
-                if (Math.abs(deltaX) > Math.abs(deltaY) + mTouchSlop) {
-                    return true;  // 拦截，后续事件交给自身
+    override fun onInterceptTouchEvent(event: MotionEvent): Boolean {
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                downX = event.x
+                downY = event.y
+                lastX = downX
+                dragging = false
+            }
+            MotionEvent.ACTION_MOVE -> {
+                val dx = kotlin.math.abs(event.x - downX)
+                val dy = kotlin.math.abs(event.y - downY)
+                if (dx > slop && dx > dy) {
+                    dragging = true
+                    lastX = event.x
+                    return true
                 }
-                return false;  // 不拦截，交给子 View
-
-            case MotionEvent.ACTION_UP:
-                return false;  // 不拦截
-
-            default:
-                return super.onInterceptTouchEvent(ev);
+            }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> dragging = false
         }
+        return false
     }
+
+    override fun onTouchEvent(event: MotionEvent): Boolean {
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                downX = event.x
+                downY = event.y
+                lastX = event.x
+                dragging = false
+                return true // 子项未消费时，父接下 DOWN
+            }
+            MotionEvent.ACTION_MOVE -> {
+                if (!dragging) {
+                    val dx = kotlin.math.abs(event.x - downX)
+                    val dy = kotlin.math.abs(event.y - downY)
+                    dragging = dx > slop && dx > dy
+                }
+                if (dragging) scrollBy((lastX - event.x).toInt(), 0)
+                lastX = event.x
+            }
+            MotionEvent.ACTION_UP -> {
+                if (!dragging) performClick()
+                dragging = false
+            }
+            MotionEvent.ACTION_CANCEL -> dragging = false
+        }
+        return true
+    }
+
+    override fun performClick(): Boolean = super.performClick()
 }
 ```
+
+这是单指方向接管示例，scrollBy 尚未增加内容边界或回弹；生产容器要进一步限定滚动范围、多指 activePointerId 和嵌套滚动。中途拦截会向原子项发 CANCEL、移除其 TouchTarget；触发接管的那条 MOVE 主要用于取消子项，不应假定父 onTouchEvent 必定收到同一 MOVE。因此拦截分支也记录 lastX，避免接下来的位移突然跳变。
 
 ### 15.2 内部拦截法
 
-```java
-// 子 View 中
-public boolean onTouch(View v, MotionEvent ev) {
-    switch (ev.getAction()) {
-        case MotionEvent.ACTION_DOWN:
-            // 请求父 View 不拦截
-            getParent().requestDisallowInterceptTouchEvent(true);
-            break;
+子控件如果要独占已接受的手势，应在 DOWN 就请求父不拦截，而不是等 MOVE 到达子项才请求——父可能已经在该 MOVE 的前置拦截阶段接管。
 
-        case MotionEvent.ACTION_MOVE:
-            // 处理自己的逻辑
-            break;
-
-        case MotionEvent.ACTION_UP:
-            // 恢复父 View 拦截能力
-            getParent().requestDisallowInterceptTouchEvent(false);
-            break;
+```kotlin
+// 对已经能消费 DOWN 的可点击/可滚动控件安装观察器。
+child.isClickable = true
+child.setOnTouchListener { view, event ->
+    when (event.actionMasked) {
+        MotionEvent.ACTION_DOWN -> view.parent?.requestDisallowInterceptTouchEvent(true)
+        MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL ->
+            view.parent?.requestDisallowInterceptTouchEvent(false)
     }
-    return false;  // 事件继续传递
+    false // 委托控件原有 onTouchEvent，保留点击/滚动语义
 }
 ```
+
+此处独占到手势结束；需要方向切换时，由子控件在确认不处理的方向后提前释放拦截限制，并协调后续事件，不能指望已经送到子项的同一事件重新回到父的拦截阶段。`requestDisallowInterceptTouchEvent` 不会让一个原本不消费 DOWN 的 View 自动变为触摸目标。
+
+源码依据：[AOSP 17 ViewGroup.dispatchTouchEvent / requestDisallowInterceptTouchEvent](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/view/ViewGroup.java)。
 
 ---
 

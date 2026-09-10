@@ -1,22 +1,39 @@
 # Android InputManager 输入系统深度解析
 
 > 作者：OpenClaw | 日期：2026-03-12  
-> 基于源码：Android 16 (API 36) AOSP
+> 基于源码：AOSP Android 17 / API 37，固定 tag `android-17.0.0_r1`；复核日期：2026-09-10。
 
 ## 目录
 
-1. [概述](#1-概述)
-2. [IMS 架构总览](#2-ims-架构总览)
-3. [输入事件读取 (EventHub)](#3-输入事件读取-eventhub)
-4. [输入事件分发流程](#4-输入事件分发流程)
-5. [InputChannel 与 InputConnection](#5-inputchannel-与-inputconnection)
-6. [触摸事件处理](#6-触摸事件处理)
-7. [按键事件处理](#7-按键事件处理)
-8. [输入法交互](#8-输入法交互)
-9. [手势识别](#9-手势识别)
-10. [事件拦截与分发详解](#10-事件拦截与分发详解)
-11. [源码路径](#11-源码路径)
-12. [面试常见问题](#12-面试常见问题)
+- [1. 概述](#1-概述)
+  - [1.1 IMS 的核心职责](#11-ims-的核心职责)
+  - [1.2 IMS 在系统中的位置](#12-ims-在系统中的位置)
+- [2. IMS 架构总览](#2-ims-架构总览)
+  - [2.1 IMS 内部架构](#21-ims-内部架构)
+  - [2.2 核心线程](#22-核心线程)
+- [3. 输入事件读取 (EventHub)](#3-输入事件读取-eventhub)
+  - [3.1 EventHub 架构](#31-eventhub-架构)
+  - [3.2 原始事件结构](#32-原始事件结构)
+  - [3.3 InputReader 处理流程](#33-inputreader-处理流程)
+- [4. 输入事件分发流程](#4-输入事件分发流程)
+  - [4.1 分发流程总览](#41-分发流程总览)
+  - [4.2 InputDispatcher 分发逻辑](#42-inputdispatcher-分发逻辑)
+  - [4.3 ANR 处理](#43-anr-处理)
+- [5. InputChannel 与 InputConnection](#5-inputchannel-与-inputconnection)
+  - [5.1 InputChannel](#51-inputchannel)
+  - [5.2 InputConnection](#52-inputconnection)
+- [6. 触摸事件处理](#6-触摸事件处理)
+  - [6.1 触摸事件类型](#61-触摸事件类型)
+  - [6.2 触摸事件分发流程](#62-触摸事件分发流程)
+  - [6.3 onTouchEvent 源码](#63-ontouchevent-源码)
+- [7. 按键事件处理](#7-按键事件处理)
+  - [7.1 按键事件类型](#71-按键事件类型)
+  - [7.2 按键事件分发流程](#72-按键事件分发流程)
+  - [7.3 系统按键处理](#73-系统按键处理)
+- [8. 输入法交互](#8-输入法交互)
+  - [8.1 输入法架构](#81-输入法架构)
+  - [8.2 输入法通信](#82-输入法通信)
+- [9. 总结](#9-总结)
 
 ---
 
@@ -26,7 +43,7 @@
 
 ### 1.1 IMS 的核心职责
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────┐
 │                    IMS 核心职责                                  │
 ├─────────────────────────────────────────────────────────────────┤
@@ -53,10 +70,10 @@
 │  └─────────────────────────────────────────────────────────┘  │
 │                                                                 │
 │  ┌─────────────────────────────────────────────────────────┐  │
-│  │  4. 输入法支持 (IME Support)                              │  │
-│  │     • 输入法连接                                          │  │
-│  │     • 文本编辑                                            │  │
-│  │     • 软键盘事件                                          │  │
+│  │  4. 输入窗口与策略协作                              │  │
+│  │     • 输入通道管理                                          │  │
+│  │     • 焦点与窗口信息                                            │  │
+│  │     • IMMS 另行管理文本输入                                          │  │
 │  └─────────────────────────────────────────────────────────┘  │
 │                                                                 │
 └─────────────────────────────────────────────────────────────────┘
@@ -64,82 +81,27 @@
 
 ### 1.2 IMS 在系统中的位置
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                          Android 输入系统架构                                │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│   ┌─────────────────────────────────────────────────────────────────────┐ │
-│   │                    内核层 (Kernel Layer)                             │ │
-│   │                                                                      │ │
-│   │   ┌──────────────┐  ┌──────────────┐  ┌──────────────┐            │ │
-│   │   │/dev/input/   │  │ Touchscreen │  │   Keyboard   │            │ │
-│   │   │eventX        │  │ Driver       │  │   Driver     │            │ │
-│   │   └──────┬───────┘  └──────┬───────┘  └──────┬───────┘            │ │
-│   │          │                 │                 │                      │ │
-│   └──────────┼─────────────────┼─────────────────┼──────────────────────┘ │
-│              │                 │                 │                          │
-│              ▼                 ▼                 ▼                          │
-│   ┌─────────────────────────────────────────────────────────────────────┐ │
-│   │                    Native 层 (InputFlinger)                          │ │
-│   │                                                                      │ │
-│   │   ┌──────────────────────────────────────────────────────────────┐ │ │
-│   │   │                    EventHub                                  │ │ │
-│   │   │                    (事件集线器)                              │ │ │
-│   │   └──────────────────────────┬───────────────────────────────────┘ │ │
-│   │                               │                                     │ │
-│   │                               ▼                                     │ │
-│   │   ┌──────────────────────────────────────────────────────────────┐ │ │
-│   │   │                    InputReader                               │ │ │
-│   │   │                    (输入读取器)                              │ │ │
-│   │   └──────────────────────────┬───────────────────────────────────┘ │ │
-│   │                               │                                     │ │
-│   │                               ▼                                     │ │
-│   │   ┌──────────────────────────────────────────────────────────────┐ │ │
-│   │   │                    InputClassifier                           │ │ │
-│   │   │                    (输入分类器)                              │ │ │
-│   │   └──────────────────────────┬───────────────────────────────────┘ │ │
-│   │                               │                                     │ │
-│   │                               ▼                                     │ │
-│   │   ┌──────────────────────────────────────────────────────────────┐ │ │
-│   │   │                    InputDispatcher                           │ │ │
-│   │   │                    (输入分发器)                              │ │ │
-│   │   └──────────────────────────┬───────────────────────────────────┘ │ │
-│   │                               │                                     │ │
-│   └───────────────────────────────┼─────────────────────────────────────┘ │
-│                                   │                                        │
-│                                   ▼                                        │
-│   ┌───────────────────────────────────────────────────────────────────────┐│
-│   │                    Java 层 (InputManagerService)                      ││
-│   │                                                                        ││
-│   │   ┌──────────────┐  ┌──────────────┐  ┌──────────────┐              ││
-│   │   │InputManager  │  │WindowManager │  │InputMethodManager             ││
-│   │   │Service       │  │Service       │  │              │              ││
-│   │   └──────┬───────┘  └──────┬───────┘  └──────┬───────┘              ││
-│   │          │                 │                 │                        ││
-│   └──────────┼─────────────────┼─────────────────┼────────────────────────┘│
-│              │                 │                 │                          │
-│              ▼                 ▼                 ▼                          │
-│   ┌───────────────────────────────────────────────────────────────────────┐│
-│   │                    应用层 (Application Layer)                         ││
-│   │                                                                        ││
-│   │   ┌──────────────┐  ┌──────────────┐  ┌──────────────┐              ││
-│   │   │   View       │  │  Activity    │  │  Dialog      │              ││
-│   │   │onTouchEvent()│  │dispatchKeyEvent()│            │              ││
-│   │   └──────────────┘  └──────────────┘  └──────────────┘              ││
-│   │                                                                        ││
-│   └────────────────────────────────────────────────────────────────────────┘│
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
+事件数据通道与控制通道必须分开。普通触摸不会先经过 Java IMS 或 IMMS 再发给应用；native 输入组件通常运行在 system_server，不能从 InputFlinger 名称推断独立进程。
+
+```text
+/dev/input/event* -> EventHub -> InputReader
+  -> UnwantedInteractionBlocker -> PointerChoreographer -> InputProcessor
+  -> InputDeviceMetricsCollector -> InputFilter -> InteractionReporter
+  -> InputDispatcher -> InputChannel -> 应用 InputEventReceiver / ViewRootImpl
+
+Java IMS <-> NativeInputManager：设备配置、策略回调、注入、通道管理
+WMS InputMonitor -> SurfaceControl transaction -> SurfaceFlinger 窗口信息
+  -> InputDispatcher：输入区域、层级、焦点等
+IMM <-> IMMS <-> InputMethodService：编辑器连接、IME 绑定和可见性控制
 ```
 
----
+上面 native listener 链省略 `TracedInputListener` 包装；构造时从 Dispatcher 向 Reader 反向连接，事件沿图中方向传递。IMS 不负责编辑器文本写入。源码：[InputManager.cpp:137](https://android.googlesource.com/platform/frameworks/native/+/refs/tags/android-17.0.0_r1/services/inputflinger/InputManager.cpp#137)；[InputMonitor.java:344](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/services/core/java/com/android/server/wm/InputMonitor.java#344)
 
 ## 2. IMS 架构总览
 
 ### 2.1 IMS 内部架构
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                          IMS 内部架构                                        │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -168,7 +130,7 @@
 │   │   │   └──────────────┘  └──────────────┘  └──────────────┘     │ │ │
 │   │   │                                                               │ │ │
 │   │   │   ┌──────────────┐  ┌──────────────┐  ┌──────────────┐     │ │ │
-│   │   │   │InputClassifier│ │InputListener │  │InputChannel  │     │ │ │
+│   │   │   │InputProcessor│ │InputListener │  │InputChannel  │     │ │ │
 │   │   │   │ (输入分类)   │  │ (监听器)     │  │ (输入通道)   │     │ │ │
 │   │   │   └──────────────┘  └──────────────┘  └──────────────┘     │ │ │
 │   │   │                                                               │ │ │
@@ -181,7 +143,7 @@
 
 ### 2.2 核心线程
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                        IMS 核心线程                                         │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -215,7 +177,7 @@ InputDispatcherThread → Main Thread: InputChannel (Unix Socket)
 
 ### 3.1 EventHub 架构
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                        EventHub 架构                                        │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -226,7 +188,7 @@ EventHub 职责：
 3. 设备热插拔检测
 4. 设备能力查询
 
-设备文件：
+设备文件（编号由设备枚举决定，下面仅示例）：
 • /dev/input/event0 - 触摸屏
 • /dev/input/event1 - 键盘
 • /dev/input/event2 - 鼠标
@@ -280,7 +242,7 @@ struct input_event {
 
 ### 3.3 InputReader 处理流程
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                        InputReader 处理流程                                 │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -303,7 +265,7 @@ InputReader::loopOnce() {
     3. 转换为高级事件
        └─► TouchInputMapper.process()
            └─► 计算触摸点
-           └─► 生成 MotionEvent
+           └─► 生成 NotifyMotionArgs，尚不是应用 Java MotionEvent
            └─► 多点触控处理
     
     4. 分发给 InputDispatcher
@@ -322,205 +284,131 @@ InputReader::loopOnce() {
 
 ### 4.1 分发流程总览
 
+```text
+InputReader listener 通知 -> InputDispatcher.notifyMotion(NotifyMotionArgs)
+  -> 校验并将 MotionEntry 放入 inbound queue -> 唤醒 Looper
+分发线程 dispatchOnce -> dispatchOnceInnerLocked -> dispatchMotionLocked
+  -> 普通 DOWN：按坐标、display、touchable region、遮挡/信任策略选目标
+  -> MOVE/UP：沿当前触摸状态和 pointer target 分发，可产生 CANCEL/拆分事件
+  -> 焦点定向输入：按相应事件类型走 focused target 路径
+  -> dispatchEventLocked -> Connection outboundQueue -> startDispatchCycleLocked
+  -> InputPublisher / InputChannel
+应用 WindowInputEventReceiver.onInputEvent -> enqueueInputEvent
+  -> 输入 stage 链 -> DecorView.dispatchTouchEvent -> Activity / View 树
+应用 finishInputEvent -> socket FINISHED -> dispatcher 完成确认
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                        输入事件分发流程                                     │
-└─────────────────────────────────────────────────────────────────────────────┘
 
-InputDispatcher                  WMS                    应用进程
-       │                          │                         │
-       ▼                          │                         │
-┌───────────────┐                │                         │
-│notifyMotion() │                │                         │
-└───────┬───────┘                │                         │
-        │                        │                         │
-        ▼                        │                         │
-┌───────────────┐                │                         │
-│确定目标窗口   │                │                         │
-│               │                │                         │
-│• 查找焦点窗口 │                │                         │
-│• 检查权限     │                │                         │
-└───────┬───────┘                │                         │
-        │                        │                         │
-        │                        │                         │
-        └────────┬───────────────┤                         │
-                 │               │                         │
-                 ▼               │                         │
-        ┌───────────────┐        │                         │
-        │InputChannel   │        │                         │
-        │(Unix Socket)  │        │                         │
-        └───────┬───────┘        │                         │
-                │                │                         │
-                │                │                         │
-                └────────────────┼─────────────────────────┤
-                                 │                         │
-                                 ▼                         │
-                        ┌───────────────┐                  │
-                        │ViewRootImpl   │                  │
-                        │.dispatchMotion│                  │
-                        └───────┬───────┘                  │
-                                │                          │
-                                ▼                          │
-                        ┌───────────────┐                  │
-                        │View 分发      │                  │
-                        │               │                  │
-                        │1. DecorView   │                  │
-                        │2. ViewGroup   │                  │
-                        │3. View        │                  │
-                        └───────┬───────┘                  │
-                                │                          │
-                                ▼                          │
-                        ┌───────────────┐                  │
-                        │onTouchEvent() │                  │
-                        └───────────────┘                  │
-```
+WMS 提供窗口与焦点状态，不是每个 MotionEvent 都同步向 WMS 查询。普通触摸目标不等于键盘焦点窗口。源码：[InputDispatcher.cpp:2175](https://android.googlesource.com/platform/frameworks/native/+/refs/tags/android-17.0.0_r1/services/inputflinger/dispatcher/InputDispatcher.cpp#2175)；[ViewRootImpl.java:11453](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/view/ViewRootImpl.java#11453)
 
 ### 4.2 InputDispatcher 分发逻辑
 
-```java
-/**
- * InputDispatcher - 输入分发器
- * 位置：frameworks/native/services/inputflinger/InputDispatcher.cpp
- */
-class InputDispatcher {
-    
-    /**
-     * 处理触摸事件
-     */
-    void InputDispatcher::notifyMotion(const MotionEvent* motionEvent) {
-        // 1. 验证事件
-        if (!validateMotionEvent(motionEvent)) {
-            return;
-        }
-        
-        // 2. 入队等待分发
-        mInboundQueue.push(motionEvent);
-        
-        // 3. 唤醒分发线程
-        mLooper->wake();
-    }
-    
-    /**
-     * 分发循环
-     */
-    void InputDispatcher::dispatchOnce() {
-        // 1. 从队列取出事件
-        EventEntry* entry = mInboundQueue.pop();
-        
-        // 2. 确定目标窗口
-        Vector<InputTarget> targets;
-        findFocusedWindowTargetsLocked(entry, targets);
-        
-        // 3. 分发到目标窗口
-        for (InputTarget target : targets) {
-            dispatchEventLocked(entry, target);
-        }
-        
-        // 4. 等待应用响应
-        // 5. 处理 ANR
-    }
-    
-    /**
-     * 查找焦点窗口
-     */
-    void InputDispatcher::findFocusedWindowTargetsLocked(
-            EventEntry* entry, Vector<InputTarget>& targets) {
-        // 从 WMS 获取焦点窗口
-        sp<InputWindowHandle> focusedWindow = 
-                mInputManager->getFocusedWindow();
-        
-        // 添加到目标列表
-        targets.push(focusedWindow);
-    }
-}
+`InputDispatcher` 是 C++ 类，不能用带 `Vector<InputTarget>` 和 `mInputManager->getFocusedWindow()` 的 Java 风格代码冒充源码。真实入口签名与职责如下（接口摘录，省略实现）：
+
+```cpp
+void InputDispatcher::notifyMotion(const NotifyMotionArgs& args);
+void InputDispatcher::dispatchOnce();
 ```
+
+`notifyMotion` 接收 reader 的通知对象，校验后建立内部事件记录，并在锁保护下入队。`dispatchOnce` 在持锁区处理待派发事件、超时与命令；执行需要离开锁的策略命令后再 `pollOnce`，不是简单的阻塞 `pop()` 循环。
+
+`dispatchMotionLocked` 同时考虑触摸路由和焦点定向输入；`dispatchEventLocked` 建立每个目标的派发记录，`startDispatchCycleLocked` 发布事件并维护等待确认队列。ANR 时间跟随 connection 的未完成请求推进，不应把它简化成应用回调里的计时器。
+
+源码：[InputDispatcher.cpp:4679](https://android.googlesource.com/platform/frameworks/native/+/refs/tags/android-17.0.0_r1/services/inputflinger/dispatcher/InputDispatcher.cpp#4679)；[InputDispatcher.cpp:983](https://android.googlesource.com/platform/frameworks/native/+/refs/tags/android-17.0.0_r1/services/inputflinger/dispatcher/InputDispatcher.cpp#983)；[InputDispatcher.cpp:3893](https://android.googlesource.com/platform/frameworks/native/+/refs/tags/android-17.0.0_r1/services/inputflinger/dispatcher/InputDispatcher.cpp#3893)
 
 ### 4.3 ANR 处理
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                        输入事件 ANR 处理                                    │
-└─────────────────────────────────────────────────────────────────────────────┘
+输入 ANR 的两类关键状态是：已发送到窗口但未按时收到完成确认，以及存在焦点应用却迟迟没有可接收输入的焦点窗口。默认派发超时以 5 秒为基础并乘硬件超时倍率，窗口/应用提供的超时和策略可改变它；不存在“前台触摸 5 秒、后台触摸 10 秒”的通用规则。
 
-ANR 触发条件：
-• 按键事件: 5 秒内未处理
-• 触摸事件: 5 秒内未处理 (前台)
-• 触摸事件: 10 秒内未处理 (后台)
-
-ANR 检测流程：
-1. InputDispatcher 分发事件后启动计时
-2. 等待应用通过 finishInputEvent() 响应
-3. 超时后触发 ANR
-
-ANR 处理：
-1. 打印 ANR 日志
-2. 生成 traces.txt
-3. 显示 ANR 对话框
-4. 可选: 杀死进程
-
-ANR 日志位置：
-• /data/anr/traces.txt
-• /data/anr/anr_* (Android 11+)
-
-避免 ANR：
-• 主线程不做耗时操作
-• 快速处理输入事件
-• 使用异步任务处理耗时工作
+```text
+发送事件 -> connection.waitQueue / AnrTracker
+  -> processAnrsLocked -> onAnrLocked
+  -> policy 通知 -> Java 输入/窗口策略 -> AMS ANR 处理
+应用完成确认 -> 从等待队列移除 -> 更新下一超时点
 ```
 
----
+超时通知不等于立刻弹框或杀进程，后续诊断和用户界面受系统策略约束。现代 traces 通常由 `/data/anr/anr_*` 文件承载，不应硬编码为单一 `traces.txt`。排查时同时看焦点窗口、派发状态、Binder 阻塞和应用主线程，而不只缩短 `onTouchEvent`。
+
+源码：[InputDispatcher.cpp:127](https://android.googlesource.com/platform/frameworks/native/+/refs/tags/android-17.0.0_r1/services/inputflinger/dispatcher/InputDispatcher.cpp#127)；[InputDispatcher.cpp:1143](https://android.googlesource.com/platform/frameworks/native/+/refs/tags/android-17.0.0_r1/services/inputflinger/dispatcher/InputDispatcher.cpp#1143)
 
 ## 5. InputChannel 与 InputConnection
 
 ### 5.1 InputChannel
 
-```java
-/**
- * InputChannel - 输入通道
- * 位置：frameworks/base/core/java/android/view/InputChannel.java
- * 
- * 职责：应用与 IMS 之间的通信通道
- */
-class InputChannel {
-    // Native 层实现
-    private long mPtr;  // Native 指针
-    
-    // 创建 InputChannel 对 (Unix Socket Pair)
-    public static void openInputChannelPair(String name,
-            InputChannel[] outChannels) {
-        // 创建两个关联的 InputChannel
-        // 一个给 IMS，一个给应用
-    }
-    
-    // Native 方法
-    private native long nativeOpenInputChannelPair(String name,
-            InputChannel[] outChannels);
-}
+`InputChannel` 包装 native 通道端点。其 Java 成对创建 API 返回数组，而非使用输出数组参数（框架内部 API，不是普通应用 SDK 接口）：
 
-/**
- * InputChannel 使用流程
- * 
- * 1. ViewRootImpl 创建 InputChannel 对
- *    └─► InputChannel.openInputChannelPair()
- *        └─► 创建 Unix Socket Pair
- *
- * 2. 客户端 InputChannel 给应用
- *    └─► ViewRootImpl.setInputChannel()
- *
- * 3. 服务端 InputChannel 给 IMS
- *    └─► WMS.registerInputChannel()
- *
- * 4. IMS 通过服务端 InputChannel 发送事件
- *    └─► 写入 Unix Socket
- *
- * 5. 应用监听客户端 InputChannel
- *    └─► epoll_wait() 等待事件
- *    └─► 读取 Unix Socket
- *    └─► 分发到 View
- */
+```java
+public static InputChannel[] openInputChannelPair(String name);
+private static native long[] nativeOpenInputChannelPair(String name);
 ```
 
+普通窗口的真实建立方向是服务端创建、返回客户端端点：
+
+```text
+ViewRootImpl.setView -> IWindowSession.addToDisplay* -> WMS.addWindow
+  -> WindowState.openInputChannel
+  -> IMS.createInputChannel -> InputDispatcher.createInputChannel
+       创建 Unix socket pair；保存 server connection，返回 client channel
+  -> 经窗口添加结果返回应用
+  -> WindowInputEventReceiver 绑定主线程 Looper
+```
+
+VRI 不先创建一对通道再调用虚构的 `WMS.registerInputChannel()`。socket 承载事件与完成确认，Binder 用于传递通道描述符和窗口控制。销毁窗口时还需要注销通道，不能只释放 Java 引用。
+
+源码：[InputChannel.java:138](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/view/InputChannel.java#138)；[WindowState.java:2680](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/services/core/java/com/android/server/wm/WindowState.java#2680)；[InputDispatcher.cpp:6431](https://android.googlesource.com/platform/frameworks/native/+/refs/tags/android-17.0.0_r1/services/inputflinger/dispatcher/InputDispatcher.cpp#6431)
+
+连续节选 [WindowState.java:2680–2690](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/services/core/java/com/android/server/wm/WindowState.java#2680)（不是独立编译单元）：
+
+```java
+InputChannel openInputChannel() {
+    if (mInputChannelToken != null) {
+        throw new IllegalStateException("Window already has an input channel token.");
+    }
+    String name = getName();
+    final InputChannel channel = mWmService.mInputManager.createInputChannel(name);
+    mInputChannelToken = channel.getToken();
+    mInputWindowHandle.setToken(mInputChannelToken);
+    mWmService.mInputToWindowMap.put(mInputChannelToken, this);
+    return channel;
+}
+```
+
+mInputChannelToken 把 native connection 与 WindowState 关联；重复建立会抛异常。窗口销毁还要 removeInputChannel 和移除输入映射，不只释放客户端 Java InputChannel。
+
+连续节选 [InputDispatcher.cpp:6431–6455](https://android.googlesource.com/platform/frameworks/native/+/refs/tags/android-17.0.0_r1/services/inputflinger/dispatcher/InputDispatcher.cpp#6431)（不是独立编译单元）：
+
+```cpp
+Result<std::unique_ptr<InputChannel>> InputDispatcher::createInputChannel(const std::string& name) {
+    LOG_IF(INFO, DEBUG_CHANNEL_CREATION) << "channel '" << name << "' ~ createInputChannel";
+
+    std::unique_ptr<InputChannel> serverChannel;
+    std::unique_ptr<InputChannel> clientChannel;
+    status_t result = InputChannel::openInputChannelPair(name, serverChannel, clientChannel);
+
+    if (result) {
+        return base::Error(result) << "Failed to open input channel pair with name " << name;
+    }
+
+    { // acquire lock
+        std::scoped_lock _l(mLock);
+        const sp<IBinder>& token = serverChannel->getConnectionToken();
+        std::function<int(int events)> callback = std::bind(&InputDispatcher::handleReceiveCallback,
+                                                            this, std::placeholders::_1, token);
+
+        mConnectionManager.createConnection(std::move(serverChannel), mIdGenerator, callback);
+    } // release lock
+
+    // Wake the looper because some connections have changed.
+    mLooper->wake();
+    return clientChannel;
+}
+
+```
+
+创建 pair 失败立即返回错误；成功后在锁内将 server endpoint 存入 Connection 并注册 Looper 回调，client endpoint 返回调用方。这解释了为何事件和 FINISHED 回执都能沿 socket 连接双向传输，及关闭窗口后仍持有旧端点不能继续接收有效输入。
+
 ### 5.2 InputConnection
+
+以下是接口方法摘录与 BaseInputConnection 的核心行为，省略注解、其余方法和调试日志。
 
 ```java
 /**
@@ -552,37 +440,24 @@ interface InputConnection {
     boolean performContextMenuAction(int id);
 }
 
-/**
- * InputConnection 实现类
- */
-class BaseInputConnection implements InputConnection {
-    // 关联的 View
-    final View mTextView;
-    
-    // 文本编辑器
-    final Editable mEditable;
-    
-    @Override
-    public boolean commitText(CharSequence text, int newCursorPosition) {
-        // 1. 提交文本
-        mEditable.replace(selectionStart, selectionEnd, text);
-        
-        // 2. 更新光标位置
-        setSelection(newCursorPosition, newCursorPosition);
-        
-        // 3. 通知 View 更新
-        mTextView.invalidate();
-        
-        return true;
-    }
+/** BaseInputConnection.commitText 的实现摘录；其余 InputConnection 方法见接口。 */
+@Override
+public boolean commitText(CharSequence text, int newCursorPosition) {
+    replaceText(text, newCursorPosition, false);
+    sendCurrentText();
+    return true;
 }
 ```
 
 ---
 
+`newCursorPosition` 是相对插入文本结束位置（正值）或开始位置（非正值）的游标偏移，不是直接传给 `setSelection()` 的绝对下标；例如 `1` 通常表示插入后。替换还要处理 composing span、选区和过滤器。源码：[BaseInputConnection.java:239](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/view/inputmethod/BaseInputConnection.java#239)。
+
 ## 6. 触摸事件处理
 
 ### 6.1 触摸事件类型
+
+以下列举常量与方法签名，省略方法体和其余 API，不是可独立编译的 MotionEvent 类。
 
 ```java
 /**
@@ -624,7 +499,7 @@ class MotionEvent {
 
 ### 6.2 触摸事件分发流程
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                        触摸事件分发流程                                     │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -662,59 +537,17 @@ View.onTouchEvent()
 
 ### 6.3 onTouchEvent 源码
 
-```java
-/**
- * View.onTouchEvent()
- * 位置：frameworks/base/core/java/android/view/View.java
- */
-public boolean onTouchEvent(MotionEvent event) {
-    // 获取坐标
-    final float x = event.getX();
-    final float y = event.getY();
-    
-    // 检查是否可点击
-    if ((viewFlags & CLICKABLE) == CLICKABLE ||
-            (viewFlags & LONG_CLICKABLE) == LONG_CLICKABLE) {
-        
-        switch (event.getAction()) {
-            case MotionEvent.ACTION_DOWN:
-                // 按下
-                mHasPerformedLongPress = false;
-                postDelayed(mPendingCheckForLongPress, 
-                        ViewConfiguration.getLongPressTimeout());
-                break;
-                
-            case MotionEvent.ACTION_MOVE:
-                // 移动
-                if (!pointInView(x, y, mTouchSlop)) {
-                    // 移出 View，取消长按
-                    removeCallbacks(mPendingCheckForLongPress);
-                }
-                break;
-                
-            case MotionEvent.ACTION_UP:
-                // 抬起
-                removeCallbacks(mPendingCheckForLongPress);
-                if (!mHasPerformedLongPress) {
-                    // 执行点击
-                    performClick();
-                }
-                break;
-                
-            case MotionEvent.ACTION_CANCEL:
-                // 取消
-                removeCallbacks(mPendingCheckForLongPress);
-                break;
-        }
-        
-        return true; // 消费事件
-    }
-    
-    return false; // 不消费事件
-}
+`View.onTouchEvent` 的点击判定依赖 enabled/clickable/longClickable、pressed/prepressed、触摸 slop、长按和取消状态。移出可点击范围后不能在 UP 时无条件调用 `performClick()`；禁用但可点击的 View 也可能消费事件而不执行点击。
+
+```text
+DOWN -> 建立按压/预按压状态，按条件安排长按检查
+MOVE -> 检查 slop；移出范围清除按压并移除 tap/long-press 回调
+UP   -> 仅在有效按压、未长按等条件下安排 PerformClick / performClickInternal
+        -> 清理按压状态与回调
+CANCEL -> 清理按压、长按和 tap 回调，不生成点击
 ```
 
----
+这里是控制流摘要，不是完整实现；无障碍点击、鼠标上下文点击和 tooltip 分支也不能由四个 case 的示例代替。源码：[View.java:18447](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/view/View.java#18447)
 
 ## 7. 按键事件处理
 
@@ -757,90 +590,37 @@ class KeyEvent {
 
 ### 7.2 按键事件分发流程
 
+```text
+InputDispatcher -> 应用 ViewRootImpl input stages
+  -> pre-IME / IME 阶段（符合条件的按键）
+  -> DecorView.dispatchKeyEvent
+       Window.Callback（Activity.dispatchKeyEvent）
+         -> PhoneWindow.superDispatchKeyEvent -> DecorView.superDispatchKeyEvent
+         -> 焦点 View 树 / OnKeyListener / onKeyDown、onKeyUp
+         -> 未处理时 KeyEvent.dispatch(Activity, ...) -> Activity 回调
+       Callback 未处理 -> PhoneWindow.onKeyDown/onKeyUp 的窗口 fallback
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                        按键事件分发流程                                     │
-└─────────────────────────────────────────────────────────────────────────────┘
 
-Activity.dispatchKeyEvent()
-    │
-    ├─► 焦点 View 处理
-    │   │
-    │   ▼
-    │   View.dispatchKeyEvent()
-    │   │
-    │   ├─► onKey() - OnKeyListener
-    │   │   │
-    │   │   ├─► true: 消费
-    │   │   └─► false: 继续
-    │   │
-    │   ▼
-    │   View.onKeyDown() / onKeyUp()
-    │   │
-    │   ├─► true: 消费
-    │   └─► false: 回传
-    │
-    ├─► Activity.onKeyDown() / onKeyUp()
-    │   │
-    │   ├─► true: 消费
-    │   └─► false: 继续
-    │
-    └─► PhoneWindow.onKeyDown() / onKeyUp()
-        │
-        ├─► 处理系统按键 (音量/返回等)
-        └─► 返回最终结果
-```
+HOME/POWER 等可能先被系统 policy 消费；不能假定所有硬件按键都到 Activity。预测性返回也不能统一理解为普通 `KEYCODE_BACK` 派发。源码：[DecorView.java:343](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/com/android/internal/policy/DecorView.java#343)；[Activity.java:4620](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/app/Activity.java#4620)
 
 ### 7.3 系统按键处理
 
+`PhoneWindow` 的方法需要 `featureId`，不是 `public boolean onKeyDown(int keyCode, KeyEvent event)`：
+
 ```java
-/**
- * PhoneWindow.onKeyDown()
- * 位置：frameworks/base/core/java/com/android/internal/policy/PhoneWindow.java
- */
-public boolean onKeyDown(int keyCode, KeyEvent event) {
-    switch (keyCode) {
-        case KeyEvent.KEYCODE_VOLUME_UP:
-        case KeyEvent.KEYCODE_VOLUME_DOWN:
-            // 调整音量
-            AudioManager am = (AudioManager)getContext()
-                    .getSystemService(Context.AUDIO_SERVICE);
-            am.adjustVolume(
-                    keyCode == KeyEvent.KEYCODE_VOLUME_UP 
-                            ? AudioManager.ADJUST_RAISE 
-                            : AudioManager.ADJUST_LOWER,
-                    AudioManager.FLAG_SHOW_UI);
-            return true;
-            
-        case KeyEvent.KEYCODE_BACK:
-            // 返回键
-            if (mPanel != null && mPanel.isShowing()) {
-                // 关闭面板
-                mPanel.closePanel();
-                return true;
-            }
-            break;
-            
-        case KeyEvent.KEYCODE_MENU:
-            // 菜单键
-            if (mPanel != null) {
-                mPanel.openPanel();
-                return true;
-            }
-            break;
-    }
-    
-    return false;
-}
+protected boolean onKeyDown(int featureId, int keyCode, KeyEvent event);
+protected boolean onKeyUp(int featureId, int keyCode, KeyEvent event);
 ```
 
----
+它负责窗口面板、菜单、音量/媒体按键相关 fallback。音量处理会走媒体控制器或媒体会话相关辅助逻辑，不能以临时构造 `AudioManager.adjustVolume()` 代替真实调用链；面板状态通过 `PanelFeatureState` 和对应 feature 查询，也没有示例中统一的 `mPanel.openPanel()` API。
+
+源码：[PhoneWindow.java:2036](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/com/android/internal/policy/PhoneWindow.java#2036)；[PhoneWindow.java:2148](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/com/android/internal/policy/PhoneWindow.java#2148)
 
 ## 8. 输入法交互
 
 ### 8.1 输入法架构
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                        输入法架构                                           │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -874,34 +654,92 @@ public boolean onKeyDown(int keyCode, KeyEvent event) {
 
 ### 8.2 输入法通信
 
+`showSoftInput` 返回 `boolean`，不是 `void`。接口摘录如下；返回值描述请求处理，不能据此判断键盘已经可见：
+
 ```java
-/**
- * InputMethodManager - 应用侧输入法管理器
- * 位置：frameworks/base/core/java/android/view/inputmethod/InputMethodManager.java
- */
-class InputMethodManager {
-    public void showSoftInput(View view, int flags);
-    public boolean hideSoftInputFromWindow(IBinder windowToken, int flags);
-    public void toggleSoftInput(int showFlags, int hideFlags);
-}
+public boolean showSoftInput(View view, int flags);
+public boolean hideSoftInputFromWindow(IBinder windowToken, int flags);
+@Deprecated
+public void toggleSoftInput(int showFlags, int hideFlags);
 ```
 
-`InputMethodManager` 持有应用侧输入连接和窗口 token，显示或隐藏输入法时把请求发送到 `InputMethodManagerService`。编辑器通过 `InputConnection` 提交文本、选区和组合态；输入法通过 `commitText()`、`setComposingText()` 等操作回写编辑器。一次输入的关键边界如下：
+必须区分三条并行协作的链路：
 
 ```text
-KeyEvent / MotionEvent
-        ↓
-InputDispatcher
-        ↓
-InputMethodManagerService 选择当前输入法
-        ↓ Binder
-InputMethodService
-        ↓ InputConnection
-EditorInfo / BaseInputConnection / TextView
+1. 设备事件：InputDispatcher -> InputChannel -> ViewRootImpl / 输入 stages
+   触摸命中 IME 窗口时 -> IME 自己的 View 树，而非先交 IMMS 选择输入法
+2. 编辑器控制：窗口焦点/编辑器变化 -> 应用 IMM
+   -> startInputOrWindowGainedFocus 等 Binder 请求 -> IMMS
+   -> 验证调用身份与焦点、绑定输入法、建立输入 session
+3. 文本编辑：InputMethodService -> 远程 InputConnection 包装
+   -> 应用编辑器 InputConnection.commitText / setComposingText 等
+   -> TextView/Editable 更新文本、选区、组合态
 ```
 
-排查输入法问题时，应同时检查焦点窗口、`EditorInfo.inputType`、输入法服务是否绑定，以及应用是否在窗口销毁后继续持有 `InputConnection`。输入法切换和窗口焦点变化是异步过程，不能假定调用 `showSoftInput()` 后键盘立即可见；应以窗口 Insets 或输入法回调作为状态依据。
+`EditorInfo` 是编辑器元信息，不是位于文本事件末端的执行对象。普通软键盘文字输入不要求变成 `KeyEvent`；硬键盘事件可被应用的 IME input stage 转交已建立的 IME session。IMMS 不是每次 `InputDispatcher` 派发后都重新选择输入法的线性节点。
+
+本 tag 的 IMM 显示/隐藏实现通过 `setImeVisibilityOnInsetsController` 请求当前 ViewRootImpl 的 InsetsController；不能继续描述为该方法必然直接经 global invoker 调用 IMMS。显示要求 view 已建立适当焦点/served 状态；异步结果应观察 `WindowInsets.Type.ime()` 可见性，而非立刻读取 `showSoftInput` 返回值。
+
+源码：[InputMethodManager.java:2468](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/view/inputmethod/InputMethodManager.java#2468)；[InputMethodManager.java:2559](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/view/inputmethod/InputMethodManager.java#2559)；[ViewRootImpl.java:8364](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/view/ViewRootImpl.java#8364)；[InputConnection.java:738](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/view/inputmethod/InputConnection.java#738)
+
+连续节选 [InputMethodManager.java:2572–2595](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/view/inputmethod/InputMethodManager.java#2572)（不是独立编译单元）：
+
+```java
+checkFocus();
+synchronized (mH) {
+    if (!hasServedByInputMethodLocked(view)) {
+        ImeTracker.forLogging().onFailed(statsToken, ImeTracker.PHASE_CLIENT_VIEW_SERVED);
+        ImeTracker.forLatency().onShowFailed(statsToken,
+                ImeTracker.PHASE_CLIENT_VIEW_SERVED, ActivityThread::currentApplication);
+        if (android.tracing.Flags.imetrackerProtolog()) {
+            ProtoLog.w(INPUT_METHOD_MANAGER_WITH_LOGCAT,
+                    "Ignoring showSoftInput() as view=%s is not served.", view);
+        } else {
+            Log.w(TAG, "Ignoring showSoftInput() as view=" + view + " is not served.");
+        }
+        return false;
+    }
+
+    ImeTracker.forLogging().onProgress(statsToken, ImeTracker.PHASE_CLIENT_VIEW_SERVED);
+
+    final var viewRootImpl = view.getViewRootImpl();
+    // In case of a running show IME animation, it should not be requested visible,
+    // otherwise the animation would jump and not be controlled by the user anymore.
+    // If predictive back is in progress, and a editText is focussed, we should
+    // show the IME.
+    if (viewRootImpl != null && (
+            (viewRootImpl.getInsetsController().computeUserAnimatingTypes()
+```
+
+checkFocus 后仍需验证 served view；仅仅拿到一个非 null EditText 并不满足该条件。接下来还检查用户控制的 IME 动画和预测性返回状态，防止显示请求抢断交互动画。
+
+连续节选 [InputMethodManager.java:2596–2613](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/view/inputmethod/InputMethodManager.java#2596)（不是独立编译单元）：
+
+```java
+                & WindowInsets.Type.ime()) == 0
+        || viewRootImpl.getInsetsController()
+                .isPredictiveBackImeHideAnimInProgress())) {
+    ImeTracker.forLogging().onProgress(statsToken,
+            ImeTracker.PHASE_CLIENT_NO_ONGOING_USER_ANIMATION);
+    if (resultReceiver != null) {
+        final boolean imeReqVisible = hasViewImeRequestedVisible(
+                viewRootImpl.getView());
+        resultReceiver.send(
+                imeReqVisible ? InputMethodManager.RESULT_UNCHANGED_SHOWN
+                        : InputMethodManager.RESULT_SHOWN, null);
+    }
+    setImeVisibilityOnInsetsController(viewRootImpl, true /* visible */, statsToken);
+    return true;
+}
+ImeTracker.forLogging().onCancelled(statsToken,
+        ImeTracker.PHASE_CLIENT_NO_ONGOING_USER_ANIMATION);
+return false;
+```
+
+ResultReceiver 的回报依请求可见性等状态计算，不是显示器实测可见。hide 路径在部分兼容条件下即使 served window 不匹配也会返回 true，因此返回 boolean 更不能当成已隐藏证明。
+
+文本编辑失败则优先检查 InputConnection 是否过期、选区/composing span 与编辑器线程；设备事件可达并不保证输入连接仍有效。
 
 ## 9. 总结
 
-Android 17 的输入系统由 native `EventHub`、`InputReader`、`InputDispatcher` 与 Java 框架层协作完成。按键、触摸和输入法虽然入口不同，但最终都通过窗口 token、InputChannel、焦点和异步回调连接到应用线程。分析问题时要沿着“设备事件 → native 读取/分发 → Binder 或 InputChannel → ViewRootImpl/编辑器”的链路定位，而不是只观察某个 View 的回调。
+Android 17 的输入系统由 native `EventHub`、`InputReader`、`InputDispatcher` 与 Java 框架层协作完成。按键、触摸和输入法虽然入口不同，但设备事件通道、输入法控制通道和文本编辑通道必须分别分析。分析问题时要沿着“设备事件 → native 读取/分发 → Binder 或 InputChannel → ViewRootImpl/编辑器”的链路定位，而不是只观察某个 View 的回调。

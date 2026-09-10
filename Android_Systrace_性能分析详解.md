@@ -1,6 +1,7 @@
 # Android Systrace 性能分析详解
 
 > 作者：OpenClaw | 日期：2026-03-09
+> 技术基线：AOSP `android-17.0.0_r1`；旧 Systrace 保留为历史工具说明，Android 17 使用 Perfetto。
 > 
 > 参考文档：https://www.androidperformance.com/2019/05/28/Android-Systrace-About/
 
@@ -8,59 +9,63 @@
 
 ## 目录
 
-1. [Systrace 简介](#1-systrace-简介)
-   - 1.1 [什么是 Systrace](#11-什么是-systrace)
-   - 1.2 [Systrace 与 Perfetto](#12-systrace-与-perfetto)
-   - 1.3 [Systrace 能做什么](#13-systrace-能做什么)
-2. [Systrace 使用方法](#2-systrace-使用方法)
-   - 2.1 [命令行采集](#21-命令行采集)
-   - 2.2 [参数详解](#22-参数详解)
-   - 2.3 [代码中添加 Trace](#23-代码中添加-trace)
-3. [60fps 与 Vsync 机制](#3-60fps-与-vsync-机制)
-   - 3.1 [为什么是 60fps](#31-为什么是-60fps)
-   - 3.2 [Vsync 信号机制](#32-vsync-信号机制)
-   - 3.3 [高刷新率 90Hz/120Hz](#33-高刷新率-90hz120hz)
-4. [Choreographer 渲染机制](#4-choreographer-渲染机制)
-   - 4.1 [Choreographer 简介](#41-choreographer-简介)
-   - 4.2 [Choreographer 工作流程](#42-choreographer-工作流程)
-   - 4.3 [doFrame 处理流程](#43-doframe-处理流程)
-   - 4.4 [Callback 类型](#44-callback-类型)
-5. [主线程与渲染线程](#5-主线程与渲染线程)
-   - 5.1 [主线程运行原理](#51-主线程运行原理)
-   - 5.2 [渲染线程 RenderThread](#52-渲染线程-renderthread)
-   - 5.3 [软件绘制 vs 硬件加速](#53-软件绘制-vs-硬件加速)
-6. [SystemServer 解读](#6-systemserver-解读)
-   - 6.1 [SystemServer 进程结构](#61-systemserver-进程结构)
-   - 6.2 [关键线程](#62-关键线程)
-7. [SurfaceFlinger 解读](#7-surfaceflinger-解读)
-   - 7.1 [SurfaceFlinger 工作流程](#71-surfaceflinger-工作流程)
-   - 7.2 [Buffer 合成流程](#72-buffer-合成流程)
-8. [Input 事件处理](#8-input-事件处理)
-   - 8.1 [InputReader 与 InputDispatcher](#81-inputreader-与-inputdispatcher)
-   - 8.2 [事件分发流程](#82-事件分发流程)
-9. [BufferQueue 与 Triple Buffer](#9-bufferqueue-与-triple-buffer)
-   - 9.1 [BufferQueue 模型](#91-bufferqueue-模型)
-   - 9.2 [单缓冲/双缓冲/三缓冲](#92-单缓冲双缓冲三缓冲)
-   - 9.3 [Triple Buffer 的作用](#93-triple-buffer-的作用)
-10. [CPU 状态分析](#10-cpu-状态分析)
-    - 10.1 [CPU 核心架构](#101-cpu-核心架构)
-    - 10.2 [线程 CPU 状态](#102-线程-cpu-状态)
-    - 10.3 [Runnable 状态分析](#103-runnable-状态分析)
-    - 10.4 [Sleep 状态分析](#104-sleep-状态分析)
-    - 10.5 [Uninterruptible Sleep 分析](#105-uninterruptible-sleep-分析)
-11. [Binder 与锁竞争](#11-binder-与锁竞争)
-    - 11.1 [Binder 通信机制](#111-binder-通信机制)
-    - 11.2 [锁竞争分析](#112-锁竞争分析)
-12. [卡顿分析实战](#12-卡顿分析实战)
-    - 12.1 [卡顿定义与原理](#121-卡顿定义与原理)
-    - 12.2 [卡顿原因分类](#122-卡顿原因分类)
-    - 12.3 [分析流程与方法](#123-分析流程与方法)
-13. [APM 监控方案](#13-apm-监控方案)
-    - 13.1 [FrameCallback 监控](#131-framecallback-监控)
-    - 13.2 [FrameInfo 监控](#132-frameinfo-监控)
-    - 13.3 [Looper Printer 监控](#133-looper-printer-监控)
-14. [常见问题](#14-常见问题)
-15. [知识体系总结](#15-知识体系总结)
+- [1. Systrace 简介](#1-systrace-简介)
+  - [1.1 什么是 Systrace](#11-什么是-systrace)
+  - [1.2 Systrace 与 Perfetto](#12-systrace-与-perfetto)
+  - [1.3 Systrace 能做什么](#13-systrace-能做什么)
+- [2. Systrace 使用方法](#2-systrace-使用方法)
+  - [2.1 命令行采集](#21-命令行采集)
+  - [2.2 参数详解](#22-参数详解)
+  - [2.3 代码中添加 Trace](#23-代码中添加-trace)
+- [3. 60fps 与 Vsync 机制](#3-60fps-与-vsync-机制)
+  - [3.1 为什么是 60fps](#31-为什么是-60fps)
+  - [3.2 Vsync 信号机制](#32-vsync-信号机制)
+  - [3.3 高刷新率 90Hz/120Hz](#33-高刷新率-90hz120hz)
+- [4. Choreographer 渲染机制](#4-choreographer-渲染机制)
+  - [4.1 Choreographer 简介](#41-choreographer-简介)
+  - [4.2 Choreographer 工作流程](#42-choreographer-工作流程)
+  - [4.3 doFrame 处理流程](#43-doframe-处理流程)
+  - [4.4 Callback 类型](#44-callback-类型)
+- [5. 主线程与渲染线程](#5-主线程与渲染线程)
+  - [5.1 主线程运行原理](#51-主线程运行原理)
+  - [5.2 渲染线程 RenderThread](#52-渲染线程-renderthread)
+  - [5.3 软件绘制 vs 硬件加速](#53-软件绘制-vs-硬件加速)
+- [6. SystemServer 解读](#6-systemserver-解读)
+  - [6.1 SystemServer 进程结构](#61-systemserver-进程结构)
+  - [6.2 关键线程](#62-关键线程)
+- [7. SurfaceFlinger 解读](#7-surfaceflinger-解读)
+  - [7.1 SurfaceFlinger 工作流程](#71-surfaceflinger-工作流程)
+  - [7.2 Buffer 合成流程](#72-buffer-合成流程)
+- [8. Input 事件处理](#8-input-事件处理)
+  - [8.1 InputReader 与 InputDispatcher](#81-inputreader-与-inputdispatcher)
+  - [8.2 事件分发流程](#82-事件分发流程)
+- [9. BufferQueue 与 Triple Buffer](#9-bufferqueue-与-triple-buffer)
+  - [9.1 BufferQueue 模型](#91-bufferqueue-模型)
+  - [9.2 单缓冲/双缓冲/三缓冲](#92-单缓冲双缓冲三缓冲)
+  - [9.3 Triple Buffer 的作用](#93-triple-buffer-的作用)
+- [10. CPU 状态分析](#10-cpu-状态分析)
+  - [10.1 CPU 核心架构](#101-cpu-核心架构)
+  - [10.2 线程 CPU 状态](#102-线程-cpu-状态)
+  - [10.3 Runnable 状态分析](#103-runnable-状态分析)
+  - [10.4 Sleep 状态分析](#104-sleep-状态分析)
+  - [10.5 Uninterruptible Sleep 分析](#105-uninterruptible-sleep-分析)
+- [11. Binder 与锁竞争](#11-binder-与锁竞争)
+  - [11.1 Binder 通信机制](#111-binder-通信机制)
+  - [11.2 锁竞争分析](#112-锁竞争分析)
+- [12. 卡顿分析实战](#12-卡顿分析实战)
+  - [12.1 卡顿定义与原理](#121-卡顿定义与原理)
+  - [12.2 卡顿原因分类](#122-卡顿原因分类)
+  - [12.3 分析流程与方法](#123-分析流程与方法)
+  - [12.4 Perfetto 完整采集与 SQL 归因](#124-perfetto-完整采集与-sql-归因)
+- [13. APM 监控方案](#13-apm-监控方案)
+  - [13.1 FrameCallback 监控](#131-framecallback-监控)
+  - [13.2 FrameInfo 监控](#132-frameinfo-监控)
+  - [13.3 Looper Printer 监控](#133-looper-printer-监控)
+- [14. 常见问题](#14-常见问题)
+  - [14.1 Systrace 文件无法在 Chrome 打开](#141-systrace-文件无法在-chrome-打开)
+  - [14.2 采集不到应用 Trace](#142-采集不到应用-trace)
+  - [14.3 如何判断是应用问题还是系统问题](#143-如何判断是应用问题还是系统问题)
+- [15. 知识体系总结](#15-知识体系总结)
 
 ---
 
@@ -70,7 +75,7 @@
 
 Systrace 是 Android 4.1 (API 16) 引入的性能分析工具，用于收集和分析 Android 系统和应用程序的时序信息。它可以图形化展示系统各个进程、线程的运行状态，帮助开发者定位性能问题。
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         Systrace 功能概览                                   │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -101,7 +106,7 @@ Systrace 是 Android 4.1 (API 16) 引入的性能分析工具，用于收集和�
 
 ### 1.2 Systrace 与 Perfetto
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    Systrace vs Perfetto                                     │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -131,7 +136,7 @@ Systrace 是 Android 4.1 (API 16) 引入的性能分析工具，用于收集和�
 
 ### 1.3 Systrace 能做什么
 
-```
+```text
 Systrace 可以分析的问题类型：
 ─────────────────────────────────────────────────────────────────────────────
 
@@ -166,105 +171,64 @@ Systrace 可以分析的问题类型：
 ### 2.1 命令行采集
 
 ```bash
-# ==================== 基本采集命令 ====================
-# Android 9.0 以下
-python $ANDROID_SDK/platform-tools/systrace/systrace.py \
-    --time=10 \
-    -o trace.html \
-    sched freq idle am wm gfx view binder_driver
-
-# Android 9.0+ 使用 Perfetto
-adb shell perfetto \
-    --out=/data/misc/perfetto-traces/trace \
-    --txt \
-    sched freq idle am wm gfx view binder_driver
-
-# ==================== 常用采集示例 ====================
-# 采集 10 秒，包含所有常用 tag
-python systrace.py --time=10 -o trace.html \
-    sched freq idle am wm gfx view binder_driver workq \
-    binder_lock freq idle disk
-
-# 采集应用启动过程
-python systrace.py --time=5 -o startup.html \
-    -a com.example.app \
-    sched freq am wm gfx view
-
-# ==================== 从设备拉取 trace ====================
-# Android 9.0+ 
-adb shell perfetto \
-    -c - --txt \
-    -o /data/misc/perfetto-traces/trace \
-    <<EOF
-buffers: {
-    size_kb: 102400
-    fill_policy: RING_BUFFER
-}
-buffers: {
-    size_kb: 2048
-    fill_policy: RING_BUFFER
-}
-data_sources: {
-    config {
-        name: "android.gpu.memory"
-    }
-}
-data_sources: {
-    config {
-        name: "linux.sysfs"
-        target_buffer: 1
-    }
-}
-duration_ms: 10000
-EOF
-
-# 拉取到本地
-adb pull /data/misc/perfetto-traces/trace
+# 已有 Catapult systrace.py 环境的历史采集方式，不保证新 SDK 附带该脚本。
+python systrace.py -t 10 -a com.example.app -o trace.html sched freq idle am wm gfx view binder_driver
+# Android 17 简单模式；不要附加 --txt（这是 textproto 配置模式参数）。
+adb shell perfetto -o /data/misc/perfetto-traces/quick.perfetto-trace -t 10s sched freq idle am wm gfx view binder_driver
 ```
+
+需要 FrameTimeline、应用 trace 和 SQL 归因时使用下面完整配置；只采 GPU memory 或 linux.sysfs 无法得到后文的 CPU 调度和主线程事件。
+
+```textproto
+buffers { size_kb: 32768 fill_policy: RING_BUFFER }
+duration_ms: 15000
+data_sources { config { name: "linux.ftrace" ftrace_config {
+  ftrace_events: "sched/sched_switch"
+  ftrace_events: "sched/sched_waking"
+  ftrace_events: "power/cpu_frequency"
+  ftrace_events: "power/cpu_idle"
+  ftrace_events: "binder/binder_transaction"
+  ftrace_events: "binder/binder_transaction_received"
+  atrace_categories: "am"
+  atrace_categories: "wm"
+  atrace_categories: "gfx"
+  atrace_categories: "view"
+  atrace_categories: "input"
+  atrace_categories: "dalvik"
+  atrace_apps: "com.example.app"
+} } }
+data_sources { config { name: "linux.process_stats" process_stats_config {
+  scan_all_processes_on_start: true
+} } }
+data_sources { config { name: "android.surfaceflinger.frametimeline" } }
+```
+
+```powershell
+adb push .\feed.pbtxt /data/local/tmp/feed.pbtxt
+adb shell perfetto --txt -c /data/local/tmp/feed.pbtxt -o /data/misc/perfetto-traces/feed.perfetto-trace
+# 终端 B：终端 A 正在采集时执行目标动作，不是采集结束后才操作
+adb shell am start -W -n com.example.app/.MainActivity
+# 终端 A 采集结束后再拉取
+adb pull /data/misc/perfetto-traces/feed.perfetto-trace .\feed.perfetto-trace
+```
+
+`--txt` 用于 textproto 配置，不与无 -c 的简单分类模式混用。包满足采样条件且 atrace_apps 匹配。分类和 ftrace 事件依设备支持；检查 stderr、Trace stats 的丢包和缺失数据，空轨道不证明无耗时。
 
 ### 2.2 参数详解
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         Systrace 参数说明                                   │
-└─────────────────────────────────────────────────────────────────────────────┘
+Android 17 优先使用上一节的 Perfetto textproto，不混用旧 `systrace.py`、`atrace` 和 `perfetto` 三套参数。
 
-  时间参数：
-  ─────────────────────────────────────────────────────────────────────────
-  -t, --time=TIME       采集时长（秒），默认 5 秒
-  --from-boost=TYPE     从 boost 信号开始采集
-  --from-boot           从开机开始采集
+| 配置 / 命令 | 含义 |
+|---|---|
+| `--txt -c <设备配置路径> -o <设备输出路径>` | Perfetto 解析 textproto 并采集，配置文件先推到设备 |
+| `duration_ms: 15000` | 采集 15 秒，单位不是 CLI 简单模式的秒 |
+| `buffers { size_kb: 32768 fill_policy: RING_BUFFER }` | 32 MiB 环形 trace buffer，不是每个 CPU 的 ftrace buffer |
+| `linux.ftrace` 的 `ftrace_events` | `sched/sched_switch`、`sched/sched_waking` 等内核事件，取决于设备支持 |
+| `atrace_categories` / `atrace_apps` | 系统分类 / 应用 Trace 标记包过滤 |
+| `android.surfaceflinger.frametimeline` | FrameTimeline 实际/期望帧 |
+| `linux.process_stats` | 进程、线程元数据，供 SQL 关联 |
 
-  输出参数：
-  ─────────────────────────────────────────────────────────────────────────
-  -o, --output=FILE     输出文件名，默认 stdout
-
-  应用过滤：
-  ─────────────────────────────────────────────────────────────────────────
-  -a, --app=APP         指定要采集的应用包名
-
-  Buffer 大小：
-  ─────────────────────────────────────────────────────────────────────────
-  -b, --buf-size=SIZE   环形缓冲区大小（KB），默认 2048KB
-
-  Tags（数据源）：
-  ─────────────────────────────────────────────────────────────────────────
-  sched                 CPU 调度信息（必须开启）
-  freq                  CPU 频率变化
-  idle                  CPU idle 状态
-  am                    ActivityManager
-  wm                    WindowManager
-  gfx                   图形渲染
-  view                  View 系统
-  input                 输入事件
-  binder_driver         Binder 通信
-  binder_lock           Binder 锁
-  workq                 内核工作队列
-  disk                  磁盘 I/O
-  network               网络 I/O
-  camera                相机
-  video                 视频
-```
+使用设备的 `atrace --list_categories` 查询分类；不存在的 `--from-boost` 不能用于 Perfetto，开机 trace 需单独配置 boot tracing，不是给普通采集加 `--from-boot`。`network` 不是跨设备通用的 atrace 网络抓包分类：网络分析要结合应用标记、系统支持的数据源或有权限的抓包。`sched` 支持 CPU 调度分析，但并非所有 trace 都必须采集 sched；空轨道也不证明没有请求或耗时。
 
 ### 2.3 代码中添加 Trace
 
@@ -284,12 +248,10 @@ class MainActivity : AppCompatActivity() {
             
             // 复杂初始化
             Trace.beginSection("initViews")
-            initViews()
-            Trace.endSection()
+            try { initViews() } finally { Trace.endSection() }
             
             Trace.beginSection("loadData")
-            loadData()
-            Trace.endSection()
+            try { loadData() } finally { Trace.endSection() }
         } finally {
             Trace.endSection()  // 对应 MainActivity.onCreate
         }
@@ -326,7 +288,7 @@ override fun onCreate(savedInstanceState: Bundle?) {
     }
 }
 
-// 方式3：使用 android.os.TraceCompat（AndroidX）
+// 方式3：使用 androidx.tracing.Trace（AndroidX）
 import androidx.tracing.Trace
 
 Trace.beginSection("MyOperation")
@@ -334,19 +296,7 @@ Trace.beginSection("MyOperation")
 Trace.endSection()
 ```
 
-```xml
-<!-- ==================== XML 中启用 Trace ==================== -->
-<!-- 在 Systrace 中显示自定义事件 -->
-
-<!-- res/xml/trace_config.xml -->
-<trace-config>
-    <category name="sched"/>
-    <category name="gfx"/>
-    <category name="view"/>
-    <category name="am"/>
-    <category name="wm"/>
-</trace-config>
-```
+应用没有 `<trace-config>` 这样的系统识别 XML 来开启 atrace 分类；采集配置必须在 Perfetto textproto 中。调用 `Trace.beginSection/endSection` 要同线程、finally 配对；跨挂起点/线程使用 `beginAsyncSection/endAsyncSection`（API 29+）并用唯一 cookie，在取消/异常时也结束。
 
 ```java
 // ==================== Java 代码中添加 Trace ====================
@@ -382,7 +332,7 @@ public class DataProcessor {
 
 ### 3.1 为什么是 60fps
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         帧率与流畅度                                        │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -401,10 +351,10 @@ public class DataProcessor {
 
   为什么是 60fps？
   ─────────────────────────────────────────────────────────────────────────
-  1. 人眼视觉暂留：约 1/16 秒，60fps 刚好满足
+  1. 60fps 是常见显示刷新/交互目标，不是人眼存在 60fps 感知上限
   2. 屏幕刷新率匹配：大部分屏幕是 60Hz
   3. 平衡性能与功耗：更高帧率意味着更高功耗
-  4. 苹果的标准：iOS 早期就确定 60fps 为流畅标准
+  4. 高刷新率需按实际刷新周期、deadline 和 FrameTimeline 判断
 
   时间预算：
   ─────────────────────────────────────────────────────────────────────────
@@ -424,7 +374,7 @@ public class DataProcessor {
 
 ### 3.2 Vsync 信号机制
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         Vsync 信号分发                                      │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -473,7 +423,7 @@ public class DataProcessor {
 
 ### 3.3 高刷新率 90Hz/120Hz
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    高刷新率的挑战                                           │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -511,7 +461,7 @@ public class DataProcessor {
 
 ### 4.1 Choreographer 简介
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    Choreographer 在渲染链路中的位置                          │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -536,7 +486,7 @@ public class DataProcessor {
 
 ### 4.2 Choreographer 工作流程
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    Choreographer 工作流程                                   │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -632,7 +582,7 @@ void doFrame(long frameTimeNanos, int frame) {
 
 ### 4.4 Callback 类型
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    Choreographer Callback 类型                              │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -657,7 +607,7 @@ void doFrame(long frameTimeNanos, int frame) {
   │                 │ - performTraversals()                                  │
   ├─────────────────┼─────────────────────────────────────────────────────────┤
   │ CALLBACK_COMMIT │ 提交回调，最后执行                                      │
-  │                 │ - onTrimMemory 触发                                    │
+  │                 │ - 帧时间修正/提交阶段回调，不是 onTrimMemory 触发点                                    │
   │                 │ - 帧耗时监控                                           │
   └─────────────────┴─────────────────────────────────────────────────────────┘
 
@@ -676,7 +626,7 @@ void doFrame(long frameTimeNanos, int frame) {
 
 ### 5.1 主线程运行原理
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    Android 主线程初始化                                     │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -685,7 +635,7 @@ void doFrame(long frameTimeNanos, int frame) {
   ─────────────────────────────────────────────────────────────────────────
   Zygote.fork()
       │
-      └── ZygoteInit.childZygoteInit()
+      └── ZygoteInit.zygoteInit() // 普通 app；childZygoteInit 是子 Zygote 分支
           │
           └── RuntimeInit.findStaticMain(ActivityThread.class)
               │
@@ -731,7 +681,7 @@ void doFrame(long frameTimeNanos, int frame) {
 
 ### 5.2 渲染线程 RenderThread
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    RenderThread 工作流程                                    │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -749,7 +699,7 @@ void doFrame(long frameTimeNanos, int frame) {
       │                                  │
       │     (MainThread 释放)            │  3. dequeueBuffer
       │                                  │
-      │                                  │  4. OpenGL 渲染
+      │                                  │  4. Skia GL/Vulkan 后端渲染
       │                                  │
       │                                  │  5. queueBuffer
       │                                  │
@@ -758,7 +708,7 @@ void doFrame(long frameTimeNanos, int frame) {
 
   RenderThread 的优势：
   ─────────────────────────────────────────────────────────────────────────
-  1. 主线程不需要等待渲染完成
+  1. 主线程在 RenderThread 同步点可能等待；提交 GPU 后可与后续工作重叠
   2. 可以并行处理下一帧的逻辑
   3. GPU 渲染不占用主线程 CPU
   4. 减少主线程卡顿概率
@@ -781,7 +731,7 @@ void doFrame(long frameTimeNanos, int frame) {
 
 ### 5.3 软件绘制 vs 硬件加速
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    软件绘制 vs 硬件加速                                     │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -851,7 +801,7 @@ void doFrame(long frameTimeNanos, int frame) {
 
 ### 6.1 SystemServer 进程结构
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    SystemServer 进程结构                                    │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -865,7 +815,7 @@ void doFrame(long frameTimeNanos, int frame) {
   │   └── DisplayManagerService
   │
   ├── android.ui 线程
-  │   └── UIManagerService
+  │   └── UiThread（共享 UI 工作线程，不存在统一 UIManagerService）
   │
   ├── ActivityManager 线程
   │   └── ActivityManagerService
@@ -886,7 +836,7 @@ void doFrame(long frameTimeNanos, int frame) {
   ├───────────────────────┼─────────────────────────────────────────────────┤
   │ AMS                   │ Activity 生命周期管理                            │
   │ (ActivityManager)     │ 进程管理和调度                                   │
-  │                       │ 内存管理 (LMK)                                   │
+  │                       │ 内存策略（LMKD 是独立 daemon）                                   │
   ├───────────────────────┼─────────────────────────────────────────────────┤
   │ WMS                   │ 窗口管理                                         │
   │ (WindowManager)       │ 输入事件分发                                     │
@@ -904,7 +854,7 @@ void doFrame(long frameTimeNanos, int frame) {
 
 ### 6.2 关键线程
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    SystemServer 关键线程                                    │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -938,7 +888,9 @@ void doFrame(long frameTimeNanos, int frame) {
 
 ### 7.1 SurfaceFlinger 工作流程
 
-```
+下面保留生产者/消费者抽象。Android 17 应用窗口常由客户端 BLASTBufferQueue 消费 BufferQueue，再以 SurfaceControl.Transaction.setBuffer 提交 SF；不是每个窗口都由 SF 直接 acquire 同一个 BufferQueue。检查 `BLASTBufferQueue::processNextBufferLocked`、`SurfaceFlinger::commit/composite` 和 Scheduler，而非把旧版线程/Layer 子类名当当前 ABI。
+
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    SurfaceFlinger 合成流程                                  │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -973,13 +925,13 @@ void doFrame(long frameTimeNanos, int frame) {
   ─────────────────────────────────────────────────────────────────────────
   - main 线程：主合成线程
   - appEventThread：向 App 发送 Vsync
-  - sfEventThread：接收硬件 Vsync，触发合成
-  - DispSync 线程：软件模拟 Vsync
+  - 合成由 Scheduler/VSyncDispatch 调度；不要把旧 sfEventThread 当当前固定线程
+  - VSyncDispatch/Scheduler：Android 17 的预测与调度，不再以旧 DispSync 线程描述
 ```
 
 ### 7.2 Buffer 合成流程
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    Buffer 合成方式                                          │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -989,7 +941,7 @@ void doFrame(long frameTimeNanos, int frame) {
 
   1. GPU 合成 (Client Composition)
      ─────────────────────────────────────────────────────────────────────
-     - 使用 OpenGL ES 进行合成
+     - RenderEngine 使用 GL/Vulkan 等后端，取决于设备配置
      - 灵活，支持各种效果
      - 功耗较高
      - 适用于复杂场景
@@ -1025,7 +977,7 @@ void doFrame(long frameTimeNanos, int frame) {
 
 ### 8.1 InputReader 与 InputDispatcher
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    Input 事件处理流程                                       │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1075,7 +1027,7 @@ void doFrame(long frameTimeNanos, int frame) {
 
 ### 8.2 事件分发流程
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    Systrace 中的 Input 事件流                               │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1115,7 +1067,7 @@ void doFrame(long frameTimeNanos, int frame) {
 
 ### 9.1 BufferQueue 模型
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    BufferQueue 生产者-消费者模型                            │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1162,7 +1114,7 @@ void doFrame(long frameTimeNanos, int frame) {
 
 ### 9.2 单缓冲/双缓冲/三缓冲
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    缓冲区数量对比                                           │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1224,7 +1176,7 @@ void doFrame(long frameTimeNanos, int frame) {
 
 ### 9.3 Triple Buffer 的作用
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    Triple Buffer 的利弊                                     │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1233,10 +1185,10 @@ void doFrame(long frameTimeNanos, int frame) {
   ─────────────────────────────────────────────────────────────────────────
   1. 缓解掉帧
      - 连续超时时，SF 仍有 Buffer 可合成
-     - 从掉帧 2 次 → 掉帧 1 次
+     - 仅在缓冲饥饿场景可能减少掉帧，不保证固定收益
 
   2. 减少等待时间
-     - App dequeueBuffer 不需要等 SF 释放
+     - 有可用槽位时可减少等待；槽位耗尽/围栏未就绪仍可能阻塞
      - 主线程可用时间变长
 
   3. 降低 GPU 和 SF 瓶颈
@@ -1256,7 +1208,7 @@ void doFrame(long frameTimeNanos, int frame) {
   掉帧判断方法：
   ─────────────────────────────────────────────────────────────────────────
   - App 端：主线程超时不一定掉帧
-  - SF 端：没有 Buffer 可合成才是真正掉帧
+  - SF 端：看 expected/actual deadline 和呈现；有 Buffer 也可能因 GPU/fence/HWC 迟到
   - 需要结合 App 和 SF 两端判断
 ```
 
@@ -1266,7 +1218,7 @@ void doFrame(long frameTimeNanos, int frame) {
 
 ### 10.1 CPU 核心架构
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    CPU 核心架构类型                                         │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1310,7 +1262,7 @@ void doFrame(long frameTimeNanos, int frame) {
 
 ### 10.2 线程 CPU 状态
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    线程 CPU 运行状态                                        │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1356,7 +1308,7 @@ void doFrame(long frameTimeNanos, int frame) {
 
 ### 10.3 Runnable 状态分析
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    Runnable 时间过长的原因                                  │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1368,7 +1320,7 @@ void doFrame(long frameTimeNanos, int frame) {
 
   解决方案：
   - 调整线程优先级（Process.setThreadPriority）
-  - 关键线程使用 SCHED_FIFO 调度策略
+  - 普通应用不能任意设置 SCHED_FIFO；先限制并发并减少竞争，系统调度策略需权限和系统测试
 
   原因 2：绑核不合理
   ─────────────────────────────────────────────────────────────────────────
@@ -1402,7 +1354,7 @@ void doFrame(long frameTimeNanos, int frame) {
 
   分析技巧：
   ─────────────────────────────────────────────────────────────────────────
-  1. 查看被哪个线程抢占（wakeup from 信息）
+  1. wakeup from 是唤醒者不是抢占者；结合 sched_switch 和核上时间线判断竞争
   2. 检查当前核的频率和负载
   3. 检查 CPUSET 分组配置
   4. 检查线程优先级设置
@@ -1410,7 +1362,7 @@ void doFrame(long frameTimeNanos, int frame) {
 
 ### 10.4 Sleep 状态分析
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    Sleep 时间过长的原因                                     │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1459,7 +1411,7 @@ void doFrame(long frameTimeNanos, int frame) {
 
 ### 10.5 Uninterruptible Sleep 分析
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    Uninterruptible Sleep 分析                              │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1502,7 +1454,7 @@ void doFrame(long frameTimeNanos, int frame) {
   sched_blocked_reason: pid=xxx iowait=0/1 caller=函数名
 
   - iowait=1：IO 等待
-  - iowait=0：内核锁等待
+  - iowait=0：未标记 IO wait，不能单独证明是内核锁
   - caller：导致睡眠的内核函数
 
   常见 Block Reason：
@@ -1523,7 +1475,7 @@ void doFrame(long frameTimeNanos, int frame) {
 
 ### 11.1 Binder 通信机制
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    Binder 通信流程                                          │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1559,7 +1511,7 @@ void doFrame(long frameTimeNanos, int frame) {
 
 ### 11.2 锁竞争分析
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    Systrace 中的锁信息                                      │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1630,7 +1582,7 @@ void doFrame(long frameTimeNanos, int frame) {
 
 ### 12.1 卡顿定义与原理
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    卡顿的定义                                               │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1667,7 +1619,7 @@ void doFrame(long frameTimeNanos, int frame) {
 
 ### 12.2 卡顿原因分类
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    卡顿原因分类                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1721,7 +1673,7 @@ void doFrame(long frameTimeNanos, int frame) {
 
 ### 12.3 分析流程与方法
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    Systrace 分析流程                                        │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1771,9 +1723,49 @@ void doFrame(long frameTimeNanos, int frame) {
 
 ---
 
+### 12.4 Perfetto 完整采集与 SQL 归因
+
+使用 2.1 节配置采集；在同步 Feed.load 打点后，执行以下 SQL。
+
+```sql
+SELECT name, value, severity FROM stats WHERE value != 0 AND severity != 'info';
+SELECT COUNT(*) AS sched_count FROM sched;
+SELECT COUNT(*) AS frame_count FROM actual_frame_timeline_slice;
+SELECT s.id, s.name, s.ts, ROUND(s.dur / 1e6, 3) AS wall_ms,
+       t.name AS thread_name, p.name AS process_name
+FROM slice s JOIN thread_track tt ON tt.id = s.track_id
+JOIN thread t ON t.utid = tt.utid JOIN process p ON p.upid = t.upid
+WHERE p.name = 'com.example.app' AND s.dur > 0
+ORDER BY s.dur DESC LIMIT 50;
+WITH target AS (
+ SELECT s.id, s.ts, s.dur, tt.utid FROM slice s
+ JOIN thread_track tt ON tt.id = s.track_id
+ JOIN thread t ON t.utid = tt.utid JOIN process p ON p.upid = t.upid
+ WHERE p.name = 'com.example.app' AND s.name = 'Feed.load' AND s.dur > 0
+)
+SELECT target.id, st.state,
+ ROUND(SUM(MIN(target.ts + target.dur, st.ts + st.dur) -
+           MAX(target.ts, st.ts)) / 1e6, 3) AS overlap_ms
+FROM target JOIN thread_state st ON st.utid = target.utid
+ AND st.dur > 0 AND st.ts < target.ts + target.dur
+ AND st.ts + st.dur > target.ts
+GROUP BY target.id, st.state ORDER BY target.id, overlap_ms DESC;
+SELECT a.id, p.name, a.layer_name, a.surface_frame_token,
+       a.jank_type, a.present_type, ROUND(a.dur / 1e6, 3) AS actual_ms
+FROM actual_frame_timeline_slice a JOIN process p ON p.upid = a.upid
+WHERE p.name = 'com.example.app' AND a.dur > 0 ORDER BY a.ts;
+```
+
+空结果不是没有卡顿。同步 slice 父子不可累加；状态时长必须裁剪到 section 的交叠区间。FrameTimeline 配对 expected/actual 看期限，surface/display 帧并非一对一；跨线程/协程 async slice 用 flow 关联，不能强制映射单个 thread_track。
+
+来源：[Perfetto CLI](https://perfetto.dev/docs/reference/perfetto-cli)、[SQL tables](https://perfetto.dev/docs/analysis/sql-tables)、[FrameTimeline](https://perfetto.dev/docs/data-sources/frametimeline)。
+
+
 ## 13. APM 监控方案
 
 ### 13.1 FrameCallback 监控
+
+该循环测量回调频率，不是实际显示新帧 FPS，也不等同 jank rate；后台/页面停止时必须 stop，避免持续请求 Vsync。启动要防重复注册并重置计数。显示性能以 FrameTimeline/JankStats/FrameMetrics 配合判断。
 
 ```kotlin
 // ==================== 使用 Choreographer.FrameCallback 监控 ====================
@@ -1809,6 +1801,9 @@ class FPSCallback : Choreographer.FrameCallback {
     }
     
     fun start() {
+        Choreographer.getInstance().removeFrameCallback(this)
+        lastFrameTimeNanos = 0
+        frameCount = 0
         Choreographer.getInstance().postFrameCallback(this)
     }
     
@@ -1868,7 +1863,9 @@ class FrameMetricsHelper(private val activity: Activity) {
             val layoutDuration = metrics.getMetric(FrameMetrics.LAYOUT_MEASURE_DURATION)
             val drawDuration = metrics.getMetric(FrameMetrics.DRAW_DURATION)
             val syncDuration = metrics.getMetric(FrameMetrics.SYNC_DURATION)
-            val gpuDuration = metrics.getMetric(FrameMetrics.COMMAND_ISSUE_DURATION)
+            val commandIssueDuration = metrics.getMetric(FrameMetrics.COMMAND_ISSUE_DURATION)
+                val gpuDuration = if (Build.VERSION.SDK_INT >= 31)
+                    metrics.getMetric(FrameMetrics.GPU_DURATION) else -1L
             
             // 检测掉帧
             val frameTimeMs = totalDuration / 1_000_000
@@ -1912,19 +1909,19 @@ class BlockDetector(private val blockThreshold: Long = 1000) {
     
     private val printer = Printer { x ->
         if (x.startsWith(">>>>> Dispatching to")) {
-            startTime = System.currentTimeMillis()
+            startTime = SystemClock.uptimeMillis()
             isPrinting = true
         } else if (x.startsWith("<<<<< Finished to")) {
             isPrinting = false
-            val endTime = System.currentTimeMillis()
+            val endTime = SystemClock.uptimeMillis()
             val duration = endTime - startTime
             
             if (duration > blockThreshold) {
                 // 检测到卡顿
                 Log.w("BlockDetector", "Block detected: ${duration}ms")
                 
-                // 可以在这里打印调用栈
-                val stackTrace = Looper.getMainLooper().thread.stackTrace
+                // 消息结束后当前栈已不是阻塞现场，只记录耗时；阻塞栈需独立 watchdog 在阻塞期间采样
+                val stackTrace = emptyArray<StackTraceElement>() // 不伪造为阻塞现场
                 Log.w("BlockDetector", stackTrace.joinToString("\n"))
             }
         }
@@ -1950,7 +1947,7 @@ blockDetector.start()
 
 ### 14.1 Systrace 文件无法在 Chrome 打开
 
-```
+```text
 问题：
 ─────────────────────────────────────────────────────────────────────────
 Chrome 打开 Systrace 文件显示空白或报错
@@ -1968,7 +1965,7 @@ Chrome 打开 Systrace 文件显示空白或报错
 3. 使用 Perfetto UI (https://ui.perfetto.dev/) 替代
 4. 使用 Perfetto 命令行工具分析大文件：
    
-   # 转换为 SQLite 数据库
+   # 进入 Trace Processor SQL shell，不会自动导出 SQLite 文件
    trace_processor_shell trace_file
    
    # 执行 SQL 查询
@@ -1977,7 +1974,7 @@ Chrome 打开 Systrace 文件显示空白或报错
 
 ### 14.2 采集不到应用 Trace
 
-```
+```text
 问题：
 ─────────────────────────────────────────────────────────────────────────
 Systrace 中看不到应用的 Trace 信息
@@ -2007,7 +2004,9 @@ Systrace 中看不到应用的 Trace 信息
 
 ### 14.3 如何判断是应用问题还是系统问题
 
-```
+下面 10/6/4ms 等只是 60Hz 教学预算，不是所有设备健康阈值。长 dequeue/Binder/Runnable 可能由应用自己的并发、占槽或远端逻辑造成，不能单凭所在线程判定系统责任。按 deadline、唤醒/锁链和对照采样归因。
+
+```text
 判断方法：
 ─────────────────────────────────────────────────────────────────────────
 
@@ -2056,34 +2055,9 @@ Systrace 中看不到应用的 Trace 信息
 
 ---
 
-## 12.4 Perfetto 完整采集与 SQL 归因
-
-```textproto
-buffers { size_kb: 32768 fill_policy: RING_BUFFER }
-duration_ms: 20000
-data_sources { config { name: "linux.ftrace" ftrace_config {
-  ftrace_events: "sched/sched_switch"
-  ftrace_events: "binder/binder_transaction"
-  atrace_categories: "am" atrace_categories: "wm"
-  atrace_categories: "gfx" atrace_categories: "view"
-  atrace_apps: "com.example.app"
-} } }
-data_sources { config { name: "android.surfaceflinger.frametimeline" } }
-```
-
-```powershell
-adb push .\feed.pbtxt /data/local/tmp/feed.pbtxt
-adb shell perfetto --txt -c /data/local/tmp/feed.pbtxt -o /data/misc/perfetto-traces/feed.perfetto-trace
-# 在另一个终端只执行一次目标操作
-adb shell am start -W -n com.example.app/.MainActivity
-adb pull /data/misc/perfetto-traces/feed.perfetto-trace .\feed.perfetto-trace
-```
-
-在 UI 先找 `Feed.load`，再用 `slice` 和 `thread_state` 交叉验证是计算、调度、Binder、锁还是渲染阶段。`actual_frame_timeline_slice` 的 jank 类型和 expected/actual 时间用于判断帧期限；不能统一用 16.67 ms 覆盖 90/120 Hz。
-
 ## 15. 知识体系总结
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    Systrace 知识体系总结                                    │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -2123,7 +2097,7 @@ adb pull /data/misc/perfetto-traces/feed.perfetto-trace .\feed.perfetto-trace
     │   └─────────────────────────────────────────────────────┘ │
     │                                                           │
     ▼                                                           ▼
-  SurfaceFlinger.onMessageReceived()
+  SurfaceFlinger commit/composite 调度
     │
     │   ┌─────────────────────────────────────────────────────┐
     │   │ acquireBuffer → 合成(GPU/HWC) → present             │
@@ -2169,5 +2143,7 @@ adb pull /data/misc/perfetto-traces/feed.perfetto-trace .\feed.perfetto-trace
 ---
 
 > 作者：OpenClaw | 日期：2026-03-09
+> 技术基线：AOSP `android-17.0.0_r1`；旧 Systrace 保留为历史工具说明，Android 17 使用 Perfetto。
 > 
 > 参考文档：https://www.androidperformance.com/2019/05/28/Android-Systrace-About/
+固定源码：[Choreographer.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/view/Choreographer.java) 的 doFrame/doCallbacks；[BLASTBufferQueue.cpp](https://android.googlesource.com/platform/frameworks/native/+/refs/tags/android-17.0.0_r1/libs/gui/BLASTBufferQueue.cpp) 的 processNextBufferLocked；[SurfaceFlinger.cpp](https://android.googlesource.com/platform/frameworks/native/+/refs/tags/android-17.0.0_r1/services/surfaceflinger/SurfaceFlinger.cpp) 的 commit/composite。

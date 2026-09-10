@@ -28,11 +28,18 @@
   - [4.2 四大组件基类对比](#42-四大组件基类对比)
 - [5. 使用指南 — MVVM 组件开发](#5-使用指南--mvvm-组件开发)
   - [5.1 开发一个列表项组件（完整流程）](#51-开发一个列表项组件完整流程)
+    - [Step 1: 定义数据模型（实现 IAdapterData）](#step-1-定义数据模型实现-iadapterdata)
+    - [Step 2: 定义 ViewModel](#step-2-定义-viewmodel)
+    - [Step 3: 定义 ItemAdapter（桥接 Model、View、Component）](#step-3-定义-itemadapter桥接-modelviewcomponent)
+    - [Step 4: 定义 Component（处理视图逻辑）](#step-4-定义-component处理视图逻辑)
+    - [Step 5: 定义 RecyclerView 容器组件](#step-5-定义-recyclerview-容器组件)
   - [5.2 开发一个独立区域组件（Slave Component）](#52-开发一个独立区域组件slave-component)
   - [5.3 组件层级 — IComponentGroup 使用](#53-组件层级--icomponentgroup-使用)
 - [6. 使用指南 — FSM 状态机](#6-使用指南--fsm-状态机)
   - [6.1 核心概念](#61-核心概念)
   - [6.2 完整使用示例](#62-完整使用示例)
+    - [定义状态](#定义状态)
+    - [在组件中使用状态机](#在组件中使用状态机)
   - [6.3 实际项目中的状态层级](#63-实际项目中的状态层级)
 - [7. 使用指南 — RecyclerView 委托适配器](#7-使用指南--recyclerview-委托适配器)
   - [7.1 DelegatorAdapter 工作原理](#71-delegatoradapter-工作原理)
@@ -950,7 +957,7 @@ val items = listOf(
 
 ### 8.1 JSONExtKt — 空安全 JSON 操作
 
-**最高频使用的工具类**，所有 JSON 操作均不返回 null：
+JSON 工具的空值契约必须按具体重载区分：以下显式传入非空默认值的字符串示例返回非空值，而省略默认值的示例使用 `String?`；`map*NotNull` 表示过滤空元素，不能据此推导所有 JSON API 永不返回 null。
 
 ```kotlin
 import com.baidu.searchbox.nacomp.extension.util.JSONExtKt
@@ -1353,13 +1360,13 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.Observer
 
-class ViewBindingSession<T>(
+class ViewBindingSession<T> @MainThread constructor(
     private val source: LiveData<T>,
     owner: LifecycleOwner,
     render: (T) -> Unit
 ) : AutoCloseable {
-    private val observer = Observer<T> { render(it) }
     private var closed = false
+    private val observer = Observer<T> { if (!closed) render(it) }
 
     init { source.observe(owner, observer) }
 
@@ -1373,7 +1380,7 @@ class ViewBindingSession<T>(
 }
 ```
 
-在主线程构造此对象。绑定管理者先关闭旧 session，再为新模型创建 session；清理图片请求和点击监听器也放在同一业务清理动作里。`removeObservers(owner)` 会移除该 owner 的全部观察者，不能用来随意清理共享页面上的其他组件。
+`LiveData.observe()` 与 `removeObserver()` 都检查主线程，因此构造器与 `close()` 均标注 `@MainThread`，调用者要在主线程完成整个替换动作。源码：[Lifecycle 2.7.0 官方源码包](https://dl.google.com/dl/android/maven2/androidx/lifecycle/lifecycle-livedata-core/2.7.0/lifecycle-livedata-core-2.7.0-sources.jar)，`androidx/lifecycle/LiveData.java#observe/removeObserver`。绑定管理者先关闭旧 session，再为新模型创建 session；清理图片请求和点击监听器也放在同一业务清理动作里。`removeObservers(owner)` 会移除该 owner 的全部观察者，不能用来随意清理共享页面上的其他组件。
 
 ### 16.2 FSM 与请求竞态
 

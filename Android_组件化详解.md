@@ -54,7 +54,18 @@
 - [10. 业界实践：百度App组件化之路](#10-业界实践百度app组件化之路)
   - [10.1 大型App复杂度来源](#101-大型app复杂度来源)
   - [10.2 组件化演进历程](#102-组件化演进历程)
+    - [阶段一：2013年 — 初始态（钻木取火）](#阶段一2013年--初始态钻木取火)
+    - [阶段二：2014-2015年 — 蒸汽机时代](#阶段二2014-2015年--蒸汽机时代)
+    - [阶段三：2016-2017年 — 电力时代](#阶段三2016-2017年--电力时代)
+    - [阶段四：2018-2019年 — 理想态（核能时代）](#阶段四2018-2019年--理想态核能时代)
   - [10.3 组件化实现路径](#103-组件化实现路径)
+    - [第一步：编译隔离、架构分层及层级访问限制](#第一步编译隔离架构分层及层级访问限制)
+    - [第二步：三方库规范化与基础库体系化](#第二步三方库规范化与基础库体系化)
+    - [第三步：运行时分发与隔离服务](#第三步运行时分发与隔离服务)
+    - [第四步：服务层建立](#第四步服务层建立)
+    - [第五步：建立组件模型](#第五步建立组件模型)
+    - [第六步：业务组件化](#第六步业务组件化)
+    - [第七步：劣化控制](#第七步劣化控制)
   - [10.4 组件化收益](#104-组件化收益)
   - [10.5 核心原则](#105-核心原则)
 - [参考资料](#参考资料)
@@ -609,10 +620,11 @@ class LoginInterceptor : IInterceptor {
 
     override fun process(postcard: Postcard, callback: InterceptorCallback) {
         // 检查是否需要登录
-        if (postcard.extra == NEED_LOGIN && !UserManager.isLogin()) {
+        if ((postcard.extra and RouteExtra.NEED_LOGIN) != 0 && !UserManager.isLogin()) {
             // 中断跳转
-            callback.onInterrupt(null)
-            // 跳转登录页
+            callback.onInterrupt(IllegalStateException("需要登录"))
+            // 登录页不设置 NEED_LOGIN，避免递归进入同一拦截分支。
+            // ARouter 的 Activity navigation 路径内部切回主线程；拦截器不直接操作 View。
             ARouter.getInstance().build("/user/login").navigation()
             return
         }
@@ -633,6 +645,8 @@ class OrderListActivity : AppCompatActivity()
 // 4. 多个拦截器按 priority 从小到大执行
 // priority = 1 → priority = 8 → 目标页面
 ```
+
+`extras` 是应用定义的位标记，上述按位判断允许与其他标记组合；每个分支只调用一次 `onContinue` 或 `onInterrupt`。拦截器中的 UI 操作不能假定处于主线程。源码：[ARouter 1.5.2 `_ARouter._navigation/runInMainThread`](https://github.com/alibaba/ARouter/blob/1.5.2/arouter-api/src/main/java/com/alibaba/android/arouter/launcher/_ARouter.java)。
 
 ### 5.4 路由表生成原理
 
@@ -938,7 +952,7 @@ dependencies {
    - `user_strings.xml` / `order_strings.xml`
 
 2. **资源分包**：
-   ```
+   ```text
    module-user/src/main/res/
    ├── values/user_strings.xml
    └── drawable/user_icon.png

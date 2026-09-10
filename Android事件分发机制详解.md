@@ -37,21 +37,26 @@
   - [7.3 关键结论](#73-关键结论)
 - [8. 事件传递规则](#8-事件传递规则)
 - [9. ViewGroup 事件分发](#9-viewgroup-事件分发)
-  - [9.1 分发入口](#91-分发入口)
-  - [9.2 命中顺序和坐标变换](#92-命中顺序和坐标变换)
-  - [9.3 中途拦截与多指](#93-中途拦截与多指)
-  - [9.4 TouchDelegate 与普通子项的优先关系](#94-touchdelegate-与普通子项的优先关系)
-  - [9.5 建议的验证序列](#95-建议的验证序列)
+  - [9.1 分发状态与完整主干](#91-分发状态与完整主干)
+  - [9.2 TouchTarget 链：建立、复用、移除](#92-touchtarget-链建立复用移除)
+  - [9.3 拦截、CANCEL 与当前 MOVE 的去向](#93-拦截cancel-与当前-move-的去向)
+  - [9.4 命中测试：父滚动、子位置与逆矩阵](#94-命中测试父滚动子位置与逆矩阵)
+  - [9.5 split：每个子项拥有自己的动作序列](#95-split每个子项拥有自己的动作序列)
+  - [9.6 Z 轴、绘制顺序与 bringToFront](#96-z-轴绘制顺序与-bringtofront)
+  - [9.7 子项收不到 DOWN 的分层定位](#97-子项收不到-down-的分层定位)
+  - [9.8 实战：切换重叠卡片的前后关系](#98-实战切换重叠卡片的前后关系)
 - [10. View 事件分发](#10-view-事件分发)
-  - [10.1 分发入口](#101-分发入口)
-  - [10.2 事件处理优先级](#102-事件处理优先级)
-  - [10.3 onTouchEvent 状态处理](#103-ontouchevent-状态处理)
+  - [10.1 dispatchTouchEvent 与 performOnTouchCallback](#101-dispatchtouchevent-与-performontouchcallback)
+  - [10.2 onTouchEvent 的字段与返回值](#102-ontouchevent-的字段与返回值)
+  - [10.3 onTouchEvent 源码与状态转换](#103-ontouchevent-源码与状态转换)
   - [10.4 点击、长按、双击检测机制](#104-点击长按双击检测机制)
     - [10.4.1 点击检测（Click）](#1041-点击检测click)
     - [10.4.2 长按检测（Long Click）](#1042-长按检测long-click)
     - [10.4.3 双击检测（Double Tap）](#1043-双击检测double-tap)
     - [10.4.4 完整示例：支持单击、长按、双击的 View](#1044-完整示例支持单击长按双击的-view)
 - [11. Activity 事件分发](#11-activity-事件分发)
+  - [11.1 DecorView、Window.Callback 与 Activity](#111-decorviewwindowcallback-与-activity)
+  - [11.2 为什么不会无限递归](#112-为什么不会无限递归)
 - [12. 典型场景分析](#12-典型场景分析)
   - [场景一：子 View 处理事件](#场景一子-view-处理事件)
   - [场景二：ViewGroup 拦截事件](#场景二viewgroup-拦截事件)
@@ -59,24 +64,19 @@
   - [场景四：多层嵌套不处理](#场景四多层嵌套不处理)
   - [场景五：子 View 重叠时的分配](#场景五子-view-重叠时的分配)
 - [13. TouchDelegate 扩大点击区域](#13-touchdelegate-扩大点击区域)
-  - [13.1 使用场景](#131-使用场景)
-  - [13.2 实现方式](#132-实现方式)
-  - [13.3 原理详解](#133-原理详解)
-    - [13.3.1 TouchDelegate 基本概念](#1331-touchdelegate-基本概念)
-    - [13.3.2 View.setTouchDelegate() 源码](#1332-viewsettouchdelegate-源码)
-    - [13.3.3 TouchDelegate 类定义](#1333-touchdelegate-类定义)
-    - [13.3.4 View.onTouchEvent() 中调用 TouchDelegate](#1334-viewontouchevent-中调用-touchdelegate)
-    - [13.3.5 完整工作流程](#1335-完整工作流程)
-    - [13.3.6 关键点总结](#1336-关键点总结)
-    - [13.3.7 正确使用方式](#1337-正确使用方式)
+  - [13.1 为什么代理要装在父 View 上](#131-为什么代理要装在父-view-上)
+  - [13.2 字段、构造与注册](#132-字段构造与注册)
+  - [13.3 转发源码：锁定 DOWN，重写坐标](#133-转发源码锁定-down重写坐标)
+  - [13.4 在 View.onTouchEvent 中的调用位置](#134-在-viewontouchevent-中的调用位置)
+  - [13.5 实战：布局变化时重建扩展区域](#135-实战布局变化时重建扩展区域)
 - [14. 滑动冲突解决](#14-滑动冲突解决)
   - [14.1 常见滑动冲突场景](#141-常见滑动冲突场景)
   - [14.2 解决策略](#142-解决策略)
     - [策略一：父容器不拦截](#策略一父容器不拦截)
     - [策略二：请求父容器不拦截](#策略二请求父容器不拦截)
 - [15. 源码解析](#15-源码解析)
-  - [15.1 ViewGroup.findTouchTarget](#151-viewgroupfindtouchtarget)
-  - [15.2 dispatchTransformedTouchEvent](#152-dispatchtransformedtouchevent)
+  - [15.1 getTouchTarget：按子项身份查找而不是命中测试](#151-gettouchtarget按子项身份查找而不是命中测试)
+  - [15.2 dispatchTransformedTouchEvent：指针筛选、坐标变换和动作恢复](#152-dispatchtransformedtouchevent指针筛选坐标变换和动作恢复)
 - [16. 最佳实践](#16-最佳实践)
   - [16.1 开发建议](#161-开发建议)
   - [16.2 常见问题排查](#162-常见问题排查)
@@ -304,7 +304,7 @@ public boolean onTouchEvent(MotionEvent event) {
        │
        ├─► onInterceptTouchEvent(DOWN)
        │
-       ├─► findTouchTarget() → 找到目标子 View
+       ├─► dispatchTouchEvent() → 候选命中、尝试分发、建立目标
        │
        ├─► addTouchTarget(child, pointerIdBit=0x1)  ★ 将 pointerId 加入 TouchTarget
        │
@@ -2670,7 +2670,7 @@ Activity → ViewGroup1 → ViewGroup2 → View
 
 ### 场景五：子 View 重叠时的分配
 
-当多个子 View 重叠时，触摸事件会分配给**最上层**（最后添加）的 View：
+当多个子 View 重叠时，DOWN 先尝试绘制顺序靠上的命中子项；在相同 Z、无自定义顺序时通常是后添加的子项，只有该子项消费 DOWN 才会建立目标：
 
 ```text
 ViewGroup
@@ -2679,26 +2679,19 @@ ViewGroup
     └── Child3 (上层) ← 优先分配给这个
 ```
 
-**源码逻辑**（ViewGroup.findTouchTarget）：
+**AOSP 17 的实际目标建立逻辑**：候选查找在 `ViewGroup.dispatchTouchEvent()` 内完成，不存在这里曾使用的 `findTouchTarget(View, float, float)` 方法。简化控制流程如下，函数调用的异常和多指分支见后文源码：
 
-```java
-private TouchTarget findTouchTarget(View child, float x, float y) {
-    final View[] children = mChildren;
-    // 无 Z/自定义顺序时可简化为倒序；完整顺序见第 9 节
-    for (int i = children.length - 1; i >= 0; i--) {
-        final View child = children[i];
-        // 检查触摸点是否在子 View 范围内
-        if (!canViewReceivePointerEvents(child)
-                || !isTransformedTouchPointInView(x, y, child, null)) {
-            continue;
-        }
-        // 找到目标，立即返回
-        TouchTarget target = TouchTarget.obtain(child, pointerIdBits);
-        return target;
-    }
-    return null;
-}
+```text
+确定候选子项顺序（Z、自定义 drawing order、子项数组）
+  -> 逆绘制顺序逐个检查可接收事件且坐标命中的子项
+  -> getTouchTarget(child)：该子项是否已有指针所有权
+       已有：并入 pointerIdBits
+       没有：dispatchTransformedTouchEvent(..., child, idBitsToAssign)
+                返回 true 才 addTouchTarget(child, idBitsToAssign)
+                返回 false 则继续寻找下一个候选
 ```
+
+`getTouchTarget(View)` 查已建立的所有权链表，并不执行几何命中；不能用“命中即创建 TouchTarget”的伪函数跳过子项对 DOWN 的处理结果。
 
 **注意**：在 DOWN 寻找目标的阶段，上层命中子 View 的 dispatchTouchEvent 返回 false 时，父容器仍可尝试下层命中子项；所有候选都未处理才尝试自身路径。已有 TouchTarget 的 MOVE 返回 false 不会自动重新寻找下层目标，二者不可混淆。依据：[ViewGroup.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/view/ViewGroup.java)（dispatchTouchEvent）。
 

@@ -2,7 +2,7 @@
 
 ## 一、Binder 整体架构分层
 
-```
+```text
 ┌─────────────────────────────────────────────────────┐
 │                    Java 层                           │
 │  IBinder (接口)    Binder (服务端)   BinderProxy (客户端) │
@@ -23,9 +23,11 @@
 
 ## 二、核心类体系
 
+Java 声明为相关成员节选；`MAX_IPC_SIZE` 是平台内部建议值，不是应用可用的每事务硬限制。应用可使用 `IBinder.getSuggestedMaxIpcSizeBytes()` 获取建议值。
+
 ### ① IBinder — 最顶层接口
 
-`IBinder.java:95`
+`IBinder.java:96`
 
 ```java
 public interface IBinder {
@@ -35,10 +37,10 @@ public interface IBinder {
     int MAX_IPC_SIZE = 64 * 1024;              // IPC 数据大小建议上限
 
     // 核心方法：发起一次跨进程调用
-    boolean transact(int code, Parcel data, Parcel reply, int flags);
+    boolean transact(int code, Parcel data, Parcel reply, int flags) throws RemoteException;
 
     // 死亡通知
-    void linkToDeath(DeathRecipient recipient, int flags);
+    void linkToDeath(DeathRecipient recipient, int flags) throws RemoteException;
     boolean unlinkToDeath(DeathRecipient recipient, int flags);
 }
 ```
@@ -49,25 +51,25 @@ public interface IBinder {
 
 | 方法 | 行号 | 作用 |
 |------|------|------|
-| getCallingUid() | L341 | native 方法，获取调用方 UID（由内核填入） |
-| getCallingPid() | L331 | native 方法，获取调用方 PID |
-| clearCallingIdentity() | L447 | 清除调用方身份，临时切换为本进程身份 |
-| restoreCallingIdentity() | L460 | 恢复调用方身份 |
-| onTransact() | L922 | 服务端处理请求的入口，子类重写 |
-| execTransact() | L1366 | native 层回调入口（Binder 线程调用） |
+| getCallingUid() | L334 | native 方法，获取调用方 UID（由内核填入） |
+| getCallingPid() | L324 | native 方法，获取调用方 PID |
+| clearCallingIdentity() | L440 | 清除调用方身份，临时切换为本进程身份 |
+| restoreCallingIdentity() | L453 | 恢复调用方身份 |
+| onTransact() | L915 | 服务端处理请求的入口，子类重写 |
+| execTransact() | L1304 | native 层回调入口（Binder 线程调用） |
 
 ### ③ BinderProxy — 客户端代理（远程对象的本地代表）
 
-`BinderProxy.java:51`
+`BinderProxy.java:57`
 
 ```java
 public final class BinderProxy implements IBinder {
     // 由 native 层创建，Java 层不能直接实例化
-    public boolean transact(int code, Parcel data, Parcel reply, int flags) {
+    public boolean transact(int code, Parcel data, Parcel reply, int flags) throws RemoteException {
         // ... 检查、追踪
         return transactNative(code, data, reply, flags);  // → JNI
     }
-    public native boolean transactNative(int code, Parcel data, Parcel reply, int flags);
+    public native boolean transactNative(int code, Parcel data, Parcel reply, int flags) throws RemoteException;
 }
 ```
 
@@ -117,35 +119,56 @@ public static IActivityTaskManager asInterface(IBinder obj) {
 
 ### Parcel 获取（对象池复用）
 
-`Parcel.java:559`
+`Parcel.java:574`
 
 ```java
-public static Parcel obtain() {
-    synchronized (sPoolSync) {
-        if (sOwnedPool != null) {
-            res = sOwnedPool;           // 从对象池取
-            sOwnedPool = res.mPoolNext;
+// Android 17 节选，省略池为空之外的辅助重载。
+    public static Parcel obtain() {
+        Parcel res = null;
+        synchronized (sPoolSync) {
+            if (sOwnedPool != null) {
+                res = sOwnedPool;
+                sOwnedPool = res.mPoolNext;
+                res.mPoolNext = null;
+                sOwnedPoolSize--;
+            }
         }
+
+        // When no cache found above, create from scratch; otherwise prepare the
+        // cached object to be used
+        if (res == null) {
+            res = new Parcel(0);
+        } else {
+            res.mRecycled = false;
+            if (DEBUG_RECYCLE) {
+                res.mStack = new RuntimeException();
+            }
+            res.mReadWriteHelper = ReadWriteHelper.DEFAULT;
+        }
+
+        if (res.mNativePtr == 0) {
+            Log.e(TAG, "Obtained Parcel object has null native pointer. Invalid state.");
+        }
+
+        return res;
     }
-    if (res == null) res = new Parcel(0); // 池空则创建
-    return res;
-}
+
 ```
 
 ### 关键序列化方法
 
 | 方法 | 行号 | 作用 |
 |------|------|------|
-| writeInt() | L1276 | 写入 int |
-| writeLong() | L1287 | 写入 long |
-| writeString() | L1320 | 写入 String |
-| writeStrongBinder() | L1381 | 写入 IBinder 对象（关键！） |
-| readInt() | L3378 | 读取 int |
-| readStrongBinder() | L3464 | 读取 IBinder 对象 |
+| writeInt() | L1291 | 写入 int |
+| writeLong() | L1302 | 写入 long |
+| writeString() | L1335 | 写入 String |
+| writeStrongBinder() | L1400 | 写入 IBinder 对象（关键！） |
+| readInt() | L3415 | 读取 int |
+| readStrongBinder() | L3516 | 读取 IBinder 对象 |
 
 ### writeStrongBinder — Binder 对象跨进程传递的精髓
 
-`Parcel.java:1381`
+`Parcel.java:1400`
 
 ```java
 public final void writeStrongBinder(IBinder val) {
@@ -160,14 +183,14 @@ public final IBinder readStrongBinder() {
 当 `writeStrongBinder(binder)` 时：
 
 - 如果是**同进程**传递，`readStrongBinder()` 返回原始的 `Binder` 对象
-- 如果是**跨进程**传递，Binder 驱动自动创建一个 `BinderProxy`，`readStrongBinder()` 返回代理对象
+- 如果是**跨进程**传递，驱动翻译 binder node/ref/handle；接收进程的 libbinder/JNI 创建或复用 `BpBinder`/`BinderProxy`，内核不创建 Java 对象。Binder 被传回拥有者时，也可能恢复为本地对象
 - 这就是为什么 Binder 可以跨进程传递"引用"
 
 ## 五、Binder 驱动交互（mmap + ioctl）
 
 ### ProcessState — 进程级 Binder 初始化
 
-`android_util_Binder.cpp:1376`
+`android_util_Binder.cpp:1433`
 
 ```cpp
 // 获取 servicemanager 的 BinderProxy（handle=0）
@@ -177,15 +200,15 @@ static jobject android_os_BinderInternal_getContextObject(JNIEnv* env, jobject c
 }
 ```
 
-`ProcessState::self()` 做了什么（native 层，不在本仓库）：
+`ProcessState::self()` 负责获取/初始化进程单例，初始化过程（源码在 frameworks/native）：
 
 1. 打开 `/dev/binder` 驱动设备
-2. 调用 `mmap()` 映射一块内存（默认 1MB），用于**接收**跨进程数据
-3. 启动 Binder 线程池，循环调用 `ioctl()` 等待请求
+2. 调用 `mmap()` 建立接收地址区，libbinder 的 `BINDER_VM_SIZE = 1MiB - 2 * sysconf(_SC_PAGE_SIZE)`，4KiB 页下为 1MiB-8KiB；实际可用容量还受在途事务与元数据影响
+3. 构造本身不启动线程池；app 初始化稍后显式调用 `startThreadPool()`，专用线程才进入 `IPCThreadState::joinThreadPool()`
 
 ### mmap — 只拷贝一次的关键
 
-```
+```text
 发送方进程                          Binder 驱动                     接收方进程
 ┌──────────┐                    ┌──────────────┐                ┌──────────┐
 │ 用户空间  │  copy_from_user   │   内核空间    │  mmap 共享     │ 用户空间  │
@@ -198,22 +221,22 @@ static jobject android_os_BinderInternal_getContextObject(JNIEnv* env, jobject c
 
 ### ioctl — 实际通信
 
-```
+```text
 发送方: ioctl(mDriverFD, BINDER_WRITE_READ, &bwr)
   └─ bwr.write_buffer = 请求数据
-  └─ bwr.read_buffer  = 接收回复
+  └─ bwr.read_buffer  = 接收 BR_* 命令与事务描述符，payload 在接收方 mmap 区
 
 接收方: ioctl(mDriverFD, BINDER_WRITE_READ, &bwr)
-  └─ 阻塞等待 → 驱动唤醒 → bwr.read_buffer 中就是请求数据
+  └─ 阻塞等待 → 驱动唤醒 → 读 BR_TRANSACTION 描述符，再按指针读取 mmap payload
 ```
 
 ## 六、Binder 线程模型
 
 ### Binder 线程池
 
-每个进程启动后，`ProcessState` 会创建 Binder 线程池：
+只有显式启动线程池/加入线程池的进程才具有相应 Binder 工作线程：
 
-`android_util_Binder.cpp:1386`
+`android_util_Binder.cpp:1440`
 
 ```cpp
 static void android_os_BinderInternal_joinThreadPool(JNIEnv* env, jobject clazz) {
@@ -225,13 +248,13 @@ static void android_os_BinderInternal_setMaxThreads(JNIEnv* env, jobject clazz, 
 }
 ```
 
-- 主线程默认就是 Binder 线程
-- Binder 驱动根据负载自动创建额外线程（最多 15 个）
+- 普通 app 的 UI/main 线程运行 Looper，不默认加入 Binder 池；首个 `PoolThread(isMain=true)` 是独立线程
+- 驱动发送 `BR_SPAWN_LOOPER`，用户态创建额外线程；默认驱动请求上限 15，另有首个 PoolThread 和主动 join 的线程，不是全进程固定上限
 - 每个线程独立调用 `ioctl()` 等待/处理请求
 
 ### FLAG_ONEWAY — 异步调用
 
-`IBinder.java:176`
+`IBinder.java:177`
 
 ```java
 int FLAG_ONEWAY = 0x00000001;
@@ -240,9 +263,9 @@ int FLAG_ONEWAY = 0x00000001;
 | 模式 | flags | 行为 |
 |------|-------|------|
 | 同步调用 | 0 | 发送方 `ioctl()` 阻塞，等待服务端处理完毕返回 |
-| 异步调用 | FLAG_ONEWAY | 发送方 `ioctl()` 立即返回，不等待结果 |
+| 异步调用 | FLAG_ONEWAY | 发送并等待驱动完成提交，不等待远端业务回复；可能失败或有提交开销 |
 
-`Binder.java:1455` — 服务端 oneway 异常处理：
+`Binder.java:1390` — 服务端 oneway 异常处理：
 
 ```java
 // execTransactInternal 中的 catch 块
@@ -255,13 +278,15 @@ if ((flags & FLAG_ONEWAY) != 0) {
 }
 ```
 
-**oneway 有序性保证**：对同一个 IBinder 对象的多个 oneway 调用，在接收方按发送顺序依次执行。
+**oneway 有序性保证**：远程同一个 Binder node 的 oneway 事务串行投递，同一发送线程的先后调用有序；多发送线程不存在预先定义的全局业务顺序，不同 Binder 对象也没有此串行保证。本地 AIDL 直调不受 oneway 调度影响。
 
 ## 七、身份认证机制
 
 ### getCallingUid / getCallingPid — 由内核填入
 
-`Binder.java:331`
+UID 用于权限判定；oneway 的 calling PID 可以为 0，不应以 PID 作为稳定权限标识。Binder 身份属于当前事务/线程，切到 executor 前应先校验权限并保存需要的 UID；clearCallingIdentity 只切为本进程身份，不改变 Linux UID、更不是任意提权。
+
+`Binder.java:324`
 
 ```java
 @CriticalNative
@@ -273,7 +298,7 @@ public static final native int getCallingUid();   // 调用方 UID
 
 ### clearCallingIdentity / restoreCallingIdentity
 
-`Binder.java:447`
+`Binder.java:440`
 
 ```java
 // 场景：system_server 收到 App 的 Binder 调用后，需要以自身身份操作
@@ -312,18 +337,18 @@ private static IServiceManager getIServiceManager() {
 }
 ```
 
-`android_util_Binder.cpp:1376`
+`android_util_Binder.cpp:1433`
 
 ```cpp
 // getContextObject(NULL) → 获取 handle=0 的 BinderProxy
-// handle=0 就是 servicemanager 进程在 Binder 驱动中的固定句柄
+// handle=0 就是 servicemanager 进程在 Binder context 中用于 context manager 的特殊句柄
 sp<IBinder> b = ProcessState::self()->getContextObject(NULL);
 return javaObjectForIBinder(env, b);
 ```
 
 ### 服务注册
 
-`ServiceManager.java:253`
+`ServiceManager.java:223`
 
 ```java
 public static void addService(String name, IBinder service, ...) {
@@ -333,7 +358,7 @@ public static void addService(String name, IBinder service, ...) {
 
 ### 服务发现
 
-`ServiceManager.java:169`
+`ServiceManager.java:150`
 
 ```java
 public static IBinder getService(String name) {
@@ -345,9 +370,10 @@ public static IBinder getService(String name) {
 
 ## 九、javaObjectForIBinder — Binder 对象的双向映射
 
-`android_util_Binder.cpp:962`
+`android_util_Binder.cpp:1013`
 
 ```cpp
+// 控制结构示意，省略代理复用、异常和 nativeData 所有权清理；完整实现见索引。
 jobject javaObjectForIBinder(JNIEnv* env, const sp<IBinder>& val) {
     if (val == NULL) return NULL;
 
@@ -366,7 +392,7 @@ jobject javaObjectForIBinder(JNIEnv* env, const sp<IBinder>& val) {
 }
 ```
 
-这个函数决定了跨进程传递的 IBinder 是变成 `Binder`（同进程）还是 `BinderProxy`（跨进程）。
+这个函数按 native 对象类型选择返回本地 Java Binder 或获取/复用 BinderProxy；是否跨进程只是常见场景，不替代 JavaBBinder 类型判断。对象跨进程绕一圈传回所有者仍可恢复本地 Binder。
 
 ## 十、DeathRecipient — 死亡通知
 
@@ -381,7 +407,7 @@ void linkToDeath(DeathRecipient recipient, int flags) throws RemoteException;
 boolean unlinkToDeath(DeathRecipient recipient, int flags);
 ```
 
-`BinderProxy.java:635`
+`BinderProxy.java:672`
 
 ```java
 public void linkToDeath(DeathRecipient recipient, int flags) throws RemoteException {
@@ -394,7 +420,7 @@ public void linkToDeath(DeathRecipient recipient, int flags) throws RemoteExcept
 
 ## 十一、完整跨进程通信流程图
 
-```
+```text
 客户端进程                                    Binder 驱动                    服务端进程
 ═════════                                    ══════════                    ═════════
 
@@ -412,12 +438,12 @@ public void linkToDeath(DeathRecipient recipient, int flags) throws RemoteExcept
   ├─ data.writeString(callingPackage)
   │
   ├─ mRemote.transact(TRANSACTION_startActivity, data, reply, 0)
-  │   ↑ BinderProxy.transact()              [BinderProxy.java:534]
+  │   ↑ BinderProxy.transact()              [BinderProxy.java:568]
   │   │
   ├─ transactNative(code, data, reply, flags)
-      │ ↑ JNI                               [BinderProxy.java:622]
+      │ ↑ JNI                               [BinderProxy.java:658]
       │
-④     ├─ android_os_BinderProxy_transact()  [android_util_Binder.cpp:1542]
+④     ├─ android_os_BinderProxy_transact()  [android_util_Binder.cpp:1644]
         │
         ├─ Parcel* data = parcelForJavaObject()   Java Parcel → Native Parcel
         ├─ IBinder* target = getBPNativeData()->mObject  // BpBinder
@@ -450,17 +476,17 @@ public void linkToDeath(DeathRecipient recipient, int flags) throws RemoteExcept
 ⑦                 ├─ IPCThreadState::executeCommand(cmd)
                     │
                     ├─ BBinder::transact()
-                      │ ↑ JavaBBinder::onTransact()   [android_util_Binder.cpp:407]
+                      │ ↑ JavaBBinder::onTransact()   [android_util_Binder.cpp:424]
                       │
 ⑧                   ├─ env->CallBooleanMethod(mObject, gBinderOffsets.mExecTransact, ...)
                         │ ↑ 回到 Java 层
                         │
-⑨                     ├─ Binder.execTransact()           [Binder.java:1366]
+⑨                     ├─ Binder.execTransact()           [Binder.java:1304]
                           │ Parcel.obtain(nativePtr) → Java Parcel
                           │
-⑩                       ├─ Binder.execTransactInternal()  [Binder.java:1392]
+⑩                       ├─ Binder.execTransactInternal()  [Binder.java:1334]
                             │
-⑪                          ├─ onTransact(code, data, reply, flags) [Binder.java:1445]
+⑪                          ├─ onTransact(code, data, reply, flags) [Binder.java:1364]
                               │ ↑ AIDL Stub 根据 code 分发
                               │
 ⑫                             ├─ data.enforceInterface(DESCRIPTOR)  校验接口
@@ -472,9 +498,9 @@ public void linkToDeath(DeathRecipient recipient, int flags) throws RemoteExcept
  ══════════════ 回程：reply 通过 Binder 驱动返回 ══════════════
 
 ⑤'  挂起的 ioctl() 返回 → 读取 reply
-④'  android_os_BinderProxy_transact() 返回 JNI_TRUE
-③'  BinderProxy.transact() 返回 true
-②'  Proxy 从 reply 读取结果: reply.readInt()
+④'  android_os_BinderProxy_transact() 返回 JNI_TRUE（成功分支；UNKNOWN_TRANSACTION 返回 false，其他错误映射异常）
+③'  BinderProxy.transact() 返回状态；失败可能返回 false 或抛 RemoteException
+②'  Proxy 先 reply.readException()，再读取 reply.readInt()
 ①'  返回给调用者
 ```
 
@@ -483,11 +509,26 @@ public void linkToDeath(DeathRecipient recipient, int flags) throws RemoteExcept
 | 设计点 | 原理 | 源码体现 |
 |--------|------|----------|
 | 一次拷贝 | 接收方 mmap 映射内核 buffer，发送方 copy_from_user 一次 | `ProcessState::self()` → `mmap()` |
-| 身份认证 | UID/PID 由 Binder 驱动填入，无法伪造 | `Binder.getCallingUid()` L341 |
+| 身份认证 | UID/PID 由 Binder 驱动填入，无法伪造 | `Binder.getCallingUid()` L334 |
 | Proxy/Stub | AIDL 自动生成客户端代理和服务端存根 | `Stub.asInterface()` 判断本地/远程 |
-| Binder 引用传递 | `writeStrongBinder()` 写入，驱动自动在对方进程创建代理 | `Parcel.java:1381` |
+| Binder 引用传递 | `writeStrongBinder()` 写入，驱动翻译 handle，libbinder/JNI 创建或复用代理 | `Parcel.java:1400` |
 | 服务发现 | servicemanager 进程，固定 handle=0 | `BinderInternal.getContextObject()` → handle=0 |
-| 线程池 | 驱动按需创建线程，最多 15+1 个 | `setMaxThreads()` `BinderInternal.java:158` |
-| 死亡通知 | 驱动监测进程死亡，通知所有注册方 | `linkToDeath()` `BinderProxy.java:635` |
-| 同步/异步 | flags=0 阻塞等待；FLAG_ONEWAY 立即返回 | `IBinder.java:176` |
-| JNI 桥接 | JavaBBinder 包装 Java Binder 为 native BBinder | `javaObjectForIBinder()` `android_util_Binder.cpp:962` |
+| 线程池 | 驱动请求、用户态创建；15 默认扩容额度另加首线程/主动 join | `setMaxThreads()` `BinderInternal.java:189` |
+| 死亡通知 | 驱动监测进程死亡，通知所有注册方 | `linkToDeath()` `BinderProxy.java:672` |
+| 同步/异步 | flags=0 阻塞等待；FLAG_ONEWAY 不等待业务回复，但等待提交 | `IBinder.java:177` |
+| JNI 桥接 | JavaBBinder 包装 Java Binder 为 native BBinder | `javaObjectForIBinder()` `android_util_Binder.cpp:1013` |
+
+
+## 固定版本源码索引
+
+本文平台实现基线为 `android-17.0.0_r1`。下列函数用于定位正文分析；代码标为“节选”时省略无关监控，标为“示意”时不是源码逐字复制。
+
+- [Binder.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/os/Binder.java)：`正文所列行/函数；省略参数的代码为示意`。
+- [BinderProxy.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/os/BinderProxy.java)：`正文所列行/函数；省略参数的代码为示意`。
+- [Parcel.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/os/Parcel.java)：`正文所列行/函数；省略参数的代码为示意`。
+- [IBinder.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/os/IBinder.java)：`正文所列行/函数；省略参数的代码为示意`。
+- [ServiceManager.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/os/ServiceManager.java)：`正文所列行/函数；省略参数的代码为示意`。
+- [ActivityTaskManager.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/app/ActivityTaskManager.java)：`正文所列行/函数；省略参数的代码为示意`。
+- [android_util_Binder.cpp](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/jni/android_util_Binder.cpp)：`正文所列行/函数；省略参数的代码为示意`。
+- [ProcessState.cpp](https://android.googlesource.com/platform/frameworks/native/+/refs/tags/android-17.0.0_r1/libs/binder/ProcessState.cpp)：`ProcessState; startThreadPool; spawnPooledThread`。
+- [IPCThreadState.cpp](https://android.googlesource.com/platform/frameworks/native/+/refs/tags/android-17.0.0_r1/libs/binder/IPCThreadState.cpp)：`transact; waitForResponse; executeCommand`。

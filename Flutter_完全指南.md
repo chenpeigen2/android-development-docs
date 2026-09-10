@@ -7,133 +7,50 @@
 
 ## 📚 目录
 
-### 第一篇：Flutter 基础
-
-**第 1 章 Flutter 概述**
-- 1.1 [什么是 Flutter？](#11-什么是-flutter)
-- 1.2 [核心优势](#12-核心优势)
-- 1.3 [与其他框架对比](#13-与其他框架对比)
-- 1.4 [开发环境搭建](#14-开发环境搭建)
-
-**第 2 章 Dart 语言基础**
-- 2.1 [Dart 语言特性](#21-dart-语言特性)
-- 2.2 [变量与类型](#22-变量与类型)
-- 2.3 [函数与闭包](#23-函数与闭包)
-- 2.4 [类与对象](#24-类与对象)
-- 2.5 [异步编程](#25-异步编程)
-
-**第 3 章 Flutter 项目结构**
-- 3.1 [项目创建](#31-项目创建)
-- 3.2 [目录结构](#32-目录结构)
-- 3.3 [pubspec.yaml 配置](#33-pubspecyaml-配置)
-- 3.4 [资源管理](#34-资源管理)
-
-**第 4 章 Widget 基础**
-- 4.1 [Widget 概念](#41-widget-概念)
-- 4.2 [StatelessWidget](#42-statelesswidget)
-- 4.3 [StatefulWidget](#43-statefulwidget)
-- 4.4 [Widget 树](#44-widget-树)
-- 4.5 [Key 的使用](#45-key-的使用)
-
-**第 5 章 基础 Widget**
-- 5.1 [Text 文本](#51-text-文本)
-- 5.2 [Image 图片](#52-image-图片)
-- 5.3 [Container 容器](#53-container-容器)
-- 5.4 [Button 按钮](#54-button-按钮)
-- 5.5 [TextField 输入框](#55-textfield-输入框)
-
-**第 6 章 布局 Widget**
-- 6.1 [Row 横向布局](#61-row-横向布局)
-- 6.2 [Column 纵向布局](#62-column-纵向布局)
-- 6.3 [Stack 堆叠布局](#63-stack-堆叠布局)
-- 6.4 [ListView 列表](#64-listview-列表)
-- 6.5 [GridView 网格](#65-gridview-网格)
-
----
-
-### 第二篇：Flutter 进阶
-
-**第 7 章 导航与路由**
-- 7.1 [Navigator 基础](#71-navigator-基础)
-- 7.2 [路由传参](#72-路由传参)
-- 7.3 [命名路由](#73-命名路由)
-- 7.4 [路由拦截](#74-路由拦截)
-- 7.5 [底部导航栏](#75-底部导航栏)
-
-**第 8 章 状态管理**
-- 8.1 [状态管理概述](#81-状态管理概述)
-- 8.2 [InheritedWidget](#82-inheritedwidget)
-- 8.3 [Provider](#83-provider)
-- 8.4 [Riverpod](#84-riverpod)
-- 8.5 [Bloc](#85-bloc)
-- 8.6 [GetX](#86-getx)
-
-**第 9 章 网络请求**
-- 9.1 [http 包](#91-http-包)
-- 9.2 [dio 库](#92-dio-库)
-- 9.3 [JSON 序列化](#93-json-序列化)
-- 9.4 [网络拦截器](#94-网络拦截器)
-- 9.5 [缓存策略](#95-缓存策略)
-
-**第 10 章 数据持久化**
-- 10.1 [SharedPreferences](#101-sharedpreferences)
-- 10.2 [SQLite](#102-sqlite)
-- 10.3 [Hive](#103-hive)
-- 10.4 [文件存储](#104-文件存储)
-
-**第 11 章 动画**
-- 11.1 [动画基础](#111-动画基础)
-- 11.2 [Tween 补间动画](#112-tween-补间动画)
-- 11.3 [AnimatedBuilder](#113-animatedbuilder)
-- 11.4 [Hero 动画](#114-hero-动画)
-- 11.5 [Lottie 集成](#115-lottie-集成)
-
-**第 12 章 手势与交互**
-- 12.1 [GestureDetector](#121-gesturedetector)
-- 12.2 [Dismissible 滑动删除](#122-dismissible-滑动删除)
-- 12.3 [Draggable 拖拽](#123-draggable-拖拽)
-- 12.4 [LongPressDraggable](#124-longpressdraggable)
-
----
-
-### 第三篇：Flutter 高级
-
-**第 13 章 自定义 Widget**
-- 13.1 [组合 Widget](#131-组合-widget)
-- 13.2 [CustomPaint 自绘制](#132-custompaint-自绘制)
-- 13.3 [RenderObject](#133-renderobject)
-- 13.4 [自定义布局](#134-自定义布局)
-
-**第 14 章 Platform Channels**
-- 14.1 [MethodChannel](#141-methodchannel)
-- 14.2 [EventChannel](#142-eventchannel)
-- 14.3 [BasicMessageChannel](#143-basicmessagechannel)
-- 14.4 [平台适配](#144-平台适配)
-
-**第 15 章 插件开发**
-- 15.1 [插件结构](#151-插件结构)
-- 15.2 [Android 插件开发](#152-android-插件开发)
-- 15.3 [iOS 插件开发](#153-ios-插件开发)
-- 15.4 [发布到 pub.dev](#154-发布到-pubdev)
-
-**第 16 章 性能优化**
-- 16.1 [性能分析工具](#161-性能分析工具)
-- 16.2 [渲染优化](#162-渲染优化)
-- 16.3 [内存优化](#163-内存优化)
-- 16.4 [包体积优化](#164-包体积优化)
-
-**第 17 章 测试**
-- 17.1 [单元测试](#171-单元测试)
-- 17.2 [Widget 测试](#172-widget-测试)
-- 17.3 [集成测试](#173-集成测试)
-- 17.4 [Mock 与 Stub](#174-mock-与-stub)
-
-**第 18 章 面试常见问题**
-- 18.1 [Flutter 原理](#181-flutter-原理)
-- 18.2 [Widget 生命周期](#182-widget-生命周期)
-- 18.3 [状态管理对比](#183-状态管理对比)
-- 18.4 [与 React Native 对比](#184-与-react-native-对比)
-- 18.5 [最佳实践](#185-最佳实践)
+- [第一篇：Flutter 基础](#第一篇flutter-基础)
+- [第 1 章 Flutter 概述](#第-1-章-flutter-概述)
+  - [1.1 什么是 Flutter？](#11-什么是-flutter)
+  - [1.2 核心优势](#12-核心优势)
+  - [1.3 与其他框架对比](#13-与其他框架对比)
+  - [1.4 开发环境搭建](#14-开发环境搭建)
+    - [安装 Flutter SDK](#安装-flutter-sdk)
+    - [创建第一个项目](#创建第一个项目)
+- [第 2 章 Dart 语言基础](#第-2-章-dart-语言基础)
+  - [2.1 Dart 语言特性](#21-dart-语言特性)
+  - [2.2 变量与类型](#22-变量与类型)
+  - [2.3 函数与闭包](#23-函数与闭包)
+  - [2.4 类与对象](#24-类与对象)
+  - [2.5 异步编程](#25-异步编程)
+- [第 3 章 Flutter 项目结构](#第-3-章-flutter-项目结构)
+  - [3.1 项目创建](#31-项目创建)
+  - [3.2 目录结构](#32-目录结构)
+  - [3.3 pubspec.yaml 配置](#33-pubspecyaml-配置)
+- [第 4 章 Widget 基础](#第-4-章-widget-基础)
+  - [4.1 Widget 概念](#41-widget-概念)
+  - [4.2 StatelessWidget](#42-statelesswidget)
+  - [4.3 StatefulWidget](#43-statefulwidget)
+- [第 5 章 基础 Widget](#第-5-章-基础-widget)
+  - [5.1 Text 文本](#51-text-文本)
+  - [5.2 Image 图片](#52-image-图片)
+  - [5.3 Container 容器](#53-container-容器)
+  - [5.4 Button 按钮](#54-button-按钮)
+- [第 6 章 布局 Widget](#第-6-章-布局-widget)
+  - [6.1 Row 横向布局](#61-row-横向布局)
+  - [6.2 Column 纵向布局](#62-column-纵向布局)
+  - [6.3 ListView 列表](#63-listview-列表)
+- [第 18 章 面试常见问题](#第-18-章-面试常见问题)
+  - [18.1 Flutter 原理](#181-flutter-原理)
+  - [18.2 Widget 生命周期](#182-widget-生命周期)
+  - [18.3 状态管理对比](#183-状态管理对比)
+  - [18.4 与 React Native 对比](#184-与-react-native-对比)
+  - [18.5 最佳实践](#185-最佳实践)
+- [总结](#总结)
+  - [Flutter 核心要点](#flutter-核心要点)
+  - [适用场景](#适用场景)
+  - [学习建议](#学习建议)
+- [第 19 章 工程化实战：请求、持久化与宿主释放](#第-19-章-工程化实战请求持久化与宿主释放)
+  - [19.1 Android Gradle 接入与 SDK 边界](#191-android-gradle-接入与-sdk-边界)
+  - [19.2 FlutterEngine 与 Activity 分别拥有资源](#192-flutterengine-与-activity-分别拥有资源)
 
 ---
 
@@ -147,7 +64,7 @@
 
 **Flutter** 是 Google 推出的开源 UI 工具包，用于构建跨平台应用。
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         Flutter 核心特性                                    │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -171,7 +88,7 @@
 
 ### 1.2 核心优势
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         Flutter vs 其他跨平台框架                            │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -237,12 +154,14 @@
 
 #### 安装 Flutter SDK
 
+此处固定下载 Flutter 3.16.0 Linux `.tar.xz` 归档，用 `tar` 而不是 ZIP 解压器；Windows 使用对应 SDK 的 ZIP 归档和 Windows 路径配置。安装后先核对 `flutter --version`，不让 PATH 中其他版本替换本章基线。
+
 ```bash
 # 1. 下载 Flutter SDK
 # 访问 https://flutter.dev/docs/get-started/install
 
 # 2. 解压到指定目录
-unzip flutter_linux_3.16.0-stable.tar.xz
+tar -xf flutter_linux_3.16.0-stable.tar.xz
 
 # 3. 配置环境变量
 export PATH="$PATH:`pwd`/flutter/bin"
@@ -494,7 +413,7 @@ flutter create --android-language kotlin --ios-language swift my_app
 
 ### 3.2 目录结构
 
-```
+```text
 my_app/
 ├── android/          # Android 原生代码
 ├── ios/              # iOS 原生代码
@@ -548,7 +467,7 @@ flutter:
 
 ### 4.1 Widget 概念
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         Flutter Widget 树                                   │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -894,7 +813,7 @@ class ListViewExample extends StatelessWidget {
 
 **A:**
 
-```
+```text
 创建阶段：
 1. createState() - 创建 State 对象
 2. initState() - 初始化状态
@@ -997,7 +916,7 @@ class ListViewExample extends StatelessWidget {
 
 **文档版本**：v1.0  
 **更新时间**：2026-09-09
-**适用版本**：Flutter 3.16+
+**适用版本**：第 1–18 章以 Flutter 3.16.0 为历史基线；第 19 章单独使用 Flutter 3.35.0，不将两版 Android 模板或渲染默认值混用。
 
 
 ## 第 19 章 工程化实战：请求、持久化与宿主释放
@@ -1005,6 +924,17 @@ class ListViewExample extends StatelessWidget {
 Flutter 3.35.0 页面状态应由 State/Controller 持有，Repository 只负责业务接口。以下 `NotesRepository`、`Note` 是本文示例自定义类型，不是 Flutter API；真实实现需注入存储和错误策略。异步完成后先检查 `mounted`，dispose 时取消请求和订阅。
 
 ```dart
+import 'package:flutter/material.dart';
+
+class Note {
+  const Note(this.text);
+  final String text;
+}
+// 页面独占的请求作用域，不是共享给其他页面的全局 cancel-all Repository。
+abstract interface class NotesRepository {
+  Future<List<Note>> load();
+  void cancelPending();
+}
 class NotesPage extends StatefulWidget {
   const NotesPage({super.key, required this.repository});
   final NotesRepository repository; // 业务接口
@@ -1013,13 +943,23 @@ class NotesPage extends StatefulWidget {
 class _NotesPageState extends State<NotesPage> {
   int _generation = 0; bool _busy = false; String? _error;
   List<Note> _notes = const [];
+  @override void initState() { super.initState(); load(); }
+  @override void didUpdateWidget(covariant NotesPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.repository, widget.repository)) {
+      ++_generation;
+      oldWidget.repository.cancelPending();
+      _notes = const [];
+      load();
+    }
+  }
   Future<void> load() async {
     final generation = ++_generation;
     setState(() { _busy = true; _error = null; });
     try {
       final value = await widget.repository.load();
       if (mounted && generation == _generation) setState(() => _notes = value);
-    } catch (_) {
+    } on Exception catch (_) {
       if (mounted && generation == _generation) setState(() => _error = '读取失败');
     } finally {
       if (mounted && generation == _generation) setState(() => _busy = false);
@@ -1029,8 +969,44 @@ class _NotesPageState extends State<NotesPage> {
   @override Widget build(BuildContext c) => Column(children: [
     if (_busy) const LinearProgressIndicator(), if (_error != null) Text(_error!),
     for (final note in _notes) Text(note.text),
+    TextButton(onPressed: _busy ? null : load, child: const Text('重新加载')),
   ]);
 }
 ```
 
 `cancelPending()` 是业务接口，不是 Flutter 内建方法；若底层使用 `HttpClient`/dio，应让它真正关闭或取消请求。`setState` 不能在 dispose 后调用，`mounted` 不能代替资源取消。
+
+
+### 19.1 Android Gradle 接入与 SDK 边界
+
+Flutter 3.35.0 的 `FlutterExtension` 默认是 **minSdk 24、compileSdk/targetSdk 36、NDK 27.0.12077973**。在 Android 17 设备上运行不等于已经 target API 37；需要改 target 时应独立验证宿主 AGP、所有插件以及行为变更，而不是只改一个数字。
+
+3.35.0 模板在 `settings.gradle.kts` 的 `pluginManagement` 中，从 `local.properties` 读取 `flutter.sdk`，再 `includeBuild("$flutterSdkPath/packages/flutter_tools/gradle")`；settings 应用 `dev.flutter.flutter-plugin-loader`，app 应用 `dev.flutter.flutter-gradle-plugin`。loader 与 app plugin 职责不同，不能省掉 includeBuild 后把插件当普通 Maven 依赖。add-to-app 宿主选择源码模块或预编译 AAR 方案；模块的 `.android` 是生成宿主，不把手工改动放在那里作为永久配置。
+
+固定源码：[3.35.0 FlutterExtension](https://github.com/flutter/flutter/blob/3.35.0/packages/flutter_tools/gradle/src/main/kotlin/FlutterExtension.kt)、[settings 模板](https://github.com/flutter/flutter/blob/3.35.0/packages/flutter_tools/templates/app/android.tmpl/settings.gradle.kts.tmpl)。
+
+### 19.2 FlutterEngine 与 Activity 分别拥有资源
+
+普通 `FlutterActivity` 自建的 engine 默认随宿主销毁；缓存或外部提供的 engine 默认不销毁。预热引擎的所有者先执行 Dart 入口，再缓存；重新启动进程后缓存为空，必须重建，不能仅恢复一个 engine ID。
+
+```kotlin
+// 宿主初始化阶段，在主线程执行一次；不要在每次进入页面时重复创建。
+val engine = FlutterEngine(applicationContext)
+engine.dartExecutor.executeDartEntrypoint(DartExecutor.DartEntrypoint.createDefault())
+FlutterEngineCache.getInstance().put("notes-engine", engine)
+
+// Activity 内；宿主清单须声明 FlutterActivity，并具备模板要求的主题/配置。
+startActivity(
+    FlutterActivity.withCachedEngine("notes-engine")
+        .destroyEngineWithActivity(false)
+        .build(this)
+)
+
+// 真正的 engine 所有者结束服务、且已没有附着宿主时才执行：
+// FlutterEngineCache.getInstance().remove("notes-engine")
+// engine.destroy()
+```
+
+所需 import 为 `io.flutter.embedding.android.FlutterActivity`、`io.flutter.embedding.engine.FlutterEngine`、`FlutterEngineCache` 和 `io.flutter.embedding.engine.dart.DartExecutor`。缓存移除不等于 engine 已 destroy，也不能把同一 engine 同时附着到两个独立 Activity。插件实现 `ActivityAware` 时，在 `onDetachedFromActivityForConfigChanges` 清旧 Activity/监听器，在 `onReattachedToActivityForConfigChanges` 绑定新实例；保留 engine 并不允许永久保留旧 Activity。页面专属 MethodChannel handler 按页面所有权解绑，engine 级 handler 由 engine owner 释放，不能一概在任意 Activity 销毁时撤销共享 handler。
+
+固定源码：[FlutterActivity.shouldDestroyEngineWithHost/configureFlutterEngine](https://github.com/flutter/flutter/blob/3.35.0/engine/src/flutter/shell/platform/android/io/flutter/embedding/android/FlutterActivity.java)、[Delegate.onDetach](https://github.com/flutter/flutter/blob/3.35.0/engine/src/flutter/shell/platform/android/io/flutter/embedding/android/FlutterActivityAndFragmentDelegate.java)、[ActivityAware](https://github.com/flutter/flutter/blob/3.35.0/engine/src/flutter/shell/platform/android/io/flutter/embedding/engine/plugins/activity/ActivityAware.java)。

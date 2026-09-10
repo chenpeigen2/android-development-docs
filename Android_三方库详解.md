@@ -11,168 +11,168 @@
 
 - [第一部分：图片加载库](#第一部分图片加载库)
 - [第一篇：Glide - Google 推荐的图片加载库](#第一篇glide---google-推荐的图片加载库)
-- [第 4 章 Glide 概述](#第-4-章-glide-概述)
-  - [4.1 什么是 Glide？](#41-什么是-glide)
-  - [4.2 核心优势对比](#42-核心优势对比)
-  - [4.3 添加依赖](#43-添加依赖)
-  - [4.4 权限配置](#44-权限配置)
-- [第 5 章 Glide 基本使用](#第-5-章-glide-基本使用)
-  - [5.1 最简单的加载](#51-最简单的加载)
-  - [5.2 加载不同来源](#52-加载不同来源)
-  - [5.3 占位图和错误图](#53-占位图和错误图)
-  - [5.4 指定图片大小](#54-指定图片大小)
-  - [5.5 缩略图](#55-缩略图)
-  - [5.6 加载 GIF](#56-加载-gif)
-  - [5.7 清除图片和缓存](#57-清除图片和缓存)
-  - [5.8 请求监听](#58-请求监听)
-- [第 6 章 Glide 缓存机制](#第-6-章-glide-缓存机制)
-  - [6.1 缓存架构](#61-缓存架构)
-  - [6.2 缓存查找流程](#62-缓存查找流程)
-  - [6.3 缓存 Key 生成规则](#63-缓存-key-生成规则)
-  - [6.4 缓存策略](#64-缓存策略)
-  - [6.5 跳过缓存](#65-跳过缓存)
-  - [6.6 缓存失效](#66-缓存失效)
-  - [6.7 自定义缓存大小](#67-自定义缓存大小)
-- [第 7 章 Glide 生命周期管理](#第-7-章-glide-生命周期管理)
-  - [7.1 生命周期绑定原理](#71-生命周期绑定原理)
-  - [7.2 源码解析](#72-源码解析)
-  - [7.3 不同 Context 的影响](#73-不同-context-的影响)
-  - [7.4 手动管理请求](#74-手动管理请求)
-- [第 8 章 Glide 图片变换](#第-8-章-glide-图片变换)
-  - [8.1 内置变换](#81-内置变换)
-  - [8.2 自定义变换](#82-自定义变换)
-  - [8.3 多重变换](#83-多重变换)
-  - [8.4 第三方变换库](#84-第三方变换库)
-- [第 9 章 Glide 高级功能](#第-9-章-glide-高级功能)
-  - [9.1 预加载](#91-预加载)
-  - [9.2 同步加载](#92-同步加载)
-  - [9.3 自定义 Target](#93-自定义-target)
-  - [9.4 自定义 ModelLoader](#94-自定义-modelloader)
-  - [9.5 自定义 Module](#95-自定义-module)
-- [第 10 章 Glide 核心原理](#第-10-章-glide-核心原理)
-  - [10.1 整体架构](#101-整体架构)
-  - [10.2 核心组件](#102-核心组件)
-  - [10.3 加载流程](#103-加载流程)
-- [第 11 章 Glide 源码解析](#第-11-章-glide-源码解析)
-  - [11.1 初始化流程](#111-初始化流程)
-  - [11.2 请求构建流程](#112-请求构建流程)
-  - [11.3 Engine 加载流程](#113-engine-加载流程)
-  - [11.4 DecodeJob 解码流程](#114-decodejob-解码流程)
-  - [11.5 BitmapPool 实现](#115-bitmappool-实现)
-- [第 12 章 Glide 性能优化](#第-12-章-glide-性能优化)
-  - [12.1 内存优化](#121-内存优化)
-  - [12.2 加载优化](#122-加载优化)
-  - [12.3 网络优化](#123-网络优化)
-  - [12.4 列表优化](#124-列表优化)
-- [第 13 章 Glide 面试常见问题](#第-13-章-glide-面试常见问题)
-  - [13.1 生命周期绑定](#131-生命周期绑定)
-  - [13.2 缓存机制](#132-缓存机制)
-  - [13.3 OOM 避免](#133-oom-避免)
-  - [13.4 与 Picasso 区别](#134-与-picasso-区别)
-  - [13.5 高清图加载](#135-高清图加载)
-  - [13.6 圆角实现](#136-圆角实现)
-  - [13.7 请求取消](#137-请求取消)
-  - [13.8 预加载](#138-预加载)
-  - [13.9 缓存 Key](#139-缓存-key)
-  - [13.10 进度监听](#1310-进度监听)
+- [第 1 章 Glide 概述](#第-1-章-glide-概述)
+  - [1.1 什么是 Glide？](#11-什么是-glide)
+  - [1.2 核心优势对比](#12-核心优势对比)
+  - [1.3 添加依赖](#13-添加依赖)
+  - [1.4 权限配置](#14-权限配置)
+- [第 2 章 Glide 基本使用](#第-2-章-glide-基本使用)
+  - [2.1 最简单的加载](#21-最简单的加载)
+  - [2.2 加载不同来源](#22-加载不同来源)
+  - [2.3 占位图和错误图](#23-占位图和错误图)
+  - [2.4 指定图片大小](#24-指定图片大小)
+  - [2.5 缩略图](#25-缩略图)
+  - [2.6 加载 GIF](#26-加载-gif)
+  - [2.7 清除图片和缓存](#27-清除图片和缓存)
+  - [2.8 请求监听](#28-请求监听)
+- [第 3 章 Glide 缓存机制](#第-3-章-glide-缓存机制)
+  - [3.1 缓存架构](#31-缓存架构)
+  - [3.2 缓存查找流程](#32-缓存查找流程)
+  - [3.3 缓存 Key 生成规则](#33-缓存-key-生成规则)
+  - [3.4 缓存策略](#34-缓存策略)
+  - [3.5 跳过缓存](#35-跳过缓存)
+  - [3.6 缓存失效](#36-缓存失效)
+  - [3.7 自定义缓存大小](#37-自定义缓存大小)
+- [第 4 章 Glide 生命周期管理](#第-4-章-glide-生命周期管理)
+  - [4.1 生命周期绑定原理](#41-生命周期绑定原理)
+  - [4.2 源码解析](#42-源码解析)
+  - [4.3 不同 Context 的影响](#43-不同-context-的影响)
+  - [4.4 手动管理请求](#44-手动管理请求)
+- [第 5 章 Glide 图片变换](#第-5-章-glide-图片变换)
+  - [5.1 内置变换](#51-内置变换)
+  - [5.2 自定义变换](#52-自定义变换)
+  - [5.3 多重变换](#53-多重变换)
+  - [5.4 第三方变换库](#54-第三方变换库)
+- [第 6 章 Glide 高级功能](#第-6-章-glide-高级功能)
+  - [6.1 预加载](#61-预加载)
+  - [6.2 同步加载](#62-同步加载)
+  - [6.3 自定义 Target](#63-自定义-target)
+  - [6.4 自定义 ModelLoader](#64-自定义-modelloader)
+  - [6.5 自定义 Module](#65-自定义-module)
+- [第 7 章 Glide 核心原理](#第-7-章-glide-核心原理)
+  - [7.1 整体架构](#71-整体架构)
+  - [7.2 核心组件](#72-核心组件)
+  - [7.3 加载流程](#73-加载流程)
+- [第 8 章 Glide 源码解析](#第-8-章-glide-源码解析)
+  - [8.1 初始化流程](#81-初始化流程)
+  - [8.2 请求构建流程](#82-请求构建流程)
+  - [8.3 Engine 加载流程](#83-engine-加载流程)
+  - [8.4 DecodeJob 解码流程](#84-decodejob-解码流程)
+  - [8.5 BitmapPool 实现](#85-bitmappool-实现)
+- [第 9 章 Glide 性能优化](#第-9-章-glide-性能优化)
+  - [9.1 内存优化](#91-内存优化)
+  - [9.2 加载优化](#92-加载优化)
+  - [9.3 网络优化](#93-网络优化)
+  - [9.4 列表优化](#94-列表优化)
+- [第 10 章 Glide 面试常见问题](#第-10-章-glide-面试常见问题)
+  - [10.1 生命周期绑定](#101-生命周期绑定)
+  - [10.2 缓存机制](#102-缓存机制)
+  - [10.3 OOM 避免](#103-oom-避免)
+  - [10.4 与 Picasso 区别](#104-与-picasso-区别)
+  - [10.5 高清图加载](#105-高清图加载)
+  - [10.6 圆角实现](#106-圆角实现)
+  - [10.7 请求取消](#107-请求取消)
+  - [10.8 预加载](#108-预加载)
+  - [10.9 缓存 Key](#109-缓存-key)
+  - [10.10 进度监听](#1010-进度监听)
 - [第二篇：Fresco - Facebook 的图片加载库](#第二篇fresco---facebook-的图片加载库)
-- [第 14 章 Fresco 概述](#第-14-章-fresco-概述)
-  - [14.1 什么是 Fresco？](#141-什么是-fresco)
-  - [14.2 核心优势](#142-核心优势)
-  - [14.3 添加依赖](#143-添加依赖)
-  - [14.4 初始化配置](#144-初始化配置)
-- [第 15 章 Fresco 基本使用](#第-15-章-fresco-基本使用)
-  - [15.1 SimpleDraweeView](#151-simpledraweeview)
-  - [15.2 加载网络图片](#152-加载网络图片)
-  - [15.3 加载本地图片](#153-加载本地图片)
-  - [15.4 占位图和进度条](#154-占位图和进度条)
-  - [15.5 加载 GIF](#155-加载-gif)
-  - [15.6 图片缩放](#156-图片缩放)
-- [第 16 章 Fresco 核心概念](#第-16-章-fresco-核心概念)
-  - [16.1 DraweeView](#161-draweeview)
-  - [16.2 DraweeController](#162-draweecontroller)
-  - [16.3 DraweeHierarchy](#163-draweehierarchy)
-  - [16.4 ImagePipeline](#164-imagepipeline)
-- [第 17 章 Fresco 缓存机制](#第-17-章-fresco-缓存机制)
-  - [17.1 三级缓存架构](#171-三级缓存架构)
-  - [17.2 内存缓存](#172-内存缓存)
-  - [17.3 磁盘缓存](#173-磁盘缓存)
-  - [17.4 缓存配置](#174-缓存配置)
-- [第 18 章 Fresco 高级功能](#第-18-章-fresco-高级功能)
-  - [18.1 渐进式 JPEG](#181-渐进式-jpeg)
-  - [18.2 图片加载监听](#182-图片加载监听)
-  - [18.3 自定义 DataSource](#183-自定义-datasource)
-  - [18.4 后处理器](#184-后处理器)
-  - [18.5 图片请求构建](#185-图片请求构建)
-- [第 19 章 Fresco 性能优化](#第-19-章-fresco-性能优化)
-  - [19.1 内存管理](#191-内存管理)
-  - [19.2 图片解码优化](#192-图片解码优化)
-  - [19.3 网络优化](#193-网络优化)
-  - [19.4 列表优化](#194-列表优化)
-- [第 20 章 Fresco 面试常见问题](#第-20-章-fresco-面试常见问题)
-  - [20.1 Fresco vs Glide](#201-fresco-vs-glide)
-  - [20.2 内存管理优势](#202-内存管理优势)
-  - [20.3 DraweeHierarchy](#203-draweehierarchy)
-  - [20.4 渐进式加载](#204-渐进式加载)
-  - [20.5 在 RecyclerView 中使用](#205-在-recyclerview-中使用)
+- [第 11 章 Fresco 概述](#第-11-章-fresco-概述)
+  - [11.1 什么是 Fresco？](#111-什么是-fresco)
+  - [11.2 核心优势](#112-核心优势)
+  - [11.3 添加依赖](#113-添加依赖)
+  - [11.4 初始化配置](#114-初始化配置)
+- [第 12 章 Fresco 基本使用](#第-12-章-fresco-基本使用)
+  - [12.1 SimpleDraweeView](#121-simpledraweeview)
+  - [12.2 加载网络图片](#122-加载网络图片)
+  - [12.3 加载本地图片](#123-加载本地图片)
+  - [12.4 占位图和进度条](#124-占位图和进度条)
+  - [12.5 加载 GIF](#125-加载-gif)
+  - [12.6 图片缩放](#126-图片缩放)
+- [第 13 章 Fresco 核心概念](#第-13-章-fresco-核心概念)
+  - [13.1 DraweeView](#131-draweeview)
+  - [13.2 DraweeController](#132-draweecontroller)
+  - [13.3 DraweeHierarchy](#133-draweehierarchy)
+  - [13.4 ImagePipeline](#134-imagepipeline)
+- [第 14 章 Fresco 缓存机制](#第-14-章-fresco-缓存机制)
+  - [14.1 三级缓存架构](#141-三级缓存架构)
+  - [14.2 内存缓存](#142-内存缓存)
+  - [14.3 磁盘缓存](#143-磁盘缓存)
+  - [14.4 缓存配置](#144-缓存配置)
+- [第 15 章 Fresco 高级功能](#第-15-章-fresco-高级功能)
+  - [15.1 渐进式 JPEG](#151-渐进式-jpeg)
+  - [15.2 图片加载监听](#152-图片加载监听)
+  - [15.3 自定义 DataSource](#153-自定义-datasource)
+  - [15.4 后处理器](#154-后处理器)
+  - [15.5 图片请求构建](#155-图片请求构建)
+- [第 16 章 Fresco 性能优化](#第-16-章-fresco-性能优化)
+  - [16.1 内存管理](#161-内存管理)
+  - [16.2 图片解码优化](#162-图片解码优化)
+  - [16.3 网络优化](#163-网络优化)
+  - [16.4 列表优化](#164-列表优化)
+- [第 17 章 Fresco 面试常见问题](#第-17-章-fresco-面试常见问题)
+  - [17.1 Fresco vs Glide](#171-fresco-vs-glide)
+  - [17.2 内存管理优势](#172-内存管理优势)
+  - [17.3 DraweeHierarchy](#173-draweehierarchy)
+  - [17.4 渐进式加载](#174-渐进式加载)
+  - [17.5 在 RecyclerView 中使用](#175-在-recyclerview-中使用)
 - [第二部分：数据存储库](#第二部分数据存储库)
 - [第三篇：MMKV - 腾讯开源的键值存储库](#第三篇mmkv---腾讯开源的键值存储库)
-- [第 21 章 MMKV 概述](#第-21-章-mmkv-概述)
-  - [21.1 什么是 MMKV？](#211-什么是-mmkv)
-  - [21.2 核心优势](#212-核心优势)
-  - [21.3 添加依赖](#213-添加依赖)
-  - [21.4 初始化配置](#214-初始化配置)
-- [第 22 章 MMKV 基本使用](#第-22-章-mmkv-基本使用)
-  - [22.1 默认实例](#221-默认实例)
-  - [22.2 数据写入](#222-数据写入)
-  - [22.3 数据读取](#223-数据读取)
-  - [22.4 数据删除](#224-数据删除)
-  - [22.5 数据查询](#225-数据查询)
-- [第 23 章 MMKV 高级用法](#第-23-章-mmkv-高级用法)
-  - [23.1 多进程模式](#231-多进程模式)
-  - [23.2 自定义实例](#232-自定义实例)
-  - [23.3 数据迁移](#233-数据迁移)
-  - [23.4 数据备份](#234-数据备份)
-  - [23.5 数据加密](#235-数据加密)
-- [第 24 章 MMKV 核心原理](#第-24-章-mmkv-核心原理)
-  - [24.1 内存映射](#241-内存映射)
-  - [24.2 数据编码](#242-数据编码)
-  - [24.3 文件结构](#243-文件结构)
-  - [24.4 数据同步](#244-数据同步)
-- [第 25 章 MMKV 源码解析](#第-25-章-mmkv-源码解析)
-  - [25.1 初始化流程](#251-初始化流程)
-  - [25.2 写入流程](#252-写入流程)
-  - [25.3 读取流程](#253-读取流程)
-  - [25.4 数据压缩](#254-数据压缩)
-- [第 26 章 MMKV 性能优化](#第-26-章-mmkv-性能优化)
-  - [26.1 写入优化](#261-写入优化)
-  - [26.2 读取优化](#262-读取优化)
-  - [26.3 内存优化](#263-内存优化)
-  - [26.4 多进程优化](#264-多进程优化)
-- [第 27 章 MMKV vs SharedPreferences](#第-27-章-mmkv-vs-sharedpreferences)
-  - [27.1 性能对比](#271-性能对比)
-  - [27.2 功能对比](#272-功能对比)
-  - [27.3 迁移指南](#273-迁移指南)
-- [第 28 章 MMKV 面试常见问题](#第-28-章-mmkv-面试常见问题)
-  - [28.1 MMKV 原理](#281-mmkv-原理)
-  - [28.2 多进程安全](#282-多进程安全)
-  - [28.3 数据丢失](#283-数据丢失)
-  - [28.4 与 SP 区别](#284-与-sp-区别)
-  - [28.5 适用场景](#285-适用场景)
+- [第 18 章 MMKV 概述](#第-18-章-mmkv-概述)
+  - [18.1 什么是 MMKV？](#181-什么是-mmkv)
+  - [18.2 核心优势](#182-核心优势)
+  - [18.3 添加依赖](#183-添加依赖)
+  - [18.4 初始化配置](#184-初始化配置)
+- [第 19 章 MMKV 基本使用](#第-19-章-mmkv-基本使用)
+  - [19.1 默认实例](#191-默认实例)
+  - [19.2 数据写入](#192-数据写入)
+  - [19.3 数据读取](#193-数据读取)
+  - [19.4 数据删除](#194-数据删除)
+  - [19.5 数据查询](#195-数据查询)
+- [第 20 章 MMKV 高级用法](#第-20-章-mmkv-高级用法)
+  - [20.1 多进程模式](#201-多进程模式)
+  - [20.2 自定义实例](#202-自定义实例)
+  - [20.3 数据迁移](#203-数据迁移)
+  - [20.4 数据备份](#204-数据备份)
+  - [20.5 数据加密](#205-数据加密)
+- [第 21 章 MMKV 核心原理](#第-21-章-mmkv-核心原理)
+  - [21.1 内存映射](#211-内存映射)
+  - [21.2 数据编码](#212-数据编码)
+  - [21.3 文件结构](#213-文件结构)
+  - [21.4 数据同步](#214-数据同步)
+- [第 22 章 MMKV 源码解析](#第-22-章-mmkv-源码解析)
+  - [22.1 初始化流程](#221-初始化流程)
+  - [22.2 写入流程](#222-写入流程)
+  - [22.3 读取流程](#223-读取流程)
+  - [22.4 数据压缩](#224-数据压缩)
+- [第 23 章 MMKV 性能优化](#第-23-章-mmkv-性能优化)
+  - [23.1 写入优化](#231-写入优化)
+  - [23.2 读取优化](#232-读取优化)
+  - [23.3 内存优化](#233-内存优化)
+  - [23.4 多进程优化](#234-多进程优化)
+- [第 24 章 MMKV vs SharedPreferences](#第-24-章-mmkv-vs-sharedpreferences)
+  - [24.1 性能对比](#241-性能对比)
+  - [24.2 功能对比](#242-功能对比)
+  - [24.3 迁移指南](#243-迁移指南)
+- [第 25 章 MMKV 面试常见问题](#第-25-章-mmkv-面试常见问题)
+  - [25.1 MMKV 原理](#251-mmkv-原理)
+  - [25.2 多进程安全](#252-多进程安全)
+  - [25.3 数据丢失](#253-数据丢失)
+  - [25.4 与 SP 区别](#254-与-sp-区别)
+  - [25.5 适用场景](#255-适用场景)
 - [第三部分：对比与选型](#第三部分对比与选型)
-- [第 29 章 图片加载库对比](#第-29-章-图片加载库对比)
-  - [29.1 核心功能对比表](#291-核心功能对比表)
-  - [29.2 性能对比](#292-性能对比)
-  - [29.3 包大小对比](#293-包大小对比)
-  - [29.4 学习曲线对比](#294-学习曲线对比)
-- [第 30 章 选型建议](#第-30-章-选型建议)
-  - [30.1 Glide 适用场景](#301-glide-适用场景)
-  - [30.2 Fresco 适用场景](#302-fresco-适用场景)
-  - [30.3 MMKV 适用场景](#303-mmkv-适用场景)
-- [第 31 章 迁移指南](#第-31-章-迁移指南)
-  - [31.1 SharedPreferences → MMKV](#311-sharedpreferences--mmkv)
-  - [31.2 Picasso → Glide](#312-picasso--glide)
-  - [31.3 Glide → Fresco](#313-glide--fresco)
+- [第 26 章 图片加载库对比](#第-26-章-图片加载库对比)
+  - [26.1 核心功能对比表](#261-核心功能对比表)
+  - [26.2 性能对比](#262-性能对比)
+  - [26.3 包大小对比](#263-包大小对比)
+  - [26.4 学习曲线对比](#264-学习曲线对比)
+- [第 27 章 选型建议](#第-27-章-选型建议)
+  - [27.1 Glide 适用场景](#271-glide-适用场景)
+  - [27.2 Fresco 适用场景](#272-fresco-适用场景)
+  - [27.3 MMKV 适用场景](#273-mmkv-适用场景)
+- [第 28 章 迁移指南](#第-28-章-迁移指南)
+  - [28.1 SharedPreferences → MMKV](#281-sharedpreferences--mmkv)
+  - [28.2 Picasso → Glide](#282-picasso--glide)
+  - [28.3 Glide → Fresco](#283-glide--fresco)
 - [总结](#总结)
   - [📚 Glide - 图片加载库](#-glide---图片加载库)
   - [📚 Fresco - 图片加载库](#-fresco---图片加载库)
@@ -269,12 +269,9 @@
 
 ---
 
-## 第 4 章 Glide 概述
+## 第 1 章 Glide 概述
 
-## 第 4 章 Glide 生命周期管理
-
-
-### 4.1 什么是 Glide？
+### 1.1 什么是 Glide？
 
 **Glide** 是 Google 推荐的 Android 图片加载库，专注于平滑滚动和高效的图片加载。
 
@@ -310,7 +307,7 @@
 └───────────────┘      └───────────────┘      └───────────────┘
 ```
 
-### 4.2 核心优势对比
+### 1.2 核心优势对比
 
 ```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -329,7 +326,7 @@
 └──────────────┴──────────────┴──────────────┴──────────────┴──────────────┘
 ```
 
-### 4.3 添加依赖
+### 1.3 添加依赖
 
 ```gradle
 dependencies {
@@ -344,7 +341,7 @@ dependencies {
 }
 ```
 
-### 4.4 权限配置
+### 1.4 权限配置
 
 Glide 磁盘缓存与读取用户媒体是两类存储场景。内部缓存及现代 Android 的应用专属外部目录不要求广泛存储权限；读取用户媒体是另外的权限/URI 授权场景，应评估 Photo Picker、SAF 或对应媒体权限，不因缓存而申请全盘访问。
 
@@ -358,9 +355,9 @@ Glide 磁盘缓存与读取用户媒体是两类存储场景。内部缓存及�
 
 ---
 
-## 第 5 章 Glide 基本使用
+## 第 2 章 Glide 基本使用
 
-### 5.1 最简单的加载
+### 2.1 最简单的加载
 
 ```java
 // 基础用法
@@ -374,7 +371,7 @@ Glide.with(context)
 imageView.load(url)
 ```
 
-### 5.2 加载不同来源
+### 2.2 加载不同来源
 
 ```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -422,7 +419,7 @@ Glide.with(context)
     .into(imageView);
 ```
 
-### 5.3 占位图和错误图
+### 2.3 占位图和错误图
 
 ```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -456,7 +453,7 @@ Glide.with(context)
 | `error()` | 加载失败时显示的图 | 网络错误、404 等 |
 | `fallback()` | url 为 null 时显示的图 | 数据缺失情况 |
 
-### 5.4 指定图片大小
+### 2.4 指定图片大小
 
 ```java
 // 方式1: 固定尺寸
@@ -477,13 +474,13 @@ Glide.with(context)
     .into(imageView);  // 自动使用 ImageView 的尺寸
 ```
 
-### 5.5 缩略图
+### 2.5 缩略图
 
 ```java
-// 方式1: 质量缩略图
+// 方式1: 尺寸缩略图
 Glide.with(context)
     .load(url)
-    .thumbnail(0.1f)  // 先加载 10% 质量的缩略图
+    .thumbnail(0.1f)  // 缩略请求宽、高各为目标尺寸的 0.1 倍，不是编码质量 10%
     .into(imageView);
 
 // 方式2: 不同 URL 的缩略图
@@ -496,7 +493,7 @@ Glide.with(context)
     .into(imageView);
 ```
 
-### 5.6 加载 GIF
+### 2.6 加载 GIF
 
 ```java
 // 方式1: 自动检测 GIF
@@ -518,7 +515,7 @@ Glide.with(context)
     .into(imageView);
 ```
 
-### 5.7 清除图片和缓存
+### 2.7 清除图片和缓存
 
 ```java
 // 1. 清除 View 上的图片
@@ -533,7 +530,7 @@ new Thread(() -> {
 }).start();
 ```
 
-### 5.8 请求监听
+### 2.8 请求监听
 
 ```java
 Glide.with(context)
@@ -561,9 +558,9 @@ Glide.with(context)
 
 ---
 
-## 第 6 章 Glide 缓存机制
+## 第 3 章 Glide 缓存机制
 
-### 6.1 缓存架构
+### 3.1 缓存架构
 
 ```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -602,7 +599,7 @@ Glide.with(context)
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 6.2 缓存查找流程
+### 3.2 缓存查找流程
 
 ```text
          开始加载
@@ -633,7 +630,7 @@ Glide.with(context)
     └────────────────────┘
 ```
 
-### 6.3 缓存 Key 生成规则
+### 3.3 缓存 Key 生成规则
 
 ```java
 /**
@@ -652,7 +649,7 @@ Glide.with(context)
  */
 ```
 
-### 6.4 缓存策略
+### 3.4 缓存策略
 
 ```text
 ┌──────────────────────┬────────────────────────────────────────────────────┐
@@ -686,7 +683,7 @@ Glide.with(context)
     .into(imageView);
 ```
 
-### 6.5 跳过缓存
+### 3.5 跳过缓存
 
 ```java
 // 跳过内存缓存
@@ -702,7 +699,7 @@ Glide.with(context)
     .into(imageView);
 ```
 
-### 6.6 缓存失效
+### 3.6 缓存失效
 
 ```java
 // 方式1: 使用 signature
@@ -718,7 +715,7 @@ Glide.with(context)
     .into(imageView);
 ```
 
-### 6.7 自定义缓存大小
+### 3.7 自定义缓存大小
 
 ```java
 @GlideModule
@@ -745,77 +742,40 @@ public class CustomGlideModule extends AppGlideModule {
 
 ---
 
-## 第 7 章 Glide 生命周期管理
+## 第 4 章 Glide 生命周期管理
 
-### 7.1 生命周期绑定原理
+### 4.1 生命周期绑定原理
+
+Glide **4.16.0** 的 AndroidX 路径不再通过无 UI 的 `SupportRequestManagerFragment` 绑定宿主。`RequestManagerRetriever.get(FragmentActivity)` 直接把 `activity.getLifecycle()` 传给 `LifecycleRequestManagerRetriever.getOrCreate()`；Fragment 重载传递 `fragment.getLifecycle()`。
 
 ```text
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         生命周期绑定原理                                     │
-└─────────────────────────────────────────────────────────────────────────────┘
-
- Activity/Fragment
-        │
-        ▼
- SupportRequestManagerFragment (无 UI 的 Fragment)
-        │
-        ▼
- FragmentActivity.getSupportFragmentManager()
-        │
-        ▼
- Lifecycle (生命周期分发器)
-        │
-        ▼
- RequestManager (监听生命周期事件)
-        │
-        ├─► onStart()  ──► resumeRequests()
-        ├─► onStop()   ──► pauseRequests()
-        └─► onDestroy()──► clearRequests()
+Glide.with(FragmentActivity / AndroidX Fragment)（主线程）
+  → RequestManagerRetriever.get(...)
+  → LifecycleRequestManagerRetriever.getOrCreate(..., owner.getLifecycle(), ...)
+  → RequestManager
+       onStart → resumeRequests + targetTracker.onStart
+       onStop  → targetTracker.onStop + pauseRequests（或 clearOnStop 路径）
+       onDestroy → 清理 Target/Request、移除 lifecycle 监听、注销 manager
 ```
 
-### 7.2 源码解析
+### 4.2 源码解析
 
-```java
-// RequestManagerRetriever.java
-public RequestManager get(FragmentActivity activity) {
-    if (Util.isOnBackgroundThread()) {
-        // 子线程使用 Application Context
-        return get(activity.getApplicationContext());
-    } else {
-        // 主线程绑定生命周期
-        assertNotDestroyed(activity);
-        FragmentManager fm = activity.getSupportFragmentManager();
-        return supportFragmentGet(activity, fm, null);
-    }
-}
+`RequestManager.onStop()` 默认暂停正在运行的请求，不等于清空所有已完成图片；启用 `clearOnStop()` 后才走 `clearRequests()`。`RequestTracker.pauseRequests()` 调用运行中请求的 `pause()` 并加入 pending 集合，恢复时重新开始未完成且未运行的请求。`onDestroy()` 不仅清图片，还清追踪集合并解除生命周期注册，不能只复制其中一个循环作为完整实现。
 
-// RequestManager.java
-public synchronized void onStart() {
-    resumeRequests();  // 恢复请求
-}
+Fragment 路径绑定的是 Fragment 本身，不是它的 `viewLifecycleOwner`；View 销毁但 Fragment 留在返回栈时，要在 `onDestroyView` 清理旧 View 上仍持有的请求和 Target。后台线程调用 with 会退化为 Application 级 manager，不具备可见页面的自动暂停范围。
 
-public synchronized void onStop() {
-    pauseRequests();  // 暂停请求
-}
+固定源码：[RequestManagerRetriever.get](https://github.com/bumptech/glide/blob/v4.16.0/library/src/main/java/com/bumptech/glide/manager/RequestManagerRetriever.java)、[RequestManager.onStart/onStop/onDestroy](https://github.com/bumptech/glide/blob/v4.16.0/library/src/main/java/com/bumptech/glide/RequestManager.java)、[RequestTracker.pauseRequests/resumeRequests](https://github.com/bumptech/glide/blob/v4.16.0/library/src/main/java/com/bumptech/glide/manager/RequestTracker.java)。
 
-public synchronized void onDestroy() {
-    // 清除所有请求
-    for (Target<?> target : targetTracker.getAll()) {
-        clear(target);
-    }
-}
-```
-
-### 7.3 不同 Context 的影响
+### 4.3 不同 Context 的影响
 
 ```text
 ┌──────────────────────┬────────────────────────────────────────────────────┐
 │       Context 类型    │                      行为                          │
 ├──────────────────────┼────────────────────────────────────────────────────┤
-│ Activity             │ 绑定生命周期，自动暂停/恢复/销毁                    │
+│ FragmentActivity     │ 主线程绑定 AndroidX Lifecycle                      │
 │ Fragment             │ 绑定 Fragment 生命周期                             │
-│ View                 │ 自动获取所在 Activity 的生命周期                   │
-│ Application          │ 不绑定生命周期，直到应用退出                        │
+│ View                 │ 优先找所属 AndroidX Fragment，否则回退宿主/应用     │
+│ Application/普通 Activity │ Application 级 manager，需按资源所有者清理      │
 │ Service              │ 不绑定生命周期，手动管理                            │
 └──────────────────────┴────────────────────────────────────────────────────┘
 ```
@@ -834,44 +794,29 @@ Glide.with(imageView).load(url).into(imageView);
 Glide.with(context.getApplicationContext()).load(url).into(imageView);
 ```
 
-### 7.4 手动管理请求
+### 4.4 手动管理请求
+
+`Glide.with(this)` 已注册宿主生命周期，不要手工重复调用它的 `onStart/onStop/onDestroy`。手动控制仅操作业务持有的 Target，避免销毁同一宿主下其他调用者共享的 RequestManager。
 
 ```java
-public class CustomActivity extends AppCompatActivity {
-
-    private RequestManager requestManager;
-
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        requestManager = Glide.with(this);
+// Fragment.onDestroyView 内清理本次 View 绑定，实际字段由页面定义。
+@Override
+public void onDestroyView() {
+    if (binding != null) {
+        Glide.with(this).clear(binding.imageView);
+        binding = null;
     }
-
-    @Override
-    protected void onStart() {
-        super.onStart();
-        requestManager.onStart();  // 手动恢复
-    }
-
-    @Override
-    protected void onStop() {
-        super.onStop();
-        requestManager.onStop();  // 手动暂停
-    }
-
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        requestManager.onDestroy();  // 手动销毁
-    }
+    super.onDestroyView();
 }
 ```
 
+Application 级自定义 Target 也要在业务 owner 结束时显式 `clear(target)`；暂停请求不等于资源已释放。尺寸缩略请求的依据为 [RequestBuilder.thumbnail(float)](https://github.com/bumptech/glide/blob/v4.16.0/library/src/main/java/com/bumptech/glide/RequestBuilder.java)。
+
 ---
 
-## 第 8 章 Glide 图片变换
+## 第 5 章 Glide 图片变换
 
-### 8.1 内置变换
+### 5.1 内置变换
 
 ```text
 ┌──────────────────────┬────────────────────────────────────────────────────┐
@@ -905,7 +850,7 @@ Glide.with(context)
     .into(imageView);
 ```
 
-### 8.2 自定义变换
+### 5.2 自定义变换
 
 Glide **4.16.0** 的 `BitmapTransformation.transform` 参数是 `com.bumptech.glide.load.engine.bitmap_recycle.BitmapPool`，不是 `PoolProvider`。变换参数应不可变，并共同参与 `equals`、`hashCode` 和磁盘缓存 key。下例仅为扩展点骨架，`blurBitmap` 算法需自行提供，不是可独立编译的完整模糊实现。
 
@@ -948,7 +893,7 @@ public class BlurTransformation extends BitmapTransformation {
 }
 ```
 
-### 8.3 多重变换
+### 5.3 多重变换
 
 ```java
 // 多个变换
@@ -962,7 +907,7 @@ Glide.with(context)
     .into(imageView);
 ```
 
-### 8.4 第三方变换库
+### 5.4 第三方变换库
 
 ```gradle
 implementation 'jp.wasabeef:glide-transformations:4.3.0'
@@ -988,9 +933,9 @@ Glide.with(context)
 
 ---
 
-## 第 9 章 Glide 高级功能
+## 第 6 章 Glide 高级功能
 
-### 9.1 预加载
+### 6.1 预加载
 
 ```java
 // 预加载到缓存
@@ -1014,7 +959,7 @@ Glide.with(context)
     });
 ```
 
-### 9.2 同步加载
+### 6.2 同步加载
 
 ```java
 // ⚠️ 注意：必须在子线程中调用
@@ -1035,7 +980,7 @@ new Thread(() -> {
 }).start();
 ```
 
-### 9.3 自定义 Target
+### 6.3 自定义 Target
 
 ```java
 public class CustomViewTarget extends ViewTarget<CustomView, Drawable> {
@@ -1056,7 +1001,7 @@ public class CustomViewTarget extends ViewTarget<CustomView, Drawable> {
 }
 ```
 
-### 9.4 自定义 ModelLoader
+### 6.4 自定义 ModelLoader
 
 ```java
 public class CustomModelLoader implements ModelLoader<CustomData, InputStream> {
@@ -1084,7 +1029,7 @@ public class CustomGlideModule extends AppGlideModule {
 }
 ```
 
-### 9.5 自定义 Module
+### 6.5 自定义 Module
 
 ```java
 @GlideModule
@@ -1118,9 +1063,9 @@ public class CustomGlideModule extends AppGlideModule {
 
 ---
 
-## 第 10 章 Glide 核心原理
+## 第 7 章 Glide 核心原理
 
-### 10.1 整体架构
+### 7.1 整体架构
 
 ```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -1147,7 +1092,7 @@ public class CustomGlideModule extends AppGlideModule {
  └──────────────┘      └──────────────┘      └──────────────┘
 ```
 
-### 10.2 核心组件
+### 7.2 核心组件
 
 ```text
 ┌──────────────────┬────────────────────────────────────────────────────────┐
@@ -1163,7 +1108,7 @@ public class CustomGlideModule extends AppGlideModule {
 └──────────────────┴────────────────────────────────────────────────────────┘
 ```
 
-### 10.3 加载流程
+### 7.3 加载流程
 
 ```text
 1. Glide.with(context)
@@ -1197,9 +1142,9 @@ public class CustomGlideModule extends AppGlideModule {
 
 ---
 
-## 第 11 章 Glide 源码解析
+## 第 8 章 Glide 源码解析
 
-### 11.1 初始化流程
+### 8.1 初始化流程
 
 ```java
 // Glide.java
@@ -1215,7 +1160,7 @@ public static Glide get(Context context) {
 }
 ```
 
-### 11.2 请求构建流程
+### 8.2 请求构建流程
 
 ```java
 // RequestBuilder.java
@@ -1237,7 +1182,7 @@ public ViewTarget<ImageView, TranscodeType> into(ImageView view) {
 }
 ```
 
-### 11.3 Engine 加载流程
+### 8.3 Engine 加载流程
 
 ```java
 // Engine.java
@@ -1268,7 +1213,7 @@ public <R> LoadStatus load(...) {
 }
 ```
 
-### 11.4 DecodeJob 解码流程
+### 8.4 DecodeJob 解码流程
 
 ```java
 // DecodeJob.java
@@ -1291,7 +1236,7 @@ class DecodeJob<R> implements Runnable {
 }
 ```
 
-### 11.5 BitmapPool 实现
+### 8.5 BitmapPool 实现
 
 ```java
 // LruBitmapPool.java
@@ -1320,9 +1265,9 @@ public class LruBitmapPool implements BitmapPool {
 
 ---
 
-## 第 12 章 Glide 性能优化
+## 第 9 章 Glide 性能优化
 
-### 12.1 内存优化
+### 9.1 内存优化
 
 ```java
 // 1. 使用 RGB_565 格式
@@ -1351,7 +1296,7 @@ public void onTrimMemory(int level) {
 }
 ```
 
-### 12.2 加载优化
+### 9.2 加载优化
 
 ```java
 // 1. 缩略图策略
@@ -1366,7 +1311,7 @@ Glide.with(context)
     .preload();
 ```
 
-### 12.3 网络优化
+### 9.3 网络优化
 
 ```java
 // OkHttp 集成
@@ -1384,7 +1329,7 @@ public class OkHttpGlideModule extends LibraryGlideModule {
 }
 ```
 
-### 12.4 列表优化
+### 9.4 列表优化
 
 ```java
 // RecyclerView 中使用
@@ -1405,15 +1350,15 @@ public void onViewRecycled(ViewHolder holder) {
 
 ---
 
-## 第 13 章 Glide 面试常见问题
+## 第 10 章 Glide 面试常见问题
 
-### 13.1 生命周期绑定
+### 10.1 生命周期绑定
 
 **Q: Glide 如何实现生命周期绑定？**
 
-**A:** Glide 通过添加一个无 UI 的 Fragment（SupportRequestManagerFragment）到 Activity/Fragment 中，监听 Fragment 的生命周期事件，从而控制图片加载请求的暂停、恢复和销毁。
+**A:** 本文 Glide 4.16.0 的 AndroidX 路径由 `RequestManagerRetriever` 获取宿主 `Lifecycle`，通过 `LifecycleRequestManagerRetriever` 驱动 RequestManager 的开始、停止和销毁。无 UI Fragment 是旧实现，不能作为本版源码结论；详细调用链见生命周期正文。
 
-### 13.2 缓存机制
+### 10.2 缓存机制
 
 **Q: Glide 的缓存机制是怎样的？**
 
@@ -1425,7 +1370,7 @@ public void onViewRecycled(ViewHolder holder) {
 
 查找顺序：活动资源 → 内存缓存 → 磁盘缓存 → 网络
 
-### 13.3 OOM 避免
+### 10.3 OOM 避免
 
 **Q: Glide 如何避免 OOM？**
 
@@ -1436,7 +1381,7 @@ public void onViewRecycled(ViewHolder holder) {
 4. 生命周期管理自动释放
 5. 内存缓存大小限制
 
-### 13.4 与 Picasso 区别
+### 10.4 与 Picasso 区别
 
 **Q: Glide 与 Picasso 的区别？**
 
@@ -1448,7 +1393,7 @@ public void onViewRecycled(ViewHolder holder) {
 | GIF 支持 | 原生支持 | 不支持 |
 | Bitmap 复用 | 支持 | 不支持 |
 
-### 13.5 高清图加载
+### 10.5 高清图加载
 
 **Q: 如何让 Glide 加载高清图？**
 
@@ -1461,7 +1406,7 @@ Glide.with(context)
     .into(imageView);
 ```
 
-### 13.6 圆角实现
+### 10.6 圆角实现
 
 **Q: Glide 如何实现圆角图片？**
 
@@ -1473,7 +1418,7 @@ Glide.with(context)
     .into(imageView);
 ```
 
-### 13.7 请求取消
+### 10.7 请求取消
 
 **Q: Glide 如何取消请求？**
 
@@ -1482,7 +1427,7 @@ Glide.with(context)
 Glide.with(context).clear(imageView);
 ```
 
-### 13.8 预加载
+### 10.8 预加载
 
 **Q: Glide 如何实现图片预加载？**
 
@@ -1493,7 +1438,7 @@ Glide.with(context)
     .preload(width, height);
 ```
 
-### 13.9 缓存 Key
+### 10.9 缓存 Key
 
 **Q: Glide 的缓存 Key 由什么决定？**
 
@@ -1504,7 +1449,7 @@ Glide.with(context)
 - 变换（transformations）
 - 配置选项（options）
 
-### 13.10 进度监听
+### 10.10 进度监听
 
 **Q: 如何监听 Glide 的加载进度？**
 
@@ -1516,9 +1461,9 @@ Glide.with(context)
 
 ---
 
-## 第 14 章 Fresco 概述
+## 第 11 章 Fresco 概述
 
-### 14.1 什么是 Fresco？
+### 11.1 什么是 Fresco？
 
 **Fresco** 是 Facebook 开源的 Android 图片加载库，专注于高性能和内存优化。
 
@@ -1543,7 +1488,7 @@ Glide.with(context)
 └───────────────┘      └───────────────┘      └───────────────┘
 ```
 
-### 14.2 核心优势
+### 11.2 核心优势
 
 ```text
 ┌──────────────────┬──────────────────────────────────────────────────────────┐
@@ -1557,7 +1502,7 @@ Glide.with(context)
 └──────────────────┴──────────────────────────────────────────────────────────┘
 ```
 
-### 14.3 添加依赖
+### 11.3 添加依赖
 
 ```gradle
 dependencies {
@@ -1574,7 +1519,7 @@ dependencies {
 }
 ```
 
-### 14.4 初始化配置
+### 11.4 初始化配置
 
 ```java
 // 在 Application 中初始化
@@ -1604,9 +1549,9 @@ public class MyApplication extends Application {
 
 ---
 
-## 第 15 章 Fresco 基本使用
+## 第 12 章 Fresco 基本使用
 
-### 15.1 SimpleDraweeView
+### 12.1 SimpleDraweeView
 
 ```xml
 <!-- 在 XML 中使用 -->
@@ -1618,7 +1563,7 @@ public class MyApplication extends Application {
     fresco:roundAsCircle="true" />
 ```
 
-### 15.2 加载网络图片
+### 12.2 加载网络图片
 
 ```java
 // 基础用法
@@ -1640,7 +1585,7 @@ DraweeController controller = Fresco.newDraweeControllerBuilder()
 draweeView.setController(controller);
 ```
 
-### 15.3 加载本地图片
+### 12.3 加载本地图片
 
 ```java
 // 加载资源 ID
@@ -1656,7 +1601,7 @@ Uri contentUri = Uri.parse("content://media/external/images/media/1");
 draweeView.setImageURI(contentUri);
 ```
 
-### 15.4 占位图和进度条
+### 12.4 占位图和进度条
 
 ```xml
 <com.facebook.drawee.view.SimpleDraweeView
@@ -1668,7 +1613,7 @@ draweeView.setImageURI(contentUri);
     fresco:failureImage="@drawable/error" />
 ```
 
-### 15.5 加载 GIF
+### 12.5 加载 GIF
 
 ```java
 // 自动播放 GIF
@@ -1683,7 +1628,7 @@ DraweeController controller = Fresco.newDraweeControllerBuilder()
 draweeView.setController(controller);
 ```
 
-### 15.6 图片缩放
+### 12.6 图片缩放
 
 ```java
 GenericDraweeHierarchy hierarchy = draweeView.getHierarchy();
@@ -1698,9 +1643,9 @@ hierarchy.setActualImageScaleType(ScalingUtils.ScaleType.CENTER_CROP);
 
 ---
 
-## 第 16 章 Fresco 核心概念
+## 第 13 章 Fresco 核心概念
 
-### 16.1 DraweeView
+### 13.1 DraweeView
 
 ```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -1718,7 +1663,7 @@ DraweeView (继承自 ImageView)
     └── overlayImage         (覆盖图)
 ```
 
-### 16.2 DraweeController
+### 13.2 DraweeController
 
 ```java
 // DraweeController 负责图片加载的控制
@@ -1729,7 +1674,7 @@ DraweeController controller = Fresco.newDraweeControllerBuilder()
     .build();
 ```
 
-### 16.3 DraweeHierarchy
+### 13.3 DraweeHierarchy
 
 ```java
 // DraweeHierarchy 负责图片的显示层级
@@ -1741,14 +1686,15 @@ GenericDraweeHierarchy hierarchy = GenericDraweeHierarchyBuilder
     .build();
 ```
 
-### 16.4 ImagePipeline
+### 13.4 ImagePipeline
 
 ```java
 // ImagePipeline 负责图片的加载和缓存
 ImagePipeline imagePipeline = Fresco.getImagePipeline();
 
 // 预加载
-imagePipeline.prefetchToDiskCache(uri, null);
+DataSource<Void> prefetch = imagePipeline.prefetchToDiskCache(ImageRequest.fromUri(uri), null);
+// 完成/取消时由请求所有者 close；不要创建后立即 close，否则会取消预取。
 
 // 清除缓存
 imagePipeline.clearMemoryCaches();
@@ -1757,9 +1703,9 @@ imagePipeline.clearDiskCaches();
 
 ---
 
-## 第 17 章 Fresco 缓存机制
+## 第 14 章 Fresco 缓存机制
 
-### 17.1 三级缓存架构
+### 14.1 三级缓存架构
 
 ```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -1787,7 +1733,7 @@ imagePipeline.clearDiskCaches();
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 17.2 内存缓存
+### 14.2 内存缓存
 
 ```java
 // 配置内存缓存
@@ -1807,7 +1753,7 @@ ImagePipelineConfig config = ImagePipelineConfig.newBuilder(this)
     .build();
 ```
 
-### 17.3 磁盘缓存
+### 14.3 磁盘缓存
 
 ```java
 // 配置磁盘缓存
@@ -1821,7 +1767,7 @@ ImagePipelineConfig config = ImagePipelineConfig.newBuilder(this)
     .build();
 ```
 
-### 17.4 缓存配置
+### 14.4 缓存配置
 
 ```java
 // 清除缓存
@@ -1836,9 +1782,9 @@ boolean inDiskCache = imagePipeline.isInDiskCache(uri);
 
 ---
 
-## 第 18 章 Fresco 高级功能
+## 第 15 章 Fresco 高级功能
 
-### 18.1 渐进式 JPEG
+### 15.1 渐进式 JPEG
 
 ```java
 // 支持渐进式 JPEG
@@ -1852,7 +1798,7 @@ DraweeController controller = Fresco.newDraweeControllerBuilder()
     .build();
 ```
 
-### 18.2 图片加载监听
+### 15.2 图片加载监听
 
 ```java
 ControllerListener listener = new BaseControllerListener() {
@@ -1878,7 +1824,7 @@ DraweeController controller = Fresco.newDraweeControllerBuilder()
     .build();
 ```
 
-### 18.3 自定义 DataSource
+### 15.3 自定义 DataSource
 
 ```java
 // 自定义数据源
@@ -1887,8 +1833,8 @@ DataSource<CloseableReference<CloseableImage>> dataSource =
 
 dataSource.subscribe(new BaseBitmapDataSubscriber() {
     @Override
-    protected void onNewResultImpl(Bitmap bitmap) {
-        // 处理 Bitmap
+    protected void onNewResultImpl(@Nullable Bitmap bitmap) {
+        // 仅在本次回调内同步使用；可能为 null。不要保存借用的 Bitmap 异步使用。
     }
 
     @Override
@@ -1898,7 +1844,9 @@ dataSource.subscribe(new BaseBitmapDataSubscriber() {
 }, UiThreadImmediateExecutorService.getInstance());
 ```
 
-### 18.4 后处理器
+`BaseBitmapDataSubscriber.onNewResultImpl` 在回调的 finally 中关闭图片引用，回调提供的 Bitmap 不转移所有权；要长期使用，必须按所有权复制或持有自己管理的有效引用。页面取消时关闭 DataSource。源码：[Fresco 3.1.3 BaseBitmapDataSubscriber](https://github.com/facebook/fresco/blob/v3.1.3/imagepipeline/src/main/java/com/facebook/imagepipeline/datasource/BaseBitmapDataSubscriber.java)、[ImagePipeline.prefetchToDiskCache](https://github.com/facebook/fresco/blob/v3.1.3/imagepipeline/src/main/java/com/facebook/imagepipeline/core/ImagePipeline.java)。
+
+### 15.4 后处理器
 
 ```java
 // 后处理器：对加载的图片进行处理
@@ -1909,10 +1857,10 @@ Postprocessor postprocessor = new BasePostprocessor() {
     }
 
     @Override
-    public CloseableReference<Bitmap> process(Bitmap sourceBitmap, PlatformBitmapFactory bitmapFactory) {
-        // 模糊处理
-        Bitmap blurredBitmap = blurBitmap(sourceBitmap);
-        return CloseableReference.of(blurredBitmap);
+    public void process(Bitmap destBitmap, Bitmap sourceBitmap) {
+        // BasePostprocessor 分配/管理目标 Bitmap；业务算法只写入目标。
+        // blurInto 是需自行实现的像素算法，不是 Fresco API。
+        blurInto(sourceBitmap, destBitmap);
     }
 };
 
@@ -1922,7 +1870,7 @@ ImageRequest request = ImageRequestBuilder
     .build();
 ```
 
-### 18.5 图片请求构建
+### 15.5 图片请求构建
 
 ```java
 // 复杂的图片请求
@@ -1938,19 +1886,19 @@ ImageRequest request = ImageRequestBuilder
 
 ---
 
-## 第 19 章 Fresco 性能优化
+## 第 16 章 Fresco 性能优化
 
-### 19.1 内存管理
+### 16.1 内存管理
 
 ```java
-// Fresco 使用 Ashmem 避免内存泄漏
+// Bitmap 分配位置由 Android 版本和解码配置决定；并非使用 Ashmem 就不会泄漏。
 // 配置内存策略
 ImagePipelineConfig config = ImagePipelineConfig.newBuilder(this)
     .setBitmapsConfig(Bitmap.Config.RGB_565)  // 使用 565 节省内存
     .build();
 ```
 
-### 19.2 图片解码优化
+### 16.2 图片解码优化
 
 ```java
 // 使用合适的解码配置
@@ -1960,7 +1908,7 @@ ImageRequest request = ImageRequestBuilder
     .build();
 ```
 
-### 19.3 网络优化
+### 16.3 网络优化
 
 ```java
 // 使用 OkHttp 网络
@@ -1969,7 +1917,7 @@ ImagePipelineConfig config = ImagePipelineConfig.newBuilder(this)
     .build();
 ```
 
-### 19.4 列表优化
+### 16.4 列表优化
 
 ```java
 // RecyclerView 中使用
@@ -1982,9 +1930,9 @@ public void onViewRecycled(ViewHolder holder) {
 
 ---
 
-## 第 20 章 Fresco 面试常见问题
+## 第 17 章 Fresco 面试常见问题
 
-### 20.1 Fresco vs Glide
+### 17.1 Fresco vs Glide
 
 **Q: Fresco 和 Glide 的区别？**
 
@@ -1998,25 +1946,25 @@ public void onViewRecycled(ViewHolder holder) {
 | 易用性 | 较复杂 | 简单 |
 | UI 组件 | SimpleDraweeView | 任意 ImageView |
 
-### 20.2 内存管理优势
+### 17.2 内存管理优势
 
 **Q: Fresco 的内存管理优势？**
 
 **A:** Fresco 使用 Ashmem（匿名共享内存）和 Native 堆存储图片，不占用 Java 堆内存，避免 OOM。
 
-### 20.3 DraweeHierarchy
+### 17.3 DraweeHierarchy
 
 **Q: DraweeHierarchy 的作用？**
 
 **A:** DraweeHierarchy 管理图片的显示层级，包括占位图、进度条、实际图片、失败图等。
 
-### 20.4 渐进式加载
+### 17.4 渐进式加载
 
 **Q: Fresco 如何实现渐进式加载？**
 
 **A:** Fresco 原生支持渐进式 JPEG，通过网络逐步接收数据并渲染。
 
-### 20.5 在 RecyclerView 中使用
+### 17.5 在 RecyclerView 中使用
 
 **Q: Fresco 在 RecyclerView 中如何优化？**
 
@@ -2035,9 +1983,9 @@ public void onViewRecycled(ViewHolder holder) {
 
 ---
 
-## 第 21 章 MMKV 概述
+## 第 18 章 MMKV 概述
 
-### 21.1 什么是 MMKV？
+### 18.1 什么是 MMKV？
 
 **MMKV** 是腾讯开源的基于 mmap 内存映射的 key-value 组件，底层序列化/反序列化使用 protobuf 实现，性能高，稳定性强。
 
@@ -2062,7 +2010,7 @@ public void onViewRecycled(ViewHolder holder) {
 └───────────────┘      └───────────────┘      └───────────────┘
 ```
 
-### 21.2 核心优势
+### 18.2 核心优势
 
 ```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -2081,7 +2029,7 @@ public void onViewRecycled(ViewHolder holder) {
 └──────────────────┴──────────────────┴──────────────────┘
 ```
 
-### 21.3 添加依赖
+### 18.3 添加依赖
 
 ```gradle
 dependencies {
@@ -2089,7 +2037,7 @@ dependencies {
 }
 ```
 
-### 21.4 初始化配置
+### 18.4 初始化配置
 
 ```java
 // 在 Application 中初始化
@@ -2114,9 +2062,9 @@ public class MyApplication extends Application {
 
 ---
 
-## 第 22 章 MMKV 基本使用
+## 第 19 章 MMKV 基本使用
 
-### 22.1 默认实例
+### 19.1 默认实例
 
 ```java
 // 获取默认实例
@@ -2128,7 +2076,7 @@ kv.encode("age", 25);
 kv.encode("isDeveloper", true);
 ```
 
-### 22.2 数据写入
+### 19.2 数据写入
 
 ```java
 MMKV kv = MMKV.defaultMMKV();
@@ -2151,7 +2099,7 @@ byte[] userBytes = serialize(user);
 kv.encode("user", userBytes);
 ```
 
-### 22.3 数据读取
+### 19.3 数据读取
 
 ```java
 MMKV kv = MMKV.defaultMMKV();
@@ -2173,7 +2121,7 @@ byte[] userBytes = kv.decodeBytes("user");
 User user = deserialize(userBytes);
 ```
 
-### 22.4 数据删除
+### 19.4 数据删除
 
 ```java
 MMKV kv = MMKV.defaultMMKV();
@@ -2191,7 +2139,7 @@ kv.clearAll();
 kv.clearMemoryCache();
 ```
 
-### 22.5 数据查询
+### 19.5 数据查询
 
 ```java
 MMKV kv = MMKV.defaultMMKV();
@@ -2211,9 +2159,9 @@ long totalSize = kv.totalSize();
 
 ---
 
-## 第 23 章 MMKV 高级用法
+## 第 20 章 MMKV 高级用法
 
-### 23.1 多进程模式
+### 20.1 多进程模式
 
 ```java
 // 多进程模式
@@ -2237,7 +2185,7 @@ try {
 }
 ```
 
-### 23.2 自定义实例
+### 20.2 自定义实例
 
 ```java
 // 创建自定义实例
@@ -2255,7 +2203,7 @@ customKV.encode("key", "value");
 String value = customKV.decodeString("key", "");
 ```
 
-### 23.3 数据迁移
+### 20.3 数据迁移
 
 迁移过程应当可重复执行：先停止旧存储的新写入，读旧值并写入新存储，逐项检查成功后再写迁移标志。失败保留旧数据，下次启动继续；不要导入后立即清空唯一副本。
 
@@ -2279,7 +2227,7 @@ public static boolean migrateSettings(android.content.SharedPreferences oldPrefs
 
 源码：[MMKV 1.3.3 Java API](https://github.com/Tencent/MMKV/blob/v1.3.3/Android/MMKV/mmkv/src/main/java/com/tencent/mmkv/MMKV.java)。
 
-### 23.4 数据备份
+### 20.4 数据备份
 
 MMKV 的 key 列表不包含能让业务无损还原任意值的类型 schema；不能遍历后把所有值都 `decodeString`。文件级备份使用库的备份 API，逻辑导出则由业务 schema 明确类型、版本和默认值。
 
@@ -2296,7 +2244,7 @@ if (!restored) throw new java.io.IOException("MMKV 恢复失败");
 
 源码：[MMKV 1.3.3 备份/恢复 API](https://github.com/Tencent/MMKV/blob/v1.3.3/Android/MMKV/mmkv/src/main/java/com/tencent/mmkv/MMKV.java)。
 
-### 23.5 数据加密
+### 20.5 数据加密
 
 MMKV 加密保护文件内容，不替代身份验证，也不是 Android Keystore。密钥不写死在源码、资源或日志中；由应用自己的密钥管理策略提供，并处理密钥丢失后的数据重建。
 
@@ -2312,9 +2260,9 @@ public static void rotateKey(com.tencent.mmkv.MMKV store, String nextKey) {
 
 源码：[MMKV 1.3.3](https://github.com/Tencent/MMKV/tree/v1.3.3)、[Android Keystore](https://developer.android.com/privacy-and-security/keystore)。
 
-## 第 24 章 MMKV 核心原理
+## 第 21 章 MMKV 核心原理
 
-### 24.1 内存映射
+### 21.1 内存映射
 
 ```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -2362,7 +2310,7 @@ public static void rotateKey(com.tencent.mmkv.MMKV store, String nextKey) {
  */
 ```
 
-### 24.2 数据编码
+### 21.2 数据编码
 
 ```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -2417,7 +2365,7 @@ public static void rotateKey(com.tencent.mmkv.MMKV store, String nextKey) {
  */
 ```
 
-### 24.3 文件结构
+### 21.3 文件结构
 
 ```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -2453,7 +2401,7 @@ public static void rotateKey(com.tencent.mmkv.MMKV store, String nextKey) {
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 24.4 数据同步
+### 21.4 数据同步
 
 ```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -2473,17 +2421,17 @@ public static void rotateKey(com.tencent.mmkv.MMKV store, String nextKey) {
 │   2. 同步时机                                                                │
 │      - 立即同步：sync() 方法                                                │
 │      - 自动同步：操作系统定期同步                                           │
-│      - 进程退出：操作系统保证数据落盘                                       │
+│      - mmap 脏页回写不构成断电持久性保证                                       │
 │                                                                             │
 │   3. 崩溃保护                                                                │
 │      - CRC32 校验：检测数据损坏                                             │
-│      - 写前日志：关键操作前记录日志                                         │
-│      - 原子写入：保证单个 key-value 的原子性                               │
+│      - 追加编码与 CRC 元数据：不是数据库式 WAL 事务                                         │
+│      - 写入/同步/恢复是不同边界，不承诺任意故障下原子提交                               │
 │                                                                             │
 │   4. 多进程同步                                                              │
 │      - 文件锁：保证多进程安全                                               │
 │      - 内存屏障：保证可见性                                                 │
-│      - 回调通知：数据变化时通知其他进程                                     │
+│      - 读取/显式检查时发现其他进程变化，再回调当前进程                                     │
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -2499,187 +2447,94 @@ kv.sync();
 // 异步同步
 kv.async();
 
-// 检查是否需要同步
-boolean needSync = kv.needSync();
-
-// 注册内容变化监听
-kv.registerContentChangeListener(new MMKVContentChangeListener() {
+// v1.3.3 没有 needSync()，也没有实例级 ContentChangeListener。
+// 进程级唯一通知入口；在统一存储管理者中注册/注销。
+MMKV.registerContentChangeNotify(new MMKVContentChangeNotification() {
     @Override
-    public void onContentChanged(MMKV mmkv) {
-        // 数据发生变化
-        Log.d("MMKV", "Data changed");
+    public void onContentChangedByOuterProcess(String mmapID) {
+        Log.d("MMKV", "Changed by another process: " + mmapID);
+        // 不假定在 UI 线程；需要更新 UI 时切回主线程并检查 owner。
     }
 });
-
-// 取消监听
-kv.unregisterContentChangeListener(listener);
+kv.checkContentChangedByOuterProcess(); // 不是后台自动推送服务。
+// 存储管理者结束监听时：
+MMKV.unregisterContentChangeNotify();
 ```
 
 ---
 
-## 第 25 章 MMKV 源码解析
+## 第 22 章 MMKV 源码解析
 
-### 25.1 初始化流程
+### 22.1 初始化流程
 
-```java
-/**
- * MMKV 初始化流程
- */
-public static String initialize(Context context) {
-    // 1. 获取根目录
-    String rootDir = context.getFilesDir().getAbsolutePath() + "/mmkv";
+以下调用链固定到 MMKV **v1.3.3**，省略不影响说明的重载分支：
 
-    // 2. 创建目录
-    File file = new File(rootDir);
-    if (!file.exists()) {
-        file.mkdirs();
-    }
+```text
+MMKV.initialize(Context, ...)
+  → doInitialize(rootDir, cacheDir, loader, logLevel, wantLogReDirecting)
+  → LibLoader.loadLibrary 或 System.loadLibrary("mmkv")
+  → jniInitialize(rootDir, cacheDir, logLevel, wantLogReDirecting)
+  → native-bridge.cpp 的 RegisterNatives 映射到 mmkv::jniInitialize_2
+  → native 初始化全局目录/环境
 
-    // 3. 初始化 native 层
-    nativeInitialize(rootDir);
-
-    return rootDir;
-}
-
-// Native 层初始化
-private static native void nativeInitialize(String rootDir);
-
-/*
-C++ 实现：
-JNIEXPORT void JNICALL Java_com_tencent_mmkv_MMKV_nativeInitialize(JNIEnv *env, jclass type, jstring rootDir) {
-    // 1. 设置根目录
-    MMKV::initializeMMKV(rootDir);
-
-    // 2. 初始化线程锁
-    // 3. 初始化日志系统
-    // 4. 加载已存在的 MMKV 实例
-}
-*/
+MMKV.mmkvWithID(...) / defaultMMKV()
+  → 获取对应 native 实例句柄，再由 Java MMKV 保存 nativeHandle
 ```
 
-### 25.2 写入流程
+初始化环境与打开特定 mmap 实例是两个步骤，不会在 `initialize` 中把所有历史实例都加载完成。Java API 的 native 方法通过注册表绑定，不是文中旧示意的 `Java_com_tencent_mmkv_MMKV_nativeInitialize` 静态命名实现。
 
-```java
-/**
- * 数据写入流程
- */
-public boolean encode(String key, String value) {
-    // 1. 检查 key 是否为空
-    if (key == null) {
-        return false;
-    }
+### 22.2 写入流程
 
-    // 2. 调用 native 方法
-    return nativeEncodeString(mHandle, key, value);
-}
-
-/*
-C++ 实现：
-JNIEXPORT jboolean JNICALL Java_com_tencent_mmkv_MMKV_nativeEncodeString(JNIEnv *env, jobject instance, jlong handle, jstring key, jstring value) {
-    MMKV *kv = reinterpret_cast<MMKV *>(handle);
-
-    // 1. 加锁
-    kv->lock();
-
-    // 2. 序列化数据
-    ProtobufCoder coder;
-    coder.encodeString(key, value);
-
-    // 3. 写入内存
-    kv->writeData(coder.buffer(), coder.size());
-
-    // 4. 更新 CRC32
-    kv->updateCRC32();
-
-    // 5. 解锁
-    kv->unlock();
-
-    return true;
-}
-*/
+```text
+MMKV.encode(key, String value)
+  → encodeString(nativeHandle, key, value)
+  → native-bridge.cpp: mmkv::encodeString
+  → MMKV::set(value, key)
+  → MMKV::setDataForKey(...)
+       进程内锁 + 多进程独占锁
+       checkLoadData：检查映射和跨进程元数据
+       编码/追加记录、维护内存索引及 CRC/长度元数据
 ```
 
-### 25.3 读取流程
+字符串的 Java 重载实际调用 `encodeString(nativeHandle, key, value)`；不是 `nativeEncodeString(mHandle, ...)`。C++ 字符串路径把数据交给 `setDataForKey`，并非先造一个虚构 `ProtobufCoder` 再调用 `writeData`。返回 false 必须交给业务处理；多个 `encode` 组合不自动成为一笔数据库事务。
 
-```java
-/**
- * 数据读取流程
- */
-public String decodeString(String key, String defaultValue) {
-    // 1. 检查 key 是否为空
-    if (key == null) {
-        return defaultValue;
-    }
+### 22.3 读取流程
 
-    // 2. 调用 native 方法
-    return nativeDecodeString(mHandle, key, defaultValue);
-}
-
-/*
-C++ 实现：
-JNIEXPORT jstring JNICALL Java_com_tencent_mmkv_MMKV_nativeDecodeString(JNIEnv *env, jobject instance, jlong handle, jstring key, jstring defaultValue) {
-    MMKV *kv = reinterpret_cast<MMKV *>(handle);
-
-    // 1. 查找 key
-    int offset = kv->findKey(key);
-    if (offset < 0) {
-        return defaultValue;
-    }
-
-    // 2. 读取数据
-    ProtobufDecoder decoder(kv->memoryBuffer() + offset);
-    String value = decoder.decodeString();
-
-    return value;
-}
-*/
+```text
+MMKV.decodeString(key, defaultValue)
+  → decodeString(nativeHandle, key, defaultValue)
+  → native-bridge.cpp: mmkv::decodeString
+  → MMKV::getString(key, result, ...)
+       进程内锁 + 共享进程锁
+       getDataForKey / checkLoadData
+       按编码格式解出字符串；失败返回默认值
 ```
 
-### 25.4 数据压缩
+读取不是裸指针 `memoryBuffer()+findKey(key)`。跨进程变化检测、映射有效性及解码异常都参与读取；业务若必须区分“缺失”和“值为空”，应组合 `containsKey` 与自己的 schema，不让默认值吞掉协议差异。
+
+固定源码：[MMKV.java](https://github.com/Tencent/MMKV/blob/v1.3.3/Android/MMKV/mmkv/src/main/java/com/tencent/mmkv/MMKV.java)、[native-bridge.cpp 注册表](https://github.com/Tencent/MMKV/blob/v1.3.3/Android/MMKV/mmkv/src/main/cpp/native-bridge.cpp)、[Core/MMKV.cpp set/getString/sync](https://github.com/Tencent/MMKV/blob/v1.3.3/Core/MMKV.cpp)、[Core/MMKV_IO.cpp setDataForKey/checkLoadData](https://github.com/Tencent/MMKV/blob/v1.3.3/Core/MMKV_IO.cpp)。
+
+### 22.4 数据压缩
+
+这里的“压缩”是记录整理和缩减映射文件，不是 gzip 压缩算法。更新同一个 key 可能追加新记录，整理通过 `fullWriteback` 重写有效数据；`trim()` 在锁内检查/整理后尝试缩小文件，并不是固定的“写临时文件后原子替换”。
 
 ```java
-/**
- * 数据压缩机制
- *
- * 1. 触发时机
- *    - 数据量达到阈值
- *    - 文件碎片过多
- *    - 手动调用 trim()
- *
- * 2. 压缩流程
- *    - 遍历所有 key-value
- *    - 重新序列化
- *    - 写入新文件
- *    - 替换旧文件
- */
-
-// 手动触发压缩
+// 在后台、业务低峰按存储策略执行；v1.3.3 不提供 needTrim()。
+long before = kv.totalSize();
 kv.trim();
-
-// 检查是否需要压缩
-boolean needTrim = kv.needTrim();
-
-// 压缩示例
-public void performTrim() {
-    MMKV kv = MMKV.defaultMMKV();
-
-    // 检查碎片率
-    long totalSize = kv.totalSize();
-    long actualSize = kv.actualSize();
-    float fragmentation = 1.0f - (float) actualSize / totalSize;
-
-    // 碎片率超过 30% 时压缩
-    if (fragmentation > 0.3f) {
-        kv.trim();
-    }
-}
+long after = kv.totalSize();
+Log.d("MMKV", "File size: " + before + " -> " + after);
 ```
+
+`actualSize()/totalSize()` 反映已用编码区与文件容量的比例，已用区可能仍含被覆盖的历史记录，不能直接拿 `1 - actualSize/totalSize` 当作“失效记录碎片率”。只有频率、写入量与真实耗时支持时才安排整理，避免每次 encode 后 trim。
+
+源码：[MMKV_IO.cpp `trim/fullWriteback`](https://github.com/Tencent/MMKV/blob/v1.3.3/Core/MMKV_IO.cpp)、[MMKVContentChangeNotification](https://github.com/Tencent/MMKV/blob/v1.3.3/Android/MMKV/mmkv/src/main/java/com/tencent/mmkv/MMKVContentChangeNotification.java)。
 
 ---
 
-## 第 26 章 MMKV 性能优化
+## 第 23 章 MMKV 性能优化
 
-### 26.1 写入优化
+### 23.1 写入优化
 
 ```java
 /**
@@ -2726,7 +2581,7 @@ public void avoidFrequentWrite() {
 }
 ```
 
-### 26.2 读取优化
+### 23.2 读取优化
 
 ```java
 /**
@@ -2772,7 +2627,7 @@ public void preloadData() {
 }
 ```
 
-### 26.3 内存优化
+### 23.3 内存优化
 
 ```java
 /**
@@ -2816,7 +2671,7 @@ public void compressData() {
 }
 ```
 
-### 26.4 多进程优化
+### 23.4 多进程优化
 
 MMKV 1.3.3 使用 `trim()` 回收冗余空间，使用静态 `registerContentChangeNotify(MMKVContentChangeNotification)` 注册进程间变更通知。通知由本进程访问或主动检查触发，不是无需访问的自动推送。访问同一文件的进程必须使用一致的 ID、根路径、加密配置和多进程模式。
 
@@ -2877,9 +2732,9 @@ public void avoidFrequentSync() {
 
 ---
 
-## 第 27 章 MMKV vs SharedPreferences
+## 第 24 章 MMKV vs SharedPreferences
 
-### 27.1 性能对比
+### 24.1 性能对比
 
 ```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -2932,7 +2787,7 @@ public class PerformanceTest {
 }
 ```
 
-### 27.2 功能对比
+### 24.2 功能对比
 
 ```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -2955,7 +2810,7 @@ public class PerformanceTest {
 └──────────────────┴──────────────────┴──────────────────┘
 ```
 
-### 27.3 迁移指南
+### 24.3 迁移指南
 
 ```java
 /**
@@ -3024,9 +2879,9 @@ public class MigrationHelper {
 
 ---
 
-## 第 28 章 MMKV 面试常见问题
+## 第 25 章 MMKV 面试常见问题
 
-### 28.1 MMKV 原理
+### 25.1 MMKV 原理
 
 **Q: MMKV 的核心原理是什么？**
 
@@ -3036,7 +2891,7 @@ public class MigrationHelper {
 2. **Protobuf 序列化**：使用 Protobuf 进行数据编码，压缩率高、速度快
 3. **文件锁**：多进程安全访问
 
-### 28.2 多进程安全
+### 25.2 多进程安全
 
 **Q: MMKV 如何保证多进程安全？**
 
@@ -3058,7 +2913,7 @@ try {
 }
 ```
 
-### 28.3 数据丢失
+### 25.3 数据丢失
 
 **Q: MMKV 会丢失数据吗？**
 
@@ -3072,7 +2927,7 @@ try {
 - 重要数据使用 `sync()` 立即同步
 - 定期备份关键数据
 
-### 28.4 与 SP 区别
+### 25.4 与 SP 区别
 
 **Q: MMKV 和 SharedPreferences 的主要区别？**
 
@@ -3086,7 +2941,7 @@ try {
 | 空间 | 小 | 大 |
 | 类型 | 全类型 | 基本类型 |
 
-### 28.5 适用场景
+### 25.5 适用场景
 
 **Q: MMKV 的适用场景？**
 
@@ -3109,9 +2964,9 @@ try {
 
 ---
 
-## 第 29 章 图片加载库对比
+## 第 26 章 图片加载库对比
 
-### 29.1 核心功能对比表
+### 26.1 核心功能对比表
 
 ```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -3136,13 +2991,13 @@ try {
 └──────────────────┴──────────────┴──────────────┴──────────────┴──────────────┘
 ```
 
-### 29.2 性能对比
+### 26.2 性能对比
 
 ```text
 性能比较需要固定设备、刷新率、素材、分辨率、缓存状态和构建配置；示例数字不作为库的固有结论。
 ```
 
-### 29.3 包大小对比
+### 26.3 包大小对比
 
 ```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -3159,7 +3014,7 @@ try {
 └──────────────────┴──────────────┴──────────────┴──────────────┘
 ```
 
-### 29.4 学习曲线对比
+### 26.4 学习曲线对比
 
 ```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -3179,9 +3034,9 @@ try {
 
 ---
 
-## 第 30 章 选型建议
+## 第 27 章 选型建议
 
-### 30.1 Glide 适用场景
+### 27.1 Glide 适用场景
 
 ```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -3223,7 +3078,7 @@ Glide.with(context)
     .into(imageView);
 ```
 
-### 30.2 Fresco 适用场景
+### 27.2 Fresco 适用场景
 
 ```text
 ✅ **推荐使用场景**：
@@ -3259,7 +3114,7 @@ SimpleDraweeView draweeView = findViewById(R.id.image);
 draweeView.setImageURI(uri);
 ```
 
-### 30.3 MMKV 适用场景
+### 27.3 MMKV 适用场景
 
 ```text
 ✅ **推荐使用场景**：
@@ -3296,9 +3151,9 @@ String token = kv.decodeString("token", "");
 
 ---
 
-## 第 31 章 迁移指南
+## 第 28 章 迁移指南
 
-### 31.1 SharedPreferences → MMKV
+### 28.1 SharedPreferences → MMKV
 
 迁移按“停止旧写入 → 复制并校验 → 设置迁移标志 → 切换读取 → 延迟清理旧数据”执行，第 20.3 节给出了可重试实现。对多进程应用，所有进程必须使用相同 mmap ID 和多进程模式，不能只升级主进程的读取路径。
 
@@ -3312,7 +3167,7 @@ android.content.SharedPreferences old = getSharedPreferences("settings", MODE_PR
 
 迁移验收覆盖空数据、旧字段类型变化、部分写入失败、进程中断、重复启动及回滚。导入成功不能替代逐项读取验证。
 
-### 31.2 Picasso → Glide
+### 28.2 Picasso → Glide
 
 ```java
 /**
@@ -3335,7 +3190,7 @@ Glide.with(context)
     .into(imageView);
 ```
 
-### 31.3 Glide → Fresco
+### 28.3 Glide → Fresco
 
 ```java
 /**

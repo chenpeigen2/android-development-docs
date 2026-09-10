@@ -1,5 +1,8 @@
 # Android 插件化详解
 
+> 审阅基线：AOSP `android-17.0.0_r1`；审阅日期：2026-09-10。正文中的调用链为固定 tag 的关键路径分析，省略代码不是可独立编译的完整 AOSP 类；产品开关、权限和设备结果另行验证。
+
+
 > 作者：OpenClaw | 日期：2026-03-12  
 > 插件化架构完全指南 | 动态加载、类加载、资源加载、四大组件插件化
 
@@ -7,86 +10,37 @@
 
 ## 📚 目录
 
-### 第一篇：插件化基础
-
-**第 1 章 插件化概述**
-- 1.1 [什么是插件化](#11-什么是插件化)
-- 1.2 [插件化 vs 组件化](#12-插件化-vs-组件化)
-- 1.3 [插件化 vs 热修复](#13-插件化-vs-热修复)
-- 1.4 [应用场景](#14-应用场景)
-- 1.5 [主流框架对比](#15-主流框架对比)
-
-**第 2 章 插件化原理**
-- 2.1 [ClassLoader 机制](#21-classloader-机制)
-- 2.2 [双亲委派模型](#22-双亲委派模型)
-- 2.3 [DexClassLoader 与 PathClassLoader](#23-dexclassloader-与-pathclassloader)
-- 2.4 [类加载流程](#24-类加载流程)
-
-**第 3 章 资源加载**
-- 3.1 [Android 资源编译](#31-android-资源编译)
-- 3.2 [Resources 与 AssetManager](#32-resources-与-assetmanager)
-- 3.3 [插件资源加载方案](#33-插件资源加载方案)
-- 3.4 [资源冲突解决](#34-资源冲突解决)
-
-**第 4 章 四大组件插件化**
-- 4.1 [Activity 插件化](#41-activity-插件化)
-- 4.2 [Service 插件化](#42-service-插件化)
-- 4.3 [BroadcastReceiver 插件化](#43-broadcastreceiver-插件化)
-- 4.4 [ContentProvider 插件化](#44-contentprovider-插件化)
-
----
-
-### 第二篇：插件化实现
-
-**第 5 章 Activity 插件化详解**
-- 5.1 [Activity 启动流程](#51-activity-启动流程)
-- 5.2 [Hook IActivityManager](#52-hook-iactivitymanager)
-- 5.3 [占坑 Activity 方案](#53-占坑-activity-方案)
-- 5.4 [启动插件 Activity](#54-启动插件-activity)
-
-**第 6 章 Service 插件化详解**
-- 6.1 [Service 启动流程](#61-service-启动流程)
-- 6.2 [代理 Service 方案](#62-代理-service-方案)
-- 6.3 [动态代理实现](#63-动态代理实现)
-
-**第 7 章 插件加载框架**
-- 7.1 [插件 APK 加载](#71-插件-apk-加载)
-- 7.2 [插件生命周期管理](#72-插件生命周期管理)
-- 7.3 [插件通信机制](#73-插件通信机制)
-- 7.4 [插件依赖管理](#74-插件依赖管理)
-
-**第 8 章 主流框架源码分析**
-- 8.1 [RePlugin 架构分析](#81-replugin-架构分析)
-- 8.2 [VirtualAPK 架构分析](#82-virtualapk-架构分析)
-- 8.3 [Shadow 架构分析](#83-shadow-架构分析)
-- 8.4 [框架对比与选型](#84-框架对比与选型)
-
----
-
-### 第三篇：插件化实战
-
-**第 9 章 插件化项目实战**
-- 9.1 [项目架构设计](#91-项目架构设计)
-- 9.2 [宿主与插件开发](#92-宿主与插件开发)
-- 9.3 [插件打包与发布](#93-插件打包与发布)
-- 9.4 [插件版本管理](#94-插件版本管理)
-
-**第 10 章 插件化踩坑指南**
-- 10.1 [常见问题与解决方案](#101-常见问题与解决方案)
-- 10.2 [兼容性问题](#102-兼容性问题)
-- 10.3 [性能优化](#103-性能优化)
-- 10.4 [调试技巧](#104-调试技巧)
-
----
-
-### 第四篇：面试指南
-
-**第 11 章 面试常见问题**
-- 11.1 [插件化原理](#111-插件化原理)
-- 11.2 [类加载机制](#112-类加载机制)
-- 11.3 [资源加载](#113-资源加载)
-- 11.4 [组件插件化](#114-组件插件化)
-- 11.5 [框架对比](#115-框架对比)
+- [第一篇：插件化基础](#第一篇插件化基础)
+- [第 1 章 插件化概述](#第-1-章-插件化概述)
+  - [1.1 什么是插件化](#11-什么是插件化)
+  - [1.2 插件化 vs 组件化](#12-插件化-vs-组件化)
+  - [1.3 插件化 vs 热修复](#13-插件化-vs-热修复)
+  - [1.4 应用场景](#14-应用场景)
+  - [1.5 插件架构对比与选型边界](#15-插件架构对比与选型边界)
+- [第 2 章 插件化原理](#第-2-章-插件化原理)
+  - [2.1 ClassLoader 机制](#21-classloader-机制)
+  - [2.2 双亲委派模型](#22-双亲委派模型)
+  - [2.3 DexClassLoader 与 PathClassLoader](#23-dexclassloader-与-pathclassloader)
+  - [2.4 类加载流程](#24-类加载流程)
+- [第 3 章 资源加载](#第-3-章-资源加载)
+  - [3.1 Android 资源编译](#31-android-资源编译)
+  - [3.2 Resources 与 AssetManager](#32-resources-与-assetmanager)
+  - [3.3 插件资源加载方案](#33-插件资源加载方案)
+    - [独立资源上下文与 loader 生命周期](#独立资源上下文与-loader-生命周期)
+    - [ContextWrapper 不只需要改 getResources](#contextwrapper-不只需要改-getresources)
+    - [合并资源与隔离资源的取舍](#合并资源与隔离资源的取舍)
+  - [3.4 资源冲突解决](#34-资源冲突解决)
+- [第 4 章 四大组件插件化](#第-4-章-四大组件插件化)
+  - [4.1 Activity 插件化](#41-activity-插件化)
+  - [4.2 Service 插件化](#42-service-插件化)
+  - [4.3 BroadcastReceiver 插件化](#43-broadcastreceiver-插件化)
+  - [4.4 ContentProvider 插件化](#44-contentprovider-插件化)
+- [第 5 章 Activity 插件化详解](#第-5-章-activity-插件化详解)
+  - [5.1 Activity 启动流程（Android 17）](#51-activity-启动流程android-17)
+  - [5.2 hidden hook 为什么不是通用可行方案](#52-hidden-hook-为什么不是通用可行方案)
+  - [5.3 占坑 Activity 方案](#53-占坑-activity-方案)
+  - [5.4 方案选择](#54-方案选择)
+    - [生命周期与更新回滚的完整性要求](#生命周期与更新回滚的完整性要求)
 
 ---
 
@@ -98,7 +52,7 @@
 
 ### 1.1 什么是插件化
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                       插件化架构                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -147,7 +101,7 @@
 
 ### 1.2 插件化 vs 组件化
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    插件化 vs 组件化                                          │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -219,7 +173,7 @@
 
 ### 1.3 插件化 vs 热修复
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    插件化 vs 热修复                                          │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -282,7 +236,7 @@
 │   特点：                                                                    │
 │   • 加载完整模块                                                            │
 │   • 插件文件大（MB 级别）                                                   │
-│   • 动态加载/卸载                                                           │
+│   • 动态加载/逻辑卸载（类回收取决于引用与进程）                                                           │
 │   • 可增加新功能                                                            │
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -303,7 +257,7 @@
 
 ### 1.4 应用场景
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                       插件化应用场景                                         │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -325,7 +279,7 @@
 
 3. 热更新/免发版
    ┌────────────────────────────────────────────────────────────────────────┐
-   │ • 快速迭代：绕过应用商店审核                                           │
+   │ • 快速迭代：遵守发布渠道政策及动态代码安全约束                                           │
    │ • 紧急修复：无需重新发版                                               │
    │ • A/B 测试：动态下发不同版本                                           │
    └────────────────────────────────────────────────────────────────────────┘
@@ -357,73 +311,31 @@
 └──────────────┴────────────────────────────────────────────────────────┘
 ```
 
-### 1.5 主流框架对比
+### 1.5 插件架构对比与选型边界
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                       主流插件化框架对比                                     │
-└─────────────────────────────────────────────────────────────────────────────┘
+RePlugin、Shadow、VirtualAPK、DynamicAPK 等名称代表不同历史实现路线，而非 Android SDK 的兼容性承诺。本文不把未经维护分支、版本和 Android 17 设备测试确认的“活跃维护”“4.0+ 全兼容”“五星稳定性”作为选型依据，也不由旧产品案例推断这些公司今天仍使用同一架构。
 
-┌──────────────┬────────────┬────────────┬────────────┬────────────┐
-│    框架      │  RePlugin  │  Shadow    │ VirtualAPK │  DynamicAPK│
-├──────────────┼────────────┼────────────┼────────────┼────────────┤
-│ 开发者       │ 360        │ 腾讯       │ 滴滴       │ 携程       │
-│ 开源         │ ✅         │ ✅         │ ✅         │ ✅         │
-│ 维护状态     │ 活跃       │ 活跃       │ 停止维护   │ 停止维护   │
-│ Activity     │ ✅         │ ✅         │ ✅         │ ✅         │
-│ Service      │ ✅         │ ✅         │ ✅         │ ❌         │
-│ Receiver     │ ✅         │ ✅         │ ✅         │ ❌         │
-│ Provider     │ ✅         │ ✅         │ ✅         │ ❌         │
-│ Android 版本 │ 4.0+       │ 5.0+       │ 4.0+       │ 4.0+       │
-│ Hook 程度    │ 深度 Hook  │ 无 Hook    │ 深度 Hook  │ 浅度 Hook  │
-│ 稳定性       │ ⭐⭐⭐⭐    │ ⭐⭐⭐⭐⭐  │ ⭐⭐⭐      │ ⭐⭐⭐      │
-│ 兼容性       │ ⭐⭐⭐      │ ⭐⭐⭐⭐⭐  │ ⭐⭐⭐      │ ⭐⭐        │
-│ 性能         │ ⭐⭐⭐⭐    │ ⭐⭐⭐⭐⭐  │ ⭐⭐⭐⭐    │ ⭐⭐⭐      │
-│ 学习曲线     │ 中等       │ 较高       │ 中等       │ 较低       │
-└──────────────┴────────────┴────────────┴────────────┴────────────┘
+应先按机制区分方案，再检查所选实现的固定 revision：
 
-框架特点：
+| 路线 | 核心机制 | Android 17 必须证明的边界 |
+|---|---|---|
+| 宿主页面控制器 | 已注册 Activity 持有插件 View/业务对象 | 重建、配置变化、资源/主题、返回与状态恢复 |
+| 组件代理/构建期变换 | 插件代码面向代理契约或经构建工具改写 | API 覆盖、字节码变换、工具链和宿主 ABI |
+| hidden hook 历史路线 | 修改 Instrumentation/系统代理/LoadedApk 等内部状态 | 非 SDK 访问、事务结构变化、系统身份与异常回滚 |
+| 独立安装 APK + IPC | 系统注册真实组件，Binder/Provider 通信 | 签名、导出、权限、版本和进程死亡 |
+| 平台内部插件 | 由系统宿主定义并加载受信接口 | 平台签名、产品许可列表和主进程故障影响 |
 
-RePlugin (360)：
-┌────────────────────────────────────────────────────────────────────────┐
-│ 优点：                                                                 │
-│ • 完整的四大组件支持                                                   │
-│ • Hook 点少，稳定性较好                                                │
-│ • 插件可独立运行                                                       │
-│ • 完善的插件管理                                                       │
-│ 缺点：                                                                 │
-│ • 框架较重，集成复杂                                                   │
-│ • 部分场景需要适配                                                     │
-└────────────────────────────────────────────────────────────────────────┘
+构建期变换不是“完全无需兼容性工作”，减少运行时反射也不代表可以忽略 ActivityResult、Fragment、Window、任务栈和新系统 API。对于需要真正组件身份的能力，安装由 PackageManager 识别的 APK 与在宿主中 new 一个类是根本不同的设计。
 
-Shadow (腾讯)：
-┌────────────────────────────────────────────────────────────────────────┐
-│ 优点：                                                                 │
-│ • 零 Hook，使用代理模式                                                │
-│ • 兼容性最好，适配 Android 高版本                                      │
-│ • 腾讯微信团队维护，稳定性高                                           │
-│ • 适合小程序场景                                                       │
-│ 缺点：                                                                 │
-│ • 学习曲线较陡                                                         │
-│ • 需要改造插件代码                                                     │
-└────────────────────────────────────────────────────────────────────────┘
+评估时应记录：宿主与插件版本矩阵、实现使用的非 SDK 点、资源命名空间与共享 ABI、插件错误是否能拖垮宿主、冷加载耗时、更新回滚和生产环境恢复手段。没有这些证据，不推荐仅按框架名称或星级选择。
 
-选型建议：
-┌────────────────────────────────────────────────────────────────────────┐
-│ • 追求稳定性和兼容性 → Shadow                                          │
-│ • 追求完整功能 → RePlugin                                              │
-│ • 已有项目改造 → RePlugin                                              │
-│ • 小程序/轻量级 → Shadow                                               │
-└────────────────────────────────────────────────────────────────────────┘
-```
-
----
+前文产品案例仅用于解释历史架构形态，不是 Android 17 已适配的产品清单。小程序也可能采用脚本或 Web 运行时，不能一概等同于 APK/Dex 插件化。
 
 ## 第 2 章 插件化原理
 
 ### 2.1 ClassLoader 机制
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    Android ClassLoader 体系                                 │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -449,7 +361,7 @@ Shadow (腾讯)：
    │   (应用类加载器)    │ │ (插件加载器) │ │   (基类)            │
    │                     │ │              │ │                     │
    │  加载应用类         │ │ 加载外部 DEX │ │ DexPathList         │
-   │  /data/app/*.apk    │ │ /sdcard/*.apk│ │ DexFile[]           │
+   │  /data/app/*.apk    │ │ 私有目录中的可信 APK│ │ DexFile[]           │
    │  classes.dex        │ │              │ │                     │
    └─────────────────────┘ └──────────────┘ └─────────────────────┘
 
@@ -477,7 +389,7 @@ ClassLoader 类图：
 │   │  PathClassLoader  │    │    DexClassLoader       │                    │
 │   ├───────────────────┤    ├─────────────────────────┤                    │
 │   │ - dexPath         │    │ - dexPath               │                    │
-│   │ - librarySearchPath│   │ - optimizedDirectory    │                    │
+│   │ - librarySearchPath│   │ - optimizedDirectory（26+ 无效）    │                    │
 │   │                   │    │ - librarySearchPath     │                    │
 │   │ 加载已安装 APK    │    │ 加载未安装 APK/DEX      │                    │
 │   └───────────────────┘    └─────────────────────────┘                    │
@@ -495,81 +407,42 @@ ClassLoader 类图：
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-**BaseDexClassLoader 源码分析**：
+**BaseDexClassLoader 源码分析（固定 tag）**：
+
+源文件为 `libcore/dalvik/src/main/java/dalvik/system/BaseDexClassLoader.java`。它不是简单地把 optimizedDirectory 传给 DexPathList：带该历史参数的构造入口已忽略它；实际构造路径先设置共享库加载器，再建立 pathList。应用包声明的共享库依赖也可能参与类查找。
+
+```text
+ClassLoader.loadClass(name)
+  -> findLoadedClass
+  -> parent.loadClass (parent-first 默认策略)
+  -> BaseDexClassLoader.findClass
+       -> sharedLibraryLoaders (若配置)
+       -> DexPathList.findClass(name, suppressedExceptions)
+       -> sharedLibraryLoadersAfter (若配置)
+       -> ClassNotFoundException + suppressed diagnostics
+```
+
+`DexPathList` 的类查找遍历 dexElements，命中后返回 Class，未命中时保留相关加载异常，方便定位文件损坏、找不到依赖等问题。文件搜索顺序、父子加载器关系和共享库路径共同决定结果，不能将它简化成“将插件 dexElements 插在宿主最前面便能安全覆盖所有类”。
 
 ```java
-// libcore/dalvik/src/main/java/dalvik/system/BaseDexClassLoader.java
-public class BaseDexClassLoader extends ClassLoader {
-    
-    // DexPathList 管理 DEX 文件列表
-    private final DexPathList pathList;
-    
-    public BaseDexClassLoader(String dexPath, File optimizedDirectory,
-            String librarySearchPath, ClassLoader parent) {
-        super(parent);
-        // 创建 DexPathList，管理所有 DEX 文件
-        this.pathList = new DexPathList(this, dexPath, librarySearchPath, 
-                null /* allowedAssertionStatus */, optimizedDirectory);
+// 等价伪代码，说明 DexPathList 查找思想，不复制其内部构造签名。
+Class<?> findInElements(String name, List<Throwable> suppressed) {
+    for (Element element : dexElements) {
+        Class<?> found = element.findClass(name, definingContext, suppressed);
+        if (found != null) return found;
     }
-    
-    @Override
-    protected Class<?> findClass(String name) throws ClassNotFoundException {
-        // 从 pathList 中查找类
-        List<Throwable> suppressedExceptions = new ArrayList<Throwable>();
-        Class c = pathList.findClass(name, suppressedExceptions);
-        if (c == null) {
-            throw new ClassNotFoundException(name);
-        }
-        return c;
-    }
+    // 实际实现还合并 dexElementsSuppressedExceptions。
+    return null;
 }
 ```
 
-**DexPathList 源码分析**：
+继承关系与委派关系要分开：PathClassLoader 和 DexClassLoader 都继承 BaseDexClassLoader，二者可以各自设置一个 parent；BootClassLoader 并不是 BaseDexClassLoader 的父类。运行中已经定义的 Class 也不会因为 APK 文件被替换而自动变成新版本。
 
-```java
-// libcore/dalvik/src/main/java/dalvik/system/DexPathList.java
-public final class DexPathList {
-    
-    // DEX 文件数组
-    private Element[] dexElements;
-    
-    // Native 库目录
-    private final List<File> nativeLibraryDirectories;
-    
-    public DexPathList(ClassLoader definingContext, String dexPath,
-            String librarySearchPath, File optimizedDirectory) {
-        // 解析 DEX 路径，创建 Element 数组
-        this.dexElements = makeDexElements(splitDexPath(dexPath), optimizedDirectory);
-    }
-    
-    public Class<?> findClass(String name, List<Throwable> suppressed) {
-        // 遍历所有 DEX Element 查找类
-        for (Element element : dexElements) {
-            Class<?> clazz = element.findClass(name, definingContext, suppressed);
-            if (clazz != null) {
-                return clazz;
-            }
-        }
-        return null;
-    }
-    
-    // Element 内部类
-    static class Element {
-        private final File path;      // DEX 文件路径
-        private final DexFile dexFile; // DexFile 对象
-        
-        public Class<?> findClass(String name, ClassLoader definingContext,
-                List<Throwable> suppressed) {
-            return dexFile != null ? dexFile.loadClassBinaryName(name, definingContext, suppressed) : null;
-        }
-    }
-}
-```
+冷加载成本包括校验、Dex/OAT 访问、类解析、静态初始化以及资源读取。应在业务允许的阶段预加载并统计耗时，但不能在任意工作线程初始化要求主线程的 UI 类型。加载器接口本身不提供线程调度保证。
 
 ### 2.2 双亲委派模型
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    双亲委派模型 (Parent Delegation)                          │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -604,13 +477,13 @@ public final class DexPathList {
 │   │   │   │   1. 检查是否已加载                                  │ │ │  │
 │   │   │   │   2. 尝试加载 Framework 类                           │ │ │  │
 │   │   │   │      └─► 找到 → 返回 Class 对象                      │ │ │  │
-│   │   │   │      └─► 未找到 → 返回 null                          │ │ │  │
+│   │   │   │      └─► loadClass 未找到抛 ClassNotFoundException；调用方处理后继续                          │ │ │  │
 │   │   │   │                                                      │ │ │  │
 │   │   │   └──────────────────────────────────────────────────────┘ │ │  │
 │   │   │                                                          │  │ │  │
 │   │   │   3. 自己加载 (findClass)                                 │◀─┘ │  │
 │   │   │      └─► 找到 → 返回                                      │    │  │
-│   │   │      └─► 未找到 → 返回 null                               │    │  │
+│   │   │      └─► loadClass 未找到抛 ClassNotFoundException；调用方处理后继续                               │    │  │
 │   │   │                                                           │    │  │
 │   │   └────────────────────────────────────────────────────────────┘    │  │
 │   │                                                                     │  │
@@ -625,96 +498,65 @@ public final class DexPathList {
 双亲委派的优势：
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │ 1. 安全性     │ 核心 API 不会被篡改 (java.lang.String 只能由 BootClassLoader 加载) │
-│ 2. 唯一性     │ 避免类重复加载，保证全局唯一                              │
+│ 2. 唯一性     │ 避免类重复加载，同一加载器内保持身份；不同加载器可定义同名类                              │
 │ 3. 层次结构   │ 类加载有明确的层次关系                                    │
 └─────────────────────────────────────────────────────────────────────────────┘
 
-插件化打破双亲委派：
+插件化不必打破双亲委派：
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│ 插件化需要加载插件中的类，但插件类不在宿主的 ClassLoader 中               │
+│ 父加载器找不到时子加载器可加载插件类；共享 API 应由父加载器定义               │
 │                                                                             │
 │ 解决方案：                                                                   │
 │ 1. DexClassLoader - 独立的 ClassLoader，加载插件 APK                       │
-│ 2. 插桩到 PathClassLoader - 将插件 DEX 插入到宿主的 dexElements            │
-│ 3. 自定义 ClassLoader - 重写 loadClass，改变委派逻辑                       │
+│ 2. 历史内部 Hook：修改宿主 dexElements，非 SDK 且不建议作为 17 通用方案            │
+│ 3. 必要时自定义委派，但要维持共享 API 类型身份；不是默认要求                       │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ### 2.3 DexClassLoader 与 PathClassLoader
 
+| 类型 | 常见场景 | 正确边界 |
+|---|---|---|
+| PathClassLoader | 系统为应用、共享库等建立加载器；SystemUI 17 插件也使用它 | 不检查“APK 是否已安装”，不能说只能加载已安装包 |
+| DexClassLoader | 应用显式加载 APK/JAR/Dex | optimizedDirectory 自 API 26 起无效，不负责安装组件 |
+| 两者共同点 | BaseDexClassLoader 路径与 native 库查找 | 均受文件访问、运行时与动态代码限制，不是沙箱 |
+
+Android 17 `DexClassLoader` 的四参数构造器接收 `optimizedDirectory`，但传给父类的对应位置为 null。保留参数是兼容旧 API，不代表应用可以用 code_cache 控制优化输出目录。
+
+```java
+// Android 17 构造器语义（摘意）：第二项被忽略。
+public DexClassLoader(String dexPath, String optimizedDirectory,
+        String librarySearchPath, ClassLoader parent) {
+    super(dexPath, null, librarySearchPath, parent);
+}
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│              DexClassLoader vs PathClassLoader                              │
-└─────────────────────────────────────────────────────────────────────────────┘
 
-PathClassLoader：
-┌─────────────────────────────────────────────────────────────────────────────┐
-│ 用途：加载已安装应用的 DEX 文件                                             │
-│                                                                             │
-│ 路径：/data/app/com.example-1/base.apk                                     │
-│                                                                             │
-│ 特点：                                                                      │
-│ • optimizedDirectory 已废弃（API 26+）                                     │
-│ • 只能加载已安装的 APK                                                     │
-│ • 系统自动创建，应用启动时使用                                              │
-│                                                                             │
-│ 源码：                                                                      │
-│ public class PathClassLoader extends BaseDexClassLoader {                  │
-│     public PathClassLoader(String dexPath, ClassLoader parent) {           │
-│         super(dexPath, null, null, parent);                                │
-│     }                                                                       │
-│ }                                                                           │
-└─────────────────────────────────────────────────────────────────────────────┘
+实际调用示例应使用应用私有目录中的可信代码，而不是直接从任意 `/sdcard/plugin.apk` 执行：
 
-DexClassLoader：
-┌─────────────────────────────────────────────────────────────────────────────┐
-│ 用途：加载未安装的 DEX/APK 文件（插件化核心）                                │
-│                                                                             │
-│ 路径：任意路径（/sdcard/plugin.apk）                                        │
-│                                                                             │
-│ 特点：                                                                      │
-│ • 可以加载外部 DEX/APK 文件                                                │
-│ • 支持优化目录（API 26 前必需）                                             │
-│ • 插件化框架核心                                                            │
-│                                                                             │
-│ 源码：                                                                      │
-│ public class DexClassLoader extends BaseDexClassLoader {                   │
-│     public DexClassLoader(String dexPath, String optimizedDirectory,       │
-│             String librarySearchPath, ClassLoader parent) {                │
-│         super(dexPath, optimizedDirectory, librarySearchPath, parent);     │
-│     }                                                                       │
-│ }                                                                           │
-│                                                                             │
-│ 参数说明：                                                                   │
-│ • dexPath           - DEX/APK 文件路径                                     │
-│ • optimizedDirectory - DEX 优化目录（API 26+ 已废弃）                       │
-│ • librarySearchPath - Native 库搜索路径                                    │
-│ • parent            - 父 ClassLoader                                       │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-插件化中使用 DexClassLoader：
-┌─────────────────────────────────────────────────────────────────────────────┐
-│ // 创建插件 ClassLoader                                                     │
-│ String pluginApkPath = "/sdcard/plugin.apk";                               │
-│ String optimizedDir = context.getCodeCacheDir().getAbsolutePath();         │
-│ String nativeLibDir = getPluginNativeLibDir(pluginApkPath);                │
-│ ClassLoader parent = context.getClassLoader();                             │
-│                                                                             │
-│ DexClassLoader pluginClassLoader = new DexClassLoader(                     │
-│     pluginApkPath,   // 插件 APK 路径                                      │
-│     optimizedDir,    // 优化目录                                           │
-│     nativeLibDir,    // Native 库目录                                      │
-│     parent           // 父 ClassLoader（宿主的 ClassLoader）               │
-│ );                                                                          │
-│                                                                             │
-│ // 加载插件类                                                               │
-│ Class<?> pluginClass = pluginClassLoader.loadClass("com.plugin.Plugin");   │
-└─────────────────────────────────────────────────────────────────────────────┘
+```kotlin
+// 前提：私有版本目录内的 APK 已完成可信签名/摘要及版本校验，
+// 文件按现代动态代码规则在写入阶段设为只读，且此后没有可篡改窗口。
+val apk = File(context.filesDir, "plugins/v2/plugin.apk")
+check(apk.isFile)
+val loader = DexClassLoader(
+    apk.absolutePath,
+    null, // API 26+ 不使用 optimizedDirectory
+    null, // 无 native 依赖；有依赖需提供受控 ABI 匹配目录
+    context.classLoader,
+)
+val entryClass = loader.loadClass("com.example.plugin.Entry")
+val entry = entryClass.getDeclaredConstructor().newInstance() as PluginEntry
 ```
+
+`PluginEntry` 是宿主定义的共享接口，插件端只编译引用它。信任校验不能只读取 APK 里自报的包名或版本；摘要来源必须可信。下载至私有目录也不自动等于可信：仍应验证发布者、更新来源、版本降级策略以及加载前后的完整性。
+
+安全文件发布流程通常是：在私有 staging 版本目录创建文件并打开输出流，按动态代码要求及时标记只读后写入，通过已打开句柄完成数据落盘，验证可信元数据，原子切换当前版本指针，再建立加载器。已经加载的版本不可原地覆盖；保留上一版本直到新版本验证成功。Android 14 起面向相应 target 的动态加载只读要求不是“加载前 canRead() 为真”即可满足。
+
+Native 库还有 ABI、依赖库、linker namespace 和已加载 so 的生命期约束。换 ClassLoader 或置空 Kotlin 引用不能保证 native 库可在线卸载；需要隔离进程或重启作为恢复边界时，应明确设计，不能承诺任意热更新无感生效。
 
 ### 2.4 类加载流程
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    类加载完整流程                                           │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -770,7 +612,7 @@ ClassLoader.loadClass() 流程：
 
 源码分析：
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│ // ClassLoader.java                                                        │
+│ // Android parent-first 等价伪代码，非逐字源码                                                        │
 │ protected Class<?> loadClass(String name, boolean resolve) {               │
 │     // 1. 检查是否已加载                                                   │
 │     Class<?> c = findLoadedClass(name);                                    │
@@ -805,7 +647,7 @@ ClassLoader.loadClass() 流程：
 
 ### 3.1 Android 资源编译
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    Android 资源编译流程                                     │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -883,168 +725,74 @@ resources.arsc 结构：
 
 ### 3.2 Resources 与 AssetManager
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                    Resources 与 AssetManager                                │
-└─────────────────────────────────────────────────────────────────────────────┘
+Resources 负责按配置解析资源 ID，AssetManager 管理资源包与 assets 的底层集合。`ContextImpl.getResources()` 并不是每次 new 一个 AssetManager 再反射 addAssetPath；应用资源由系统资源管理路径建立并随配置更新。
 
-Resources 创建过程：
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                                                                             │
-│   ContextImpl.getResources()                                                │
-│               │                                                             │
-│               ▼                                                             │
-│   ┌─────────────────────────────────────────────────────────────────────┐  │
-│   │  new Resources()                                                     │  │
-│   │  ├── AssetManager assets = new AssetManager()                       │  │
-│   │  ├── assets.addAssetPath(apkPath)  // 添加 APK 路径                  │  │
-│   │  ├── DisplayMetrics metrics = getDisplayMetrics()                   │  │
-│   │  └── Configuration config = getConfiguration()                      │  │
-│   └─────────────────────────────────────────────────────────────────────┘  │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
+历史插件教程通过反射 AssetManager 构造器与 `addAssetPath()`，再调用已弃用的 Resources 构造器拼出资源对象。这可解释旧框架思路，但不是 Android 17 面向普通应用的稳定可行方案：非 SDK 访问会受限制，资源缓存、主题、配置和 split/overlay 也不是加一条路径就能正确处理。
 
-AssetManager 核心方法：
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                                                                             │
-│   // 添加资源路径（关键方法，插件化核心）                                    │
-│   private int addAssetPath(String path)                                    │
-│                                                                             │
-│   // 打开资源                                                               │
-│   public InputStream open(String fileName)                                 │
-│   public InputStream open(String fileName, int accessMode)                 │
-│                                                                             │
-│   // 列出资源                                                               │
-│   public String[] list(String path)                                        │
-│                                                                             │
-│   // 获取资源值                                                             │
-│   public int getResourceIdentifier(String name, String defType, String defPackage)│
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-插件化加载资源的关键：
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                                                                             │
-│   // 反射调用 addAssetPath 加载插件资源                                     │
-│   AssetManager assets = AssetManager.class.newInstance();                  │
-│   Method addAssetPath = AssetManager.class.getDeclaredMethod(              │
-│       "addAssetPath", String.class);                                       │
-│   addAssetPath.setAccessible(true);                                        │
-│   addAssetPath.invoke(assets, pluginApkPath);                              │
-│                                                                             │
-│   // 创建插件的 Resources                                                   │
-│   Resources pluginResources = new Resources(                               │
-│       assets,                                                               │
-│       hostResources.getDisplayMetrics(),                                   │
-│       hostResources.getConfiguration()                                     │
-│   );                                                                        │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
+加载已安装受信包资源时，可以使用 PackageManager/包 Context 的公开能力，并遵守授权。对于应用自行管理的资源包，API 30 起公开的 `ResourcesLoader` / `ResourcesProvider` 提供受支持的资源加载入口；它们只解决资源，不安装四大组件，也不自动把插件 classes 变成系统组件。
 
 ### 3.3 插件资源加载方案
 
+#### 独立资源上下文与 loader 生命周期
+
+```kotlin
+// API 30+ 示例；当前文章基线 17。只加载受信资源，不处理插件签名验证。
+class PluginResourceSession(base: Context, apk: File) : Closeable {
+    private val ownedContext = base.createConfigurationContext(Configuration())
+    private val provider: ResourcesProvider =
+        ParcelFileDescriptor.open(apk, ParcelFileDescriptor.MODE_READ_ONLY).use { fd ->
+            ResourcesProvider.loadFromApk(fd)
+        }
+    private val loader = ResourcesLoader().apply { addProvider(provider) }
+    val context: Context get() = ownedContext
+
+    init {
+        ownedContext.resources.addLoaders(loader)
+    }
+
+    override fun close() {
+        // 必须先撤下使用这些资源的 View/Theme，且不再有并发资源访问。
+        ownedContext.resources.removeLoaders(loader)
+        loader.clearProviders()
+        provider.close()
+    }
+}
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                    插件资源加载方案                                          │
-└─────────────────────────────────────────────────────────────────────────────┘
 
-方案一：独立 Resources（推荐）
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                                                                             │
-│   宿主 Resources                    插件 Resources                          │
-│   ┌─────────────────┐              ┌─────────────────┐                     │
-│   │ AssetManager    │              │ AssetManager    │                     │
-│   │ (host.apk)      │              │ (plugin.apk)    │                     │
-│   │                 │              │                 │                     │
-│   │ 0x7fxxxxxx      │              │ 0x7fxxxxxx      │                     │
-│   └─────────────────┘              └─────────────────┘                     │
-│                                                                             │
-│   特点：                                                                    │
-│   • 宿主和插件资源独立                                                      │
-│   • ID 不会冲突                                                            │
-│   • 需要手动切换 Resources                                                 │
-│                                                                             │
-│   代码实现：                                                                 │
-│   public class PluginResources {                                           │
-│       private Resources mHostResources;                                    │
-│       private Resources mPluginResources;                                  │
-│                                                                             │
-│       public Resources getPluginResources(String pluginApkPath) {          │
-│           AssetManager assets = AssetManager.class.newInstance();          │
-│           Method addAssetPath = AssetManager.class.getDeclaredMethod(      │
-│               "addAssetPath", String.class);                               │
-│           addAssetPath.invoke(assets, pluginApkPath);                      │
-│           return new Resources(assets, mHostResources.getDisplayMetrics(), │
-│               mHostResources.getConfiguration());                          │
-│       }                                                                     │
-│   }                                                                         │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
+这是 loader 资源会话示例，不是承诺普通任意 APK 丢进去就能无冲突显示。资源表包 ID、overlay 优先级、与宿主共享的 ID、Configuration 和主题都必须事先设计；切勿将插件 provider 直接追加到整个应用共享 Resources 后污染所有页面。
 
-方案二：合并 Resources
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                                                                             │
-│   合并后的 Resources                                                        │
-│   ┌─────────────────────────────────────────────────────────────────────┐  │
-│   │ AssetManager                                                        │  │
-│   │ (host.apk + plugin.apk)                                             │  │
-│   │                                                                      │  │
-│   │ 0x7fxxxxxx (宿主)                                                   │  │
-│   │ 0x7fxxxxxx (插件) ← 冲突风险！                                       │  │
-│   └─────────────────────────────────────────────────────────────────────┘  │
-│                                                                             │
-│   特点：                                                                    │
-│   • 宿主和插件共享一个 Resources                                           │
-│   • ID 可能冲突                                                            │
-│   • 使用方便                                                               │
-│                                                                             │
-│   代码实现：                                                                 │
-│   public void mergeResources(String pluginApkPath) {                       │
-│       AssetManager assets = getAssets(); // 获取宿主 AssetManager          │
-│       Method addAssetPath = AssetManager.class.getDeclaredMethod(          │
-│           "addAssetPath", String.class);                                   │
-│       addAssetPath.invoke(assets, pluginApkPath);                          │
-│   }                                                                         │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
+`ResourcesProvider` 被 loader 使用时不能随意 close；生命周期顺序是先停止使用资源的页面，再从 Resources 移除 loader，再解除 provider 关系并关闭。发生构造/加载失败时，工程实现还应按已成功取得的资源逐个回滚，避免半初始化泄漏。
 
-方案三：自定义 Context（最佳）
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                                                                             │
-│   public class PluginContext extends ContextWrapper {                      │
-│       private Resources mPluginResources;                                  │
-│       private ClassLoader mPluginClassLoader;                              │
-│                                                                             │
-│       public PluginContext(Context base, Resources resources,              │
-│               ClassLoader classLoader) {                                   │
-│           super(base);                                                     │
-│           mPluginResources = resources;                                    │
-│           mPluginClassLoader = classLoader;                                │
-│       }                                                                     │
-│                                                                             │
-│       @Override                                                             │
-│       public Resources getResources() {                                    │
-│           return mPluginResources;                                         │
-│       }                                                                     │
-│                                                                             │
-│       @Override                                                             │
-│       public ClassLoader getClassLoader() {                                │
-│           return mPluginClassLoader;                                       │
-│       }                                                                     │
-│                                                                             │
-│       @Override                                                             │
-│       public AssetManager getAssets() {                                    │
-│           return mPluginResources.getAssets();                             │
-│       }                                                                     │
-│   }                                                                         │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
+#### ContextWrapper 不只需要改 getResources
+
+插件布局中有自定义 View 时，其类要由插件加载器解析；LayoutInflater 必须在正确 Context 中 clone。主题也属于具体 Resources，不能直接把宿主 Theme 对象与不同资源对象混用。
+
+```kotlin
+// 示意：resourceContext 已正确建立，themeRes 属于该资源契约。
+class PluginUiContext(
+    resourceContext: Context,
+    private val pluginLoader: ClassLoader,
+    themeRes: Int,
+) : ContextThemeWrapper(resourceContext, themeRes) {
+    private val ownInflater by lazy {
+        LayoutInflater.from(baseContext).cloneInContext(this)
+    }
+    override fun getClassLoader(): ClassLoader = pluginLoader
+    override fun getSystemService(name: String): Any? =
+        if (name == LAYOUT_INFLATER_SERVICE) ownInflater
+        else super.getSystemService(name)
+}
 ```
+
+按屏幕尺寸、locale、night mode 等重建/刷新插件 UI 是宿主责任。简单保存一个旧 Resources 快照并不会自动复制 Activity 的全部配置、Window、主题和生命周期行为。对于 Compose，也要管理 composition 的销毁和共享 runtime ABI。
+
+#### 合并资源与隔离资源的取舍
+
+合并路径便于既有代码访问，但冲突影响范围大；隔离上下文可缩小影响，却要求每个 inflater、theme、drawable 和回调使用正确上下文。隔离不是安全沙箱；即使 ID 都从 0x7f 开始，只要 Resources 分开解析仍可工作，但把一个包的 ID 交给另一个包的 Resources 就可能取错对象。
 
 ### 3.4 资源冲突解决
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    资源冲突解决方案                                          │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1053,7 +801,7 @@ AssetManager 核心方法：
 
 解决方案：
 
-1. 修改 aapt2 的 package-id（推荐）
+1. 构建期分配 package-id（需验证工具链与整个依赖图）
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │ // 插件的 build.gradle                                                      │
 │ android {                                                                   │
@@ -1062,7 +810,7 @@ AssetManager 核心方法：
 │     }                                                                       │
 │ }                                                                           │
 │                                                                             │
-│ // 插件资源 ID 变为 0x80xxxxxx，不会与宿主 0x7fxxxxxx 冲突                  │
+│ // 插件资源 ID 变为 0x80xxxxxx，与宿主包 ID 区分；还须检查其他插件、依赖和动态映射                  │
 └─────────────────────────────────────────────────────────────────────────────┘
 
 2. public.xml 固定资源 ID
@@ -1083,11 +831,11 @@ AssetManager 核心方法：
 │ // 避免同名资源冲突                                                          │
 └─────────────────────────────────────────────────────────────────────────────┘
 
-4. 独立 Resources（最安全）
+4. 独立 Resources（限制资源串用，不提供代码安全沙箱）
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │ // 每个插件使用独立的 Resources                                             │
 │ // 不共享 AssetManager                                                      │
-│ // 完全避免冲突                                                              │
+│ // 仍须避免将插件 ID 传给宿主 Resources                                                              │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -1097,118 +845,77 @@ AssetManager 核心方法：
 
 ### 4.1 Activity 插件化
 
+系统只能解析已安装包中被 PackageManager 注册的 Activity。DexClassLoader 加载了一个继承 Activity 的类，并不意味着系统已为它建立 ActivityRecord、token、task、Window 和生命周期事务。
+
+历史占坑方案替换 Intent 为已注册 StubActivity，再尝试在应用进程恢复目标类。这解释了旧框架为何 hook Instrumentation/ActivityThread，但不是 Android 17 兼容结论。系统看到的仍是 stub 的 manifest 属性、身份和任务行为，必须处理 launchMode、权限、exported、配置及进程死亡后的重建，修改一个 intent 字段远远不够。
+
+普通应用可控的设计是让真实已注册 Activity 承载一个**插件页面控制器**：
+
+```text
+HostActivity (real framework component)
+  -> plugin controller: createView(context, savedState)
+  -> setContentView(view)
+  -> onStart/onStop -> controller callbacks
+  -> save small versioned state -> host saved instance state
+  -> onDestroy -> detach/cancel/close controller
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                    Activity 插件化方案                                       │
-└─────────────────────────────────────────────────────────────────────────────┘
 
-核心问题：插件 Activity 未在 AndroidManifest.xml 中注册，无法直接启动
-
-解决方案：
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                                                                             │
-│ 方案一：占坑 Activity（VirtualAPK/RePlugin）                               │
-│ ────────────────────────────────────────────────────────────────────────── │
-│                                                                             │
-│   AndroidManifest.xml:                                                     │
-│   ┌─────────────────────────────────────────────────────────────────────┐  │
-│   │ <activity                                                            │  │
-│   │     android:name=".StubActivity0"                                   │  │
-│   │     android:exported="false" />                                     │  │
-│   │ <activity                                                            │  │
-│   │     android:name=".StubActivity1"                                   │  │
-│   │     android:exported="false" />                                     │  │
-│   │ ...                                                                   │  │
-│   └─────────────────────────────────────────────────────────────────────┘  │
-│                                                                             │
-│   启动流程：                                                                 │
-│   1. 启动时替换 Intent                                                      │
-│      PluginActivity → StubActivity0                                       │
-│   2. AMS 验证通过，创建 StubActivity0                                      │
-│   3. Hook ActivityThread，替换回 PluginActivity                            │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-方案二：代理 Activity（Shadow）
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                                                                             │
-│   ProxyActivity (已注册)                                                   │
-│        │                                                                    │
-│        │ 委托                                                               │
-│        ▼                                                                    │
-│   PluginActivity (未注册)                                                  │
-│                                                                             │
-│   生命周期转发：                                                             │
-│   ProxyActivity.onCreate() → PluginActivity.onCreate()                    │
-│   ProxyActivity.onStart()  → PluginActivity.onStart()                     │
-│   ProxyActivity.onResume() → PluginActivity.onResume()                    │
-│   ...                                                                       │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
+controller 可以有类似 onCreate 的自定义方法，但不是对一个未 attach 的 Activity 手动调用其 protected 生命周期。宿主应管理 ActivityResult、权限请求、返回行为和状态恢复，只向插件暴露业务能力接口；不要把完整 Activity 私有内部状态当成可复制 DTO。
 
 ### 4.2 Service 插件化
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                    Service 插件化方案                                        │
-└─────────────────────────────────────────────────────────────────────────────┘
+Service 没有 `getIntent()`。创建阶段 `onCreate()` 也没有 start Intent；启动参数在 `onStartCommand(intent, flags, startId)`，绑定参数在 `onBind(intent)`。直接 new 一个插件 Service 并调用 onCreate 不会注入 Context、token、Application 或服务端记录。
 
-方案一：代理 Service
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                                                                             │
-│   ProxyService (已注册)                                                    │
-│        │                                                                    │
-│        │ 动态代理                                                           │
-│        ▼                                                                    │
-│   PluginService (未注册)                                                   │
-│                                                                             │
-│   实现：                                                                    │
-│   public class ProxyService extends Service {                              │
-│       private Service mPluginService;                                      │
-│                                                                             │
-│       @Override                                                             │
-│       public void onCreate() {                                             │
-│           // 加载插件 Service                                               │
-│           String className = getIntent().getStringExtra("pluginService");  │
-│           mPluginService = loadPluginService(className);                   │
-│           mPluginService.onCreate();                                       │
-│       }                                                                     │
-│                                                                             │
-│       @Override                                                             │
-│       public IBinder onBind(Intent intent) {                               │
-│           return mPluginService.onBind(intent);                            │
-│       }                                                                     │
-│   }                                                                         │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
+建议让已注册 ProxyService 持有业务 delegate，而不是伪装另一个原生 Service。下面给出串行任务的控制结构（`PluginTask`、`loadVerifiedTask` 为宿主契约）：
 
-方案二：动态代理
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                                                                             │
-│   // Hook IActivityManager，拦截 Service 操作                               │
-│   Object amProxy = Proxy.newProxyInstance(                                 │
-│       IActivityManager.class.getClassLoader(),                             │
-│       new Class<?>[] { IActivityManager.class },                           │
-│       new InvocationHandler() {                                            │
-│           @Override                                                         │
-│           public Object invoke(Object proxy, Method method, Object[] args) │
-│                   throws Throwable {                                        │
-│               if ("startService".equals(method.getName())) {               │
-│                   // 替换为代理 Service                                      │
-│                   replaceWithProxyService(args);                           │
-│               }                                                             │
-│               return method.invoke(mOriginal, args);                       │
-│           }                                                                 │
-│       }                                                                     │
-│   );                                                                        │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
+```kotlin
+class ProxyService : Service() {
+    private val work = Executors.newSingleThreadExecutor()
+    private var task: PluginTask? = null
+
+    override fun onCreate() {
+        super.onCreate()
+        task = loadVerifiedTask(applicationContext)
+    }
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        val request = intent?.getStringExtra("request") ?: return START_NOT_STICKY
+        val delegate = checkNotNull(task)
+        work.execute {
+            try {
+                delegate.execute(request)
+            } finally {
+                // 仅在这个 startId 仍是最后一次启动时停止，避免旧任务停掉新任务。
+                stopSelfResult(startId)
+            }
+        }
+        return START_NOT_STICKY
+    }
+
+    override fun onBind(intent: Intent): IBinder? = null
+
+    override fun onDestroy() {
+        // 完整工程需通过 delegate 的取消协议协调正在运行的任务，
+        // shutdownNow 是中断请求，不保证任务此刻已经结束。
+        work.shutdownNow()
+        task?.cancel()
+        task = null
+        super.onDestroy()
+    }
+}
 ```
+
+上述是 lifecycle/参数路由骨架，不满足长期后台执行许可。若业务需要前台服务，仍由真实 ProxyService 声明类型、权限并及时调用 startForeground；插件不能绕过后台启动限制、while-in-use 权限和超时。
+
+绑定与启动可以叠加：停止 started 状态后只要有效绑定仍在，服务可能继续存在；纯 bound 生命周期结束才销毁。若多个插件复用一个 Service，需要按 pluginId/startId/client connection 管理引用和任务，不应让其中一个 delegate 直接 stopSelf 结束其他插件任务。
+
+历史 `IActivityManager` 动态代理拦截 startService 的代码属于内部 Hook 思路，不是公开 SDK；即使本进程替换成功，系统仍会验证真实组件及调用身份。Android 17 不能把该方法宣称为通用解决方案。
 
 ### 4.3 BroadcastReceiver 插件化
 
-```
+下面是自定义宿主的动态注册示意。解析未安装 APK manifest 不是 SDK 自动组件注册；动态 receiver 仅在宿主进程存活及注册有效时接收，不等价于 manifest receiver 的冷启动/Direct Boot 能力。对外接收要选择 EXPORTED 并使用权限、输入校验；同应用使用 NOT_EXPORTED。每个成功注册必须在插件卸载或拥有者退出时注销；所有自定义解析与类加载调用需处理异常及部分成功回滚。
+
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    BroadcastReceiver 插件化                                  │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1223,7 +930,7 @@ AssetManager 核心方法：
 │   // 解析插件的 Receiver                                                    │
 │   public void registerPluginReceivers(String pluginApkPath) {              │
 │       // 解析 AndroidManifest.xml                                          │
-│       List<ReceiverInfo> receivers = parseReceivers(pluginApkPath);        │
+│       List<ReceiverInfo> receivers = parseReceivers(pluginApkPath); // 自定义解析模型，非 SDK ReceiverInfo        │
 │                                                                             │
 │       for (ReceiverInfo info : receivers) {                                │
 │           // 加载插件 BroadcastReceiver                                    │
@@ -1244,165 +951,70 @@ AssetManager 核心方法：
 
 ### 4.4 ContentProvider 插件化
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                    ContentProvider 插件化                                    │
-└─────────────────────────────────────────────────────────────────────────────┘
+真实 Provider 必须由系统按 authority 注册；未安装插件中的 manifest 不会自动加入 authority 索引。代理方案应声明宿主自己的 Provider，由它解析 URI 路径中的业务标识，路由到插件数据接口，而不是指望新建一个 ContentProvider 子类后它已与系统关联。
 
-方案：代理 Provider
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                                                                             │
-│   ProxyProvider (已注册)                                                   │
-│        │                                                                    │
-│        │ 转发                                                               │
-│        ▼                                                                    │
-│   PluginProvider (未注册)                                                  │
-│                                                                             │
-│   实现：                                                                    │
-│   public class ProxyProvider extends ContentProvider {                     │
-│       private ContentProvider mPluginProvider;                             │
-│                                                                             │
-│       @Override                                                             │
-│       public boolean onCreate() {                                          │
-│           // 加载插件 Provider                                              │
-│           String authority = getCallingAuthority();                        │
-│           mPluginProvider = loadPluginProvider(authority);                 │
-│           return mPluginProvider.onCreate();                               │
-│       }                                                                     │
-│                                                                             │
-│       @Override                                                             │
-│       public Cursor query(Uri uri, String[] projection, ...) {             │
-│           return mPluginProvider.query(uri, projection, ...);              │
-│       }                                                                     │
-│   }                                                                         │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
+```text
+client ContentResolver.query(content://host.authority/plugin/<id>/...)
+  -> registered HostProvider.Transport (permission / URI grants)
+  -> HostProvider.query(uri, ...)
+       -> validate scheme + authority + path + plugin id
+       -> resolve trusted data delegate
+       -> delegate query (thread-safe)
 ```
 
----
+`ContentProvider.onCreate()` 没有“当前请求 authority”，旧例中的 `getCallingAuthority()` 也不是该 API。onCreate 做轻量初始化，请求参数来自 query/insert/update/delete/call 的实参。不要再手工调用另一个 Provider.onCreate 以为这会完成 attachInfo 和权限建立。
+
+代理层必须覆盖 URI 白名单、读写权限、临时 URI 授权及返回 URI 的重写。`call()` 不是自动等价 CRUD 权限检查的捷径，应按业务明确鉴权。数据库/插件 delegate 可被 Binder 线程并发调用；若多个插件共享存储还需要事务和隔离策略。
+
+ContentProvider 默认 applyBatch 并不保证数据库原子事务。代理如果希望多操作全成全败，须由同一存储事务执行并在提交后统一 notifyChange；跨插件、跨数据库或跨进程事务不能凭一层 Java 转发自然获得。
 
 ## 第 5 章 Activity 插件化详解
 
-### 5.1 Activity 启动流程
+### 5.1 Activity 启动流程（Android 17）
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                    Activity 启动流程 (Android 16)                           │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                                                                             │
-│   App 进程                              System Server 进程                  │
-│   ┌─────────────────┐                  ┌─────────────────────────────────┐ │
-│   │ Activity.startActivity()           │                                 │ │
-│   │         │                          │                                 │ │
-│   │         ▼                          │                                 │ │
-│   │ Instrumentation.execStartActivity()│                                 │ │
-│   │         │                          │                                 │ │
-│   │         ▼                          │                                 │ │
-│   │ ActivityTaskManager.getService()   │                                 │ │
-│   │         │                          │                                 │ │
-│   │         │ Binder IPC               │                                 │ │
-│   │         └──────────────────────────┼─► ATMS.startActivityAsUser()    │ │
-│   │                                  │ │         │                       │ │
-│   │                                  │ │         ▼                       │ │
-│   │                                  │ │ ActivityStarter.execute()       │ │
-│   │                                  │ │         │                       │ │
-│   │                                  │ │         ▼                       │ │
-│   │                                  │ │ ActivityStack.startActivityLocked()│
-│   │                                  │ │         │                       │ │
-│   │                                  │ │         ▼                       │ │
-│   │                                  │ │ 检查 AndroidManifest.xml        │ │
-│   │                                  │ │ (插件 Activity 不存在！❌)      │ │
-│   │                                  │ │                                 │ │
-│   └──────────────────────────────────┼─┴─────────────────────────────────┘ │
-│                                      │                                      │
-│                                      ▼                                      │
-│   ┌─────────────────────────────────────────────────────────────────────┐  │
-│   │                    Hook 点 1: Instrumentation                        │  │
-│   │                    Hook 点 2: IActivityTaskManager                   │  │
-│   │                    Hook 点 3: ActivityThread                         │  │
-│   └─────────────────────────────────────────────────────────────────────┘  │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
+```text
+Activity.startActivity / startActivityForResult
+  -> Instrumentation.execStartActivity
+  -> IActivityTaskManager.startActivity
+  -> ActivityTaskManagerService -> ActivityStarter.execute
+       resolve / security / background-start / task placement
+  -> ActivityTaskSupervisor.realStartActivityLocked
+       ClientTransaction containing LaunchActivityItem + lifecycle request
+  -> IApplicationThread.scheduleTransaction
+  -> ActivityThread -> TransactionExecutor
+       LaunchActivityItem.execute -> handleLaunchActivity
+         -> performLaunchActivity
+            -> instantiateActivity
+            -> Activity.attach (creates PhoneWindow)
+            -> Instrumentation.callActivityOnCreate
+       lifecycle transition -> handleStartActivity / handleResumeActivity
 ```
 
-### 5.2 Hook IActivityManager
+上述是关键责任链，省略进程创建、窗口转场和启动失败分支，不是每次都创建新进程。`ActivityStack.startActivityLocked()`、`scheduleLaunchActivity()` 不能拿来代表该 tag 的客户端事务入口。启动已有 task/实例时还会出现 new-intent 等不同路径。
 
-```java
-/**
- * Hook IActivityManager 示例
- * 
- * 目的：拦截 Activity 启动，将插件 Activity 替换为占坑 Activity
- */
-public class IActivityManagerHook {
-    
-    private static final String TAG = "IActivityManagerHook";
-    
-    /**
-     * Hook ActivityTaskManager (Android 10+)
-     */
-    public static void hookActivityTaskManager() throws Exception {
-        // 1. 获取 ActivityTaskManager 类
-        Class<?> atmClass = Class.forName("android.app.ActivityTaskManager");
-        
-        // 2. 获取 IActivityTaskManager 单例
-        Field iAtmSingletonField = atmClass.getDeclaredField("IActivityTaskManagerSingleton");
-        iAtmSingletonField.setAccessible(true);
-        Object iAtmSingleton = iAtmSingletonField.get(null);
-        
-        // 3. 获取 Singleton 的 mInstance
-        Class<?> singletonClass = Class.forName("android.util.Singleton");
-        Field mInstanceField = singletonClass.getDeclaredField("mInstance");
-        mInstanceField.setAccessible(true);
-        Object mInstance = mInstanceField.get(iAtmSingleton);
-        
-        // 4. 创建动态代理
-        Object proxy = Proxy.newProxyInstance(
-                mInstance.getClass().getClassLoader(),
-                new Class<?>[] { Class.forName("android.app.IActivityTaskManager") },
-                new IActivityTaskManagerInvocationHandler(mInstance)
-        );
-        
-        // 5. 替换为代理对象
-        mInstanceField.set(iAtmSingleton, proxy);
-    }
-    
-    /**
-     * InvocationHandler 处理器
-     */
-    static class IActivityTaskManagerInvocationHandler implements InvocationHandler {
-        private Object mOriginal;
-        
-        public IActivityTaskManagerInvocationHandler(Object original) {
-            mOriginal = original;
-        }
-        
-        @Override
-        public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
-            // 拦截 startActivity 方法
-            if ("startActivity".equals(method.getName())) {
-                // 替换 Intent 中的插件 Activity 为占坑 Activity
-                Intent intent = (Intent) args[2];
-                ComponentName component = intent.getComponent();
-                
-                if (isPluginActivity(component)) {
-                    // 保存原始的插件 Activity 信息
-                    intent.putExtra("plugin_activity", component.getClassName());
-                    
-                    // 替换为占坑 Activity
-                    intent.setComponent(new ComponentName(
-                            "com.example.host",
-                            "com.example.host.StubActivity"
-                    ));
-                }
-            }
-            
-            return method.invoke(mOriginal, args);
-        }
-    }
-}
+### 5.2 hidden hook 为什么不是通用可行方案
+
+旧代码通过反射 `ActivityTaskManager.IActivityTaskManagerSingleton`、修改 `Singleton.mInstance`、再按 `args[2]` 强转 Intent。这最多展示了一个脆弱的内部代理替换思路：
+
+1. 非 SDK 类/字段访问可能被限制，`setAccessible(true)` 不保证成功；平台签名也不等于所有反射位置永远稳定。
+2. 单例可能尚未初始化，`mInstance` 为空；不同 API 的参数位置、类型及重载不同，固定下标不能代表所有启动路径。
+3. 只替换 startActivity 不覆盖 startActivities、PendingIntent、ActivityResult、跨用户和系统直接调度。
+4. 修改客户端代理不改变系统端的包注册、权限、组件身份和任务规则。
+5. Activity 已通过 ClientTransaction / transaction items 调度；把 Handler 消息中的旧 Intent 恢复回去不能完整覆盖 17 的生命周期。
+6. 反射调用异常需要解包 InvocationTargetException 并保留原始异常；失败后恢复旧代理也不能回滚已提交的 Binder 操作。
+
+```text
+历史 hook 概念（不是可运行实现）
+  保存原代理
+  -> wrapper 拦截受控方法
+  -> 构造新的合法宿主组件请求（不原地污染调用者 Intent）
+  -> 调用原代理
+  -> 系统仍验证宿主组件
+
+仍缺少：真实插件组件身份、Window/token、配置/恢复、系统结果回调、权限与兼容性。
 ```
+
+如确实进行平台工程研究，应固定源码 revision、非 SDK policy、编译目标与设备配置，并逐条覆盖事务及异常路径。面向普通 Android 17 应用，优先把需求收敛到已注册宿主组件 + 明确 delegate 契约；这保留模块动态性，却不谎称插件 Activity 获得了完整原生身份。
 
 ### 5.3 占坑 Activity 方案
 
@@ -1425,3 +1037,39 @@ public class IActivityManagerHook {
 | 系统级插件机制 | 设备厂商或系统应用 | 需要平台签名、权限和严格版本契约 |
 
 无论采用哪种方案，动态代码校验、版本兼容、资源隔离和失败回滚都属于宿主责任；`ClassLoader` 只负责类查找，不提供安全沙箱。
+
+
+#### 生命周期与更新回滚的完整性要求
+
+插件生命周期是宿主定义的状态机，不能只保留 create/destroy 两个按钮。至少要区分已下载、已验证、已加载、已启动、停止中、已卸载和加载失败；每一轮加载有 generation，异步回调只能作用于仍然活跃的 generation。
+
+```text
+download -> verify -> publish version -> create loader -> create delegate
+    |          |             |                |               |
+    +----------+-------------+----------------+---------------+-> failure cleanup
+                                                              |
+                                                          active version
+                                                              |
+                    stop new calls -> cancel tasks -> detach UI / unregister
+                                                              |
+                                                    release references
+```
+
+“卸载”只能保证不再分发调用并释放宿主拥有的引用，不保证 ART 立即回收 Class 或卸载 native so。更新必须先验证新版本再切流；出现初始化失败保留旧版本入口。新旧代码对象同时存在时，不能共享不兼容的 static 状态或把旧 Parcelable 对象交给新加载器盲目反序列化。
+
+进程死亡后的恢复应只保存小型、带版本的业务标识与状态，重启后重新建立 loader/resource/controller。不要在 Bundle 中直接保存插件对象；设置 Bundle ClassLoader 也只能解决类解析，不保证 ABI 或业务状态兼容。
+
+
+**固定 tag 源码证据：**
+
+- [DexClassLoader constructor：optimizedDirectory ignored](https://android.googlesource.com/platform/libcore/+/refs/tags/android-17.0.0_r1/dalvik/src/main/java/dalvik/system/DexClassLoader.java)
+- [PathClassLoader](https://android.googlesource.com/platform/libcore/+/refs/tags/android-17.0.0_r1/dalvik/src/main/java/dalvik/system/PathClassLoader.java)
+- [constructor / findClass](https://android.googlesource.com/platform/libcore/+/refs/tags/android-17.0.0_r1/dalvik/src/main/java/dalvik/system/BaseDexClassLoader.java)
+- [findClass / dexElements](https://android.googlesource.com/platform/libcore/+/refs/tags/android-17.0.0_r1/dalvik/src/main/java/dalvik/system/DexPathList.java)
+- [loadClass](https://android.googlesource.com/platform/libcore/+/refs/tags/android-17.0.0_r1/ojluni/src/main/java/java/lang/ClassLoader.java)
+- [provider lifecycle](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/content/res/loader/ResourcesLoader.java)
+- [loadFromApk / close](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/content/res/loader/ResourcesProvider.java)
+- [performLaunchActivity / handleCreateService](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/app/ActivityThread.java)
+- [execStartActivity](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/app/Instrumentation.java)
+- [attachInfo / applyBatch](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/content/ContentProvider.java)
+- [onStartCommand / stopSelfResult](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/app/Service.java)

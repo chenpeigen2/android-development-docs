@@ -6,46 +6,53 @@
 
 ## 目录
 
-1. [概述](#1-概述)
-2. [后台任务分类](#2-后台任务分类)
-   - 2.1 [即时任务](#21-即时任务)
-   - 2.2 [延迟任务](#22-延迟任务)
-   - 2.3 [定时任务](#23-定时任务)
-3. [线程基础](#3-线程基础)
-   - 3.1 [Thread](#31-thread)
-   - 3.2 [Handler + Looper](#32-handler--looper)
-   - 3.3 [HandlerThread](#33-handlerthread)
-   - 3.4 [线程池 Executor](#34-线程池-executor)
-4. [异步任务方案](#4-异步任务方案)
-   - 4.1 [AsyncTask（已废弃）](#41-asynctask已废弃)
-   - 4.2 [Loader（已废弃）](#42-loader已废弃)
-   - 4.3 [IntentService（已废弃）](#43-intentservice已废弃)
-5. [现代后台任务方案](#5-现代后台任务方案)
-   - 5.1 [JobScheduler](#51-jobscheduler)
-   - 5.2 [JobService](#52-jobservice)
-   - 5.3 [WorkManager](#53-workmanager)
-   - 5.4 [WorkManager 进阶](#54-workmanager-进阶)
-6. [Kotlin 协程](#6-kotlin-协程)
-   - 6.1 [协程基础](#61-协程基础)
-   - 6.2 [协程调度器](#62-协程调度器)
-   - 6.3 [协程作用域](#63-协程作用域)
-   - 6.4 [协程异常处理](#64-协程异常处理)
-   - 6.5 [Flow 数据流](#65-flow-数据流)
-7. [Service 定位与后台任务关系](#7-service-定位与后台任务关系)
-   - 7.1 [Service 是什么](#71-service-是什么)
-   - 7.2 [Service 类型对比](#72-service-类型对比)
-   - 7.3 [Service vs 后台任务方案](#73-service-vs-后台任务方案)
-   - 7.4 [Service 使用场景](#74-service-使用场景)
-8. [前台服务](#8-前台服务)
-   - 8.1 [ForegroundService](#81-foregroundservice)
-   - 8.2 [前台服务限制](#82-前台服务限制)
-9. [后台执行限制](#9-后台执行限制)
-   - 9.1 [Android 8.0 后台限制](#91-android-80-后台限制)
-   - 9.2 [Android 9+ 限制](#92-android-9-限制)
-   - 9.3 [Android 12+ 前台服务限制](#93-android-12-前台服务限制)
-10. [方案选择指南](#10-方案选择指南)
-11. [常见问题](#11-常见问题)
-12. [知识体系总结](#12-知识体系总结)
+- [1. 概述](#1-概述)
+- [2. 后台任务分类](#2-后台任务分类)
+  - [2.1 即时任务](#21-即时任务)
+  - [2.2 延迟任务](#22-延迟任务)
+  - [2.3 定时任务](#23-定时任务)
+- [3. 线程基础](#3-线程基础)
+  - [3.1 Thread](#31-thread)
+  - [3.2 Handler + Looper](#32-handler--looper)
+  - [3.3 HandlerThread](#33-handlerthread)
+  - [3.4 线程池 Executor](#34-线程池-executor)
+- [4. 异步任务方案（已废弃）](#4-异步任务方案已废弃)
+  - [4.1 AsyncTask（已废弃）](#41-asynctask已废弃)
+  - [4.2 Loader（已废弃）](#42-loader已废弃)
+  - [4.3 IntentService（已废弃）](#43-intentservice已废弃)
+- [5. 现代后台任务方案](#5-现代后台任务方案)
+  - [5.1 JobScheduler](#51-jobscheduler)
+  - [5.2 JobService](#52-jobservice)
+  - [5.3 WorkManager](#53-workmanager)
+  - [5.4 WorkManager 进阶](#54-workmanager-进阶)
+- [6. Kotlin 协程](#6-kotlin-协程)
+  - [6.1 协程基础](#61-协程基础)
+  - [6.2 协程调度器](#62-协程调度器)
+  - [6.3 协程作用域](#63-协程作用域)
+  - [6.4 协程异常处理](#64-协程异常处理)
+  - [6.5 Flow 数据流](#65-flow-数据流)
+- [7. Service 定位与后台任务关系](#7-service-定位与后台任务关系)
+  - [7.1 Service 是什么](#71-service-是什么)
+  - [7.2 Service 类型对比](#72-service-类型对比)
+  - [7.3 Service vs 后台任务方案](#73-service-vs-后台任务方案)
+  - [7.4 Service 使用场景](#74-service-使用场景)
+- [8. 前台服务](#8-前台服务)
+  - [8.1 ForegroundService](#81-foregroundservice)
+  - [8.2 前台服务限制](#82-前台服务限制)
+- [9. 后台执行限制](#9-后台执行限制)
+  - [9.1 Android 8.0 后台限制](#91-android-80-后台限制)
+  - [9.2 Android 9+ 限制](#92-android-9-限制)
+  - [9.3 Android 12+ 前台服务限制](#93-android-12-前台服务限制)
+- [10. 方案选择指南](#10-方案选择指南)
+  - [10.2 后台任务方案完整对比表](#102-后台任务方案完整对比表)
+  - [10.3 快速决策表](#103-快速决策表)
+- [11. 常见问题](#11-常见问题)
+  - [11.1 如何选择后台任务方案？](#111-如何选择后台任务方案)
+  - [11.2 AsyncTask 废弃后怎么办？](#112-asynctask-废弃后怎么办)
+  - [11.3 IntentService 废弃后怎么办？](#113-intentservice-废弃后怎么办)
+  - [11.4 如何处理应用退出后的任务？](#114-如何处理应用退出后的任务)
+- [12. 知识体系总结](#12-知识体系总结)
+- [固定版本源码索引](#固定版本源码索引)
 
 ---
 
@@ -53,14 +60,14 @@
 
 Android 后台任务是开发中的核心问题。从早期的 Thread、AsyncTask 到现代的 WorkManager、Kotlin Coroutines，Android 提供了多种后台任务方案。理解各种方案的适用场景、优缺点和限制，是每个 Android 开发者的必备技能。
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         后台任务演进历程                                     │
 └─────────────────────────────────────────────────────────────────────────────┘
 
   时间线：
   ─────────────────────────────────────────────────────────────────────────
-  
+
   2008  Android 1.0    Thread、Handler
   2009  Android 1.5    AsyncTask
   2011  Android 3.0    Loader、IntentService
@@ -73,9 +80,9 @@ Android 后台任务是开发中的核心问题。从早期的 Thread、AsyncTas
   废弃情况：
   ─────────────────────────────────────────────────────────────────────────
   - AsyncTask        → Android 11 废弃，用 Coroutines 替代
-  - Loader           → Android 28 废弃，用 ViewModel + LiveData 替代
-  - IntentService    → Android 30 废弃，用 JobIntentService 或 WorkManager 替代
-  - JobIntentService → Android 30 废弃，用 WorkManager 替代
+  - Loader           → 平台 API 28 废弃，用 ViewModel + LiveData 替代
+  - IntentService    → 平台 API 30 废弃，用 WorkManager 替代
+  - JobIntentService → AndroidX 库已废弃（不是平台 API 30 类），用 WorkManager 替代
 ```
 
 ---
@@ -84,7 +91,7 @@ Android 后台任务是开发中的核心问题。从早期的 Thread、AsyncTas
 
 ### 2.1 即时任务
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         即时任务（Immediate）                                │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -111,7 +118,7 @@ Android 后台任务是开发中的核心问题。从早期的 Thread、AsyncTas
 
 ### 2.2 延迟任务
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         延迟任务（Deferred）                                 │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -121,7 +128,7 @@ Android 后台任务是开发中的核心问题。从早期的 Thread、AsyncTas
   特点：
   - 不需要立即执行
   - 可以在系统空闲时执行
-  - 需要保证执行
+  - 需要持久化调度（受系统约束）
 
   适用场景：
   - 数据同步
@@ -137,7 +144,7 @@ Android 后台任务是开发中的核心问题。从早期的 Thread、AsyncTas
 
 ### 2.3 定时任务
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         定时任务（Periodic）                                 │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -171,19 +178,19 @@ Android 后台任务是开发中的核心问题。从早期的 Thread、AsyncTas
  * 最基础的线程使用方式
  */
 public class ThreadExample {
-    
+
     // 方式1：继承 Thread
     class MyThread extends Thread {
         @Override
         public void run() {
             // 后台任务
             String result = doWork();
-            
+
             // 切换到主线程更新 UI
             runOnUiThread(() -> updateUI(result));
         }
     }
-    
+
     // 方式2：实现 Runnable
     class MyRunnable implements Runnable {
         @Override
@@ -192,12 +199,12 @@ public class ThreadExample {
             runOnUiThread(() -> updateUI(result));
         }
     }
-    
+
     // 使用
     public void startThread() {
         new MyThread().start();
         new Thread(new MyRunnable()).start();
-        
+
         // Lambda 简写
         new Thread(() -> {
             String result = doWork();
@@ -207,7 +214,7 @@ public class ThreadExample {
 }
 ```
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         Thread 优缺点                                       │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -235,48 +242,48 @@ public class ThreadExample {
  * Handler + Looper 消息机制
  */
 public class HandlerExample {
-    
+
     private Handler mainHandler;
     private Handler backgroundHandler;
-    
+
     public void init() {
         // 主线程 Handler
         mainHandler = new Handler(Looper.getMainLooper());
-        
+
         // 后台线程 Handler
         HandlerThread handlerThread = new HandlerThread("BackgroundThread");
         handlerThread.start();
         backgroundHandler = new Handler(handlerThread.getLooper());
     }
-    
+
     public void doBackgroundWork() {
         // 发送任务到后台线程
         backgroundHandler.post(() -> {
             // 后台任务
             String result = doWork();
-            
+
             // 切换到主线程
             mainHandler.post(() -> updateUI(result));
         });
     }
-    
+
     // 延迟执行
     public void delayWork() {
         backgroundHandler.postDelayed(() -> {
             // 3 秒后执行
         }, 3000);
     }
-    
+
     // 消息处理
     public void messageExample() {
-        backgroundHandler.sendMessage(Message.obtain(backgroundHandler, msg -> {
-            // 处理消息
+        backgroundHandler.sendMessage(Message.obtain(backgroundHandler, () -> {
+            // Runnable 回调由该 Handler 的 Looper 执行
         }));
     }
 }
 ```
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         Handler 消息机制原理                                │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -296,7 +303,7 @@ public class HandlerExample {
   │  1. Handler.post(Runnable) 发送消息到 MessageQueue                     │
   │  2. Looper.loop() 不断从 MessageQueue 取出消息                          │
   │  3. 消息被分发到对应的 Handler 处理                                      │
-  │  4. Handler.handleMessage() 执行任务                                    │
+  │  4. dispatchMessage(): post 优先执行 Runnable；否则 Callback / handleMessage                                    │
   │                                                                         │
   └─────────────────────────────────────────────────────────────────────────┘
 ```
@@ -308,14 +315,14 @@ public class HandlerExample {
  * HandlerThread：自带 Looper 的线程
  */
 public class HandlerThreadExample {
-    
+
     private HandlerThread handlerThread;
     private Handler handler;
-    
+
     public void init() {
         handlerThread = new HandlerThread("WorkerThread");
         handlerThread.start();
-        
+
         // 获取 Looper 并创建 Handler
         handler = new Handler(handlerThread.getLooper()) {
             @Override
@@ -331,19 +338,19 @@ public class HandlerThreadExample {
             }
         };
     }
-    
+
     public void sendTask() {
         // 发送消息
         Message msg = handler.obtainMessage(1);
         msg.obj = "data";
         handler.sendMessage(msg);
-        
+
         // 或直接 post
         handler.post(() -> {
             // 后台任务
         });
     }
-    
+
     public void release() {
         // 释放资源
         handlerThread.quit();
@@ -358,49 +365,52 @@ public class HandlerThreadExample {
  * 线程池 Executor
  */
 public class ExecutorExample {
-    
+
     // 固定大小线程池
     private ExecutorService fixedExecutor = Executors.newFixedThreadPool(4);
-    
+
     // 缓存线程池（按需创建，60s 回收）
     private ExecutorService cachedExecutor = Executors.newCachedThreadPool();
-    
+
     // 单线程池（顺序执行）
     private ExecutorService singleExecutor = Executors.newSingleThreadExecutor();
-    
+
     // 定时任务线程池
     private ScheduledExecutorService scheduledExecutor = Executors.newScheduledThreadPool(2);
-    
+
     public void execute() {
         // 提交任务
         fixedExecutor.execute(() -> {
             // 后台任务
         });
-        
+
         // 提交有返回值的任务
         Future<String> future = fixedExecutor.submit(() -> {
             return "result";
         });
-        
+
         try {
             String result = future.get(5, TimeUnit.SECONDS);
         } catch (Exception e) {
             e.printStackTrace();
         }
-        
+
         // 定时任务
         scheduledExecutor.scheduleAtFixedRate(() -> {
             // 每隔 5 秒执行
         }, 0, 5, TimeUnit.SECONDS);
     }
-    
+
     public void shutdown() {
         fixedExecutor.shutdown();
+        cachedExecutor.shutdown();
+        singleExecutor.shutdown();
+        scheduledExecutor.shutdown();
     }
 }
 ```
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         线程池类型对比                                      │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -423,7 +433,7 @@ public class ExecutorExample {
 
   自定义线程池：
   ─────────────────────────────────────────────────────────────────────────
-  
+
   ThreadPoolExecutor executor = new ThreadPoolExecutor(
       4,                      // corePoolSize 核心线程数
       10,                     // maxPoolSize 最大线程数
@@ -448,13 +458,13 @@ public class ExecutorExample {
  */
 @Deprecated
 public class MyAsyncTask extends AsyncTask<String, Integer, String> {
-    
+
     private WeakReference<Activity> activityRef;
-    
+
     public MyAsyncTask(Activity activity) {
         activityRef = new WeakReference<>(activity);
     }
-    
+
     // 在主线程执行，任务开始前
     @Override
     protected void onPreExecute() {
@@ -464,12 +474,12 @@ public class MyAsyncTask extends AsyncTask<String, Integer, String> {
             // 显示进度条
         }
     }
-    
+
     // 在子线程执行，耗时操作
     @Override
     protected String doInBackground(String... params) {
         String url = params[0];
-        
+
         for (int i = 0; i <= 100; i++) {
             // 发布进度
             publishProgress(i);
@@ -479,17 +489,17 @@ public class MyAsyncTask extends AsyncTask<String, Integer, String> {
                 e.printStackTrace();
             }
         }
-        
+
         return "result";
     }
-    
+
     // 在主线程执行，更新进度
     @Override
     protected void onProgressUpdate(Integer... values) {
         super.onProgressUpdate(values);
         // 更新进度条
     }
-    
+
     // 在主线程执行，任务完成后
     @Override
     protected void onPostExecute(String result) {
@@ -499,7 +509,7 @@ public class MyAsyncTask extends AsyncTask<String, Integer, String> {
             // 更新 UI
         }
     }
-    
+
     // 任务取消
     @Override
     protected void onCancelled(String result) {
@@ -512,7 +522,7 @@ public class MyAsyncTask extends AsyncTask<String, Integer, String> {
 new MyAsyncTask(activity).execute("http://example.com");
 ```
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         AsyncTask 废弃原因                                  │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -534,21 +544,21 @@ new MyAsyncTask(activity).execute("http://example.com");
 
 ```java
 /**
- * Loader（Android 28 废弃）
+ * Loader（平台 API 28 废弃）
  * 使用 ViewModel + LiveData 替代
  */
 @Deprecated
 public class MyLoader extends AsyncTaskLoader<String> {
-    
+
     public MyLoader(@NonNull Context context) {
         super(context);
     }
-    
+
     @Override
     protected void onStartLoading() {
         forceLoad();
     }
-    
+
     @Override
     public String loadInBackground() {
         return "result";
@@ -561,12 +571,12 @@ getLoaderManager().initLoader(0, null, new LoaderCallbacks<String>() {
     public Loader<String> onCreateLoader(int id, Bundle args) {
         return new MyLoader(MainActivity.this);
     }
-    
+
     @Override
     public void onLoadFinished(Loader<String> loader, String data) {
         // 更新 UI
     }
-    
+
     @Override
     public void onLoaderReset(Loader<String> loader) {
         // 清理
@@ -578,16 +588,16 @@ getLoaderManager().initLoader(0, null, new LoaderCallbacks<String>() {
 
 ```java
 /**
- * IntentService（Android 30 废弃）
- * 使用 JobIntentService 或 WorkManager 替代
+ * IntentService（平台 API 30 废弃）
+ * 使用 WorkManager 替代
  */
 @Deprecated
 public class MyIntentService extends IntentService {
-    
+
     public MyIntentService() {
         super("MyIntentService");
     }
-    
+
     @Override
     protected void onHandleIntent(@Nullable Intent intent) {
         // 在子线程执行，任务完成后自动停止
@@ -618,48 +628,46 @@ startService(intent);
  * 系统级任务调度，适合延迟任务
  */
 public class JobSchedulerExample {
-    
+
     public void scheduleJob(Context context) {
-        JobScheduler jobScheduler = (JobScheduler) 
+        JobScheduler jobScheduler = (JobScheduler)
             context.getSystemService(Context.JOB_SCHEDULER_SERVICE);
-        
+
         ComponentName service = new ComponentName(context, MyJobService.class);
-        
+
         JobInfo jobInfo = new JobInfo.Builder(1, service)
             // 设置条件
-            .setRequiredNetworkType(JobInfo.NETWORK_TYPE_UNMETERED) // WiFi
+            .setRequiredNetworkType(JobInfo.NETWORK_TYPE_UNMETERED) // 不计费网络，不等同 Wi-Fi
             .setRequiresCharging(true)      // 充电时
             .setRequiresDeviceIdle(false)   // 不需要空闲
             .setRequiresBatteryNotLow(true) // 电量不低
             .setPersisted(true)             // 重启后保留
-            
+
             // 设置时间
             .setMinimumLatency(1000)        // 最小延迟 1 秒
             .setOverrideDeadline(60000)     // 最大延迟 60 秒
-            
-            // 设置周期（Android 7.0+ 限制最小 15 分钟）
-            .setPeriodic(15 * 60 * 1000)    // 15 分钟周期
-            
+
+
             // 设置回退策略
             .setBackoffCriteria(30000, JobInfo.BACKOFF_POLICY_LINEAR)
-            
+
             .build();
-        
+
         int result = jobScheduler.schedule(jobInfo);
         if (result == JobScheduler.RESULT_SUCCESS) {
             Log.d("JobScheduler", "Job scheduled successfully");
         }
     }
-    
+
     public void cancelJob(Context context, int jobId) {
-        JobScheduler jobScheduler = (JobScheduler) 
+        JobScheduler jobScheduler = (JobScheduler)
             context.getSystemService(Context.JOB_SCHEDULER_SERVICE);
         jobScheduler.cancel(jobId);
     }
 }
 ```
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         JobScheduler 触发条件                               │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -687,57 +695,71 @@ public class JobSchedulerExample {
 
 ### 5.2 JobService
 
+`onStartJob()` 和 `onStopJob()` 在应用主线程执行。返回 true 表示任务尚有工作，**不会自动创建子线程**；正常完成调用 `jobFinished()`。系统 stop 后必须取消旧工作，不能在旧任务 finally 中再次无条件完成同一 job，否则与重调度交错。
+
 ```java
-/**
- * JobService：JobScheduler 的执行服务
- */
-@RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
+// 示例：每个 JobParameters 对应一个运行 token；主线程串行管理状态。
 public class MyJobService extends JobService {
-    
-    @Override
-    public boolean onStartJob(JobParameters params) {
-        // 返回 true 表示在子线程执行，需要手动调用 jobFinished
-        // 返回 false 表示任务已完成
-        
-        int jobId = params.getJobId();
-        Log.d("MyJobService", "Job started: " + jobId);
-        
-        // 在子线程执行
-        new Thread(() -> {
+    private final ExecutorService executor = Executors.newFixedThreadPool(2);
+    private final Handler main = new Handler(Looper.getMainLooper());
+    private final Map<JobParameters, FutureTask<Void>> running = new IdentityHashMap<>();
+
+    @Override public boolean onStartJob(JobParameters params) {
+        FutureTask<Void> task = new FutureTask<>(() -> {
+            boolean retry = false;
             try {
-                // 执行任务
-                doWork();
-            } finally {
-                // 任务完成，通知系统
-                // false 表示不需要重试
-                jobFinished(params, false);
+                doWork(); // IO 必须支持中断/取消；持久化操作必须幂等。
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return null; // 系统 stop 分支不再 jobFinished。
+            } catch (IOException e) {
+                retry = true; // 仅临时故障重试，不把业务错误一律重试。
             }
-        }).start();
-        
-        return true;  // 任务在子线程执行
+            final boolean wantsRetry = retry;
+            main.post(() -> {
+                if (running.remove(params) != null) {
+                    jobFinished(params, wantsRetry);
+                }
+            });
+            return null;
+        });
+        running.put(params, task); // 先登记再启动，避免快速完成竞态。
+        executor.execute(task);
+        return true;
     }
-    
-    @Override
-    public boolean onStopJob(JobParameters params) {
-        // 任务被中断（如条件不再满足）
-        // 返回 true 表示需要重试
-        // 返回 false 表示放弃任务
-        
-        Log.d("MyJobService", "Job stopped: " + params.getJobId());
-        return true;  // 需要重试
+
+    @Override public boolean onStopJob(JobParameters params) {
+        FutureTask<Void> task = running.remove(params);
+        if (task != null) task.cancel(true);
+        return true; // 声明允许重新调度，不是保证立刻重试。
     }
-    
-    private void doWork() {
-        // 耗时操作
+
+    @Override public void onDestroy() {
+        for (FutureTask<Void> task : running.values()) task.cancel(true);
+        running.clear();
+        main.removeCallbacksAndMessages(null);
+        executor.shutdownNow();
+        super.onDestroy();
+    }
+
+    private void doWork() throws IOException, InterruptedException {
+        // 业务示意：此处执行支持取消的工作，正常返回表示完成。
     }
 }
-
-// 注册 Service
-// AndroidManifest.xml
-<service
-    android:name=".MyJobService"
-    android:permission="android.permission.BIND_JOB_SERVICE" />
 ```
+
+```xml
+<uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+<application>
+    <service android:name=".MyJobService"
+        android:exported="true"
+        android:permission="android.permission.BIND_JOB_SERVICE" />
+</application>
+```
+
+上节示例为一次性任务。周期任务需另建 JobInfo，只设置 `setPeriodic(...)` 和允许的约束，不得再设 minimum latency / override deadline，否则 `JobInfo.enforceValidity()` 会拒绝；周期、Doze 和 quota 都不能用于精确闹钟。
+
+---
 
 ### 5.3 WorkManager
 
@@ -755,19 +777,19 @@ dependencies {
  * WorkManager：Jetpack 推荐的后台任务方案
  */
 class MyWorker(context: Context, params: WorkerParameters) : Worker(context, params) {
-    
+
     override fun doWork(): Result {
         return try {
             // 执行任务
             val inputData = inputData.getString("key")
             doWork(inputData)
-            
+
             // 返回结果
             val outputData = workDataOf("result" to "success")
             Result.success(outputData)
-            
+
         } catch (e: Exception) {
-            // 失败，可以重试
+            // 永久失败；临时故障需返回 Result.retry() 才按 backoff 重试
             Result.failure()
         }
     }
@@ -775,10 +797,10 @@ class MyWorker(context: Context, params: WorkerParameters) : Worker(context, par
 
 // 使用
 class MainActivity : AppCompatActivity() {
-    
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        
+
         // 一次性任务
         val workRequest = OneTimeWorkRequestBuilder<MyWorker>()
             .setInputData(workDataOf("key" to "value"))
@@ -796,10 +818,10 @@ class MainActivity : AppCompatActivity() {
             )
             .addTag("my_work")
             .build()
-        
+
         // 提交任务
         WorkManager.getInstance(this).enqueue(workRequest)
-        
+
         // 观察任务状态
         WorkManager.getInstance(this)
             .getWorkInfoByIdLiveData(workRequest.id)
@@ -824,8 +846,8 @@ class MainActivity : AppCompatActivity() {
 /**
  * WorkManager 进阶用法
  */
-class AdvancedWorkManager {
-    
+class AdvancedWorkManager(private val context: Context) {
+
     // 1. 周期性任务（最小间隔 15 分钟）
     fun schedulePeriodicWork() {
         val periodicWork = PeriodicWorkRequestBuilder<MyWorker>(
@@ -838,39 +860,43 @@ class AdvancedWorkManager {
                     .build()
             )
             .build()
-        
-        WorkManager.getInstance().enqueueUniquePeriodicWork(
+
+        WorkManager.getInstance(context).enqueueUniquePeriodicWork(
             "periodic_work",
             ExistingPeriodicWorkPolicy.KEEP,  // 或 REPLACE
             periodicWork
         )
     }
-    
+
     // 2. 任务链
     fun chainWork() {
         val workA = OneTimeWorkRequestBuilder<WorkA>().build()
         val workB = OneTimeWorkRequestBuilder<WorkB>().build()
         val workC = OneTimeWorkRequestBuilder<WorkC>().build()
-        
+
         // 顺序执行：A -> B -> C
-        WorkManager.getInstance()
+        WorkManager.getInstance(context)
             .beginWith(workA)
             .then(workB)
             .then(workC)
             .enqueue()
-        
-        // 并行执行后合并
-        WorkManager.getInstance()
-            .beginWith(listOf(workA, workB))
-            .then(workC)
+
+        // 独立的并行图：(A || B) -> C。
+        // 上面的请求已经入队；同一 UUID 不是新的工作节点，不能复用来提交第二张图。
+        val parallelA = OneTimeWorkRequestBuilder<WorkA>().build()
+        val parallelB = OneTimeWorkRequestBuilder<WorkB>().build()
+        val parallelC = OneTimeWorkRequestBuilder<WorkC>().build()
+        WorkManager.getInstance(context)
+            .beginWith(listOf(parallelA, parallelB))
+            .then(parallelC)
             .enqueue()
     }
-    
+
     // 3. 唯一任务
     fun uniqueWork() {
         val workRequest = OneTimeWorkRequestBuilder<MyWorker>().build()
-        
-        WorkManager.getInstance().enqueueUniqueWork(
+
+        WorkManager.getInstance(context).enqueueUniqueWork(
             "unique_work",
             ExistingWorkPolicy.KEEP,     // 已存在则保留
             // ExistingWorkPolicy.REPLACE, // 已存在则替换
@@ -878,10 +904,10 @@ class AdvancedWorkManager {
             workRequest
         )
     }
-    
+
     // 4. 监听所有任务
     fun observeAllWork() {
-        WorkManager.getInstance()
+        WorkManager.getInstance(context)
             .getWorkInfosByTagLiveData("my_work")
             .observe(lifecycleOwner) { workInfos ->
                 workInfos.forEach { info ->
@@ -896,28 +922,28 @@ class AdvancedWorkManager {
                 }
             }
     }
-    
+
     // 5. 取消任务
     fun cancelWork() {
         // 取消单个任务
-        WorkManager.getInstance().cancelWorkById(workId)
-        
+        WorkManager.getInstance(context).cancelWorkById(workId)
+
         // 取消标签下所有任务
-        WorkManager.getInstance().cancelAllWorkByTag("my_work")
-        
+        WorkManager.getInstance(context).cancelAllWorkByTag("my_work")
+
         // 取消唯一任务
-        WorkManager.getInstance().cancelUniqueWork("unique_work")
-        
+        WorkManager.getInstance(context).cancelUniqueWork("unique_work")
+
         // 取消所有任务
-        WorkManager.getInstance().cancelAllWork()
+        WorkManager.getInstance(context).cancelAllWork()
     }
-    
+
     // 6. CoroutineWorker（协程支持）
     class MyCoroutineWorker(
         context: Context,
         params: WorkerParameters
     ) : CoroutineWorker(context, params) {
-        
+
         override suspend fun doWork(): Result {
             return try {
                 // 可以使用协程
@@ -925,18 +951,20 @@ class AdvancedWorkManager {
                     fetchData()
                 }
                 Result.success()
-            } catch (e: Exception) {
+            } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
                 Result.failure()
             }
         }
     }
-    
+
     // 7. RxWorker（RxJava 支持）
     class MyRxWorker(
         context: Context,
         params: WorkerParameters
     ) : RxWorker(context, params) {
-        
+
         override fun createWork(): Single<Result> {
             return doAsyncWork()
                 .map { Result.success() }
@@ -946,14 +974,14 @@ class AdvancedWorkManager {
 }
 ```
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         WorkManager 特点                                    │
 └─────────────────────────────────────────────────────────────────────────────┘
 
   优点：
-  - 兼容 Android 4.0+（内部自动选择 JobScheduler/AlarmManager）
-  - 保证任务执行（重启后恢复）
+  - 本文依赖示例固定 WorkManager 2.9.0（minSdk 14）；AndroidX 独立版本，不由 AOSP tag 决定
+  - 持久化调度，满足约束/配额后可恢复；强行停止、取消等情况下不是无条件执行保证
   - 支持约束条件
   - 支持任务链
   - 支持周期任务
@@ -989,13 +1017,13 @@ fun startCoroutine() {
         delay(1000)
         println("GlobalScope")
     }
-    
+
     // CoroutineScope（推荐）
     lifecycleScope.launch {
         delay(1000)
         println("CoroutineScope")
     }
-    
+
     // viewModelScope（推荐）
     viewModelScope.launch {
         delay(1000)
@@ -1020,13 +1048,13 @@ fun launchVsAsync() {
             delay(1000)
             println("launch")
         }
-        
+
         // async：返回 Deferred
         val deferred = async {
             delay(1000)
             "async result"
         }
-        
+
         // await 获取结果
         val result = deferred.await()
         println(result)
@@ -1038,12 +1066,12 @@ fun concurrent() {
     lifecycleScope.launch {
         val deferred1 = async { task1() }
         val deferred2 = async { task2() }
-        
+
         // 并行执行，等待结果
         val result1 = deferred1.await()
         val result2 = deferred2.await()
-        
-        // 或使用 zip
+
+        // 或一起等待（awaitAll 不是 Flow.zip）
         val results = awaitAll(deferred1, deferred2)
     }
 }
@@ -1062,24 +1090,24 @@ fun dispatchers() {
             // 计算密集型
             val result = heavyCalculation()
         }
-        
+
         // IO：网络、文件、数据库
         launch(Dispatchers.IO) {
             // 网络请求
             val data = apiService.getData()
-            
+
             // 切换到主线程
             withContext(Dispatchers.Main) {
                 updateUI(data)
             }
         }
-        
+
         // Main：主线程
         launch(Dispatchers.Main) {
             // UI 操作
             updateUI()
         }
-        
+
         // Unconfined：不限制，不推荐使用
         launch(Dispatchers.Unconfined) {
             // 不推荐
@@ -1095,7 +1123,7 @@ lifecycleScope.launch(myDispatcher) {
 }
 ```
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         协程调度器选择                                      │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1104,13 +1132,13 @@ lifecycleScope.launch(myDispatcher) {
   │     调度器       │                      适用场景                            │
   ├─────────────────┼─────────────────────────────────────────────────────────┤
   │ Dispatchers.Main │ 主线程，用于 UI 操作                                   │
-  │                  │ 生命周期与 Activity/Fragment 绑定                       │
+  │                  │ 调度器只决定线程；lifecycleScope 才决定生命周期取消                       │
   ├─────────────────┼─────────────────────────────────────────────────────────┤
   │ Dispatchers.IO   │ 网络、文件、数据库操作                                  │
   │                  │ 内部使用线程池，可扩展                                   │
   ├─────────────────┼─────────────────────────────────────────────────────────┤
   │ Dispatchers.Default │ CPU 密集型任务（排序、解析、计算）                    │
-  │                     │ 线程数 = CPU 核心数                                  │
+  │                     │ 默认并行度至少 2，随 CPU 数量/系统属性配置                                  │
   ├─────────────────┼─────────────────────────────────────────────────────────┤
   │ Dispatchers.Unconfined │ 不推荐使用                                        │
   └─────────────────┴─────────────────────────────────────────────────────────┘
@@ -1127,17 +1155,17 @@ lifecycleScope.launch(myDispatcher) {
 class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        
+
         // 生命周期感知
         lifecycleScope.launch {
             // Activity 销毁时自动取消
         }
-        
+
         // 生命周期状态感知
         lifecycleScope.launchWhenResumed {
             // 只有在 resumed 状态才执行
         }
-        
+
         lifecycleScope.launchWhenStarted {
             // 只有在 started 状态才执行
         }
@@ -1159,13 +1187,13 @@ class MyViewModel : ViewModel() {
 class MyManager : CoroutineScope {
     private val job = SupervisorJob()
     override val coroutineContext = Dispatchers.Main + job
-    
+
     fun doWork() {
         launch {
             // 任务
         }
     }
-    
+
     fun release() {
         job.cancel()  // 取消所有协程
     }
@@ -1176,7 +1204,7 @@ suspend fun loadData() = coroutineScope {
     // 创建新的作用域，等待所有子协程完成
     val deferred1 = async { task1() }
     val deferred2 = async { task2() }
-    
+
     deferred1.await() + deferred2.await()
 }
 
@@ -1186,7 +1214,7 @@ suspend fun supervisedWork() = supervisorScope {
     launch {
         throw Exception("Error")
     }
-    
+
     launch {
         // 仍会执行
     }
@@ -1205,6 +1233,8 @@ fun tryCatch() {
     lifecycleScope.launch {
         try {
             val data = fetchData()
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             handleError(e)
         }
@@ -1220,17 +1250,18 @@ lifecycleScope.launch(handler) {
     throw Exception("Error")
 }
 
-// 3. async 异常处理
+// 3. async 异常处理：普通 async 的失败会立即取消父协程，不是 await 才传播。
 fun asyncException() {
     lifecycleScope.launch {
-        val deferred = async {
-            throw Exception("Error")
-        }
-        
-        try {
-            deferred.await()  // 异常在这里抛出
-        } catch (e: Exception) {
-            handleError(e)
+        supervisorScope {
+            val deferred = async { throw IOException("Error") }
+            try {
+                deferred.await()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: IOException) {
+                handleError(e)
+            }
         }
     }
 }
@@ -1239,7 +1270,7 @@ fun asyncException() {
 fun supervisorJob() {
     val supervisor = SupervisorJob()
     val scope = CoroutineScope(Dispatchers.Main + supervisor)
-    
+
     scope.launch {
         // 子协程失败不影响其他
     }
@@ -1295,7 +1326,7 @@ fun flowOperators() {
 class MyViewModel : ViewModel() {
     private val _state = MutableStateFlow(0)
     val state: StateFlow<Int> = _state.asStateFlow()
-    
+
     fun updateState(value: Int) {
         _state.value = value
     }
@@ -1312,7 +1343,7 @@ lifecycleScope.launch {
 class MyViewModel : ViewModel() {
     private val _events = MutableSharedFlow<String>()
     val events: SharedFlow<String> = _events.asSharedFlow()
-    
+
     fun sendEvent(message: String) {
         viewModelScope.launch {
             _events.emit(message)
@@ -1323,14 +1354,14 @@ class MyViewModel : ViewModel() {
 // 6. cold Flow 转 hot Flow
 fun coldToHot() {
     val coldFlow = flow { emit(1) }
-    
+
     // shareIn 转为 SharedFlow
     val sharedFlow = coldFlow.shareIn(
         viewModelScope,
         SharingStarted.WhileSubscribed(5000),
         replay = 1
     )
-    
+
     // stateIn 转为 StateFlow
     val stateFlow = coldFlow.stateIn(
         viewModelScope,
@@ -1346,15 +1377,15 @@ fun coldToHot() {
 
 ### 7.1 Service 是什么
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         Service 定位                                       │
 └─────────────────────────────────────────────────────────────────────────────┘
 
   官方定义：
-  "A Service is an application component that can perform long-running 
+  "A Service is an application component that can perform long-running
    operations in the background. It does not provide a user interface."
-  
+
   核心特点：
   ─────────────────────────────────────────────────────────────────────────
   1. 没有界面（No UI）
@@ -1371,7 +1402,7 @@ fun coldToHot() {
   │  ✓ Service 默认在主线程执行，耗时操作仍需创建子线程                      │
   │                                                                         │
   │  ❌ Service 可以无限后台运行                                            │
-  │  ✓ Android 8.0+ 后台 Service 会被限制，很快被杀死                       │
+  │  ✓ Android 8.0+ 可限制后台 Service 的启动/存续；停止组件不等同于必杀进程                       │
   │                                                                         │
   │  ❌ Service 适合执行后台任务                                            │
   │  ✓ Service 是组件，不是任务执行方案                                     │
@@ -1381,7 +1412,7 @@ fun coldToHot() {
 
 ### 7.2 Service 类型对比
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         Service 类型                                       │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1394,7 +1425,7 @@ fun coldToHot() {
   │                  │ 适合：一次性任务                                        │
   ├─────────────────┼─────────────────────────────────────────────────────────┤
   │ Bound Service    │ bindService() 启动，与绑定者生命周期绑定                │
-  │                  │ 所有客户端解绑后自动销毁                                │
+  │                  │ 仅绑定且未处于 started 状态时，所有客户端解绑后可销毁                                │
   │                  │ 适合：IPC 通信、需要交互的任务                          │
   ├─────────────────┼─────────────────────────────────────────────────────────┤
   │ Foreground       │ startForeground() 显示通知                             │
@@ -1402,7 +1433,7 @@ fun coldToHot() {
   │                  │ 适合：用户可感知的长时任务（音乐、下载、定位）           │
   ├─────────────────┼─────────────────────────────────────────────────────────┤
   │ Background       │ 后台运行，Android 8.0+ 受限                            │
-  │ Service          │ 几分钟后被杀死                                          │
+  │ Service          │ 后台存续受限；不承诺固定时长或进程必被杀死                                          │
   │                  │ 不推荐使用                                              │
   └─────────────────┴─────────────────────────────────────────────────────────┘
 
@@ -1425,7 +1456,7 @@ fun coldToHot() {
 
 ### 7.3 Service vs 后台任务方案
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    Service 与后台任务方案的关系                             │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1475,59 +1506,143 @@ fun coldToHot() {
 
 ### 7.4 Service 使用场景
 
+下面的音乐/定位示例仅省略应用自己的通知构造与资源：`createNotification()` 应先创建通知渠道，
+`NOTIFICATION_ID` 为非零常量，`R.raw.sample_audio` 是应用打包的可播放音频。将这两个 public static
+Service 类按嵌套类名称注册到 Manifest，或拆成独立 public 类；分别声明 `mediaPlayback` / `location`
+前台服务类型、`FOREGROUND_SERVICE` 及对应类型权限。由满足启动条件的可见 Activity 使用
+`startForegroundService()` 启动；定位还须先获得位置授权，不能用本例绕过 while-in-use 或后台启动限制。
+本例音乐状态为 **create 成功（Prepared）→ start（Started）→ completion/error → release → stopSelf**；
+服务销毁也走幂等释放。定位状态为 **初始化 → 权限检查 → 单次注册 → 重复启动复用 → onDestroy 取消订阅**。
+
+源码依据（固定 `android-17.0.0_r1`）：
+- [MediaPlayer.create(Context,int)，L998–1044；内部 prepare 后返回](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/media/java/android/media/MediaPlayer.java#998)。
+- [LocationManager.requestLocationUpdates，L1243；显式 Looper 重载](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/location/java/android/location/LocationManager.java#1243)。
+- [LocationManager.removeUpdates，L1764；用原 listener 注销](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/location/java/android/location/LocationManager.java#1764)。
+
 ```java
 /**
  * Service 的正确使用场景
  */
 public class ServiceUseCases {
-    
+
     // ┌─────────────────────────────────────────────────────────────────────┐
     // │ 场景1：音乐播放（ForegroundService + MediaPlayer）                   │
     // │ - 用户可感知，需要长时间运行                                          │
     // │ - 需要显示通知控制                                                    │
     // └─────────────────────────────────────────────────────────────────────┘
-    public class MusicService extends Service {
+    public static class MusicService extends Service {
         private MediaPlayer player;
-        
+
         @Override
         public void onCreate() {
             super.onCreate();
-            player = new MediaPlayer();
             startForeground(NOTIFICATION_ID, createNotification());
+            // 本地 raw 资源：create 成功返回时已 prepare；失败可返回 null。
+            // 网络流不要在主线程同步 prepare，应使用 prepareAsync/onPrepared 状态机。
+            player = MediaPlayer.create(this, R.raw.sample_audio);
+            if (player == null) {
+                stopSelf();
+                return;
+            }
+            player.setOnCompletionListener(mp -> finishPlayback());
+            player.setOnErrorListener((mp, what, extra) -> {
+                finishPlayback(); // Error 后不再调用 start；释放并停止服务。
+                return true;      // 已处理，避免再进入默认 completion 路径。
+            });
         }
-        
+
         @Override
         public int onStartCommand(Intent intent, int flags, int startId) {
-            // 播放音乐
-            player.start();
-            return START_STICKY;
+            if (player == null) {
+                stopSelf(startId);
+                return START_NOT_STICKY;
+            }
+            // Service 与播放器回调都在主 Looper 上串行执行。
+            // 重复 startService 不重新加载资源，也不重复开始播放。
+            try {
+                if (!player.isPlaying()) player.start();
+            } catch (IllegalStateException e) {
+                finishPlayback();
+            }
+            return START_NOT_STICKY;
+        }
+
+        private void finishPlayback() {
+            releasePlayer();
+            stopSelf();
+        }
+
+        private void releasePlayer() {
+            if (player != null) {
+                player.release();
+                player = null;
+            }
+        }
+
+        @Override public IBinder onBind(Intent intent) { return null; }
+
+        @Override
+        public void onDestroy() {
+            releasePlayer(); // 用户停止或服务销毁时同样释放，允许重复调用。
+            super.onDestroy();
         }
     }
-    
+
     // ┌─────────────────────────────────────────────────────────────────────┐
     // │ 场景2：GPS 定位追踪（ForegroundService + LocationManager）           │
     // │ - 用户可感知，需要持续获取位置                                        │
     // │ - 需要显示通知                                                        │
     // └─────────────────────────────────────────────────────────────────────┘
-    public class LocationService extends Service {
+    public static class LocationService extends Service {
         private LocationManager locationManager;
-        
+        private boolean registered;
+        private final LocationListener listener = location -> {
+            // 主 Looper 回调；在此更新轻量状态，耗时工作另交 Executor。
+        };
+
+        @Override
+        public void onCreate() {
+            super.onCreate();
+            locationManager = getSystemService(LocationManager.class);
+        }
+
         @Override
         public int onStartCommand(Intent intent, int flags, int startId) {
+            // 本例选 GPS 精确位置，权限必须由可见 Activity 事先申请。
+            if (locationManager == null
+                    || checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION)
+                        != PackageManager.PERMISSION_GRANTED) {
+                stopSelf(startId);
+                return START_NOT_STICKY;
+            }
             startForeground(NOTIFICATION_ID, createNotification());
-            
-            // 请求位置更新（在主线程回调，但实际获取在系统线程）
-            locationManager.requestLocationUpdates(
-                LocationManager.GPS_PROVIDER,
-                1000, 0, location -> {
-                    // 处理位置
+            if (!registered) {
+                try {
+                    // 显式指定主 Looper；重复启动复用同一订阅，不创建新 listener。
+                    locationManager.requestLocationUpdates(
+                            LocationManager.GPS_PROVIDER, 1000L, 0f,
+                            listener, Looper.getMainLooper());
+                    registered = true;
+                } catch (SecurityException | IllegalArgumentException e) {
+                    // 检查后权限仍可被撤销；设备也可能没有 GPS provider。
+                    stopSelf(startId);
                 }
-            );
-            
-            return START_STICKY;
+            }
+            return START_NOT_STICKY;
+        }
+
+        @Override public IBinder onBind(Intent intent) { return null; }
+
+        @Override
+        public void onDestroy() {
+            if (registered) {
+                locationManager.removeUpdates(listener);
+                registered = false;
+            }
+            super.onDestroy();
         }
     }
-    
+
     // ┌─────────────────────────────────────────────────────────────────────┐
     // │ 场景3：IPC 通信（BoundService + AIDL）                               │
     // │ - 跨进程通信                                                          │
@@ -1540,7 +1655,7 @@ public class ServiceUseCases {
                 return "data from remote service";
             }
         };
-        
+
         @Override
         public IBinder onBind(Intent intent) {
             return binder;
@@ -1549,7 +1664,7 @@ public class ServiceUseCases {
 }
 ```
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         Service 使用决策树                                  │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1586,12 +1701,12 @@ public class ServiceUseCases {
 
   总结：
   ─────────────────────────────────────────────────────────────────────────
-  
+
   需要 Service 的情况：
   1. 用户可感知的长时任务 ──► ForegroundService
   2. 需要跨进程通信 ──► BoundService
   3. 需要独立于 UI 的生命周期 ──► Service（但优先考虑 WorkManager）
-  
+
   不需要 Service 的情况：
   1. 普通网络请求 ──► Coroutines
   2. 数据同步 ──► WorkManager
@@ -1609,16 +1724,20 @@ public class ServiceUseCases {
  * 前台服务：长时间运行的后台任务
  */
 public class MyForegroundService extends Service {
-    
+
+    private Thread worker;
+    private volatile boolean destroyed;
+    private int latestStartId;
+    private final Handler main = new Handler(Looper.getMainLooper());
     private static final int NOTIFICATION_ID = 1;
     private static final String CHANNEL_ID = "foreground_service";
-    
+
     @Override
     public void onCreate() {
         super.onCreate();
         createNotificationChannel();
     }
-    
+
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         // 创建通知
@@ -1628,12 +1747,14 @@ public class MyForegroundService extends Service {
             .setSmallIcon(R.drawable.ic_download)
             .setProgress(100, 0, false)
             .build();
-        
+
         // 启动前台服务
         startForeground(NOTIFICATION_ID, notification);
-        
-        // 执行后台任务
-        new Thread(() -> {
+
+        // 重复启动合并到同一模拟下载；本示例不支持并行多文件下载。
+        latestStartId = startId;
+        if (worker != null) return START_NOT_STICKY;
+        worker = new Thread(() -> {
             for (int i = 0; i <= 100; i++) {
                 try {
                     Thread.sleep(100);
@@ -1642,26 +1763,45 @@ public class MyForegroundService extends Service {
                     break;
                 }
             }
-            stopForeground(true);
-            stopSelf();
-        }).start();
-        
+            main.post(() -> {
+                if (destroyed) return;
+                worker = null;
+                stopForeground(STOP_FOREGROUND_REMOVE);
+                stopSelfResult(latestStartId);
+            });
+        });
+        worker.start();
+
         return START_NOT_STICKY;
     }
-    
+
+    @Override public void onTimeout(int startId, int fgsType) {
+        if (worker != null) worker.interrupt();
+        stopForeground(STOP_FOREGROUND_REMOVE);
+        stopSelf();
+    }
+
+    @Override public void onDestroy() {
+        destroyed = true;
+        if (worker != null) worker.interrupt();
+        main.removeCallbacksAndMessages(null);
+        super.onDestroy();
+    }
+
     private void updateProgress(int progress) {
+        if (destroyed || Thread.currentThread().isInterrupted()) return;
         Notification notification = new NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("正在下载")
             .setContentText("下载进度：" + progress + "%")
             .setSmallIcon(R.drawable.ic_download)
             .setProgress(100, progress, false)
             .build();
-        
-        NotificationManager manager = 
+
+        NotificationManager manager =
             (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
         manager.notify(NOTIFICATION_ID, notification);
     }
-    
+
     private void createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationChannel channel = new NotificationChannel(
@@ -1673,7 +1813,7 @@ public class MyForegroundService extends Service {
             manager.createNotificationChannel(channel);
         }
     }
-    
+
     @Nullable
     @Override
     public IBinder onBind(Intent intent) {
@@ -1690,7 +1830,7 @@ if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
 }
 ```
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         前台服务特点                                        │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1699,7 +1839,7 @@ if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
   - 必须显示通知
   - 优先级高，不易被杀死
   - 可以长时间运行
-  - 不受后台限制影响
+  - 仍受后台启动限制、类型权限、超时和用户停止控制
 
   适用场景：
   - 音乐播放
@@ -1714,37 +1854,29 @@ if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
 
 ### 8.2 前台服务限制
 
+限制需要区分 OS 版本、targetSdk 和具体类型，而不是“声明 FOREGROUND_SERVICE 后可任意后台启动”：
+
+| 边界 | 行为 |
+|------|------|
+| Android 12+ / target 31+ | 后台启动 FGS 默认受限，必须满足可见交互或规定豁免；否则可抛 ForegroundServiceStartNotAllowedException |
+| target 34+ | 必须声明适用 foregroundServiceType 及对应权限；camera/microphone/location 等还要满足 while-in-use 权限和启动时机 |
+| target 35+ 的 dataSync/mediaProcessing | 后台运行受分类型时间预算约束；收到 Service.onTimeout(startId, fgsType) 后及时停止，超限不停止有失败后果 |
+| shortService | 有独立短时超时机制，不是 dataSync 的别名 |
+| 通知权限 | 拒绝 POST_NOTIFICATIONS 不等同于自动停止 FGS；服务仍须提供通知，系统任务管理入口与通知抽屉展示有区别 |
+
+Android 17 `ActiveServices` 的启动检查、FGS 类型策略和 time-limited FGS 路径分别执行；`startForegroundService()` 之后还须在系统期限内 `startForeground()`，并不是方法名带 foreground 就已经完成前台提升。
+
+```xml
+<uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+<uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+<application>
+    <service android:name=".MyForegroundService"
+        android:exported="false"
+        android:foregroundServiceType="dataSync" />
+</application>
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         Android 12+ 前台服务限制                            │
-└─────────────────────────────────────────────────────────────────────────────┘
 
-  Android 14+ 需要声明服务类型：
-
-  <service
-      android:name=".MyForegroundService"
-      android:foregroundServiceType="dataSync" />
-
-  服务类型：
-  ─────────────────────────────────────────────────────────────────────────
-  - camera             相机
-  - dataSync           数据同步
-  - health             健康（Android 14+）
-  - location           位置
-  - mediaPlayback      媒体播放
-  - mediaProjection    媒体投影
-  - microphone         麦克风
-  - phoneCall          电话
-  - remoteMessaging    远程消息
-  - shortService       短时服务（Android 14+）
-  - specialUse         特殊用途（Android 14+）
-  - systemExempted     系统豁免
-
-  后台启动限制：
-  ─────────────────────────────────────────────────────────────────────────
-  Android 10+ 后台启动前台服务需要权限：
-  <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-```
+下载示例应从符合条件的用户交互启动，工作支持取消；完成时用对应 startId 的停止策略避免旧任务停止新一次 start。onDestroy/onTimeout 必须停止 worker，而不是只移除通知。并非所有长任务都适合 dataSync；用户发起的数据传输还应根据实际场景考虑 UIDT Job。
 
 ---
 
@@ -1752,7 +1884,7 @@ if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
 
 ### 9.1 Android 8.0 后台限制
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    Android 8.0（API 26）后台限制                            │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1760,12 +1892,12 @@ if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
   1. 后台服务限制：
   ─────────────────────────────────────────────────────────────────────────
   - 后台应用无法创建后台服务
-  - 只能创建前台服务
+  - 前台服务也要满足后续版本的后台启动限制与豁免
   - 后台应用：没有可见 Activity 且不在前台服务白名单
 
   2. 广播限制：
   ─────────────────────────────────────────────────────────────────────────
-  - 静态注册的隐式广播不再生效
+  - 对 target 26+ 的 manifest 隐式广播有限制，存在官方豁免，不是全部禁用
   - 需要使用动态注册或显式广播
 
   3. 影响的广播：
@@ -1784,14 +1916,14 @@ if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
 
 ### 9.2 Android 9+ 限制
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    Android 9+ 后台限制                                      │
 └─────────────────────────────────────────────────────────────────────────────┘
 
   1. 后台位置限制：
   ─────────────────────────────────────────────────────────────────────────
-  - 后台应用只能获取几次位置
+  - 后台位置更新被限频；需结合 location 权限、前后台状态和系统策略
   - 需要前台服务 + 前台位置权限
 
   2. 电源管理：
@@ -1801,36 +1933,20 @@ if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
 
   3. 网络安全：
   ─────────────────────────────────────────────────────────────────────────
-  - 默认禁止明文流量
+  - target 28+ 默认明文策略更严格；可由 Network Security Config 配置，不是后台任务专属限制
 ```
 
 ### 9.3 Android 12+ 前台服务限制
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                    Android 12+ 前台服务限制                                 │
-└─────────────────────────────────────────────────────────────────────────────┘
+前台服务具体规则见第 8.2 节。关闭通知展示不等于停止服务；用户在系统任务管理入口停止应用则是另一件事。`FOREGROUND_SERVICE` 是正常权限，不能单独绕过后台启动检查。
 
-  1. 通知变更：
-  ─────────────────────────────────────────────────────────────────────────
-  - 前台服务通知可以关闭
-  - 关闭通知会停止服务
-
-  2. 后台启动限制：
-  ─────────────────────────────────────────────────────────────────────────
-  - 后台应用需要特殊权限才能启动前台服务
-  - 需要声明 foregroundServiceType
-
-  3. 精确闹钟限制：
-  ─────────────────────────────────────────────────────────────────────────
-  - 需要申请 SCHEDULE_EXACT_ALARM 权限
-```
+精确闹钟另受 AlarmManager 特殊访问/权限与豁免约束，`SCHEDULE_EXACT_ALARM` 并非每个应用都已获准；需检查 `canScheduleExactAlarms()`，并为权限撤销/重启设计重排和非精确降级。周期 WorkManager/JobScheduler 不替代精确闹钟。
 
 ---
 
 ## 10. 方案选择指南
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         后台任务方案选择                                    │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1845,11 +1961,11 @@ if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
   │       - 数据库：Room + Coroutines                                       │
   │       - UI 更新：withContext(Dispatchers.Main)                          │
   │                                                                         │
-  │  否 ──► 问题2：任务需要保证执行吗？                                      │
+  │  否 ──► 问题2：任务需要持久化调度（受系统约束）吗？                                      │
   │                                                                         │
   │  └─────────────────────────────────────────────────────────────────────┘
   │                                                                         │
-  │  问题2：任务需要保证执行吗？                                             │
+  │  问题2：任务需要持久化调度（受系统约束）吗？                                             │
   │  ─────────────────────────────────────────────────────────────────────── │
   │                                                                         │
   │  是 ──► 使用 WorkManager                                                │
@@ -1883,13 +1999,13 @@ if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
   └─────────────────────────────────────────────────────────────────────────┘
 ```
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         方案对比表                                          │
 └─────────────────────────────────────────────────────────────────────────────┘
 
   ┌─────────────────┬─────────────┬─────────────┬─────────────┬─────────────┐
-  │       方案       │   即时执行   │   保证执行   │   精确时间   │   长时间    │
+  │       方案       │   即时执行   │   持久化调度（受系统约束）   │   精确时间   │   长时间    │
   ├─────────────────┼─────────────┼─────────────┼─────────────┼─────────────┤
   │ Thread          │ ✓           │ ✗           │ ✗           │ ✗           │
   │ Executor        │ ✓           │ ✗           │ ✗           │ ✗           │
@@ -1906,18 +2022,18 @@ if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
 | 执行方式 | 核心定位 | 线程/进程模型 | 生命周期管理 | 关键特性 | 典型应用场景 | 推荐 |
 |---------|---------|--------------|-------------|---------|-------------|------|
 | **Kotlin 协程** | 轻量级异步任务<br>现代Android开发首选 | 运行在现有线程中<br>基于线程池调度 | 自动管理<br>viewModelScope/lifecycleScope自动取消 | 1. 代码简洁（同步写法）<br>2. 结构化并发<br>3. 无内存泄漏风险<br>4. 切换线程极简 | 网络请求、数据库操作<br>UI更新、轻量计算 | ⭐⭐⭐⭐⭐<br>首选方案 |
-| **WorkManager** | 可延迟、保证执行<br>的系统级任务 | 内部使用JobScheduler<br>AlarmManager或线程池 | 系统管理<br>应用重启后任务依然存在 | 1. 约束条件（网络、电量）<br>2. 任务链与重试机制<br>3. 兼容Android 6.0+<br>4. 持久化存储 | 日志上报、数据同步<br>定期备份、图片处理 | ⭐⭐⭐⭐⭐<br>延期任务首选 |
-| **前台服务** | 用户感知的长时任务<br>系统高优先级 | 独立进程或主进程<br>需手动开线程 | 开发者管理<br>需显式调用stopService | 1. 必须显示通知<br>2. 系统优先级极高<br>3. 不受后台限制<br>4. 支持跨进程通信 | 音乐播放、文件下载<br>实时导航、位置跟踪 | ⭐⭐⭐⭐<br>长任务必选 |
+| **WorkManager** | 可延迟、持久化调度（受系统约束）<br>的系统级任务 | 内部使用JobScheduler<br>AlarmManager或线程池 | 系统管理<br>应用重启后任务依然存在 | 1. 约束条件（网络、电量）<br>2. 任务链与重试机制<br>3. 兼容Android 6.0+<br>4. 持久化存储 | 日志上报、数据同步<br>定期备份、图片处理 | ⭐⭐⭐⭐⭐<br>延期任务首选 |
+| **前台服务** | 用户感知的长时任务<br>系统高优先级 | 独立进程或主进程<br>需手动开线程 | 开发者管理<br>需显式调用stopService | 1. 必须显示通知<br>2. 系统优先级极高<br>3. 不受后台限制<br>4. 支持跨进程通信 | 音乐播放、文件下载<br>实时导航、位置跟踪 | ⭐⭐⭐⭐<br>仅符合 FGS 类型与启动条件时 |
 | **后台服务** | 无感知的后台任务<br>传统服务模式 | 独立进程或主进程<br>需手动开线程 | 开发者管理<br>需显式调用stopService | 1. 无通知<br>2. Android 8.0+受限<br>3. 低内存时易被杀 | 短暂后台任务<br>旧项目兼容 | ⭐⭐<br>已不推荐 |
 | **IntentService**<br>*(已废弃)* | 串行处理Intent请求 | 独立工作线程 | 自动管理<br>任务完成自动销毁 | 1. 串行执行<br>2. 无需手动开线程 | 简单后台任务 | ⭐<br>已被废弃 |
 | **HandlerThread** | 串行消息处理<br>专用后台线程 | 单个专用线程<br>自带消息队列 | 开发者管理<br>需手动调用quit() | 1. 串行执行<br>2. 消息驱动<br>3. 适合长期驻留 | 聊天消息处理<br>日志系统、相机预览 | ⭐⭐⭐<br>特定场景 |
 | **Thread / 线程池** | 传统多线程<br>Java基础能力 | 独立线程<br>可复用线程池 | 完全手动管理 | 1. 灵活控制<br>2. 传统Java API<br>3. 需处理线程切换 | 简单一次性任务<br>Java库开发 | ⭐⭐<br>底层基础 |
-| **JobScheduler** | 系统优化调度<br>原生API | 系统进程调度 | 系统管理 | 1. 省电优化<br>2. API 21+可用<br>3. 周期最短15分钟 | 系统级定期任务 | ⭐⭐⭐<br>API限制 |
+| **JobScheduler** | 系统优化调度<br>原生API | 系统进程调度，应用主线程回调 | 系统管理 | 1. 省电优化<br>2. API 21+可用<br>3. 周期最短15分钟 | 系统级定期任务 | ⭐⭐⭐<br>API限制 |
 | **AlarmManager** | 精确时间触发<br>定时任务 | 触发应用进程 | 开发者管理 | 1. 精确时间控制<br>2. 可唤醒设备<br>3. 耗电严重 | 闹钟、日历提醒 | ⭐⭐<br>谨慎使用 |
 
 ### 10.3 快速决策表
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         快速决策：我应该用哪个？                             │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1945,9 +2061,9 @@ if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
 
 ### 11.1 如何选择后台任务方案？
 
-```
+```text
 1. 立即执行，短时间 → Kotlin Coroutines
-2. 延迟执行，保证执行 → WorkManager
+2. 延迟执行，持久化调度（受系统约束） → WorkManager
 3. 精确时间 → AlarmManager
 4. 长时间运行 → ForegroundService
 5. 周期性任务 → WorkManager（最小15分钟）
@@ -1955,7 +2071,7 @@ if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
 
 ### 11.2 AsyncTask 废弃后怎么办？
 
-```
+```text
 使用 Kotlin Coroutines 替代：
 
 // 之前
@@ -1977,8 +2093,8 @@ lifecycleScope.launch {
 
 ### 11.3 IntentService 废弃后怎么办？
 
-```
-使用 WorkManager 或 JobIntentService 替代：
+```text
+使用 WorkManager 替代：
 
 // WorkManager
 class MyWorker(context: Context, params: WorkerParameters) : Worker(context, params) {
@@ -1988,7 +2104,7 @@ class MyWorker(context: Context, params: WorkerParameters) : Worker(context, par
     }
 }
 
-// 或 JobIntentService（Android 11+ 也废弃）
+// 历史 JobIntentService 示例（AndroidX 已废弃，不再推荐）
 class MyService : JobIntentService() {
     override fun onHandleWork(intent: Intent) {
         // 任务
@@ -1998,14 +2114,14 @@ class MyService : JobIntentService() {
 
 ### 11.4 如何处理应用退出后的任务？
 
-```
+```text
 1. 使用 WorkManager（推荐）
    - 重启后自动恢复
    - 系统管理生命周期
 
 2. 使用前台服务
    - 用户可见
-   - 不会被杀死
+   - 仍可能被用户/系统终止，不能当作持久化保证
 
 3. 使用 AlarmManager
    - 精确时间
@@ -2016,7 +2132,7 @@ class MyService : JobIntentService() {
 
 ## 12. 知识体系总结
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         后台任务知识体系                                    │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -2056,7 +2172,7 @@ class MyService : JobIntentService() {
 **核心知识点：**
 
 1. **即时任务**：使用 Kotlin Coroutines，支持生命周期感知
-2. **延迟任务**：使用 WorkManager，保证执行，支持约束条件
+2. **延迟任务**：使用 WorkManager，持久化调度（受系统约束），支持约束条件
 3. **周期任务**：使用 WorkManager（最小15分钟）或 AlarmManager（精确时间）
 4. **长时任务**：使用 ForegroundService，需要显示通知
 5. **废弃方案**：AsyncTask、IntentService、Loader 已废弃
@@ -2065,3 +2181,15 @@ class MyService : JobIntentService() {
 ---
 
 > 作者：OpenClaw | 日期：2026-03-09
+
+
+## 固定版本源码索引
+
+本文平台实现基线为 `android-17.0.0_r1`。下列函数用于定位正文分析；代码标为“节选”时省略无关监控，标为“示意”时不是源码逐字复制。
+
+- [JobInfo](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/apex/jobscheduler/framework/java/android/app/job/JobInfo.java)：`enforceValidity; Builder.setPeriodic`。
+- [JobService](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/apex/jobscheduler/framework/java/android/app/job/JobService.java)：`onStartJob; onStopJob; jobFinished`。
+- [FGS](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/services/core/java/com/android/server/am/ActiveServices.java)：`startServiceLocked; setServiceForegroundInnerLocked; time-limited FGS timeout paths`。
+- [Handler 回调](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/os/Message.java)：`obtain(Handler, Runnable)`。
+- [协程异常上游说明](https://kotlinlang.org/docs/exception-handling.html)：`supervisorScope; async exception propagation`。
+- [取消上游说明](https://kotlinlang.org/docs/cancellation-and-timeouts.html)：`CancellationException`。

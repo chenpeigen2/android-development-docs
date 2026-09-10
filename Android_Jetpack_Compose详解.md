@@ -7,128 +7,109 @@
 
 ## 📚 目录
 
-### 第一篇：Compose 基础
-
-**第 1 章 Compose 概述**
-- 1.1 [什么是 Jetpack Compose？](#11-什么是-jetpack-compose)
-- 1.2 [核心优势](#12-核心优势)
-- 1.3 [与传统 View 对比](#13-与传统-view-对比)
-- 1.4 [开发环境搭建](#14-开发环境搭建)
-
-**第 2 章 Kotlin 基础**
-- 2.1 [Kotlin 语言特性](#21-kotlin-语言特性)
-- 2.2 [高阶函数与 Lambda](#22-高阶函数与-lambda)
-- 2.3 [扩展函数](#23-扩展函数)
-- 2.4 [协程基础](#24-协程基础)
-
-**第 3 章 Composable 函数**
-- 3.1 [Composable 注解](#31-composable-注解)
-- 3.2 [函数规则与约定](#32-函数规则与约定)
-- 3.3 [remember 与记忆化](#33-remember-与记忆化)
-- 3.4 [重组与智能跳过](#34-重组与智能跳过)
-
-**第 4 章 State 状态管理**
-- 4.1 [State 与 MutableState](#41-state-与-mutablestate)
-- 4.2 [状态提升](#42-状态提升)
-- 4.3 [rememberSaveable](#43-remembersaveable)
-- 4.4 [StateFlow 集成](#44-stateflow-集成)
-
-**第 5 章 Modifier 修饰符**
-- 5.1 [Modifier 基础](#51-modifier-基础)
-- 5.2 [常用修饰符](#52-常用修饰符)
-- 5.3 [顺序的重要性](#53-顺序的重要性)
-- 5.4 [自定义 Modifier](#54-自定义-modifier)
-
-**第 6 章 布局组件**
-- 6.1 [Column 纵向布局](#61-column-纵向布局)
-- 6.2 [Row 横向布局](#62-row-横向布局)
-- 6.3 [Box 堆叠布局](#63-box-堆叠布局)
-- 6.4 [ConstraintLayout](#64-constraintlayout)
-- 6.5 [自定义 Layout](#65-自定义-layout)
-
----
-
-### 第二篇：Compose 进阶
-
-**第 7 章 Material Design 组件**
-- 7.1 [Button 按钮](#71-button-按钮)
-- 7.2 [TextField 输入框](#72-textfield-输入框)
-- 7.3 [Card 卡片](#73-card-卡片)
-- 7.4 [Dialog 对话框](#74-dialog-对话框)
-- 7.5 [其他组件](#75-其他组件)
-
-**第 8 章 列表**
-- 8.1 [LazyColumn](#81-lazycolumn)
-- 8.2 [LazyRow](#82-lazyrow)
-- 8.3 [LazyVerticalGrid](#83-lazyverticalgrid)
-- 8.4 [性能优化](#84-性能优化)
-
-**第 9 章 动画**
-- 9.1 [AnimatedVisibility](#91-animatedvisibility)
-- 9.2 [animate*AsState](#92-animateasstate)
-- 9.3 [Crossfade](#93-crossfade)
-- 9.4 [infiniteTransition](#94-infinitetransition)
-- 9.5 [AnimationSpec](#95-animationspec)
-
-**第 10 章 主题与样式**
-- 10.1 [Material Theme](#101-material-theme)
-- 10.2 [ColorScheme](#102-colorscheme)
-- 10.3 [Typography](#103-typography)
-- 10.4 [Shapes](#104-shapes)
-- 10.5 [暗黑模式](#105-暗黑模式)
-
-**第 11 章 ViewModel 集成**
-- 11.1 [viewModel() 函数](#111-viewmodel-函数)
-- 11.2 [StateFlow 收集](#112-stateflow-收集)
-- 11.3 [Hilt 集成](#113-hilt-集成)
-- 11.4 [SavedStateHandle](#114-savedstatehandle)
-
-**第 12 章 协程集成**
-- 12.1 [LaunchedEffect](#121-launchedeffect)
-- 12.2 [rememberCoroutineScope](#122-remembercoroutinescope)
-- 12.3 [DisposableEffect](#123-disposableeffect)
-- 12.4 [SideEffect](#124-sideeffect)
-
----
-
-### 第三篇：Compose 高级
-
-**第 13 章 Navigation 导航**
-- 13.1 [NavHost 基础](#131-navhost-基础)
-- 13.2 [参数传递](#132-参数传递)
-- 13.3 [Bottom Navigation](#133-bottom-navigation)
-- 13.4 [深层链接](#134-深层链接)
-
-**第 14 章 与传统 View 互操作**
-- 14.1 [AndroidView](#141-androidview)
-- 14.2 [ComposeView](#142-composeview)
-- 14.3 [渐进式迁移](#143-渐进式迁移)
-- 14.4 [最佳实践](#144-最佳实践)
-
-**第 15 章 手势处理**
-- 15.1 [点击手势](#151-点击手势)
-- 15.2 [拖动手势](#152-拖动手势)
-- 15.3 [缩放与旋转](#153-缩放与旋转)
-- 15.4 [多点触控](#154-多点触控)
-
-**第 16 章 Canvas 自定义绘制**
-- 16.1 [DrawScope](#161-drawscope)
-- 16.2 [基本图形](#162-基本图形)
-- 16.3 [Path 路径](#163-path-路径)
-- 16.4 [渐变与阴影](#164-渐变与阴影)
-
-**第 17 章 性能优化**
-- 17.1 [稳定性与跳过](#171-稳定性与跳过)
-- 17.2 [重组优化](#172-重组优化)
-- 17.3 [布局优化](#173-布局优化)
-- 17.4 [性能分析工具](#174-性能分析工具)
-
-**第 18 章 面试常见问题**
-- 18.1 [Compose 原理](#181-compose-原理)
-- 18.2 [重组机制](#182-重组机制)
-- 18.3 [与传统 View 对比](#183-与传统-view-对比)
-- 18.4 [性能优化](#184-性能优化)
-- 18.5 [最佳实践](#185-最佳实践)
+- [第一篇：Compose 基础](#第一篇compose-基础)
+- [第 1 章 Compose 概述](#第-1-章-compose-概述)
+  - [1.1 什么是 Jetpack Compose？](#11-什么是-jetpack-compose)
+  - [1.2 核心优势](#12-核心优势)
+  - [1.3 与传统 View 对比](#13-与传统-view-对比)
+  - [1.4 开发环境搭建](#14-开发环境搭建)
+    - [项目配置](#项目配置)
+    - [Hello Compose](#hello-compose)
+- [第 2 章 Kotlin 基础](#第-2-章-kotlin-基础)
+  - [2.1 Kotlin 语言特性](#21-kotlin-语言特性)
+  - [2.2 高阶函数与 Lambda](#22-高阶函数与-lambda)
+  - [2.3 扩展函数](#23-扩展函数)
+  - [2.4 协程基础](#24-协程基础)
+- [第 3 章 Composable 函数](#第-3-章-composable-函数)
+  - [3.1 Composable 注解](#31-composable-注解)
+  - [3.2 函数规则与约定](#32-函数规则与约定)
+  - [3.3 remember 与记忆化](#33-remember-与记忆化)
+  - [3.4 重组与智能跳过](#34-重组与智能跳过)
+- [第 4 章 State 状态管理](#第-4-章-state-状态管理)
+  - [4.1 State 与 MutableState](#41-state-与-mutablestate)
+  - [4.2 状态提升](#42-状态提升)
+  - [4.3 rememberSaveable](#43-remembersaveable)
+  - [4.4 StateFlow 集成](#44-stateflow-集成)
+- [第 5 章 Modifier 修饰符](#第-5-章-modifier-修饰符)
+  - [5.1 Modifier 基础](#51-modifier-基础)
+  - [5.2 常用修饰符](#52-常用修饰符)
+  - [5.3 顺序的重要性](#53-顺序的重要性)
+  - [5.4 自定义 Modifier](#54-自定义-modifier)
+- [第 6 章 布局组件](#第-6-章-布局组件)
+  - [6.1 Column 纵向布局](#61-column-纵向布局)
+  - [6.2 Row 横向布局](#62-row-横向布局)
+  - [6.3 Box 堆叠布局](#63-box-堆叠布局)
+  - [6.4 ConstraintLayout](#64-constraintlayout)
+  - [6.5 自定义 Layout](#65-自定义-layout)
+- [第 7 章 Material Design 组件](#第-7-章-material-design-组件)
+  - [7.1 Button 按钮](#71-button-按钮)
+  - [7.2 TextField 输入框](#72-textfield-输入框)
+  - [7.3 Card 卡片](#73-card-卡片)
+  - [7.4 Dialog 对话框](#74-dialog-对话框)
+  - [7.5 其他组件](#75-其他组件)
+- [第 8 章 列表](#第-8-章-列表)
+  - [8.1 LazyColumn](#81-lazycolumn)
+  - [8.2 LazyRow](#82-lazyrow)
+  - [8.3 LazyVerticalGrid](#83-lazyverticalgrid)
+  - [8.4 性能优化](#84-性能优化)
+- [第 9 章 动画](#第-9-章-动画)
+  - [9.1 AnimatedVisibility](#91-animatedvisibility)
+  - [9.2 animate*AsState](#92-animateasstate)
+  - [9.3 Crossfade](#93-crossfade)
+  - [9.4 infiniteTransition](#94-infinitetransition)
+  - [9.5 AnimationSpec](#95-animationspec)
+- [第 10 章 主题与样式](#第-10-章-主题与样式)
+  - [10.1 Material Theme](#101-material-theme)
+  - [10.2 ColorScheme](#102-colorscheme)
+  - [10.3 Typography](#103-typography)
+  - [10.4 Shapes](#104-shapes)
+  - [10.5 暗黑模式](#105-暗黑模式)
+- [第 11 章 ViewModel 集成](#第-11-章-viewmodel-集成)
+  - [11.1 viewModel() 函数](#111-viewmodel-函数)
+  - [11.2 StateFlow 收集](#112-stateflow-收集)
+  - [11.3 Hilt 集成](#113-hilt-集成)
+  - [11.4 SavedStateHandle](#114-savedstatehandle)
+- [第 12 章 协程集成](#第-12-章-协程集成)
+  - [12.1 LaunchedEffect](#121-launchedeffect)
+  - [12.2 rememberCoroutineScope](#122-remembercoroutinescope)
+  - [12.3 DisposableEffect](#123-disposableeffect)
+  - [12.4 SideEffect](#124-sideeffect)
+- [第 13 章 Navigation 导航](#第-13-章-navigation-导航)
+  - [13.1 NavHost 基础](#131-navhost-基础)
+  - [13.2 参数传递](#132-参数传递)
+  - [13.3 Bottom Navigation](#133-bottom-navigation)
+  - [13.4 深层链接](#134-深层链接)
+- [第 14 章 与传统 View 互操作](#第-14-章-与传统-view-互操作)
+  - [14.1 AndroidView](#141-androidview)
+  - [14.2 ComposeView](#142-composeview)
+  - [14.3 渐进式迁移](#143-渐进式迁移)
+  - [14.4 最佳实践](#144-最佳实践)
+- [第 15 章 手势处理](#第-15-章-手势处理)
+  - [15.1 点击手势](#151-点击手势)
+  - [15.2 拖动手势](#152-拖动手势)
+  - [15.3 缩放与旋转](#153-缩放与旋转)
+  - [15.4 多点触控](#154-多点触控)
+- [第 16 章 Canvas 自定义绘制](#第-16-章-canvas-自定义绘制)
+  - [16.1 DrawScope](#161-drawscope)
+  - [16.2 基本图形](#162-基本图形)
+  - [16.3 Path 路径](#163-path-路径)
+  - [16.4 渐变与阴影](#164-渐变与阴影)
+- [第 17 章 性能优化](#第-17-章-性能优化)
+  - [17.1 稳定性与跳过](#171-稳定性与跳过)
+  - [17.2 重组优化](#172-重组优化)
+  - [17.3 布局优化](#173-布局优化)
+  - [17.4 性能分析工具](#174-性能分析工具)
+- [第 18 章 面试常见问题](#第-18-章-面试常见问题)
+  - [18.1 Compose 原理](#181-compose-原理)
+  - [18.2 重组机制](#182-重组机制)
+  - [18.3 与传统 View 对比](#183-与传统-view-对比)
+  - [18.4 性能优化](#184-性能优化)
+  - [18.5 最佳实践](#185-最佳实践)
+- [总结](#总结)
+  - [Compose 核心要点](#compose-核心要点)
+  - [适用场景](#适用场景)
+  - [学习建议](#学习建议)
+- [19. 状态收集、取消和宿主兼容](#19-状态收集取消和宿主兼容)
 
 ---
 
@@ -142,7 +123,7 @@
 
 **Jetpack Compose** 是 Android 的现代声明式 UI 工具包，完全使用 Kotlin 构建 UI。
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         Compose 核心特性                                    │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -165,7 +146,7 @@
 
 ### 1.2 核心优势
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    Compose vs 传统 View 开发                               │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -197,7 +178,7 @@
 
 ### 1.3 与传统 View 对比
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    命令式 vs 声明式                                        │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -245,8 +226,12 @@
 
 #### 项目配置
 
+第 1–18 章固定使用 **Compose BOM 2024.02.00 / Runtime 1.6.1、Compose Compiler 1.5.3、Kotlin 1.9.10**，不是任意“以上版本”混用。BOM 管理库版本，不管理编译器或 Activity/Lifecycle。以下外置 Kotlin 插件配置属于 AGP 8.x 工具链，不可直接叠加到 AGP 9 内置 Kotlin 工程。根工程固定插件版本，模块中应用插件；Java/Kotlin 字节码目标都设为 17。
+
+来源：[Compose Compiler–Kotlin 兼容表](https://developer.android.com/jetpack/androidx/releases/compose-kotlin)、[BOM 2024.02.00 官方 POM](https://dl.google.com/dl/android/maven2/androidx/compose/compose-bom/2024.02.00/compose-bom-2024.02.00.pom)。
+
 ```kotlin
-// build.gradle (Module)
+// app/build.gradle.kts；根工程的 org.jetbrains.kotlin.android 版本为 1.9.10。
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -258,6 +243,10 @@ android {
     }
     composeOptions {
         kotlinCompilerExtensionVersion = "1.5.3"
+    }
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions {
         jvmTarget = "17"
@@ -278,6 +267,7 @@ dependencies {
     
     // ViewModel 集成
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0")
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.7.0")
     
     // 调试工具
     debugImplementation("androidx.compose.ui:ui-tooling")
@@ -572,7 +562,7 @@ fun CorrectFunction() {
  */
 
 @Composable
-fun RememberExample() {
+fun RememberExample(items: List<String>, filter: String) {
     // 1. 基础 remember
     var count by remember { mutableStateOf(0) }
     
@@ -583,7 +573,7 @@ fun RememberExample() {
     
     // 3. remember 带依赖
     val filteredList = remember(items, filter) {
-        items.filter { it.matches(filter) }
+        items.filter { it.contains(filter, ignoreCase = true) }
     }
     
     // 4. rememberSaveable：配置更改后保持
@@ -592,17 +582,15 @@ fun RememberExample() {
     // 5. 自定义 Saver
     data class User(val id: Int, val name: String)
     
-    val userSaver = Saver<User?, String>(
-        save = { it?.let { "${it.id},${it.name}" } },
-        restore = { 
-            it?.split(",")?.let { (id, name) -> 
-                User(id.toInt(), name) 
-            }
+    // 分字段保存，姓名包含逗号也能往返；明确 MutableState<User?> 的类型。
+    val userSaver = listSaver<User?, Any>(
+        save = { user -> if (user == null) emptyList() else listOf(user.id, user.name) },
+        restore = { values ->
+            if (values.isEmpty()) null else User(values[0] as Int, values[1] as String)
         }
     )
-    
-    var user by rememberSaveable(stateSaver = userSaver) { 
-        mutableStateOf(null) 
+    var user by rememberSaveable(stateSaver = userSaver) {
+        mutableStateOf<User?>(null)
     }
 }
 ```
@@ -756,6 +744,8 @@ fun SaveableExample() {
 
 ### 4.4 StateFlow 集成
 
+Android UI 使用 `import androidx.lifecycle.compose.collectAsStateWithLifecycle`，对应上文 `lifecycle-runtime-compose:2.7.0`。跨平台/无 Lifecycle 宿主才按自己的所有权选择 `collectAsState`；STOPPED 时停止 UI 收集不会自动取消 ViewModel 的所有工作。
+
 ```kotlin
 /**
  * StateFlow 与 Compose 集成
@@ -775,7 +765,7 @@ class UserViewModel : ViewModel() {
 @Composable
 fun UserScreen(viewModel: UserViewModel = viewModel()) {
     // 收集 StateFlow
-    val user by viewModel.user.collectAsState()
+    val user by viewModel.user.collectAsStateWithLifecycle()
     
     Column {
         Text("Name: ${user.name}")
@@ -1703,7 +1693,7 @@ class UserViewModel : ViewModel() {
 
 @Composable
 fun UserScreen(viewModel: UserViewModel = viewModel()) {
-    val name by viewModel.name.collectAsState()
+    val name by viewModel.name.collectAsStateWithLifecycle()
     
     Column {
         Text("Name: $name")
@@ -1720,7 +1710,7 @@ fun UserScreen(viewModel: UserViewModel = viewModel()) {
 @Composable
 fun StateFlowExample(viewModel: MyViewModel = viewModel()) {
     // collectAsState：收集 Flow 并转为 State
-    val data by viewModel.data.collectAsState()
+    val data by viewModel.data.collectAsStateWithLifecycle()
     
     // collectAsStateWithLifecycle：生命周期感知
     val data2 by viewModel.data.collectAsStateWithLifecycle()
@@ -1742,7 +1732,7 @@ class HiltViewModel @Inject constructor(
 
 @Composable
 fun HiltExample(viewModel: HiltViewModel = hiltViewModel()) {
-    val users by viewModel.users.collectAsState()
+    val users by viewModel.users.collectAsStateWithLifecycle()
     
     LazyColumn {
         items(users) { user ->
@@ -2003,8 +1993,11 @@ fun AndroidViewExample() {
 ```
 
 ```kotlin
-// Activity/Fragment
-val composeView = findViewById<ComposeView>(R.id.composeView)
+// Fragment.onViewCreated(view, savedInstanceState) 内；Activity 则调用自己的 findViewById。
+val composeView = view.findViewById<ComposeView>(R.id.composeView)
+composeView.setViewCompositionStrategy(
+    ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed
+)
 composeView.setContent {
     MaterialTheme {
         Text("Hello from Compose!")
@@ -2031,7 +2024,7 @@ class MixedActivity : AppCompatActivity() {
 
 ### 14.4 最佳实践
 
-```
+```text
 互操作最佳实践：
 
 1. 优先使用 Compose
@@ -2330,7 +2323,7 @@ Column { Column { Column { Text("") } } }
 // ✅ 正确
 Column { Text("") }
 
-// 3. 使用 BaselineSkip
+// 3. 用 Spacer 明确间距（这里没有使用名为 BaselineSkip 的 API）
 Column {
     Text("Title")
     Spacer(Modifier.height(8.dp))
@@ -2340,7 +2333,7 @@ Column {
 
 ### 17.4 性能分析工具
 
-```
+```text
 性能分析工具：
 
 1. Layout Inspector
@@ -2358,9 +2351,11 @@ Column {
 4. Recomposition Count
    @Composable
    fun RecompositionCounter() {
-       var count by remember { mutableStateOf(0) }
-       SideEffect { count++ }
-       Log.d("Recomposition", "Count: $count")
+       // 普通计数器不是 Snapshot State，不会因计数而触发下一次重组。
+       val commits = remember { java.util.concurrent.atomic.AtomicInteger(0) }
+       SideEffect {
+           Log.d("Recomposition", "Committed: ${commits.incrementAndGet()}")
+       }
    }
 ```
 
@@ -2374,7 +2369,7 @@ Column {
 
 **A:**
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                       Compose 执行阶段                                      │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -2399,7 +2394,7 @@ Column {
 
 **A:**
 
-```
+```text
 重组特点：
 1. 智能跳过：输入未变化时跳过
 2. 可能频繁执行：避免副作用
@@ -2498,7 +2493,7 @@ Column {
 
 **文档版本**：v2.0  
 **更新时间**：2026-09-09
-**适用版本**：Compose BOM 2024.02.00+
+**适用版本**：第 1–18 章为 Compose BOM 2024.02.00 / Lifecycle 2.7.0；第 19 章独立说明 Runtime 1.9.0 / Lifecycle Compose 2.9.3，不将两组依赖混装。
 
 ## 19. 状态收集、取消和宿主兼容
 

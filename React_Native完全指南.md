@@ -7,129 +7,46 @@
 
 ## 📚 目录
 
-### 第一篇：React Native 基础
-
-**第 1 章 React Native 概述**
-- 1.1 [什么是 React Native？](#11-什么是-react-native)
-- 1.2 [核心优势](#12-核心优势)
-- 1.3 [与 Flutter 对比](#13-与-flutter-对比)
-- 1.4 [开发环境搭建](#14-开发环境搭建)
-
-**第 2 章 JavaScript/TypeScript 基础**
-- 2.1 [ES6+ 新特性](#21-es6-新特性)
-- 2.2 [TypeScript 基础](#22-typescript-基础)
-- 2.3 [函数与闭包](#23-函数与闭包)
-- 2.4 [异步编程](#24-异步编程)
-
-**第 3 章 React 基础**
-- 3.1 [React 核心概念](#31-react-核心概念)
-- 3.2 [JSX 语法](#32-jsx-语法)
-- 3.3 [组件与 Props](#33-组件与-props)
-- 3.4 [State 与生命周期](#34-state-与生命周期)
-- 3.5 [Hooks 详解](#35-hooks-详解)
-
-**第 4 章 React Native 核心组件**
-- 4.1 [View 视图](#41-view-视图)
-- 4.2 [Text 文本](#42-text-文本)
-- 4.3 [Image 图片](#43-image-图片)
-- 4.4 [ScrollView 滚动视图](#44-scrollview-滚动视图)
-- 4.5 [FlatList 列表](#45-flatlist-列表)
-
-**第 5 章 样式与布局**
-- 5.1 [Flexbox 布局](#51-flexbox-布局)
-- 5.2 [StyleSheet 样式](#52-stylesheet-样式)
-- 5.3 [尺寸单位](#53-尺寸单位)
-- 5.4 [响应式设计](#54-响应式设计)
-
-**第 6 章 导航**
-- 6.1 [React Navigation 基础](#61-react-navigation-基础)
-- 6.2 [Stack Navigator](#62-stack-navigator)
-- 6.3 [Tab Navigator](#63-tab-navigator)
-- 6.4 [Drawer Navigator](#64-drawer-navigator)
-- 6.5 [路由传参](#65-路由传参)
-
----
-
-### 第二篇：React Native 进阶
-
-**第 7 章 状态管理**
-- 7.1 [Context API](#71-context-api)
-- 7.2 [Redux](#72-redux)
-- 7.3 [MobX](#73-mobx)
-- 7.4 [Zustand](#74-zustand)
-- 7.5 [状态管理对比](#75-状态管理对比)
-
-**第 8 章 网络请求**
-- 8.1 [Fetch API](#81-fetch-api)
-- 8.2 [Axios](#82-axios)
-- 8.3 [网络拦截器](#83-网络拦截器)
-- 8.4 [缓存策略](#84-缓存策略)
-
-**第 9 章 数据持久化**
-- 9.1 [AsyncStorage](#91-asyncstorage)
-- 9.2 [SQLite](#92-sqlite)
-- 9.3 [Realm](#93-realm)
-- 9.4 [WatermelonDB](#94-watermelondb)
-
-**第 10 章 动画**
-- 10.1 [Animated API](#101-animated-api)
-- 10.2 [Reanimated](#102-reanimated)
-- 10.3 [Lottie](#103-lottie)
-- 10.4 [手势动画](#104-手势动画)
-
-**第 11 章 手势处理**
-- 11.1 [GestureResponder](#111-gestureresponder)
-- 11.2 [React Native Gesture Handler](#112-react-native-gesture-handler)
-- 11.3 [滑动删除](#113-滑动删除)
-- 11.4 [拖拽排序](#114-拖拽排序)
-
-**第 12 章 原生模块**
-- 12.1 [Native Modules 基础](#121-native-modules-基础)
-- 12.2 [iOS 原生模块](#122-ios-原生模块)
-- 12.3 [Android 原生模块](#123-android-原生模块)
-- 12.4 [Native UI Components](#124-native-ui-components)
-
----
-
-### 第三篇：React Native 高级
-
-**第 13 章 性能优化**
-- 13.1 [性能分析工具](#131-性能分析工具)
-- 13.2 [列表优化](#132-列表优化)
-- 13.3 [图片优化](#133-图片优化)
-- 13.4 [内存优化](#134-内存优化)
-- 13.5 [Bundle 优化](#135-bundle-优化)
-
-**第 14 章 调试与测试**
-- 14.1 [调试工具](#141-调试工具)
-- 14.2 [单元测试](#142-单元测试)
-- 14.3 [组件测试](#143-组件测试)
-- 14.4 [E2E 测试](#144-e2e-测试)
-
-**第 15 章 新架构**
-- 15.1 [Fabric](#151-fabric)
-- 15.2 [TurboModules](#152-turbomodules)
-- 15.3 [CodeGen](#153-codegen)
-- 15.4 [架构迁移](#154-架构迁移)
-
-**第 16 章 Expo 开发**
-- 16.1 [Expo 基础](#161-expo-基础)
-- 16.2 [Expo SDK](#162-expo-sdk)
-- 16.3 [Expo Router](#163-expo-router)
-- 16.4 [Expo vs Bare React Native](#164-expo-vs-bare-react-native)
-
-**第 17 章 发布与部署**
-- 17.1 [iOS 发布](#171-ios-发布)
-- 17.2 [Android 发布](#172-android-发布)
-- 17.3 [CodePush 热更新](#173-codepush-热更新)
-- 17.4 [CI/CD](#174-cicd)
-
-**第 18 章 面试常见问题**
-- 18.1 [React Native 原理](#181-react-native-原理)
-- 18.2 [Bridge 机制](#182-bridge-机制)
-- 18.3 [与 Flutter 对比](#183-与-flutter-对比)
-- 18.4 [性能优化](#184-性能优化)
-- 18.5 [最佳实践](#185-最佳实践)
+- [第一篇：React Native 基础](#第一篇react-native-基础)
+- [第 1 章 React Native 概述](#第-1-章-react-native-概述)
+  - [1.1 什么是 React Native？](#11-什么是-react-native)
+  - [1.2 核心优势](#12-核心优势)
+  - [1.3 与 Flutter 对比](#13-与-flutter-对比)
+  - [1.4 开发环境搭建](#14-开发环境搭建)
+    - [安装 React Native CLI](#安装-react-native-cli)
+    - [创建第一个项目](#创建第一个项目)
+- [第 2 章 JavaScript/TypeScript 基础](#第-2-章-javascripttypescript-基础)
+  - [2.1 ES6+ 新特性](#21-es6-新特性)
+  - [2.2 TypeScript 基础](#22-typescript-基础)
+  - [2.3 函数与闭包](#23-函数与闭包)
+  - [2.4 异步编程](#24-异步编程)
+- [第 3 章 React 基础](#第-3-章-react-基础)
+  - [3.1 React 核心概念](#31-react-核心概念)
+  - [3.2 JSX 语法](#32-jsx-语法)
+  - [3.3 组件与 Props](#33-组件与-props)
+  - [3.4 State 与生命周期](#34-state-与生命周期)
+  - [3.5 Hooks 详解](#35-hooks-详解)
+- [第 4 章 React Native 核心组件](#第-4-章-react-native-核心组件)
+  - [4.1 View 视图](#41-view-视图)
+  - [4.2 Text 文本](#42-text-文本)
+  - [4.3 Image 图片](#43-image-图片)
+  - [4.4 ScrollView 滚动视图](#44-scrollview-滚动视图)
+  - [4.5 FlatList 列表](#45-flatlist-列表)
+- [第 5 章 样式与布局](#第-5-章-样式与布局)
+  - [5.1 Flexbox 布局](#51-flexbox-布局)
+  - [5.2 StyleSheet 样式](#52-stylesheet-样式)
+- [第 18 章 面试常见问题](#第-18-章-面试常见问题)
+  - [18.1 React Native 原理](#181-react-native-原理)
+  - [18.2 Bridge 机制](#182-bridge-机制)
+  - [18.3 与 Flutter 对比](#183-与-flutter-对比)
+  - [18.4 性能优化](#184-性能优化)
+  - [18.5 最佳实践](#185-最佳实践)
+- [总结](#总结)
+  - [React Native 核心要点](#react-native-核心要点)
+  - [适用场景](#适用场景)
+  - [学习建议](#学习建议)
+- [第 19 章 工程化实战：New Architecture 页面](#第-19-章-工程化实战new-architecture-页面)
+  - [19.1 Android 宿主与新架构启动](#191-android-宿主与新架构启动)
 
 ---
 
@@ -143,9 +60,9 @@
 
 **React Native** 是 Facebook 开发的跨平台移动应用框架，使用 JavaScript 和 React 构建原生移动应用。
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                       React Native 核心架构                                 │
+│                React Native 0.73 旧架构示意（非 0.82）                      │
 └─────────────────────────────────────────────────────────────────────────────┘
 
                          ┌──────────────┐
@@ -167,7 +84,7 @@
 
 ### 1.2 核心优势
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                       React Native vs Flutter                               │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -239,9 +156,11 @@ sudo gem install cocoapods
 
 #### 创建第一个项目
 
+下列命令复现本文旧架构基础部分的 0.73.0 工程，不用 `@latest` 悄悄切换框架和 CLI。0.82.0 使用对应版本模板与 New Architecture 配置，见第 19 章。
+
 ```bash
 # 创建项目
-npx react-native@latest init MyApp
+npx react-native@0.73.0 init MyApp --version 0.73.0
 
 # 进入项目目录
 cd MyApp
@@ -451,7 +370,7 @@ const fetchWithTimeout = async (url, timeout) => {
 
 ### 3.1 React 核心概念
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                       React 核心概念                                        │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1000,6 +919,8 @@ const App = () => {
 
 ### 18.1 React Native 原理
 
+以下 Bridge 流程描述 **0.73 的 Legacy Architecture**：跨边界批量传递可序列化的调用数据，不表示每次都必须先生成一个 JSON 文本字符串。**0.82.0** 使用 Fabric/TurboModules/JSI 和 Bridgeless，不能关闭新架构回退到此链路；JSI 也不是“所有原生调用变同步”或“自动跨线程安全”。模块方法仍要遵守其执行线程和异步契约。
+
 **Q: React Native 的工作原理是什么？**
 
 **A:**
@@ -1010,7 +931,7 @@ const App = () => {
    - 创建 Virtual DOM
 
 2. **Bridge（桥接）**：
-   - JSON 序列化通信
+   - 批量可序列化调用数据（不是强制 JSON 文本往返）
    - 异步批量传输
    - JS ↔ Native 消息传递
 
@@ -1019,7 +940,7 @@ const App = () => {
    - 处理原生事件
    - 调用原生 API
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                       React Native 工作流程                                 │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1028,7 +949,7 @@ JavaScript Thread              Bridge              Native Thread
        │                         │                       │
        │  1. Virtual DOM         │                       │
        ├────────────────────────>│                       │
-       │                         │  2. JSON Message      │
+       │                         │  2. Batched calls     │
        │                         ├──────────────────────>│
        │                         │                       │
        │                         │  3. Native UI         │
@@ -1045,7 +966,7 @@ JavaScript Thread              Bridge              Native Thread
 **A:**
 
 1. **通信方式**：
-   - JSON 序列化
+   - 可序列化的参数与批量调用队列
    - 异步传输
    - 批量处理
 
@@ -1056,7 +977,7 @@ JavaScript Thread              Bridge              Native Thread
 
 3. **新架构**：
    - Fabric：新渲染系统
-   - TurboModules：直接调用
+   - TurboModules：通过类型化绑定访问模块，方法可同步或异步
    - JSI：JavaScript 接口
 
 ### 18.3 与 Flutter 对比
@@ -1157,7 +1078,7 @@ JavaScript Thread              Bridge              Native Thread
 
 **文档版本**：v1.0  
 **更新时间**：2026-09-09
-**适用版本**：React Native 0.73+
+**适用版本**：基础旧架构部分为 React Native 0.73.0；第 19 章为 0.82.0 New Architecture，不把 Bridge 图作为 0.82 的实际调用链。
 
 
 ## 第 19 章 工程化实战：New Architecture 页面
@@ -1165,27 +1086,56 @@ JavaScript Thread              Bridge              Native Thread
 React Native 0.82.0 只运行 New Architecture。Fabric、TurboModule、Codegen 和 JSI 是 RN/React Native 的实现，不是 Android API；权限、Activity 重建、TLS 和 `.so` 加载仍由 Android 宿主负责。
 
 ```tsx
+import * as React from 'react';
+import {Button, FlatList, Text, View} from 'react-native';
+
+type SearchRow = {id: string; title: string};
+function isSearchRow(value: unknown): value is SearchRow {
+  if (value === null || typeof value !== 'object') return false;
+  const row = value as Record<string, unknown>;
+  return typeof row.id === 'string' && row.id.length > 0 && typeof row.title === 'string';
+}
 function SearchScreen({endpoint}: {endpoint: string}) {
-  const [rows, setRows] = React.useState<{id: string; title: string}[]>([]);
+  const [rows, setRows] = React.useState<SearchRow[]>([]);
   const [error, setError] = React.useState<string>();
+  const [loading, setLoading] = React.useState(false);
+  const [retry, setRetry] = React.useState(0);
   React.useEffect(() => {
     const controller = new AbortController(); let active = true;
+    setError(undefined); setRows([]); setLoading(true);
     (async () => {
       try {
         const response = await fetch(endpoint, {signal: controller.signal});
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data: unknown = await response.json();
-        if (!Array.isArray(data)) throw new Error('bad payload');
-        if (active) setRows(data as {id: string; title: string}[]);
+        if (!Array.isArray(data) || !data.every(isSearchRow)) throw new Error('bad payload');
+        if (new Set(data.map(row => row.id)).size !== data.length) throw new Error('duplicate id');
+        if (active) setRows(data);
       } catch (e) {
-        if ((e as {name?: string}).name !== 'AbortError' && active) setError('加载失败');
+        if (active && !controller.signal.aborted) setError('加载失败');
+      } finally {
+        if (active) setLoading(false);
       }
     })();
     return () => { active = false; controller.abort(); };
-  }, [endpoint]);
-  return <FlatList data={rows} keyExtractor={item => item.id}
-    renderItem={({item}) => <Text>{item.title}</Text>} />;
+  }, [endpoint, retry]);
+  return <View style={{flex: 1}}>
+    {loading && <Text>加载中</Text>}
+    {error && <Text accessibilityRole="alert">{error}</Text>}
+    <Button title="重试" disabled={loading} onPress={() => setRetry(value => value + 1)} />
+    <FlatList data={rows} keyExtractor={item => item.id}
+      renderItem={({item}) => <Text>{item.title}</Text>} />
+  </View>;
 }
 ```
 
 `endpoint` 是业务传入的 HTTPS 地址，数据校验契约也由业务定义；示例不虚构 RN 或 Android 接口。组件卸载取消 fetch，旧结果不回写；生产代码还应限制响应大小、区分权限拒绝/网络失败和服务端错误，并为重试定义幂等语义。
+
+
+### 19.1 Android 宿主与新架构启动
+
+RN 0.82.0 的 `DefaultNewArchitectureEntryPoint.load()` 启用 TurboModules、Fabric 和 Bridgeless；`isConfigurationValid()` 拒绝关闭其中任何一项。该版 Gradle 插件的 `Project.isNewArchEnabled` 也不再把 `newArchEnabled=false` 作为关闭新架构的开关。因此从 0.73 迁移不能只保留旧 `ReactNativeHost` 初始化并换 Maven 版本；宿主 Application、ReactHost、Activity delegate、自动链接、Codegen 与 native 库加载需要一起对齐该版本模板。
+
+`ReactSettingsExtension.autolinkLibrariesFromCommand()` 从 CLI 生成原生依赖信息；Codegen 根据 JS/TS spec 生成绑定，JSI 提供 JS 引擎与 C++ 对象的互操作。它们不替应用处理权限、Activity 失效、请求取消或 native 资源清理。纯 JS 页面能运行不意味着所有旧 NativeModule 都能无改动集成到新宿主。
+
+固定源码：[0.82.0 DefaultNewArchitectureEntryPoint.load/isConfigurationValid](https://github.com/facebook/react-native/blob/v0.82.0/packages/react-native/ReactAndroid/src/main/java/com/facebook/react/defaults/DefaultNewArchitectureEntryPoint.kt)、[Gradle ProjectUtils](https://github.com/facebook/react-native/blob/v0.82.0/packages/gradle-plugin/react-native-gradle-plugin/src/main/kotlin/com/facebook/react/utils/ProjectUtils.kt)、[ReactSettingsExtension.autolinkLibrariesFromCommand](https://github.com/facebook/react-native/blob/v0.82.0/packages/gradle-plugin/settings-plugin/src/main/kotlin/com/facebook/react/ReactSettingsExtension.kt)。

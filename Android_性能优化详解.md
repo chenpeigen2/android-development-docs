@@ -2,88 +2,91 @@
 
 > 作者：OpenClaw  
 > 日期：2026-03-08
+> 技术基线：AOSP `android-17.0.0_r1`。业务收益数字是示例，不是跨设备保证。
 
 ---
 
 ## 目录
 
-1. [性能优化概述](#1-性能优化概述)
-   - [优化维度](#11-优化维度)
-   - [性能金字塔](#12-性能金字塔)
-   - [资深工程师的五个层次](#13-资深工程师的五个层次)
-   - [性能指标体系：分位值思维](#14-性能指标体系分位值思维)
-2. [深度解析——资深工程师的性能优化观](#2-深度解析资深工程师的性能优化观)
-   - [性能优化的本质](#21-性能优化的本质)
-   - [性能优化的黄金法则](#22-性能优化的黄金法则)
-   - [线上 APM 监控体系](#23-线上-apm-监控体系)
-   - [性能劣化归因方法论](#24-性能劣化归因方法论)
-   - [Baseline Profiles 与编译优化](#25-baseline-profiles-与编译优化)
-3. [启动优化](#3-启动优化)
-   - [启动类型详解](#31-启动类型详解)
-   - [冷启动流程源码分析](#32-冷启动流程源码分析)
-   - [启动时间测量](#33-启动时间测量)
-   - [启动优化策略](#34-启动优化策略)
-   - [App Startup 库](#35-app-startup-库)
-   - [启动器框架完整实现](#36-启动器框架完整实现)
-   - [ContentProvider 滥用治理](#37-contentprovider-滥用治理)
-   - [首帧优化](#38-首帧优化)
-   - [启动优化工具](#39-启动优化工具)
-4. [UI 渲染优化](#4-ui-渲染优化)
-   - [渲染原理](#41-渲染原理)
-   - [16ms 法则](#42-16ms-法则)
-   - [VSync 与 Choreographer](#43-vsync-与-choreographer)
-   - [双缓冲与三缓冲](#44-双缓冲与三缓冲)
-   - [渲染性能分析](#45-渲染性能分析)
-   - [渲染优化策略](#46-渲染优化策略)
-   - [RecyclerView 性能优化专题](#47-recyclerview-性能优化专题)
-   - [自定义 View 性能优化](#48-自定义-view-性能优化)
-5. [内存优化](#5-内存优化)
-   - [Java 内存模型](#51-java-内存模型)
-   - [Android 内存管理](#52-android-内存管理)
-   - [内存泄漏检测](#53-内存泄漏检测)
-   - [内存优化策略](#54-内存优化策略)
-   - [OOM 分析与处理](#55-oom-分析与处理)
-   - [Native 内存泄漏排查](#56-native-内存泄漏排查)
-   - [内存抖动检测与治理](#57-内存抖动检测与治理)
-   - [Bitmap 内存管理演进](#58-bitmap-内存管理演进)
-   - [内存水位监控：onTrimMemory](#59-内存水位监控ontrimmemory)
-6. [线程与并发优化](#6-线程与并发优化)
-   - [线程池调优](#61-线程池调优)
-   - [OkHttp 与 Retrofit 线程模型](#62-okhttp-与-retrofit-线程模型)
-   - [协程调度优化](#63-协程调度优化)
-   - [线程优先级管理](#64-线程优先级管理)
-   - [锁优化策略](#65-锁优化策略)
-7. [电量优化](#7-电量优化)
-   - [电量消耗分析](#71-电量消耗分析)
-   - [电量优化策略](#72-电量优化策略)
-   - [Battery Historian 使用教程](#73-battery-historian-使用教程)
-   - [Doze 模式与 App Standby](#74-doze-模式与-app-standby)
-   - [GPS 精度分级策略](#75-gps-精度分级策略)
-   - [Android 12+ 前台服务限制](#76-android-12-前台服务限制)
-   - [WorkManager 最佳实践](#77-workmanager-最佳实践)
-8. [网络优化](#8-网络优化)
-   - [网络请求优化](#81-网络请求优化)
-   - [HTTP/2 与 OkHttp 配置](#82-http2-与-okhttp-配置)
-   - [弱网策略](#83-弱网策略)
-   - [网络状态感知](#84-网络状态感知)
-   - [图片加载优化](#85-图片加载优化)
-   - [网络缓存策略](#86-网络缓存策略)
-9. [APK 体积优化](#9-apk-体积优化)
-   - [体积分析](#91-体积分析)
-   - [R8 完整瘦身策略](#92-r8-完整瘦身策略)
-   - [资源优化](#93-资源优化)
-   - [So 动态库优化](#94-so-动态库优化)
-   - [Android App Bundle](#95-android-app-bundle)
-   - [Dynamic Feature Modules](#96-dynamic-feature-modules)
-10. [性能分析工具链](#10-性能分析工具链)
-    - [Perfetto 深度使用](#101-perfetto-深度使用)
-    - [CPU Profiler 高级用法](#102-cpu-profiler-高级用法)
-    - [Memory Profiler 高级用法](#103-memory-profiler-高级用法)
-    - [Layout Inspector](#104-layout-inspector)
-    - [线上监控工具](#105-线上监控工具)
-    - [Simpleperf](#106-simpleperf)
-11. [面试常见问题](#11-面试常见问题)
-12. [总结](#12-总结)
+- [1. 性能优化概述](#1-性能优化概述)
+  - [1.1 优化维度](#11-优化维度)
+  - [1.2 性能金字塔](#12-性能金字塔)
+  - [1.3 资深工程师的五个层次](#13-资深工程师的五个层次)
+  - [1.4 性能指标体系：分位值思维](#14-性能指标体系分位值思维)
+- [2. 深度解析——资深工程师的性能优化观](#2-深度解析资深工程师的性能优化观)
+  - [2.1 性能优化的本质](#21-性能优化的本质)
+  - [2.2 性能优化的黄金法则](#22-性能优化的黄金法则)
+  - [2.3 线上 APM 监控体系](#23-线上-apm-监控体系)
+  - [2.4 性能劣化归因方法论](#24-性能劣化归因方法论)
+  - [2.5 Baseline Profiles 与编译优化](#25-baseline-profiles-与编译优化)
+- [3. 启动优化](#3-启动优化)
+  - [3.1 启动类型详解](#31-启动类型详解)
+  - [3.2 冷启动流程源码分析](#32-冷启动流程源码分析)
+  - [3.3 启动时间测量](#33-启动时间测量)
+  - [3.4 启动优化策略](#34-启动优化策略)
+  - [3.5 App Startup 库](#35-app-startup-库)
+  - [3.6 启动器框架完整实现](#36-启动器框架完整实现)
+  - [3.7 ContentProvider 滥用治理](#37-contentprovider-滥用治理)
+  - [3.8 首帧优化](#38-首帧优化)
+  - [3.9 启动优化工具](#39-启动优化工具)
+- [4. UI 渲染优化](#4-ui-渲染优化)
+  - [4.1 渲染原理](#41-渲染原理)
+  - [4.2 16ms 法则](#42-16ms-法则)
+  - [4.3 VSync 与 Choreographer](#43-vsync-与-choreographer)
+  - [4.4 双缓冲与三缓冲](#44-双缓冲与三缓冲)
+  - [4.5 渲染性能分析](#45-渲染性能分析)
+  - [4.6 渲染优化策略](#46-渲染优化策略)
+  - [4.7 RecyclerView 性能优化专题](#47-recyclerview-性能优化专题)
+  - [4.8 自定义 View 性能优化](#48-自定义-view-性能优化)
+- [5. 内存优化](#5-内存优化)
+  - [5.1 Java 运行时数据区与 ART](#51-java-运行时数据区与-art)
+  - [5.2 Android 内存管理](#52-android-内存管理)
+  - [5.3 内存泄漏检测](#53-内存泄漏检测)
+  - [5.4 内存优化策略](#54-内存优化策略)
+  - [5.5 OOM 分析与处理](#55-oom-分析与处理)
+- [6. 线程与并发优化](#6-线程与并发优化)
+  - [6.1 线程池调优](#61-线程池调优)
+  - [6.2 协程调度优化](#62-协程调度优化)
+  - [6.3 锁优化策略](#63-锁优化策略)
+  - [5.6 内存抖动检测与治理](#56-内存抖动检测与治理)
+  - [5.7 Bitmap 内存管理演进](#57-bitmap-内存管理演进)
+  - [5.8 onTrimMemory 与主动内存预算](#58-ontrimmemory-与主动内存预算)
+  - [5.9 Native 内存泄漏排查](#59-native-内存泄漏排查)
+- [7. 电量优化](#7-电量优化)
+  - [7.1 电量消耗分析](#71-电量消耗分析)
+  - [7.2 电量优化策略](#72-电量优化策略)
+  - [7.4 Doze 模式与 App Standby](#74-doze-模式与-app-standby)
+  - [7.3 Battery Historian 使用教程](#73-battery-historian-使用教程)
+  - [7.5 GPS 精度分级策略](#75-gps-精度分级策略)
+  - [7.6 Android 12+ 前台服务限制](#76-android-12-前台服务限制)
+  - [7.7 WorkManager 最佳实践](#77-workmanager-最佳实践)
+- [8. 网络优化](#8-网络优化)
+  - [8.1 网络请求优化](#81-网络请求优化)
+  - [8.2 HTTP/2 与 OkHttp 配置](#82-http2-与-okhttp-配置)
+  - [8.3 弱网策略](#83-弱网策略)
+  - [8.4 网络状态感知](#84-网络状态感知)
+  - [8.5 图片加载优化](#85-图片加载优化)
+  - [8.6 网络缓存策略](#86-网络缓存策略)
+- [9. APK 体积优化](#9-apk-体积优化)
+  - [9.1 体积分析](#91-体积分析)
+  - [9.2 R8 完整瘦身策略](#92-r8-完整瘦身策略)
+  - [9.3 资源优化](#93-资源优化)
+  - [9.4 So 动态库优化](#94-so-动态库优化)
+- [10. 性能分析工具链](#10-性能分析工具链)
+  - [10.2 CPU Profiler 高级用法](#102-cpu-profiler-高级用法)
+  - [10.3 Memory Profiler 高级用法](#103-memory-profiler-高级用法)
+  - [10.4 Layout Inspector](#104-layout-inspector)
+  - [10.1 Perfetto 深度使用](#101-perfetto-深度使用)
+  - [10.5 线上监控工具](#105-线上监控工具)
+  - [10.6 Simpleperf（Native CPU Profiling）](#106-simpleperfnative-cpu-profiling)
+  - [10.7 线上性能监控矩阵](#107-线上性能监控矩阵)
+  - [10.8 从 Perfetto 时间线到优化决策](#108-从-perfetto-时间线到优化决策)
+- [11. 面试常见问题](#11-面试常见问题)
+  - [11.1 启动优化问题](#111-启动优化问题)
+  - [11.2 渲染优化问题](#112-渲染优化问题)
+  - [11.3 内存优化问题](#113-内存优化问题)
+  - [11.4 综合问题](#114-综合问题)
+- [12. 总结](#12-总结)
 
 ---
 
@@ -91,7 +94,7 @@
 
 ### 1.1 优化维度
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         Android 性能优化维度                                │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -115,7 +118,7 @@
 
 ### 1.2 性能金字塔
 
-```
+```text
                         ┌───────────┐
                         │  用户体验  │
                         └─────┬─────┘
@@ -135,7 +138,7 @@
 
 ### 1.3 资深工程师的五个层次
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                 资深工程师看待性能优化的五个层次                             │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -162,7 +165,7 @@
            ▲
 层次 1 ┌───┴──────────────────────────────────────────────────────────────────┐
        │  指标定义：建立可量化的性能指标                                   │
-       │  - 冷启动 P90 < 3s、帧率 P99 > 50fps、OOM率 < 0.05%            │
+       │  - 冷启动 P90 < 3s、低帧率尾部 P1 > 50fps、OOM率 < 0.05%            │
        └──────────────────────────────────────────────────────────────────────┘
 
 初级工程师只停留在第4层（优化），不懂数据驱动。
@@ -171,7 +174,7 @@
 
 ### 1.4 性能指标体系：分位值思维
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    为什么平均值不靠谱？分位值思维                            │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -215,7 +218,7 @@ P99    = 12s                                    ← 1% 用户体验极差！← 
 
 ### 2.1 性能优化的本质
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                   性能优化的本质：不是"不卡"                                │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -244,7 +247,7 @@ P99    = 12s                                    ← 1% 用户体验极差！← 
 
 ### 2.2 性能优化的黄金法则
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                     性能优化的四条黄金法则                                  │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -284,7 +287,7 @@ P99    = 12s                                    ← 1% 用户体验极差！← 
 
 ### 2.3 线上 APM 监控体系
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                   线上 APM（Application Performance Monitoring）            │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -418,7 +421,7 @@ APM 核心监控模块：
 
 ### 2.4 性能劣化归因方法论
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │              从"用户反馈卡"到"定位到具体代码行"的完整链路                  │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -467,14 +470,14 @@ Step 6：灰度验证 → 全量发布 → 指标回归
 
 ### 2.5 Baseline Profiles 与编译优化
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                  Baseline Profiles：让启动快 20-40% 的黑科技               │
+│                  Baseline Profiles：按启动路径提供编译画像               │
 └─────────────────────────────────────────────────────────────────────────────┘
 
 ART 编译策略演进：
 ─────────────────────────────────────────────────────────────────────────────
-  Android 5.0 之前 (Dalvik)：完全 JIT，每次运行都解释执行 → 慢
+  Android 5.0 之前 (Dalvik)：解释执行 + JIT（Android 2.2 起） → 慢
   Android 5.0-6.0 (ART)：   完全 AOT，安装时全量编译 → 安装慢、占空间
   Android 7.0+ (ART)：      AOT + JIT 混合编译，Profile 引导 → 平衡
 
@@ -484,7 +487,7 @@ ART 编译策略演进：
   │  App 首次安装                                                          │
   │      │                                                                │
   │      ▼                                                                │
-  │  JIT 解释执行（快速启动）                                              │
+  │  解释执行并 JIT 编译热点                                              │
   │      │                                                                │
   │      ▼                                                                │
   │  运行时记录"热点代码"（Profile）                                      │
@@ -501,13 +504,13 @@ ART 编译策略演进：
 Baseline Profiles 的作用：
 ─────────────────────────────────────────────────────────────────────────────
   开发者在打包时就提供一份"热点代码列表"（Baseline Profiles），
-  用户安装时直接根据这份列表进行 AOT 编译，
-  相当于跳过了"JIT 热身"阶段，首次启动就能获得接近成熟的性能。
+  在受支持的安装/编译流程中，ART 可用这份列表对关键路径做引导编译。
+  是否及时安装并使用 profile 取决于交付方式、工具链及设备策略；它不消除全部 JIT。
 
-  典型收益：
-  - 冷启动提速 20-40%
-  - 首页渲染提速 15-30%
-  - 交互响应提速 10-20%
+  验证收益：
+  - 使用相同设备、版本、数据与启动场景，对比无 profile 和已使用 profile 的编译模式。
+  - 分别报告启动时间和帧时间分位数；I/O、锁等待与业务工作量可能仍是瓶颈。
+  - 本文没有对应实测数据，不承诺固定提速百分比。
 
 如何生成和集成 Baseline Profiles：
 ─────────────────────────────────────────────────────────────────────────────
@@ -538,11 +541,11 @@ Baseline Profiles 的作用：
               startActivityAndWait()
 
               // 模拟用户操作路径
-              findObject(By.text("首页")).click()
-              waitForIdleSync()
+              device.findObject(By.text("首页")).click()
+              device.waitForIdle()
 
-              findObject(By.text("详情")).click()
-              waitForIdleSync()
+              device.findObject(By.text("详情")).click()
+              device.waitForIdle()
 
               // ... 覆盖更多关键路径
           }
@@ -586,9 +589,9 @@ Baseline Profiles 的作用：
       }
   }
 
-> 资深视角：Baseline Profiles 是目前投入产出比最高的启动优化手段。
-> 不需要改一行业务代码，仅通过编译优化就能获得 20-40% 的启动提速。
-> 对于 AGP 8.0+，Android Studio 还支持自动生成 Baseline Profiles。
+> Baseline Profiles 的价值是把代表性用户路径交给 profile-guided compilation。
+> 仍需配置生成/打包流程、维护场景并检查 profile 是否被使用；不能替代减少主线程工作。
+> 生成工具按所用 AGP、Baseline Profile Gradle 插件和 Android Studio 版本配置，不假设只升级 AGP 就自动生效。
 ```
 
 ---
@@ -597,7 +600,7 @@ Baseline Profiles 的作用：
 
 ### 3.1 启动类型详解
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         启动类型详解                                        │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -615,7 +618,7 @@ Baseline Profiles 的作用：
 │  (Hot Start)    │           │                 │  <1s   │  无启动窗口      │
 └─────────────────────────────────────────────────────────────────────────────┘
 
-启动时间标准 (Google 官方):
+Android vitals 过慢启动参考线（不是推荐体验目标）:
 - 冷启动: < 5 秒
 - 温启动: < 2 秒
 - 热启动: < 1.5 秒
@@ -623,7 +626,7 @@ Baseline Profiles 的作用：
 
 ### 3.2 冷启动流程源码分析
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         冷启动完整流程                                      │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -725,7 +728,7 @@ Baseline Profiles 的作用：
 
 ### 3.3 启动时间测量
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         启动时间测量方法                                    │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -745,10 +748,10 @@ Complete: true
 
 方法 2: logcat 过滤
 ─────────────────────────────────────────────────────────────────────────────
-adb logcat -s ActivityManager:I | grep "Displayed"
+adb logcat -s ActivityTaskManager:I | grep "Displayed"
 
 输出:
-ActivityManager: Displayed com.example/.MainActivity: +1s234ms
+ActivityTaskManager: Displayed com.example/.MainActivity: +1s234ms
 
 方法 3: 代码打点 (精确测量)
 ─────────────────────────────────────────────────────────────────────────────
@@ -788,7 +791,7 @@ python $ANDROID_SDK/platform-tools/systrace/systrace.py \
 
 ### 3.4 启动优化策略
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         启动优化策略详解                                    │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -848,147 +851,116 @@ python $ANDROID_SDK/platform-tools/systrace/systrace.py \
 │  }                                                                         │
 │                                                                             │
 │  ✅ 正确做法 3: 启动器框架 (美团)                                           │
-│  public class StartupDispatcher {                                          │
-│      private List<Task> mTasks = new ArrayList<>();                       │
-│                                                                             │
-│      public void addTask(Task task) {                                      │
-│          mTasks.add(task);                                                 │
-│      }                                                                     │
-│                                                                             │
-│      public void start() {                                                 │
-│          // 按依赖关系排序                                                 │
-│          // 并行执行无依赖任务                                             │
-│          // 串行执行有依赖任务                                             │
-│      }                                                                     │
-│  }                                                                         │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
+│  public final class StartupDispatcher {
+    enum State { PENDING, RUNNING, SUCCEEDED, FAILED, SKIPPED }
+    private final Map<Class<? extends IStartupTask>, IStartupTask> tasks = new LinkedHashMap<>();
+    private final Map<Class<? extends IStartupTask>, State> states = new HashMap<>();
+    private final ExecutorService executor; // 调用方拥有生命周期
+    private final Handler main = new Handler(Looper.getMainLooper());
+    private Context app;
+    private boolean started;
 
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  2. Activity.onCreate() 优化                                                │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│  ❌ 错误做法:                                                               │
-│  @Override                                                                 │
-│  protected void onCreate(Bundle savedInstanceState) {                      │
-│      super.onCreate(savedInstanceState);                                   │
-│      setContentView(R.layout.main);                                        │
-│                                                                             │
-│      // 主线程执行耗时操作                                                 │
-│      loadDataFromDatabase();  // 500ms                                     │
-│      loadNetworkData();       // 网络请求                                  │
-│      initViews();             // 复杂初始化                                │
-│  }                                                                         │
-│                                                                             │
-│  ✅ 正确做法:                                                               │
-│  @Override                                                                 │
-│  protected void onCreate(Bundle savedInstanceState) {                      │
-│      super.onCreate(savedInstanceState);                                   │
-│      setContentView(R.layout.main);                                        │
-│                                                                             │
-│      // 显示占位 UI                                                        │
-│      showPlaceholder();                                                    │
-│                                                                             │
-│      // 异步加载数据                                                       │
-│      viewModel.loadData().observe(this, data -> {                          │
-│          updateUI(data);                                                   │
-│      });                                                                   │
-│  }                                                                         │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
+    public StartupDispatcher(ExecutorService executor) { this.executor = executor; }
 
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  3. 布局优化                                                                │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│  ❌ 错误做法: 布局嵌套过深                                                  │
-│  <LinearLayout>                           <!-- 层级 1 -->                  │
-│      <LinearLayout>                       <!-- 层级 2 -->                  │
-│          <LinearLayout>                   <!-- 层级 3 -->                  │
-│              <RelativeLayout>             <!-- 层级 4 -->                  │
-│                  <TextView />                                             │
-│              </RelativeLayout>                                            │
-│          </LinearLayout>                                                  │
-│      </LinearLayout>                                                      │
-│  </LinearLayout>                                                          │
-│                                                                             │
-│  ✅ 正确做法: 使用 ConstraintLayout 减少层级                               │
-│  <androidx.constraintlayout.widget.ConstraintLayout>  <!-- 层级 1 -->     │
-│      <TextView                                                            │
-│          app:layout_constraintTop_toTopOf="parent"                        │
-│          app:layout_constraintStart_toStartOf="parent" />                 │
-│  </androidx.constraintlayout.widget.ConstraintLayout>                     │
-│                                                                             │
-│  ✅ 使用 ViewStub 延迟加载                                                  │
-│  <ViewStub                                                                │
-│      android:id="@+id/stub"                                               │
-│      android:layout="@layout/optional_content"                            │
-│      android:inflatedId="@+id/content" />                                 │
-│                                                                             │
-│  // 需要时才加载                                                           │
-│  ViewStub stub = findViewById(R.id.stub);                                 │
-│  View content = stub.inflate();                                           │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
+    public synchronized StartupDispatcher addTask(IStartupTask task) {
+        if (started) throw new IllegalStateException("Already started");
+        if (tasks.containsKey(task.getClass())) throw new IllegalArgumentException("Duplicate task");
+        tasks.put(task.getClass(), task);
+        return this;
+    }
 
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  4. MultiDex 优化                                                           │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│  问题: Android 5.0 以下系统，MultiDex 在主线程解压 dex，耗时严重           │
-│                                                                             │
-│  ✅ 解决方案: 使用 MultiDex.install() 在 Application.attach() 中执行       │
-│  public class MyApp extends Application {                                  │
-│      @Override                                                             │
-│      protected void attachBaseContext(Context base) {                      │
-│          super.attachBaseContext(base);                                    │
-│          MultiDex.install(this);  // 尽早执行                              │
-│      }                                                                     │
-│  }                                                                         │
-│                                                                             │
-│  ✅ 进阶方案: 使用 Google Play 的 MultiDex 优化 (预解压)                    │
-│  // build.gradle                                                           │
-│  android {                                                                 │
-│      defaultConfig {                                                       │
-│          multiDexEnabled true                                              │
-│      }                                                                     │
-│  }                                                                         │
-│  dependencies {                                                            │
-│      implementation 'androidx.multidex:multidex:2.0.1'                    │
-│  }                                                                         │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
+    // 启动前检查缺失依赖和环，不能让任务永远等待。
+    private void visit(Class<? extends IStartupTask> key,
+                       Set<Class<? extends IStartupTask>> visiting,
+                       Set<Class<? extends IStartupTask>> visited) {
+        if (visited.contains(key)) return;
+        IStartupTask task = tasks.get(key);
+        if (task == null) throw new IllegalArgumentException("Missing dependency: " + key);
+        if (!visiting.add(key)) throw new IllegalArgumentException("Dependency cycle: " + key);
+        for (Class<? extends IStartupTask> dep : task.dependencies()) visit(dep, visiting, visited);
+        visiting.remove(key);
+        visited.add(key);
+    }
 
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  5. 预加载 Class                                                            │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│  问题: 首次使用类时需要加载类，消耗时间                                    │
-│                                                                             │
-│  ✅ 解决方案: 在 Application.onCreate() 中异步预加载常用类                  │
-│  public class MyApp extends Application {                                  │
-│      @Override                                                             │
-│      public void onCreate() {                                              │
-│          super.onCreate();                                                 │
-│                                                                             │
-│          // 异步预加载常用类                                               │
-│          new Thread(() -> {                                                │
-│              try {                                                         │
-│                  Class.forName("com.example.HeavyClass1");                 │
-│                  Class.forName("com.example.HeavyClass2");                 │
-│              } catch (ClassNotFoundException e) {                          │
-│                  e.printStackTrace();                                      │
-│              }                                                             │
-│          }).start();                                                       │
-│      }                                                                     │
-│  }                                                                         │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
+    public synchronized void start(Context context) {
+        if (started) throw new IllegalStateException("Single use dispatcher");
+        Set<Class<? extends IStartupTask>> visiting = new HashSet<>(), visited = new HashSet<>();
+        for (Class<? extends IStartupTask> key : tasks.keySet()) visit(key, visiting, visited);
+        app = context.getApplicationContext();
+        started = true;
+        for (Class<? extends IStartupTask> key : tasks.keySet()) states.put(key, State.PENDING);
+        drain();
+    }
+
+    private void drain() { // 只在 this 锁内访问调度状态
+        List<IStartupTask> ordered = new ArrayList<>(tasks.values());
+        ordered.sort(Comparator.comparingInt(IStartupTask::priority));
+        boolean skipped;
+        do {
+            skipped = false;
+            for (IStartupTask task : ordered) {
+                Class<? extends IStartupTask> key = task.getClass();
+                if (states.get(key) != State.PENDING) continue;
+                boolean ready = true, failed = false;
+                for (Class<? extends IStartupTask> dep : task.dependencies()) {
+                    State state = states.get(dep);
+                    ready &= state == State.SUCCEEDED;
+                    failed |= state == State.FAILED || state == State.SKIPPED;
+                }
+                if (failed) {
+                    states.put(key, State.SKIPPED);
+                    skipped = true;
+                } else if (ready) {
+                    states.put(key, State.RUNNING); // 提交前保留状态，防多依赖完成时重复启动
+                    Runnable run = () -> {
+                        boolean ok = false;
+                        try {
+                            task.execute(app);
+                            ok = true;
+                        } catch (RuntimeException e) {
+                            Log.e("Startup", "Task failed: " + key.getName(), e);
+                        } finally {
+                            finished(key, ok); // Error 仍传播，但不遗漏状态结算
+                        }
+                    };
+                    try {
+                        if (task.isOnMainThread()) {
+                            if (!main.post(run)) throw new RejectedExecutionException("Main looper stopped");
+                        } else executor.execute(run);
+                    } catch (RejectedExecutionException e) {
+                        states.put(key, State.FAILED);
+                        skipped = true;
+                    }
+                }
+            }
+        } while (skipped); // 传递失败到所有后继节点
+    }
+
+    private synchronized void finished(Class<? extends IStartupTask> key, boolean ok) {
+        states.put(key, ok ? State.SUCCEEDED : State.FAILED);
+        drain();
+    }
+
+    public synchronized Map<Class<? extends IStartupTask>, State> snapshot() {
+        return new HashMap<>(states);
+    }
+}
+
+// Application 持有共享 executor；DeviceInfoTask/UserInfoTask/NetworkManager 是业务实现。
+// dependencies() 必须返回构造后不变的依赖集合，execute() 返回代表该节点完成。
+ExecutorService startupExecutor = Executors.newFixedThreadPool(2);
+new StartupDispatcher(startupExecutor)
+    .addTask(new NetworkInitTask())
+    .addTask(new DeviceInfoTask())
+    .addTask(new UserInfoTask())
+    .start(this);
+// 不在主线程 await；在应用定义的任务域结束时 shutdown executor，避免重复创建线程池。
+
 ```
 
 ### 3.5 App Startup 库
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │              App Startup：替代 ContentProvider 滥用的官方方案               │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1118,70 +1090,116 @@ public class NetworkInitTask implements IStartupTask {
 }
 
 // 启动调度器核心实现
-public class StartupDispatcher {
-    private final List<IStartupTask> mAllTasks = new ArrayList<>();
-    private final Map<Class<? extends IStartupTask>, IStartupTask> mTaskMap = new HashMap<>();
-    private final AtomicInteger mFinishedCount = new AtomicInteger(0);
-    private final ExecutorService mExecutor = Executors.newFixedThreadPool(
-        Runtime.getRuntime().availableProcessors()
-    );
+public final class StartupDispatcher {
+    enum State { PENDING, RUNNING, SUCCEEDED, FAILED, SKIPPED }
+    private final Map<Class<? extends IStartupTask>, IStartupTask> tasks = new LinkedHashMap<>();
+    private final Map<Class<? extends IStartupTask>, State> states = new HashMap<>();
+    private final ExecutorService executor; // 调用方拥有生命周期
+    private final Handler main = new Handler(Looper.getMainLooper());
+    private Context app;
+    private boolean started;
 
-    public StartupDispatcher addTask(IStartupTask task) {
-        mAllTasks.add(task);
-        mTaskMap.put(task.getClass(), task);
+    public StartupDispatcher(ExecutorService executor) { this.executor = executor; }
+
+    public synchronized StartupDispatcher addTask(IStartupTask task) {
+        if (started) throw new IllegalStateException("Already started");
+        if (tasks.containsKey(task.getClass())) throw new IllegalArgumentException("Duplicate task");
+        tasks.put(task.getClass(), task);
         return this;
     }
 
-    public void start(Context context) {
-        // 1. 构建依赖图
-        // 2. 找出所有入度为 0 的任务（无依赖）
-        List<IStartupTask> rootTasks = new ArrayList<>();
-        for (IStartupTask task : mAllTasks) {
-            if (task.dependencies().isEmpty()) {
-                rootTasks.add(task);
-            }
-        }
-        // 3. 并行执行根任务
-        for (IStartupTask task : rootTasks) {
-            executeTask(context, task);
-        }
+    // 启动前检查缺失依赖和环，不能让任务永远等待。
+    private void visit(Class<? extends IStartupTask> key,
+                       Set<Class<? extends IStartupTask>> visiting,
+                       Set<Class<? extends IStartupTask>> visited) {
+        if (visited.contains(key)) return;
+        IStartupTask task = tasks.get(key);
+        if (task == null) throw new IllegalArgumentException("Missing dependency: " + key);
+        if (!visiting.add(key)) throw new IllegalArgumentException("Dependency cycle: " + key);
+        for (Class<? extends IStartupTask> dep : task.dependencies()) visit(dep, visiting, visited);
+        visiting.remove(key);
+        visited.add(key);
     }
 
-    private void executeTask(Context ctx, IStartupTask task) {
-        Runnable r = () -> {
-            task.execute(ctx);
-            onTaskFinished(ctx, task);
-        };
-        if (task.isOnMainThread()) {
-            new Handler(Looper.getMainLooper()).post(r);
-        } else {
-            mExecutor.execute(r);
-        }
+    public synchronized void start(Context context) {
+        if (started) throw new IllegalStateException("Single use dispatcher");
+        Set<Class<? extends IStartupTask>> visiting = new HashSet<>(), visited = new HashSet<>();
+        for (Class<? extends IStartupTask> key : tasks.keySet()) visit(key, visiting, visited);
+        app = context.getApplicationContext();
+        started = true;
+        for (Class<? extends IStartupTask> key : tasks.keySet()) states.put(key, State.PENDING);
+        drain();
     }
 
-    private synchronized void onTaskFinished(Context ctx, IStartupTask task) {
-        // 检查依赖此任务的后继任务是否可以开始执行
-        for (IStartupTask dependent : mAllTasks) {
-            if (dependent.dependencies().contains(task.getClass())) {
-                if (allDependenciesFinished(dependent)) {
-                    executeTask(ctx, dependent);
+    private void drain() { // 只在 this 锁内访问调度状态
+        List<IStartupTask> ordered = new ArrayList<>(tasks.values());
+        ordered.sort(Comparator.comparingInt(IStartupTask::priority));
+        boolean skipped;
+        do {
+            skipped = false;
+            for (IStartupTask task : ordered) {
+                Class<? extends IStartupTask> key = task.getClass();
+                if (states.get(key) != State.PENDING) continue;
+                boolean ready = true, failed = false;
+                for (Class<? extends IStartupTask> dep : task.dependencies()) {
+                    State state = states.get(dep);
+                    ready &= state == State.SUCCEEDED;
+                    failed |= state == State.FAILED || state == State.SKIPPED;
+                }
+                if (failed) {
+                    states.put(key, State.SKIPPED);
+                    skipped = true;
+                } else if (ready) {
+                    states.put(key, State.RUNNING); // 提交前保留状态，防多依赖完成时重复启动
+                    Runnable run = () -> {
+                        boolean ok = false;
+                        try {
+                            task.execute(app);
+                            ok = true;
+                        } catch (RuntimeException e) {
+                            Log.e("Startup", "Task failed: " + key.getName(), e);
+                        } finally {
+                            finished(key, ok); // Error 仍传播，但不遗漏状态结算
+                        }
+                    };
+                    try {
+                        if (task.isOnMainThread()) {
+                            if (!main.post(run)) throw new RejectedExecutionException("Main looper stopped");
+                        } else executor.execute(run);
+                    } catch (RejectedExecutionException e) {
+                        states.put(key, State.FAILED);
+                        skipped = true;
+                    }
                 }
             }
-        }
+        } while (skipped); // 传递失败到所有后继节点
+    }
+
+    private synchronized void finished(Class<? extends IStartupTask> key, boolean ok) {
+        states.put(key, ok ? State.SUCCEEDED : State.FAILED);
+        drain();
+    }
+
+    public synchronized Map<Class<? extends IStartupTask>, State> snapshot() {
+        return new HashMap<>(states);
     }
 }
 
-// 在 Application.onCreate() 中使用
-new StartupDispatcher(this)
+// Application 持有共享 executor；DeviceInfoTask/UserInfoTask/NetworkManager 是业务实现。
+// dependencies() 必须返回构造后不变的依赖集合，execute() 返回代表该节点完成。
+ExecutorService startupExecutor = Executors.newFixedThreadPool(2);
+new StartupDispatcher(startupExecutor)
     .addTask(new NetworkInitTask())
     .addTask(new DeviceInfoTask())
     .addTask(new UserInfoTask())
     .start(this);
+// 不在主线程 await；在应用定义的任务域结束时 shutdown executor，避免重复创建线程池。
+
 ```
 
 ### 3.7 ContentProvider 滥用治理
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │             ContentProvider 滥用：拖慢启动的隐形杀手                       │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1258,60 +1276,32 @@ viewModel.loadMinimalData().observe(this) { data ->
 
 ### 3.9 启动优化工具
 
+CPU Profiler 定位方法与调用栈；Perfetto 使用第 2 章配置，在采集期间触发冷启动，关联 `bindApplication`、Activity 生命周期、首个应用帧与 SurfaceFlinger 实际展示。旧 SDK 的 `platform-tools/systrace/systrace.py` 不是 Android 17 开发工具必定附带的文件。
+
+启动回归使用独立 `com.android.test` benchmark 模块（依赖 `androidx.benchmark:benchmark-macro-junit4`），目标为非 debuggable、可 profile 的 release 应用；模块配置见 2.5。`MacrobenchmarkRule` 提供 `measureRepeated`，不是不存在的 `measure` / `MacrobenchmarkScope.Actions`。
+
+```kotlin
+@RunWith(AndroidJUnit4::class)
+class StartupBenchmark {
+    @get:Rule val rule = MacrobenchmarkRule()
+
+    @Test fun startupCold() = rule.measureRepeated(
+        packageName = "com.example.app",
+        metrics = listOf(StartupTimingMetric()),
+        compilationMode = CompilationMode.None(),
+        startupMode = StartupMode.COLD,
+        iterations = 10,
+        setupBlock = { pressHome() }
+    ) {
+        startActivityAndWait()
+    }
+}
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         启动优化工具                                        │
-└─────────────────────────────────────────────────────────────────────────────┘
 
-1. CPU Profiler (Android Studio)
-─────────────────────────────────────────────────────────────────────────────
-   - 查看方法执行时间
-   - 分析调用栈
-   - 找出耗时方法
+对比 Baseline Profile 时另跑 `CompilationMode.Partial`；控制设备温度、编译模式、数据和启动入口。首帧时间不等于业务全部就绪；TTFD 要在真实内容可用时调用 `reportFullyDrawn()`，不能在 onCreate 无条件调用来缩短指标。
 
-2. Systrace / Perfetto
-─────────────────────────────────────────────────────────────────────────────
-   # 采集启动 trace
-   python $ANDROID_SDK/platform-tools/systrace/systrace.py \
-       --app=com.example \
-       gfx view wm am sched freq \
-       -o startup_trace.html
+源码：[MacrobenchmarkRule.measureRepeated](https://github.com/androidx/androidx/blob/androidx-main/benchmark/benchmark-macro-junit4/src/main/java/androidx/benchmark/macro/junit4/MacrobenchmarkRule.kt)。此为 AndroidX 开发分支，项目仍须锁定所使用库版本；它不属于 AOSP 平台 tag。
 
-   # 分析关键时间点:
-   - bindApplication
-   - Activity.onCreate
-   - performTraversals
-   - firstDraw
-
-3. Startup Timing Library
-─────────────────────────────────────────────────────────────────────────────
-   // build.gradle
-   implementation 'androidx.benchmark:benchmark-macro-junit4:1.1.0'
-
-   // 测试代码
-   @RunWith(AndroidJUnit4.class)
-   public class StartupBenchmark {
-       @Rule
-       public MacrobenchmarkRule rule = new MacrobenchmarkRule();
-
-       @Test
-       public void startupCold() {
-           rule.measure(
-               "com.example",
-               Collections.singletonList(
-                   CompilationMode.None()
-               ),
-               10,
-               new MacrobenchmarkScope.Actions() {
-                   @Override
-                   public void actions(MacrobenchmarkScope scope) {
-                       scope.launchActivity();
-                   }
-               }
-           );
-       }
-   }
-```
 
 ---
 
@@ -1319,7 +1309,7 @@ viewModel.loadMinimalData().observe(this) { data ->
 
 ### 4.1 渲染原理
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         Android 渲染架构                                    │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1379,7 +1369,7 @@ viewModel.loadMinimalData().observe(this) { data ->
 
 ### 4.2 16ms 法则
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         16ms 法则详解                                       │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1430,7 +1420,7 @@ viewModel.loadMinimalData().observe(this) { data ->
 
 ### 4.3 VSync 与 Choreographer
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         VSync 与 Choreographer                              │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1486,7 +1476,7 @@ viewModel.loadMinimalData().observe(this) { data ->
 
 ### 4.4 双缓冲与三缓冲
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         双缓冲与三缓冲                                      │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1528,7 +1518,7 @@ viewModel.loadMinimalData().observe(this) { data ->
 
 ### 4.5 渲染性能分析
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         渲染性能分析方法                                    │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1575,7 +1565,7 @@ viewModel.loadMinimalData().observe(this) { data ->
 
 ### 4.6 渲染优化策略
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         渲染优化策略详解                                    │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1655,7 +1645,7 @@ viewModel.loadMinimalData().observe(this) { data ->
 │  4. 使用硬件加速                                                            │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
-│  Android 3.0+ 默认开启硬件加速                                             │
+│  API 11 引入，targetSdk>=14 默认开启硬件加速                                             │
 │                                                                             │
 │  检查是否启用:                                                              │
 │  view.isHardwareAccelerated()  // View 级别                                │
@@ -1710,7 +1700,7 @@ viewModel.loadMinimalData().observe(this) { data ->
 // └─────────────────────────────────────────────────────────────────────────┘
 //
 // 查找顺序：mChangedScrap → mAttachedScrap → mCachedViews → RecycledViewPool
-// 前 3 级缓存不需要重新 bindData，第 4 级需要
+// 是否 bind 还取决于 updated/invalid 等状态，不能仅凭层级保证
 
 // 优化 1：增大 CacheView 数量（适合固定列表项少的场景）
 recyclerView.setItemViewCacheSize(10)  // 默认 2，可适当增大
@@ -1755,7 +1745,7 @@ val diffResult = DiffUtil.calculateDiff(UserDiffCallback(oldList, newList))
 diffResult.dispatchUpdatesTo(adapter)
 
 // 优化 4：RecyclerView.setHasFixedSize(true)
-// 如果列表项大小固定，设置此标志避免每次都 requestLayout
+// RecyclerView 自身尺寸不依赖 adapter 内容时使用，不是 item 大小固定
 recyclerView.setHasFixedSize(true)
 
 // 优化 5：预取（Prefetch）
@@ -1837,125 +1827,53 @@ view.setLayerType(View.LAYER_TYPE_NONE, null)
 
 ## 5. 内存优化
 
-### 5.1 Java 内存模型
+### 5.1 Java 运行时数据区与 ART
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         Java 内存模型                                       │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                                                                             │
-│   ┌─────────────────────────────────────────────────────────────────────┐ │
-│   │                        JVM 内存区域                                  │ │
-│   ├─────────────────────────────────────────────────────────────────────┤ │
-│   │                                                                     │ │
-│   │   ┌─────────────────────────────────────────────────────────────┐  │ │
-│   │   │ 堆 (Heap) - 所有线程共享                                      │  │ │
-│   │   │   ├── 新生代 (Young Generation)                              │  │ │
-│   │   │   │   ├── Eden 区                                            │  │ │
-│   │   │   │   └── Survivor 区 (S0, S1)                               │  │ │
-│   │   │   └── 老年代 (Old Generation)                                │  │ │
-│   │   └─────────────────────────────────────────────────────────────┘  │ │
-│   │                                                                     │ │
-│   │   ┌─────────────────────────────────────────────────────────────┐  │ │
-│   │   │ 方法区 (Method Area) - 存储类信息、常量、静态变量            │  │ │
-│   │   └─────────────────────────────────────────────────────────────┘  │ │
-│   │                                                                     │ │
-│   │   ┌─────────────────────────────────────────────────────────────┐  │ │
-│   │   │ 虚拟机栈 (VM Stack) - 每个线程一个                            │  │ │
-│   │   │   ├── 局部变量                                               │  │ │
-│   │   │   ├── 操作数栈                                               │  │ │
-│   │   │   └── 方法出口                                               │  │ │
-│   │   └─────────────────────────────────────────────────────────────┘  │ │
-│   │                                                                     │ │
-│   │   ┌─────────────────────────────────────────────────────────────┐  │ │
-│   │   │ 本地方法栈 (Native Method Stack)                             │  │ │
-│   │   └─────────────────────────────────────────────────────────────┘  │ │
-│   │                                                                     │ │
-│   │   ┌─────────────────────────────────────────────────────────────┐  │ │
-│   │   │ 程序计数器 (Program Counter) - 当前执行的字节码行号           │  │ │
-│   │   └─────────────────────────────────────────────────────────────┘  │ │
-│   │                                                                     │ │
-│   └─────────────────────────────────────────────────────────────────────┘ │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
+运行时数据区不是 JMM（线程可见性/有序性）模型；不能直接套用 HotSpot Eden/S0/S1。Android 进程还包含 Native、共享映射、图形缓冲区和线程栈。
 
 ### 5.2 Android 内存管理
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         Android 内存管理                                    │
-└─────────────────────────────────────────────────────────────────────────────┘
+ART 不能套用 HotSpot 的 Eden/S0/S1 固定布局。`Heap` 按 boot image、Zygote、allocation/region、large object 等 space 管理对象；allocation stack 是追踪新分配对象的元数据，不是年轻代对象存储区。
 
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  ART 虚拟机内存管理                                                         │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│   ┌─────────────────────────────────────────────────────────────────────┐ │
-│   │                        进程内存空间                                  │ │
-│   ├─────────────────────────────────────────────────────────────────────┤ │
-│   │                                                                     │ │
-│   │   高地址 ┌──────────────────────────────────────────────────────┐  │ │
-│   │          │               Stack (栈)                              │  │ │
-│   │          │         向下增长，存放局部变量                         │  │ │
-│   │          ├──────────────────────────────────────────────────────┤  │ │
-│   │          │                         │                            │  │ │
-│   │          │           ↓             │           ↑                │  │ │
-│   │          │                         │                            │  │ │
-│   │          ├──────────────────────────────────────────────────────┤  │ │
-│   │          │            Heap (堆) - Java 对象                      │  │ │
-│   │          │         Zygote 空间 (预加载类)                        │  │ │
-│   │          │         应用空间 (运行时分配)                         │  │ │
-│   │          ├──────────────────────────────────────────────────────┤  │ │
-│   │          │            Native Heap (Native 内存)                  │  │ │
-│   │          ├──────────────────────────────────────────────────────┤  │ │
-│   │          │            .so 文件、资源文件                          │  │ │
-│   │   低地址 └──────────────────────────────────────────────────────┘  │ │
-│   │                                                                     │ │
-│   └─────────────────────────────────────────────────────────────────────┘ │
-│                                                                             │
-│   内存限制:                                                                 │
-│   - normal: ~192MB (设备相关)                                              │
-│   - large: ~512MB (android:largeHeap="true")                              │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
+在 AOSP `android-17.0.0_r1`，应沿 `art/runtime/gc/heap.cc` 的 `Heap::Heap`、`Heap::CollectGarbageInternal` 与 `art/runtime/gc/collector/` 阅读实际收集器选择；Concurrent Copying（CC）与 Concurrent Mark Compact（CMC）由构建、运行配置和设备能力决定。并发收集也有暂停/屏障/分配等待，不能保证“GC 都小于 1ms”。
 
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  GC 回收机制                                                                │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│   ART 使用多种 GC 策略:                                                     │
-│                                                                             │
-│   1. Sticky GC (粘性 GC)                                                   │
-│      - 只回收上次 GC 后新分配的对象                                        │
-│      - 频率高，暂停时间短                                                  │
-│                                                                             │
-│   2. Partial GC (部分 GC)                                                  │
-│      - 回收年轻代和部分老年代                                              │
-│      - 暂停时间中等                                                        │
-│                                                                             │
-│   3. Full GC (完全 GC)                                                     │
-│      - 回收整个堆                                                          │
-│      - 暂停时间长                                                          │
-│                                                                             │
-│   GC 日志分析:                                                              │
-│   I/art     : Explicit concurrent mark sweep GC freed 104710(7MB)          │
-│               AllocSpace objects, 0(0B) LOS objects, 33% free, 25MB/38MB,  │
-│               paused 1.230ms total 67.216ms                                │
-│                                                                             │
-│   - freed: 释放的对象数量和大小                                            │
-│   - free: 空闲比例                                                         │
-│   - paused: 暂停时间                                                       │
-│   - total: 总耗时                                                          │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
+```text
+分配 -> 检查空间/水位 -> 并发请求或分配慢路径等待 GC
+     -> 按当前 collector 标记、复制/整理或清扫
+     -> 更新存活量和下次触发阈值
+
+历史 CMS 分类：
+  Sticky 追踪上次 GC 后的分配；不是 Eden + Survivor
+  Partial 排除 Zygote space；不是任意年轻代/老年代百分比
+  Full 扫描更大范围；image 等空间仍有不同回收规则
 ```
+
+这些历史名字不代表 Android 17 固定使用三种 CMS。日志的 collector 名称、freed、paused 和 total 必须分别看，total 包含并发工作，不能全部当作主线程暂停。Dalvik 后期也有并发 GC，不能概括成所有版本单线程全程 STW。
+
+来源：[AOSP 17 heap.cc](https://android.googlesource.com/platform/art/+/refs/tags/android-17.0.0_r1/runtime/gc/heap.cc)、[ART GC 调试](https://source.android.com/docs/core/runtime/gc-debug)。
+
+`MemoryLimiter` 是 **system_server 中 `com.android.server.am.MemoryLimiter` 的进程级内存限制服务**，不是应用可配置的 Java 堆上限，也不是 LMKD。`Configuration` 是 Java record，字段为 `memVisible/memNotVisible/swapVisible/swapNotVisible`，单位 bytes。默认测试配置 4/2/2/2 GiB 明确不是生产统一限额；是否运行取决于 feature flag、`/vendor/etc/memory-limiter-config.xml`、RAM 匹配及内核/cgroup 支持。
+
+```text
+ProcessRecord/进程状态变更
+ -> MemoryLimiter 的进程记录选择 visible/notVisible 限额
+ -> configureLimit(nativeService, pid, uid, memHigh, swapHigh)
+ -> Native 监控 memory.high / memory.swap.high
+ -> 内存高水位后进入额外 anon+swap 采样
+ -> anon+swap 超限 -> onLimitExceeded(LIMIT_TYPE_ANON_SWAP)
+ -> 释放限额；可选触发系统 profiling
+ -> MESSAGE_KILL 延迟 KILL_DELAY_MS=30_000
+ -> Injector.killProcess -> IActivityManager.killPids -> AMS.killPids
+ -> REASON_OTHER + SUBREASON_KILL_PID
+```
+
+Native 的 anon+swap 阈值对应 `memHigh + swapHigh`，不能用 PSS、RSS 或 `Runtime.maxMemory()` 直接替代。30 秒给可选 profiler 完成，不是应用保证获得的清理窗口；限额/退出描述不是稳定 SDK 契约，部分设备可能未启用。
+
+源码：[MemoryLimiter.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/services/core/java/com/android/server/am/MemoryLimiter.java) 的 `Configuration/isMemoryLimiterSupported/onLimitExceeded`；[Native MemoryLimiter.cpp](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/services/core/jni/com_android_server_am_MemoryLimiter.cpp) 的 `testAnonSwap/configureLimit`。退出必须结合 `ApplicationExitInfo` reason、description、timestamp、PSS/RSS 和设备日志；仅 `REASON_OTHER` 不能认定 MemoryLimiter，`MemoryLimiter:AnonSwap` 只能作本 tag 的启发分类。
 
 ### 5.3 内存泄漏检测
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         内存泄漏检测                                        │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -2048,7 +1966,7 @@ view.setLayerType(View.LAYER_TYPE_NONE, null)
 
 ### 5.4 内存优化策略
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         内存优化策略                                        │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -2095,7 +2013,7 @@ view.setLayerType(View.LAYER_TYPE_NONE, null)
 
 ### 5.5 OOM 分析与处理
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         OOM 分析与处理                                      │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -2137,7 +2055,7 @@ view.setLayerType(View.LAYER_TYPE_NONE, null)
 
 ### 6.1 线程池调优
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    线程池调优：不只是 newCachedThreadPool                    │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -2164,7 +2082,7 @@ ThreadPoolExecutor 核心参数：
       30, TimeUnit.SECONDS,
       new LinkedBlockingQueue<>(128),
       new NamedThreadFactory("cpu-pool"),
-      new ThreadPoolExecutor.CallerRunsPolicy()  // 队列满时由调用线程执行
+      new ThreadPoolExecutor.AbortPolicy()  // 调用者处理拒绝/降级，不让主线程回退执行慢任务
   );
 
   // 推荐配置（IO 密集型任务）
@@ -2174,7 +2092,7 @@ ThreadPoolExecutor 核心参数：
       60, TimeUnit.SECONDS,
       new LinkedBlockingQueue<>(256),
       new NamedThreadFactory("io-pool"),
-      new ThreadPoolExecutor.CallerRunsPolicy()
+      new ThreadPoolExecutor.AbortPolicy()
   );
 
   // 自定义 ThreadFactory（便于排查线程问题）
@@ -2186,9 +2104,11 @@ ThreadPoolExecutor 核心参数：
 
       @Override
       public Thread newThread(Runnable r) {
-          Thread t = new Thread(r, prefix + "-" + counter.incrementAndGet());
-          // 子线程默认继承创建者的优先级，可能过高
-          Process.setThreadPriority(Process.THREAD_PRIORITY_BACKGROUND);
+          Thread t = new Thread(() -> {
+                Process.setThreadPriority(Process.THREAD_PRIORITY_BACKGROUND);
+                r.run();
+            }, prefix + "-" + counter.incrementAndGet());
+          // 优先级只在上面的新线程 Runnable 内设置，不能改变创建线程。
           return t;
       }
   }
@@ -2206,7 +2126,7 @@ ThreadPoolExecutor 核心参数：
 // │  调度器               │  适用场景                                        │
 // ├──────────────────────┼───────────────────────────────────────────────────┤
 // │  Dispatchers.Main    │  UI 更新、轻量级状态管理（仅 Android）            │
-// │  Dispatchers.IO      │  网络、数据库、文件 IO（线程池最大 64）           │
+// │  Dispatchers.IO      │  阻塞 IO（默认并行度 max(64, CPU数)，可配置；limitedParallelism 可弹性扩展）           │
 // │  Dispatchers.Default │  CPU 密集计算：JSON 解析、图片处理、排序          │
 // │  Dispatchers.Unconfined│ 不推荐，行为不可预测                           │
 // │  自定义线程池         │  特殊需求：限制并发数、隔离 IO                    │
@@ -2350,7 +2270,7 @@ for (int i = 0; i < 10000; i++) {
 // 检测工具：
 // 1. Memory Profiler → 查看内存曲线是否锯齿状
 // 2. Allocation Tracker → 按分配次数排序，找到高频分配的调用栈
-// 3. LeakCanary 2.x → 自动检测内存抖动（实验功能）
+// 3. LeakCanary 检测对象保留/泄漏，不是分配抖动探针
 ```
 
 ### 5.7 Bitmap 内存管理演进
@@ -2368,8 +2288,8 @@ for (int i = 0; i < 10000; i++) {
 // └──────────────────────┴───────────────────────────────────────────────────┘
 //
 // 关键演进细节：
-// - API 10 之前：Bitmap 像素数据在 Native Heap，但 GC 不知道它的存在
-//   手动调用 bitmap.recycle() 释放（否则 Native 内存泄漏）
+// - API 10 及以前：像素在 Native Heap，回收可能延迟
+//   仅确认无人使用时可主动 recycle；不手动回收不等同必然泄漏
 //
 // - API 11~25：像素数据移到 Java Heap，Bitmap 对象本身就是 Java 对象
 //   GC 可以自动回收，但计入 Java Heap 上限（容易 OOM）
@@ -2412,123 +2332,45 @@ Bitmap newBitmap = BitmapFactory.decodeFile(path, options);
 // Glide 内部已自动处理 inBitmap 复用
 ```
 
-### 5.8 onTrimMemory 内存水位监控
+### 5.8 onTrimMemory 与主动内存预算
+
+API 34 起不再发送旧 `TRIM_MEMORY_RUNNING_*`、`MODERATE/COMPLETE` 压力通知；`onLowMemory()` 也不再调用，API 35 已废弃。不能依赖它们在 Android 17 杀进程前清理。`TRIM_MEMORY_UI_HIDDEN` 仍表达 UI 已不可见。
+
 ```java
-// ┌─────────────────────────────────────────────────────────────────────────┐
-// │    onTrimMemory：系统内存紧张时的分级响应机制                             │
-// └─────────────────────────────────────────────────────────────────────────┘
-//
-// ┌────────────────────────────────┬─────────────────────────────────────────┐
-// │  级别                          │  含义 & 建议动作                        │
-// ├────────────────────────────────┼─────────────────────────────────────────┤
-// │  TRIM_MEMORY_UI_HIDDEN         │  UI 不可见（所有 Activity 进入后台）    │
-// │                                │  → 释放 UI 相关资源                    │
-// ├────────────────────────────────┼─────────────────────────────────────────┤
-// │  TRIM_MEMORY_RUNNING_MODERATE  │  内存开始紧张，进程仍在运行             │
-// │                                │  → 释放部分非必要缓存                  │
-// ├────────────────────────────────┼─────────────────────────────────────────┤
-// │  TRIM_MEMORY_RUNNING_LOW       │  内存紧张                              │
-// │                                │  → 释放更多缓存                        │
-// ├────────────────────────────────┼─────────────────────────────────────────┤
-// │  TRIM_MEMORY_RUNNING_CRITICAL  │  内存极度紧张                          │
-// │                                │  → 释放所有可释放的资源                │
-// ├────────────────────────────────┼─────────────────────────────────────────┤
-// │  TRIM_MEMORY_MODERATE          │  进程在 LRU 列表中部，即将被回收        │
-// │                                │  → 释放尽可能多的资源                  │
-// ├────────────────────────────────┼─────────────────────────────────────────┤
-// │  TRIM_MEMORY_COMPLETE          │  进程在 LRU 列表尾部，即将被杀          │
-// │                                │  → 释放所有资源，准备被回收            │
-// └────────────────────────────────┴─────────────────────────────────────────┘
-
-public class MyApp extends Application {
-    @Override
-    public void onTrimMemory(int level) {
-        super.onTrimMemory(level);
-
-        switch (level) {
-            case ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN:
-                // UI 不可见：释放图片缓存
-                Glide.get(this).clearMemory();
-                break;
-
-            case ComponentCallbacks2.TRIM_MEMORY_RUNNING_MODERATE:
-            case ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW:
-                // 内存紧张：释放部分缓存
-                CacheManager.trimCache(0.5f);  // 释放一半缓存
-                break;
-
-            case ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL:
-            case ComponentCallbacks2.TRIM_MEMORY_MODERATE:
-            case ComponentCallbacks2.TRIM_MEMORY_COMPLETE:
-                // 内存极度紧张：释放所有可释放资源
-                CacheManager.clearAllCaches();
-                BitmapPool.clear();
-                break;
-        }
+@Override public void onTrimMemory(int level) {
+    super.onTrimMemory(level);
+    if (level == ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN) {
+        uiCache.evictAll(); // 仅释放业务确认可重建的缓存，不 recycle 正在使用的图片
     }
 }
 ```
 
+正常运行设置缓存/图片尺寸/并发预算，页面退出注销监听。高压力下自动主线程 HPROF 会进一步暂停并消耗资源，只在授权诊断与采样策略下转储。
+
+来源：[ComponentCallbacks2](https://developer.android.com/reference/android/content/ComponentCallbacks2)、[ComponentCallbacks](https://developer.android.com/reference/android/content/ComponentCallbacks)。
+
 ### 5.9 Native 内存泄漏排查
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│              Native 内存泄漏排查：heapprofd + ASan                           │
-└─────────────────────────────────────────────────────────────────────────────┘
+heapprofd 是 Perfetto 的 Native 分配采样数据源，不使用旧示例虚构的 `heapprofd --pid --sampling --standalone` 参数。应用需 debuggable/profileable 并满足设备权限。
 
-工具 1：heapprofd（Android 10+ 系统内置，无需修改代码）
-─────────────────────────────────────────────────────────────────────────────
-  # 启动 heapprofd 监控特定进程
-  adb shell heapprofd --pid=<your_pid> --sampling=1 --standalone
-
-  # 操作 App，复现问题
-
-  # 抓取 heap dump
-  adb shell kill -USR1 <heapprofd_pid>
-
-  # 拉取结果
-  adb pull /data/misc/perfetto-traces/heap_dump.pb
-
-  # 使用 Perfetto UI 分析：https://ui.perfetto.dev
-  # 查看 Native 调用栈中分配最多内存的位置
-
-工具 2：ASan (AddressSanitizer) — 检测 Native 内存越界和泄漏
-─────────────────────────────────────────────────────────────────────────────
-  // build.gradle
-  android {
-      defaultConfig {
-          externalNativeBuild {
-              cmake {
-                  // 启用 ASan
-                  arguments "-DANDROID_SANITIZE=address"
-              }
-          }
-      }
-  }
-
-  // 或使用 wrap.sh 方式（无需重新编译）
-  // adb shell setprop wrap.<package> "asanwrapper"
-
-  // ASan 检测的问题类型：
-  // - 堆缓冲区溢出 (heap-buffer-overflow)
-  // - 栈缓冲区溢出 (stack-buffer-overflow)
-  // - 使用已释放内存 (use-after-free)
-  // - 内存泄漏 (memory-leak)
-
-工具 3：HWUI 内存泄漏检测（系统版本）
-─────────────────────────────────────────────────────────────────────────────
-  adb shell dumpsys gfxinfo <package_name>
-  # 查看 "Total GPU memory" 和 "ViewNode count"
-  # 如果持续增长，说明有 GPU 资源泄漏
+```bash
+# Perfetto 官方 tools/heap_profile 主机脚本；先下载并检查脚本。
+python3 heap_profile -n com.example.app -c 1000 -d 10000
+# -c 连续 dump 间隔 ms；-d 时长 ms；结果位置按脚本输出。
 ```
 
----
+也可在 Perfetto 配置 `android.heapprofd`、`heapprofd_config.process_cmdline`、`sampling_interval_bytes` 与连续 dump；分析未释放分配栈随时间的变化，符号解析需要匹配的未剥离 SO。采样不是所有 malloc 的无损记录。
+
+ASan/HWASan 检测越界和 use-after-free，必须重新编译 Native 代码；wrap.sh 只设置运行环境，不会自动插桩。NDK ASan 不支持通用 LeakSanitizer；CMake 的 `-DANDROID_SANITIZE=address` 不是自动启用开关，应以 `target_compile_options(... -fsanitize=address -fno-omit-frame-pointer)` 和 `target_link_options(... -fsanitize=address)` 配置并满足运行时要求。新项目评估受支持的 HWASan 设备/构建。
+
+`dumpsys gfxinfo` 资源增长只是信号，应区分缓存水位与持续泄漏。
+来源：[Native heap profiling](https://perfetto.dev/docs/quickstart/heap-profiling)、[NDK ASan](https://developer.android.com/ndk/guides/asan)。
 
 ## 7. 电量优化
 
 ### 7.1 电量消耗分析
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         电量消耗分析                                        │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -2557,7 +2399,7 @@ adb shell dumpsys batterystats --charged <package_name>
 
 ### 7.2 电量优化策略
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         电量优化策略                                        │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -2596,7 +2438,7 @@ adb shell dumpsys batterystats --charged <package_name>
 
 ### 7.4 Doze 模式与 App Standby
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         Doze 模式与 App Standby                             │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -2642,7 +2484,7 @@ adb shell dumpsys batterystats --charged <package_name>
 
 ### 7.3 Battery Historian 使用教程
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                Battery Historian：Google 官方电量分析工具                    │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -2663,7 +2505,7 @@ adb shell dumpsys batterystats --charged <package_name>
   # 4. 操作你的 App（模拟正常使用场景）
 
   # 5. 导出电量报告
-  adb bugreport > bugreport.zip
+  adb bugreport bugreport.zip
 
   # 6. 打开浏览器访问
   # http://localhost:9999
@@ -2744,7 +2586,7 @@ override fun onResume() {
 
 ### 7.6 Android 12+ 前台服务限制
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │        Android 12+ 前台服务启动限制（Foreground Service Launch              │
 │        Restrictions）                                                      │
@@ -2827,7 +2669,7 @@ class SyncWorker(context: Context, params: WorkerParameters) : Worker(context, p
 
 ### 8.1 网络请求优化
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         网络请求优化                                        │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -2842,7 +2684,7 @@ class SyncWorker(context: Context, params: WorkerParameters) : Worker(context, p
 2. 请求压缩
 ─────────────────────────────────────────────────────────────────────────────
    // Gzip 压缩
-   @Headers("Accept-Encoding: gzip")
+   // 不显式设置 Accept-Encoding，保留 OkHttp 透明 gzip
    @GET("api/data")
    Call<Response> getData();
 
@@ -2859,7 +2701,7 @@ class SyncWorker(context: Context, params: WorkerParameters) : Worker(context, p
 
 ### 8.2 HTTP/2 与 OkHttp 配置
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │           HTTP/2 多路复用与 OkHttp 高级配置                                │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -2893,14 +2735,14 @@ OkHttp 最佳配置：
       .writeTimeout(20, TimeUnit.SECONDS)
       // 启用 HTTP/2（默认已开启）
       .protocols(Arrays.asList(Protocol.HTTP_2, Protocol.HTTP_1_1))
-      // 启用 Cookie 持久化
+      // Cookie 内存管理（CookieManager 默认不持久化）
       .cookieJar(new JavaNetCookieJar(new CookieManager()))
       // 添加统一请求头
       .addInterceptor(chain -> {
           Request original = chain.request();
           Request request = original.newBuilder()
               .header("Accept-Encoding", "gzip")  // OkHttp 自动处理 gzip
-              .header("Connection", "keep-alive")
+              // HTTP/2 不使用 Connection 头
               .build();
           return chain.proceed(request);
       })
@@ -2921,44 +2763,18 @@ OkHttp 最佳配置：
 // └─────────────────────────────────────────────────────────────────────────┘
 
 // 策略 1：超时与重试（指数退避）
-public class RetryInterceptor implements Interceptor {
-    private final int maxRetry;
-    private final long baseDelay;
-
-    public RetryInterceptor(int maxRetry, long baseDelayMs) {
-        this.maxRetry = maxRetry;
-        this.baseDelay = baseDelayMs;
-    }
-
-    @Override
-    public Response intercept(Chain chain) throws IOException {
+public final class RetryInterceptor implements Interceptor {
+    @Override public Response intercept(Chain chain) throws IOException {
         Request request = chain.request();
-        IOException lastException = null;
-
-        for (int i = 0; i <= maxRetry; i++) {
-            try {
-                Response response = chain.proceed(request);
-                if (response.isSuccessful()) return response;
-                response.close();
-            } catch (IOException e) {
-                lastException = e;
-            }
-
-            if (i < maxRetry) {
-                try {
-                    // 指数退避：500ms → 1000ms → 2000ms → 4000ms
-                    long delay = baseDelay * (1L << i);
-                    Thread.sleep(delay);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    break;
-                }
-            }
-        }
-        throw lastException != null ? lastException :
-            new IOException("Request failed after " + maxRetry + " retries");
+        Response first = chain.proceed(request);
+        if (!"GET".equals(request.method()) || first.code() != 503 ||
+                !"0".equals(first.header("Retry-After")) || chain.call().isCanceled()) return first;
+        first.close();
+        return chain.proceed(request);
     }
 }
+// 仅应用拦截器，最多额外一次；延迟退避放上层可取消协程。
+// 非幂等提交不能盲目重试，最终 HTTP 状态保留给业务。
 
 // 策略 2：离线缓存（有网用网络，无网用缓存）
 public class OfflineCacheInterceptor implements Interceptor {
@@ -2974,7 +2790,7 @@ public class OfflineCacheInterceptor implements Interceptor {
         if (!isNetworkAvailable) {
             // 无网络：强制使用缓存，允许 7 天过期
             request = request.newBuilder()
-                .cacheControl(CacheControl.Builder()
+                .cacheControl(new CacheControl.Builder()
                     .maxStale(7, TimeUnit.DAYS).build())
                 .build();
         }
@@ -2993,7 +2809,7 @@ public class OfflineCacheInterceptor implements Interceptor {
 ```java
 // NetworkCallback 实时监听网络变化（Android 5.0+）
 public class NetworkMonitor {
-    private final ConnectivityManager cm;
+    private ConnectivityManager cm;
     private Network currentNetwork;
     private int currentQuality = QUALITY_UNKNOWN;  // 网络质量等级
 
@@ -3007,11 +2823,12 @@ public class NetworkMonitor {
             @Override
             public void onAvailable(Network network) {
                 currentNetwork = network;
-                updateQuality();
+                // 等 onCapabilitiesChanged 更新状态。
             }
 
             @Override
             public void onLost(Network network) {
+                if (!network.equals(currentNetwork)) return;
                 currentNetwork = null;
                 currentQuality = QUALITY_UNKNOWN;
                 // 通知业务层：网络已断开
@@ -3039,7 +2856,7 @@ public class NetworkMonitor {
         NetworkRequest request = new NetworkRequest.Builder()
             .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
             .build();
-        cm.registerNetworkCallback(request, callback);
+        cm.registerDefaultNetworkCallback(callback); // API 24+，成对注销
     }
 
     public void unregister() {
@@ -3050,7 +2867,7 @@ public class NetworkMonitor {
 
 ### 8.5 图片加载优化
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         图片加载优化                                        │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -3077,7 +2894,7 @@ public class NetworkMonitor {
 
 ### 8.6 网络缓存策略
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         网络缓存策略                                        │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -3102,7 +2919,7 @@ Request request = new Request.Builder()
     .url(url)
     .build();
 
-// 先缓存后网络
+// 允许旧缓存；单个 Call 不会自动先缓存后网络双发
 Request request = new Request.Builder()
     .cacheControl(new CacheControl.Builder()
         .maxStale(7, TimeUnit.DAYS)
@@ -3117,7 +2934,7 @@ Request request = new Request.Builder()
 
 ### 9.1 体积分析
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         APK 体积分析                                        │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -3138,7 +2955,7 @@ APK 结构:
 
 分析命令:
 echo "APK 大小分布"
-./gradlew assembleRelease --analyze
+apkanalyzer files list app.apk
 
 echo "使用 APK Analyzer"
 android {
@@ -3153,7 +2970,7 @@ android {
 
 ### 9.2 R8 完整瘦身策略
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         代码混淆与优化                                      │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -3204,7 +3021,7 @@ android {
 
 ### 9.3 资源优化
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         资源优化                                            │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -3220,7 +3037,7 @@ android {
    }
    
    # 手动检查
-   ./gradlew lint --check UnusedResources
+   ./gradlew :app:lintRelease # 查看 UnusedResources 报告
 
 2. 图片优化
 ─────────────────────────────────────────────────────────────────────────────
@@ -3253,7 +3070,7 @@ android {
 
 ### 9.4 So 动态库优化
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         So 动态库优化                                       │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -3276,10 +3093,10 @@ android {
 2. So 文件裁剪
 ─────────────────────────────────────────────────────────────────────────────
    # 使用 strip 裁剪符号表
-   arm-linux-androideabi-strip --strip-unneeded libtest.so
+   llvm-strip --strip-unneeded libtest.so # 使用匹配 NDK，保留原始符号
    
    # 使用 UPX 压缩 (部分场景)
-   upx --best libtest.so
+   # 不把 UPX 用作 Android SO 常规发布方案，需验证 ELF 与 16KB 页兼容
 
 3. 动态加载
 ─────────────────────────────────────────────────────────────────────────────
@@ -3293,7 +3110,7 @@ android {
 
 ### 10.2 CPU Profiler 高级用法
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         CPU Profiler                                        │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -3329,7 +3146,7 @@ android {
 
 ### 10.3 Memory Profiler 高级用法
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         Memory Profiler                                     │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -3362,7 +3179,7 @@ android {
 
 ### 10.4 Layout Inspector
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         Layout Inspector                                    │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -3389,52 +3206,46 @@ android {
 
 ### 10.1 Perfetto 深度使用
 
+只采 android.packages_list 无法得到 CPU/帧/锁信息。旧 systrace.py 需要已有 Catapult 工具，不能假定新 SDK 仍带脚本；Android 17 主路径如下。
+
+```textproto
+buffers { size_kb: 32768 fill_policy: RING_BUFFER }
+duration_ms: 15000
+data_sources { config { name: "linux.ftrace" ftrace_config {
+  ftrace_events: "sched/sched_switch"
+  ftrace_events: "sched/sched_waking"
+  ftrace_events: "power/cpu_frequency"
+  ftrace_events: "power/cpu_idle"
+  ftrace_events: "binder/binder_transaction"
+  ftrace_events: "binder/binder_transaction_received"
+  atrace_categories: "am"
+  atrace_categories: "wm"
+  atrace_categories: "gfx"
+  atrace_categories: "view"
+  atrace_categories: "input"
+  atrace_categories: "dalvik"
+  atrace_apps: "com.example.app"
+} } }
+data_sources { config { name: "linux.process_stats" process_stats_config {
+  scan_all_processes_on_start: true
+} } }
+data_sources { config { name: "android.surfaceflinger.frametimeline" } }
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         Systrace / Perfetto                                 │
-└─────────────────────────────────────────────────────────────────────────────┘
 
-1. Systrace (旧版)
-─────────────────────────────────────────────────────────────────────────────
-   python $ANDROID_SDK/platform-tools/systrace/systrace.py \
-       --app=com.example \
-       gfx view wm am sched freq \
-       -o trace.html
-
-2. Perfetto (新版)
-─────────────────────────────────────────────────────────────────────────────
-   adb shell perfetto \
-       -c - --txt \
-       -o /data/misc/perfetto-traces/trace \
-       <<EOF
-   buffers: {
-       size_kb: 63488
-       fill_policy: RING_BUFFER
-   }
-   buffers: {
-       size_kb: 2048
-       fill_policy: RING_BUFFER
-   }
-   data_sources: {
-       config {
-           name: "android.packages_list"
-       }
-   }
-   duration_ms: 10000
-   EOF
-
-3. 分析内容
-─────────────────────────────────────────────────────────────────────────────
-   - CPU 调度信息
-   - 线程状态
-   - 帧渲染时间
-   - 系统服务调用
-   - 锁竞争
+```powershell
+adb push .\feed.pbtxt /data/local/tmp/feed.pbtxt
+adb shell perfetto --txt -c /data/local/tmp/feed.pbtxt -o /data/misc/perfetto-traces/feed.perfetto-trace
+# 终端 B：终端 A 正在采集时执行目标动作，不是采集结束后才操作
+adb shell am start -W -n com.example.app/.MainActivity
+# 终端 A 采集结束后再拉取
+adb pull /data/misc/perfetto-traces/feed.perfetto-trace .\feed.perfetto-trace
 ```
+
+`--txt` 用于 textproto 配置，不与无 -c 的简单分类模式混用。包满足采样条件且 atrace_apps 匹配。分类和 ftrace 事件依设备支持；检查 stderr、Trace stats 的丢包和缺失数据，空轨道不证明无耗时。
 
 ### 10.5 线上监控工具
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         LeakCanary                                          │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -3468,57 +3279,18 @@ if (AppWatcher.objectWatcher.hasWatchedObjects) {
 
 ### 10.6 Simpleperf（Native CPU Profiling）
 
+```bash
+# 在 NDK simpleperf 脚本目录；应用满足 debuggable/profileable 权限。
+python3 app_profiler.py -p com.example.app -r "-e cpu-cycles -g --duration 10"
+python3 report_html.py -i perf.data -o report.html
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│         Simpleperf：Native 层 CPU 性能分析的利器                            │
-└─────────────────────────────────────────────────────────────────────────────┘
 
-为什么需要 Simpleperf？
-─────────────────────────────────────────────────────────────────────────────
-  - CPU Profiler 只能分析 Java/Kotlin 代码耗时
-  - 如果你的 App 使用了大量 Native 库（音视频、图片处理、游戏引擎）
-  - 需要知道 Native 函数的 CPU 占用情况
-
-使用方法：
-─────────────────────────────────────────────────────────────────────────────
-  # 1. 采样模式（低开销，推荐线上使用）
-  adb shell simpleperf stat \
-      --app com.example.app \
-      --duration 10 \
-      --group-colored-events
-
-  # 输出示例：
-  # Performance counter statistics:
-  #   2,847,291,083  cpu-cycles          # CPU 周期数
-  #     453,827,109  instructions         # 指令数
-  #      12,847,291  cache-references     # 缓存引用
-  #       1,847,291  cache-misses         # 缓存未命中（关注这个）
-
-  # 2. 记录模式（精确但开销大）
-  adb shell simpleperf record \
-      --app com.example.app \
-      --duration 10 \
-      --trace-offcpu \  # 同时记录 CPU 等待时间
-      -o /data/local/tmp/perf.data
-
-  # 3. 拉取并分析
-  adb pull /data/local/tmp/perf.data .
-  # 使用 Android Studio 的 CPU Profiler 打开 perf.data
-  # 或使用命令行工具：
-  simpleperf report -i perf.data --sort symbol
-
-  # 4. Flame Graph（火焰图）生成
-  adb shell simpleperf record --app com.example.app -g --duration 10 \
-      -o /data/local/tmp/perf.data
-  adb pull /data/local/tmp/perf.data .
-  # 转换为 FlameGraph 格式
-  simpleperf report -i perf.data --protobuf -o perf.pb
-  # 上传到 https://ui.perfetto.dev 查看
-```
+stat 是计数、record 是采样，都不是无损方法跟踪。`--trace-offcpu` 还需设备/调度事件权限。不存在旧示例的 `--group-colored-events`，`report --protobuf/--proto` 不是生成 Chrome/Perfetto 火焰图的正确流程。report_html.py 消费 perf.data，符号需匹配 ABI/build-id。Android Studio CPU Profiler 本身也支持 Native 采样。
+来源：[Simpleperf 应用采样](https://android.googlesource.com/platform/system/extras/+/refs/tags/android-17.0.0_r1/simpleperf/doc/android_application_profiling.md)。
 
 ### 10.7 线上性能监控矩阵
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │              线上性能监控工具对比与选型                                      │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -3550,11 +3322,51 @@ if (AppWatcher.objectWatcher.hasWatchedObjects) {
 
 ---
 
+### 10.8 从 Perfetto 时间线到优化决策
+
+以“首屏等待账户数据”为例，在读取、数据库打开、模型解析处添加稳定 trace 名称，采集 `sched`、`am`、`wm`、`gfx`、`view`、`binder_driver` 和 FrameTimeline。启动前开始采集，复现一次动作，结束后在 UI 中确认应用 slice、线程状态和帧轨道都实际存在。
+
+```sql
+SELECT name, value, severity FROM stats WHERE value != 0 AND severity != 'info';
+SELECT COUNT(*) AS sched_count FROM sched;
+SELECT COUNT(*) AS frame_count FROM actual_frame_timeline_slice;
+SELECT s.id, s.name, s.ts, ROUND(s.dur / 1e6, 3) AS wall_ms,
+       t.name AS thread_name, p.name AS process_name
+FROM slice s JOIN thread_track tt ON tt.id = s.track_id
+JOIN thread t ON t.utid = tt.utid JOIN process p ON p.upid = t.upid
+WHERE p.name = 'com.example.app' AND s.dur > 0
+ORDER BY s.dur DESC LIMIT 50;
+WITH target AS (
+ SELECT s.id, s.ts, s.dur, tt.utid FROM slice s
+ JOIN thread_track tt ON tt.id = s.track_id
+ JOIN thread t ON t.utid = tt.utid JOIN process p ON p.upid = t.upid
+ WHERE p.name = 'com.example.app' AND s.name = 'Feed.load' AND s.dur > 0
+)
+SELECT target.id, st.state,
+ ROUND(SUM(MIN(target.ts + target.dur, st.ts + st.dur) -
+           MAX(target.ts, st.ts)) / 1e6, 3) AS overlap_ms
+FROM target JOIN thread_state st ON st.utid = target.utid
+ AND st.dur > 0 AND st.ts < target.ts + target.dur
+ AND st.ts + st.dur > target.ts
+GROUP BY target.id, st.state ORDER BY target.id, overlap_ms DESC;
+SELECT a.id, p.name, a.layer_name, a.surface_frame_token,
+       a.jank_type, a.present_type, ROUND(a.dur / 1e6, 3) AS actual_ms
+FROM actual_frame_timeline_slice a JOIN process p ON p.upid = a.upid
+WHERE p.name = 'com.example.app' AND a.dur > 0 ORDER BY a.ts;
+```
+
+空结果不是没有卡顿。同步 slice 父子不可累加；状态时长必须裁剪到 section 的交叠区间。FrameTimeline 配对 expected/actual 看期限，surface/display 帧并非一对一；跨线程/协程 async slice 用 flow 关联，不能强制映射单个 thread_track。
+
+来源：[Perfetto CLI](https://perfetto.dev/docs/reference/perfetto-cli)、[SQL tables](https://perfetto.dev/docs/analysis/sql-tables)、[FrameTimeline](https://perfetto.dev/docs/data-sources/frametimeline)。
+
+主线程 `Running` 主要查计算；`Runnable` 却未运行查 CPU 竞争；同步 Binder 后休眠沿 flow 查服务端；等待数据库锁查持锁事务。若 UI 线程已结束而 FrameTimeline 仍迟到，转查 RenderThread/GPU/SurfaceFlinger。优化必要依赖链（例如先显示本地缓存、后台刷新），不要把所有初始化盲目并行化。
+
+
 ## 11. 面试常见问题
 
 ### 11.1 启动优化问题
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │  Q: 冷启动流程是什么？                                                      │
 ├─────────────────────────────────────────────────────────────────────────────┤
@@ -3582,7 +3394,7 @@ if (AppWatcher.objectWatcher.hasWatchedObjects) {
 
 ### 11.2 渲染优化问题
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │  Q: 为什么 16ms 一帧？                                                      │
 ├─────────────────────────────────────────────────────────────────────────────┤
@@ -3612,7 +3424,7 @@ if (AppWatcher.objectWatcher.hasWatchedObjects) {
 
 ### 11.3 内存优化问题
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │  Q: 常见内存泄漏场景？                                                      │
 ├─────────────────────────────────────────────────────────────────────────────┤
@@ -3649,7 +3461,7 @@ if (AppWatcher.objectWatcher.hasWatchedObjects) {
 
 ### 11.4 综合问题
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │  Q: ANR 产生原因和解决方案？                                                │
 ├─────────────────────────────────────────────────────────────────────────────┤
@@ -3662,8 +3474,8 @@ if (AppWatcher.objectWatcher.hasWatchedObjects) {
 │                                                                             │
 │  解决方案:                                                                   │
 │  1. 耗时操作放子线程                                                        │
-│  2. 使用 AsyncTask / Thread / ExecutorService                              │
-│  3. 使用 Handler 延迟处理                                                   │
+│  2. 结构化协程/有界 Executor；AsyncTask 已废弃                              │
+│  3. 延迟非必要工作，postDelayed 不会消除主线程计算成本                                                   │
 │  4. 优化锁的使用，避免死锁                                                  │
 └─────────────────────────────────────────────────────────────────────────────┘
 
@@ -3682,23 +3494,9 @@ if (AppWatcher.objectWatcher.hasWatchedObjects) {
 
 ---
 
-## 10.7 从 Perfetto 时间线到优化决策
-
-以“首屏等待账户数据”为例，在读取、数据库打开、模型解析处添加稳定 trace 名称，采集 `sched`、`am`、`wm`、`gfx`、`view`、`binder_driver` 和 FrameTimeline。启动前开始采集，复现一次动作，结束后在 UI 中确认应用 slice、线程状态和帧轨道都实际存在。
-
-```sql
-SELECT s.name, ROUND(s.dur / 1e6, 2) AS wall_ms, t.name, p.name
-FROM slice s JOIN thread_track tt ON tt.id=s.track_id
-JOIN thread t ON t.utid=tt.utid JOIN process p ON p.upid=t.upid
-WHERE p.name='com.example.app' AND s.dur > 0
-ORDER BY s.dur DESC;
-```
-
-主线程 `Running` 主要查计算；`Runnable` 却未运行查 CPU 竞争；同步 Binder 后休眠沿 flow 查服务端；等待数据库锁查持锁事务。若 UI 线程已结束而 FrameTimeline 仍迟到，转查 RenderThread/GPU/SurfaceFlinger。优化必要依赖链（例如先显示本地缓存、后台刷新），不要把所有初始化盲目并行化。
-
 ## 12. 总结
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         性能优化总结                                        │
 └─────────────────────────────────────────────────────────────────────────────┘

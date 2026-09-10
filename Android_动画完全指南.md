@@ -18,10 +18,10 @@ _初稿日期：2026-03-08_
   - [Interpolator（插值器）](#interpolator插值器)
   - [View 动画的局限性](#view-动画的局限性)
   - [View 动画底层原理：与 ViewRootImpl 的结合](#view-动画底层原理与-viewrootimpl-的结合)
-    - [完整流程](#完整流程)
-    - [关键：applyLegacyAnimation()](#关键applylegacyanimation)
-    - [Animation.getTransformation()](#animationgettransformation)
-    - [View 动画 vs 属性动画：核心区别](#view-动画-vs-属性动画核心区别)
+    - [startAnimation：把 Animation 挂到 View，并请求后续绘制](#startanimation把-animation-挂到-view并请求后续绘制)
+    - [applyLegacyAnimation：绘制侧求变换并传播失效](#applylegacyanimation绘制侧求变换并传播失效)
+    - [Animation.getTransformation：时间、填充与重复](#animationgettransformation时间填充与重复)
+    - [与属性动画的选择](#与属性动画的选择)
 - [属性动画 (Property Animation)](#属性动画-property-animation)
   - [什么是属性动画](#什么是属性动画)
   - [核心类](#核心类)
@@ -41,13 +41,18 @@ _初稿日期：2026-03-08_
     - [自定义 TypeEvaluator](#自定义-typeevaluator)
     - [自定义复杂 TypeEvaluator：颜色渐变中间色](#自定义复杂-typeevaluator颜色渐变中间色)
     - [Interpolator vs TypeEvaluator 总结](#interpolator-vs-typeevaluator-总结)
+  - [自定义估值器的使用](#自定义估值器的使用)
   - [动画监听器](#动画监听器)
-  - [动画监听器](#动画监听器-1)
   - [属性动画与 ViewRootImpl 的结合](#属性动画与-viewrootimpl-的结合)
-    - [核心流程](#核心流程)
-    - [属性更新与重绘](#属性更新与重绘)
-    - [ViewRootImpl 与 Choreographer 的回调顺序](#viewrootimpl-与-choreographer-的回调顺序)
-    - [动画完成、取消与系统设置](#动画完成取消与系统设置)
+    - [1. ValueAnimator 的播放状态](#1-valueanimator-的播放状态)
+    - [2. AnimationHandler：线程内共享的帧来源](#2-animationhandler线程内共享的帧来源)
+    - [3. doAnimationFrame：建立时间原点、暂停与 seek](#3-doanimationframe建立时间原点暂停与-seek)
+    - [4. duration 与 repeat：按时间推进，而不是按帧计数](#4-duration-与-repeat按时间推进而不是按帧计数)
+    - [5. AnimatorSet：父 pulse 与子动画禁止双重注册](#5-animatorset父-pulse-与子动画禁止双重注册)
+    - [6. 求值与赋值：Interpolator、PropertyValuesHolder、setter](#6-求值与赋值interpolatorpropertyvaluesholdersetter)
+    - [7. 与 Choreographer 五阶段和遍历回调衔接](#7-与-choreographer-五阶段和遍历回调衔接)
+    - [8. end、cancel 与结束监听的时机](#8-endcancel-与结束监听的时机)
+    - [9. 实战：可反复重定向且在 detach 取消的动画属性](#9-实战可反复重定向且在-detach-取消的动画属性)
 - [帧动画 (Drawable Animation)](#帧动画-drawable-animation)
   - [什么是帧动画](#什么是帧动画)
   - [使用方式](#使用方式)
@@ -1412,9 +1417,10 @@ button.setStateListAnimator(AnimatorInflater.loadStateListAnimator(this, R.anima
 ```java
 // 显示 View
 View view = findViewById(R.id.revealView);
-int cx = (view.getLeft() + view.getRight()) / 2;
-int cy = (view.getTop() + view.getBottom()) / 2;
-float finalRadius = (float) Math.hypot(view.getWidth(), view.getHeight());
+int cx = view.getWidth() / 2; // 目标 View 局部坐标，不加父坐标偏移
+int cy = view.getHeight() / 2;
+float finalRadius = (float) Math.hypot(
+    Math.max(cx, view.getWidth() - cx), Math.max(cy, view.getHeight() - cy));
 
 Animator revealAnimator = ViewAnimationUtils.createCircularReveal(
     view, cx, cy, 0, finalRadius);
@@ -1422,18 +1428,21 @@ revealAnimator.setDuration(500);
 view.setVisibility(View.VISIBLE);
 revealAnimator.start();
 
-// 隐藏 View
+// 隐藏 View（在另外一次业务动作中执行，不与 revealAnimator 同时 start）
 Animator hideAnimator = ViewAnimationUtils.createCircularReveal(
     view, cx, cy, finalRadius, 0);
 hideAnimator.setDuration(500);
 hideAnimator.addListener(new AnimatorListenerAdapter() {
-    @Override
-    public void onAnimationEnd(Animator animation) {
-        view.setVisibility(View.INVISIBLE);
+    private boolean cancelled;
+    @Override public void onAnimationCancel(Animator animation) { cancelled = true; }
+    @Override public void onAnimationEnd(Animator animation) {
+        if (!cancelled) view.setVisibility(View.INVISIBLE);
     }
 });
 hideAnimator.start();
 ```
+
+圆心必须使用目标 View 的局部坐标。上述显示和隐藏片段分别在业务事件中使用，不能一次性连续启动。创建 reveal 前须确认 View 已 attach 且完成布局；页面退出时取消旧 animator。每次创建新 animator，不能暂停/恢复复用这个一次性动画；旧 hide 被取消时不应在 onAnimationEnd 隐藏新显示的页面。依据：[AOSP 17 ViewAnimationUtils.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/view/ViewAnimationUtils.java)。
 
 ### MotionLayout 动画
 
@@ -1461,8 +1470,8 @@ hideAnimator.start();
 ```
 
 ```xml
-<!-- res/xml/scene.xml -->
 <?xml version="1.0" encoding="utf-8"?>
+<!-- res/xml/scene.xml -->
 <MotionScene xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:motion="http://schemas.android.com/apk/res-auto">
 
@@ -1646,10 +1655,11 @@ public class AnimationManager {
     }
 
     public void cancelAll() {
-        for (Animator animator : animators) {
+        List<Animator> snapshot = new ArrayList<>(animators);
+        animators.clear(); // cancel/end 回调可能回入管理器，先清理原列表
+        for (Animator animator : snapshot) {
             animator.cancel();
         }
-        animators.clear();
     }
 }
 ```

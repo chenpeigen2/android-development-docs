@@ -6,45 +6,55 @@
 
 ## 目录
 
-1. [概述](#1-概述)
-2. [内存管理基础](#2-内存管理基础)
-   - 2.1 [Java 内存模型](#21-java-内存模型)
-   - 2.2 [Android 内存分配](#22-android-内存分配)
-   - 2.3 [垃圾回收机制](#23-垃圾回收机制)
-3. [内存泄漏原理](#3-内存泄漏原理)
-   - 3.1 [什么是内存泄漏](#31-什么是内存泄漏)
-   - 3.2 [内存泄漏 vs 内存溢出](#32-内存泄漏-vs-内存溢出)
-   - 3.3 [GC Root 与引用链](#33-gc-root-与引用链)
-4. [常见内存泄漏场景](#4-常见内存泄漏场景)
-   - 4.1 [Activity 泄漏](#41-activity-泄漏)
-   - 4.2 [Handler 泄漏](#42-handler-泄漏)
-   - 4.3 [单例模式泄漏](#43-单例模式泄漏)
-   - 4.4 [匿名内部类泄漏](#44-匿名内部类泄漏)
-   - 4.5 [静态变量泄漏](#45-静态变量泄漏)
-   - 4.6 [注册未取消泄漏](#46-注册未取消泄漏)
-   - 4.7 [Bitmap 泄漏](#47-bitmap-泄漏)
-   - 4.8 [WebView 泄漏](#48-webview-泄漏)
-5. [内存泄漏检测工具](#5-内存泄漏检测工具)
-   - 5.1 [LeakCanary](#51-leakcanary)
-     - 5.1.1 [LeakCanary 原理详解](#511-leakcanary-原理详解)
-     - 5.1.2 [WeakReference + ReferenceQueue 原理](#512-weakreference--referencequeue-原理)
-     - 5.1.3 [LeakCanary 检测流程图](#513-leakcanary-检测流程图)
-     - 5.1.4 [Shark 库原理](#514-shark-库原理)
-     - 5.1.5 [LeakCanary 自定义配置](#515-leakcanary-自定义配置)
-   - 5.2 [Android Studio Profiler](#52-android-studio-profiler)
-   - 5.3 [MAT](#53-mat)
-   - 5.4 [dumpsys meminfo](#54-dumpsys-meminfo)
-6. [内存优化策略](#6-内存优化策略)
-   - 6.1 [Bitmap 优化](#61-bitmap-优化)
-   - 6.2 [数据结构优化](#62-数据结构优化)
-   - 6.3 [缓存策略](#63-缓存策略)
-   - 6.4 [对象池优化](#64-对象池优化)
-7. [OOM 处理](#7-oom-处理)
-   - 7.1 [OOM 类型](#71-oom-类型)
-   - 7.2 [OOM 预防](#72-oom-预防)
-   - 7.3 [大图加载方案](#73-大图加载方案)
-8. [常见问题](#8-常见问题)
-9. [知识体系总结](#9-知识体系总结)
+- [1. 概述](#1-概述)
+- [2. 内存管理基础](#2-内存管理基础)
+  - [2.1 Java 运行时数据区与 ART](#21-java-运行时数据区与-art)
+  - [2.2 Android 内存分配](#22-android-内存分配)
+    - [2.2.1 普通应用内存区域划分](#221-普通应用内存区域划分)
+    - [2.2.2 dumpsys meminfo 解读](#222-dumpsys-meminfo-解读)
+    - [2.2.3 堆内存限制](#223-堆内存限制)
+  - [2.3 垃圾回收机制](#23-垃圾回收机制)
+    - [2.3.1 基础 GC 算法](#231-基础-gc-算法)
+    - [2.3.2 Android GC 演进](#232-android-gc-演进)
+    - [2.3.3 GC 触发条件与日志](#233-gc-触发条件与日志)
+- [3. 内存泄漏原理](#3-内存泄漏原理)
+  - [3.1 什么是内存泄漏](#31-什么是内存泄漏)
+  - [3.2 内存泄漏 vs 内存溢出](#32-内存泄漏-vs-内存溢出)
+  - [3.3 GC Root 与引用链](#33-gc-root-与引用链)
+- [4. 常见内存泄漏场景](#4-常见内存泄漏场景)
+  - [4.1 Activity 泄漏](#41-activity-泄漏)
+  - [4.2 Handler 泄漏](#42-handler-泄漏)
+  - [4.3 单例模式泄漏](#43-单例模式泄漏)
+  - [4.4 匿名内部类泄漏](#44-匿名内部类泄漏)
+  - [4.5 静态变量泄漏](#45-静态变量泄漏)
+  - [4.6 注册未取消泄漏](#46-注册未取消泄漏)
+  - [4.7 Bitmap 泄漏](#47-bitmap-泄漏)
+  - [4.8 WebView 泄漏](#48-webview-泄漏)
+- [5. 内存泄漏检测工具](#5-内存泄漏检测工具)
+  - [5.1 LeakCanary](#51-leakcanary)
+    - [5.1.1 LeakCanary 原理详解](#511-leakcanary-原理详解)
+    - [5.1.2 WeakReference + ReferenceQueue 原理](#512-weakreference--referencequeue-原理)
+    - [5.1.3 LeakCanary 检测流程图](#513-leakcanary-检测流程图)
+    - [5.1.4 Shark 库原理](#514-shark-库原理)
+    - [5.1.5 LeakCanary 自定义配置](#515-leakcanary-自定义配置)
+  - [5.2 Android Studio Profiler](#52-android-studio-profiler)
+  - [5.3 MAT](#53-mat)
+  - [5.4 dumpsys meminfo](#54-dumpsys-meminfo)
+- [6. 内存优化策略](#6-内存优化策略)
+  - [6.1 Bitmap 优化](#61-bitmap-优化)
+  - [6.2 数据结构优化](#62-数据结构优化)
+  - [6.3 缓存策略](#63-缓存策略)
+  - [6.4 对象池优化](#64-对象池优化)
+- [7. OOM 处理](#7-oom-处理)
+  - [7.1 OOM 类型](#71-oom-类型)
+  - [7.2 OOM 预防](#72-oom-预防)
+  - [7.3 大图加载方案](#73-大图加载方案)
+  - [7.4 Android 17 MemoryLimiter 与退出历史](#74-android-17-memorylimiter-与退出历史)
+- [8. 常见问题](#8-常见问题)
+  - [8.1 如何判断是否存在内存泄漏？](#81-如何判断是否存在内存泄漏)
+  - [8.2 内存优化的一般原则？](#82-内存优化的一般原则)
+  - [8.3 如何处理 Bitmap OOM？](#83-如何处理-bitmap-oom)
+- [9. 知识体系总结](#9-知识体系总结)
 
 ---
 
@@ -52,7 +62,7 @@
 
 内存管理是 Android 开发中最重要的技能之一。不当的内存使用会导致内存泄漏、内存溢出（OOM），最终造成应用崩溃。理解内存泄漏的原理、掌握检测工具和优化技巧，是每个 Android 开发者的必修课。
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         内存问题影响                                        │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -83,18 +93,18 @@
 
 ## 2. 内存管理基础
 
-### 2.1 Java 内存模型
+### 2.1 Java 运行时数据区与 ART
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                         Java 内存模型                                       │
+│                         Java 运行时数据区（不是 JMM 并发可见性模型）                                       │
 └─────────────────────────────────────────────────────────────────────────────┘
 
   ┌─────────────────────────────────────────────────────────────────────────┐
   │                           JVM 运行时数据区                               │
   │                                                                         │
   │  线程私有区域：                                                          │
-  │  - 程序计数器：当前执行的字节码行号                                      │
+  │  - 程序计数器：字节码执行位置的抽象（JIT/AOT 下由机器指令地址实现）                                      │
   │  - 虚拟机栈（Stack）：方法调用的栈帧、局部变量表                         │
   │  - 本地方法栈：Native 方法                                               │
   │                                                                         │
@@ -111,9 +121,9 @@
 
 #### 2.2.1 普通应用内存区域划分
 
-每个 Android 应用进程运行在独立的虚拟地址空间中（32 位进程约 4GB，64 位进程约 256TB），由操作系统和 ART 运行时共同管理。通过 `dumpsys meminfo <package_name>` 可以观察到进程的完整内存分布。
+每个 Android 应用进程运行在独立的虚拟地址空间中；32 位寻址理论范围 4GiB，用户可用部分更小，64 位有效虚拟地址范围由体系结构/内核配置决定，不能固定写 256TB，由操作系统和 ART 运行时共同管理。通过 `dumpsys meminfo <package_name>` 可以观察到进程的完整内存分布。
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    Android 应用进程内存布局（64 位）                          │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -121,10 +131,10 @@
   高地址
   ┌──────────────────────────────────────────────────────┐
   │                  内核空间（Kernel Space）              │  ← 用户代码不可直接访问
-  │                  约 256TB 地址空间顶部                  │     通过 syscall 陷入
+  │                  内核映射依架构/配置决定                  │     通过 syscall 陷入
   ├──────────────────────────────────────────────────────┤
   │                  栈区（Stack）                         │
-  │                  - 线程私有，每个线程一个栈帧            │
+  │                  - 线程私有，每个线程一组调用栈帧            │
   │                  - 默认栈大小约 1MB（主线程约 8MB）      │  ↓ 向低地址增长
   │                  - 存储局部变量、方法参数、返回地址       │
   │                  - StackOverflowError                  │
@@ -176,7 +186,7 @@
 
 #### 2.2.2 dumpsys meminfo 解读
 
-```
+```text
 // 查看应用内存分布
 $ adb shell dumpsys meminfo com.example.app
 
@@ -207,13 +217,13 @@ $ adb shell dumpsys meminfo com.example.app
 关键字段含义：
 
 - **PSS（Proportional Set Size）**：按比例分摊的共享内存，是衡量应用实际内存占用的最佳指标
-- **Private Dirty**：进程独占且已被修改的内存（不可被换出），最需要关注
+- **Private Dirty**：进程独占且已被修改的内存（匿名脏页可能进入 swap/zram），最需要关注
 - **Java Heap**：ART 管理的堆内存，受 `getMemoryClass()` 限制
 - **Native Heap**：C/C++ malloc 分配的内存，Android 8+ 的 Bitmap 像素数据在此
 
 #### 2.2.3 堆内存限制
 
-```
+```text
 Android 应用堆内存限制（因设备而异）：
 
   ┌─────────────────────┬───────────────────────────────────────────────────┐
@@ -236,7 +246,7 @@ Android 应用堆内存限制（因设备而异）：
   <application android:largeHeap="true" ... >
 ```
 
-> **注意**：`largeHeap="true"` 只增大 Java 堆限制，不影响 Native 堆。Native 堆没有明确上限，只受系统可用物理内存约束。
+> **注意**：`largeHeap="true"` 只增大 Java 堆限制，不影响 Native 堆。Native 分配还受虚拟地址、映射/资源限制、系统压力及 MemoryLimiter 策略影响，并非无限制。
 
 ### 2.3 垃圾回收机制
 
@@ -244,7 +254,7 @@ Android 应用堆内存限制（因设备而异）：
 
 所有 JVM / ART 的垃圾回收器都建立在以下四种基础算法之上：
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         四种基础 GC 算法                                     │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -263,7 +273,7 @@ Android 应用堆内存限制（因设备而异）：
     优点：实现简单，不需要移动对象
     缺点：产生内存碎片，分配效率低
 
-  ② 标记-复制（Mark-Compact / Copying）
+  ② 标记-复制（Copying）
 
     将堆分为两块（From / To），GC 时把存活对象复制到另一块
 
@@ -324,79 +334,32 @@ Android 应用堆内存限制（因设备而异）：
 
 #### 2.3.2 Android GC 演进
 
+ART 不能套用 HotSpot 的 Eden/S0/S1 固定布局。`Heap` 按 boot image、Zygote、allocation/region、large object 等 space 管理对象；allocation stack 是追踪新分配对象的元数据，不是年轻代对象存储区。
+
+在 AOSP `android-17.0.0_r1`，应沿 `art/runtime/gc/heap.cc` 的 `Heap::Heap`、`Heap::CollectGarbageInternal` 与 `art/runtime/gc/collector/` 阅读实际收集器选择；Concurrent Copying（CC）与 Concurrent Mark Compact（CMC）由构建、运行配置和设备能力决定。并发收集也有暂停/屏障/分配等待，不能保证“GC 都小于 1ms”。
+
+```text
+分配 -> 检查空间/水位 -> 并发请求或分配慢路径等待 GC
+     -> 按当前 collector 标记、复制/整理或清扫
+     -> 更新存活量和下次触发阈值
+
+历史 CMS 分类：
+  Sticky 追踪上次 GC 后的分配；不是 Eden + Survivor
+  Partial 排除 Zygote space；不是任意年轻代/老年代百分比
+  Full 扫描更大范围；image 等空间仍有不同回收规则
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         Android GC 演进                                     │
-└─────────────────────────────────────────────────────────────────────────────┘
 
-  Dalvik GC（Android 4.4 及之前）
-  ┌──────────────────────────────────────────────────────────────────────────┐
-  │  算法：标记-清除（Mark-Sweep）                                            │
-  │  特点：                                                                   │
-  │  - 单线程 Stop-The-World，所有应用线程暂停                                 │
-  │  - 无分代，全堆扫描                                                       │
-  │  - GC 一次耗时可达 10~50ms，造成明显卡顿                                   │
-  │  - 内存碎片严重，大对象分配容易失败                                        │
-  └──────────────────────────────────────────────────────────────────────────┘
+这些历史名字不代表 Android 17 固定使用三种 CMS。日志的 collector 名称、freed、paused 和 total 必须分别看，total 包含并发工作，不能全部当作主线程暂停。Dalvik 后期也有并发 GC，不能概括成所有版本单线程全程 STW。
 
-  ART GC（Android 5.0+）
-  ┌──────────────────────────────────────────────────────────────────────────┐
-  │  分代 + 多策略：                                                          │
-  │                                                                          │
-  │  ┌────────────┬──────────────────────────────────────────────────────┐   │
-  │  │ Sticky GC  │ 年轻代，只回收上次 GC 以来新分配的对象                  │   │
-  │  │            │ 频率最高、速度最快、暂停最短                             │   │
-  │  ├────────────┼──────────────────────────────────────────────────────┤   │
-  │  │ Partial GC │ 部分回收，不包括 Zygote 堆和 Image Space               │   │
-  │  │            │ 回收应用堆的年轻代 + 老年代                             │   │
-  │  ├────────────┼──────────────────────────────────────────────────────┤   │
-  │  │ Full GC    │ 全堆回收，包括 Zygote 堆                               │   │
-  │  │            │ 耗时最长，通常在 OOM 前触发                             │   │
-  │  └────────────┴──────────────────────────────────────────────────────┘   │
-  │                                                                          │
-  │  核心优化：                                                               │
-  │  - 并发标记（Concurrent Marking）：大部分标记工作与应用线程并行            │
-  │  - 并发清除（Concurrent Sweeping）：清除阶段也可并发                      │
-  │  - 压缩 GC（Compacting GC）：可选整理，解决碎片问题                      │
-  │  -前台 GC 暂停通常 < 1ms（Android 10+ 进一步优化到亚毫秒级）              │
-  └──────────────────────────────────────────────────────────────────────────┘
-
-  ART 堆空间划分（Android 5.0 ~ 13）：
-  ┌──────────────────────────────────────────────────────────────────────────┐
-  │                                                                          │
-  │  ┌─────────────────────────────────────────────────────────────────┐    │
-  │  │  Image Space（镜像空间）                                         │    │
-  │  │  - 预加载的类、基础框架对象                                       │    │
-  │  │  - 来自 Zygote fork，只读共享                                    │    │
-  │  │  - GC 不回收                                                     │    │
-  │  ├─────────────────────────────────────────────────────────────────┤    │
-  │  │  Zygote Space（Zygote 空间）                                     │    │
-  │  │  - Zygote 预加载的共享类和资源                                    │    │
-  │  │  - 多进程共享，GC 通常不回收                                      │    │
-  │  ├─────────────────────────────────────────────────────────────────┤    │
-  │  │  Allocation Stack（分配栈 / 年轻代）                              │    │
-  │  │  - 新分配的对象记录在此                                           │    │
-  │  │  - Sticky GC 的扫描目标                                          │    │
-  │  ├─────────────────────────────────────────────────────────────────┤    │
-  │  │  Main Space（主空间 / 老年代）                                    │    │
-  │  │  - 熬过多次 GC 的对象晋升到此                                     │    │
-  │  │  - 使用标记-清除 + 可选整理                                       │    │
-  │  ├─────────────────────────────────────────────────────────────────┤    │
-  │  │  Large Object Space（大对象空间）                                 │    │
-  │  │  - 超过阈值的大数组（如 Bitmap 像素数组）                          │    │
-  │  │  - 独立管理，避免主空间碎片化                                     │    │
-  │  └─────────────────────────────────────────────────────────────────┘    │
-  │                                                                          │
-  └──────────────────────────────────────────────────────────────────────────┘
-```
+来源：[AOSP 17 heap.cc](https://android.googlesource.com/platform/art/+/refs/tags/android-17.0.0_r1/runtime/gc/heap.cc)、[ART GC 调试](https://source.android.com/docs/core/runtime/gc-debug)。
 
 #### 2.3.3 GC 触发条件与日志
 
-```
+```text
   GC 触发条件：
   1. 内存不足时 - 分配新对象时内存不够
   2. 手动调用 - System.gc()（不建议频繁调用）
-  3. 系统内存压力大时 - 触发 onTrimMemory() 回调
+  3. Native 分配压力、后台策略等也可触发收集；onTrimMemory 不是每次 GC 的通知
 
   GC 日志解读（logcat 过滤 art 或 dalvik）：
 
@@ -426,7 +389,7 @@ Android 应用堆内存限制（因设备而异）：
 
 ### 3.1 什么是内存泄漏
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         什么是内存泄漏                                      │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -447,7 +410,7 @@ Android 应用堆内存限制（因设备而异）：
 
 ### 3.2 内存泄漏 vs 内存溢出
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    内存泄漏 vs 内存溢出                                     │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -468,7 +431,7 @@ Android 应用堆内存限制（因设备而异）：
 
 ### 3.3 GC Root 与引用链
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         GC Root 与引用链                                    │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -489,7 +452,7 @@ Android 应用堆内存限制（因设备而异）：
   │ (Strong Reference)  │ 永不回收，除非引用失效                             │
   ├─────────────────────┼───────────────────────────────────────────────────┤
   │ 软引用               │ SoftReference<Object>                             │
-  │ (Soft Reference)    │ 内存不足时回收，适合缓存                           │
+  │ (Soft Reference)    │ 由 GC 策略回收，不适合可预测缓存预算；优先有界 LruCache                           │
   ├─────────────────────┼───────────────────────────────────────────────────┤
   │ 弱引用               │ WeakReference<Object>                             │
   │ (Weak Reference)    │ 下次 GC 时回收                                     │
@@ -651,27 +614,19 @@ public class MainActivity extends Activity {
 
 ### 4.7 Bitmap 泄漏
 
+Android 8+ 的软件 Bitmap 像素在 Native 内存，但 NativeAllocationRegistry 关联 Java 生命周期，GC 会释放不可达的像素数据；“未手动 recycle”本身不是泄漏。真正的问题是缓存/静态引用长期持有，或持续解码不设预算。
+
 ```java
-// Bitmap 占用大量内存，必须及时回收
-
-// 错误写法：Bitmap 使用后不回收
-Bitmap bitmap = BitmapFactory.decodeResource(getResources(), R.drawable.large);
-imageView.setImageBitmap(bitmap);
-// 没有回收 bitmap
-
-// 正确写法：
-@Override
-protected void onDestroy() {
+// 页面释放自己持有的引用；图片库管理的 Bitmap 不由业务直接 recycle。
+@Override protected void onDestroy() {
+    imageView.setImageDrawable(null);
+    bitmap = null;
     super.onDestroy();
-    if (bitmap != null && !bitmap.isRecycled()) {
-        bitmap.recycle();
-        bitmap = null;
-    }
 }
-
-// 更好的方案：使用 Glide/Picasso 等图片加载库
-Glide.with(context).load(url).into(imageView);
+// 若 Glide 加载，应使用绑定 Activity/Fragment 的 RequestManager；必要时 clear(imageView)。
 ```
+
+只有确认没有 ImageView、Canvas、后台绘制和其他共享所有者再使用时，才可主动 recycle；否则下一帧可能触发“trying to use a recycled bitmap”。API 10 及以前的 Native 像素回收曾不及时，不等于所有历史版本 GC 永远不知道 Bitmap。
 
 ### 4.8 WebView 泄漏
 
@@ -713,7 +668,7 @@ dependencies {
 }
 ```
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         LeakCanary 使用                                    │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -738,7 +693,7 @@ dependencies {
 
 #### 5.1.1 LeakCanary 原理详解
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    LeakCanary 工作原理                                     │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -763,7 +718,7 @@ dependencies {
   │  3. 延迟检测（等待 GC）                                                 │
   │     ─────────────────────────────────────────────────────────────────────── │
   │     - 延迟 5 秒后检查 ReferenceQueue                                   │
-  │     - 如果对象被回收，会进入 ReferenceQueue                            │
+  │     - 如果对象弱可达并清理后，其 Reference 入队（不是对象本身）                            │
   │                                                                         │
   │  4. 判断是否泄漏                                                        │
   │     ─────────────────────────────────────────────────────────────────────── │
@@ -774,7 +729,7 @@ dependencies {
   │     ─────────────────────────────────────────────────────────────────────── │
   │     - 调用 Runtime.getRuntime().gc()                                   │
   │     - 再次检查 ReferenceQueue                                          │
-  │     - 仍然存在 → 确认泄漏                                              │
+  │     - 仍被保留 → 候选泄漏；用 heap graph 和生命周期判定                                              │
   │                                                                         │
   │  6. Dump Heap 并分析                                                    │
   │     ─────────────────────────────────────────────────────────────────────── │
@@ -835,7 +790,7 @@ public class LeakDetector {
 
 #### 5.1.3 LeakCanary 检测流程图
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    LeakCanary 检测流程图                                   │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -867,7 +822,7 @@ public class LeakDetector {
   │  ─────────────────────────────────────────────────────────────────────── │
   │  - Runtime.getRuntime().gc()                                           │
   │  - 再次检查 referenceQueue                                             │
-  │  - 仍然存在 → 确认泄漏                                                  │
+  │  - 仍被保留 → 候选泄漏；用 heap graph 和生命周期判定                                                  │
   └─────────────────────────────────────────────────────────────────────────┘
            │
            ▼
@@ -883,7 +838,7 @@ public class LeakDetector {
   │  Shark 解析 Heap Dump                                                  │
   │  ─────────────────────────────────────────────────────────────────────── │
   │  1. 找到泄漏对象的实例                                                  │
-  │  2. 从泄漏对象反向搜索 GC Root                                          │
+  │  2. 从 GC Roots 沿引用图搜索保留对象                                          │
   │  3. 计算最短引用链                                                      │
   │  4. 生成可读的泄漏报告                                                  │
   └─────────────────────────────────────────────────────────────────────────┘
@@ -899,7 +854,7 @@ public class LeakDetector {
 
 #### 5.1.4 Shark 库原理
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         Shark 库原理                                       │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -919,15 +874,15 @@ public class LeakDetector {
   │  ─────────────────────────────────────────────────────────────────────── │
   │  - 使用 Kotlin 编写，性能优异                                           │
   │  - 流式解析，内存占用低                                                 │
-  │  - 并行计算最短路径                                                     │
-  │  - 增量分析支持                                                         │
+  │  - 按引用优先级搜索到保留对象的路径                                                     │
+  │  - 每个 heap dump 独立建立索引并分析                                                         │
   │                                                                         │
   │  核心类：                                                               │
   │  ─────────────────────────────────────────────────────────────────────── │
   │  - HeapAnalyzer：堆分析入口                                             │
-  │  - HprofParser：解析 .hprof 文件                                       │
-  │  - ObjectFinder：查找对象实例                                           │
-  │  - ShortestPathFinder：计算最短引用链                                   │
+  │  - HprofHeapGraph：堆图及对象访问                                       │
+  │  - HeapGraph：按 objectId 访问实例                                           │
+  │  - PathFinder：从 GC Roots 搜索引用链                                   │
   │                                                                         │
   └─────────────────────────────────────────────────────────────────────────┘
 ```
@@ -935,42 +890,21 @@ public class LeakDetector {
 #### 5.1.5 LeakCanary 自定义配置
 
 ```kotlin
-// 自定义 LeakCanary 配置
-class MyLeakCanaryConfig : Config() {
-    
-    override fun dumpHeap(): Boolean {
-        // 是否在检测到泄漏时 dump heap
-        return true
-    }
-    
-    override fun retainedVisibleThreshold(): Int {
-        // 保留对象数量阈值，超过才 dump heap
-        return 5
-    }
-    
-    // 自定义要监控的对象
-    @SuppressLint("NewApi")
-    override fun objectWatcher(
-        application: Application
-    ): ObjectWatcher {
-        return ObjectWatcher(
-            clock = { SystemClock.uptimeMillis() },
-            checkRetainedExecutor = Executors.newSingleThreadExecutor(),
-            isEnabled = { true }
-        )
-    }
-}
-
-// 监控自定义对象
-LeakCanary.config.objectWatcher.watch(
-    watchReference = myObject,
-    description = "My custom object"
+// LeakCanary 2.12，放 debug 源集，不能继承 Config 并重写不存在的方法。
+LeakCanary.config = LeakCanary.config.copy(
+    dumpHeap = true,
+    retainedVisibleThreshold = 5
 )
+AppWatcher.objectWatcher.watch(myObject, "My custom object expected to be collected")
 ```
+
+监控必须在对象按业务约定应该结束后调用。`hasWatchedObjects` 只说明存在被监控对象，不等于确认泄漏。Shark 从 GC Roots 沿引用图搜索路径；2.12 使用 `HeapAnalyzer/HprofHeapGraph/PathFinder`，不要把早期 `HprofParser/ShortestPathFinder` 当成当前统一接口，也没有这里所声称的通用增量分析/并行最短路径契约。
+
+来源：[LeakCanary 2.12 Config](https://github.com/square/leakcanary/blob/v2.12/leakcanary-android-core/src/main/java/leakcanary/LeakCanary.kt)。
 
 ### 5.2 Android Studio Profiler
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    Android Studio Profiler                                 │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -992,7 +926,7 @@ LeakCanary.config.objectWatcher.watch(
 
 ### 5.3 MAT
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    MAT (Memory Analyzer Tool)                              │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1043,7 +977,7 @@ adb shell dumpsys meminfo <package_name>
 // 1. 采样率压缩
 BitmapFactory.Options options = new BitmapFactory.Options();
 options.inSampleSize = 4; // 宽高各缩小 4 倍，内存减少 16 倍
-Bitmap bitmap = BitmapFactory.decodeResource(getResources(), R.id.image, options);
+Bitmap bitmap = BitmapFactory.decodeResource(getResources(), R.drawable.image, options);
 
 // 2. RGB_565 格式（不需要透明度时）
 options.inPreferredConfig = Bitmap.Config.RGB_565; // 每像素 2 字节
@@ -1090,7 +1024,7 @@ int cacheSize = maxMemory / 8; // 使用 1/8 内存作为缓存
 LruCache<String, Bitmap> cache = new LruCache<String, Bitmap>(cacheSize) {
     @Override
     protected int sizeOf(String key, Bitmap value) {
-        return value.getByteCount() / 1024;
+        return Math.max(1, (int) ((value.getAllocationByteCount() + 1023L) / 1024));
     }
 };
 
@@ -1106,18 +1040,28 @@ Message msg = Message.obtain(); // 从对象池获取
 handler.sendMessage(msg);
 
 // 2. 自定义对象池
-public class ObjectPool<T> {
-    private final Queue<T> pool = new LinkedList<>();
-    
-    public T obtain() {
-        T obj = pool.poll();
-        return obj != null ? obj : createNew();
+public abstract class ObjectPool<T> {
+    private final java.util.ArrayDeque<T> pool = new java.util.ArrayDeque<>();
+    private final int capacity;
+    protected ObjectPool(int capacity) {
+        if (capacity < 0) throw new IllegalArgumentException("capacity");
+        this.capacity = capacity;
     }
-    
-    public void recycle(T obj) {
-        pool.offer(obj);
+    protected abstract T createNew();
+    protected abstract void reset(T obj); // 清除业务引用，不能把Activity长期保留在池中
+    public synchronized T obtain() {
+        T obj = pool.poll();
+        return obj != null ? obj : java.util.Objects.requireNonNull(createNew());
+    }
+    public synchronized void recycle(T obj) {
+        java.util.Objects.requireNonNull(obj);
+        for (T item : pool) if (item == obj) throw new IllegalStateException("Double recycle");
+        reset(obj);
+        if (pool.size() < capacity) pool.offer(obj);
     }
 }
+// 调用方保证独占所有权：归还后不再访问；同步容器不等于对象可被多线程同时使用。
+
 ```
 
 ---
@@ -1126,7 +1070,7 @@ public class ObjectPool<T> {
 
 ### 7.1 OOM 类型
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         OOM 类型                                           │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1139,8 +1083,8 @@ public class ObjectPool<T> {
      - native 内存不足
      - Bitmap、JNI 分配的内存
 
-  3. FD 耗尽
-     - 文件描述符不足
+  3. FD 耗尽（相关资源耗尽，不等同 Java OOM）
+     - 文件描述符不足，常见 EMFILE/ENFILE
      - 打开太多文件/Socket
 
   4. 线程数耗尽
@@ -1150,14 +1094,17 @@ public class ObjectPool<T> {
 
 ### 7.2 OOM 预防
 
+Android 14/API 34 起不再发送旧 RUNNING_*、MODERATE/COMPLETE 等压力级别，`TRIM_MEMORY_UI_HIDDEN` 仍可用于 UI 不可见清理；onLowMemory 同样不再调用。内存预算、生命周期清理与低频诊断必须独立工作。官方：[ComponentCallbacks2](https://developer.android.com/reference/android/content/ComponentCallbacks2)、[ComponentCallbacks](https://developer.android.com/reference/android/content/ComponentCallbacks)。
+
 ```java
 // 1. 大图加载前检查内存
 public static boolean hasEnoughMemory(int width, int height) {
-    long required = width * height * 4L; // ARGB_8888
+    long required = (long) width * height * 4L; // ARGB_8888
     long available = Runtime.getRuntime().maxMemory() - 
                      Runtime.getRuntime().totalMemory() + 
                      Runtime.getRuntime().freeMemory();
-    return required < available;
+    return width > 0 && height > 0 && required > 0 && required < available;
+        // 仅 Java 堆估算，不保证 Native 像素分配成功；仍需缩放、预算和失败路径。
 }
 
 // 2. onTrimMemory 回调
@@ -1166,7 +1113,7 @@ public void onTrimMemory(int level) {
     super.onTrimMemory(level);
     switch (level) {
         case TRIM_MEMORY_RUNNING_LOW:
-            // 释放部分缓存
+            // 仅旧版本兼容：API 34+ 不再发送这些运行中压力级别
             break;
         case TRIM_MEMORY_UI_HIDDEN:
             // UI 不可见，释放更多资源
@@ -1174,11 +1121,11 @@ public void onTrimMemory(int level) {
     }
 }
 
-// 3. onLowMemory 回调
+// 3. 历史 onLowMemory 回调（API 34+ 不再调用，API 35 废弃）
 @Override
 public void onLowMemory() {
     super.onLowMemory();
-    // 系统内存不足，释放所有可释放的资源
+    // 仅历史兼容，不把它作为 Android 17 OOM 预警
 }
 ```
 
@@ -1200,44 +1147,26 @@ Glide.with(context)
 
 ---
 
-## 8. 常见问题
+### 7.4 Android 17 MemoryLimiter 与退出历史
 
-### 8.1 如何判断是否存在内存泄漏？
+`MemoryLimiter` 是 **system_server 中 `com.android.server.am.MemoryLimiter` 的进程级内存限制服务**，不是应用可配置的 Java 堆上限，也不是 LMKD。`Configuration` 是 Java record，字段为 `memVisible/memNotVisible/swapVisible/swapNotVisible`，单位 bytes。默认测试配置 4/2/2/2 GiB 明确不是生产统一限额；是否运行取决于 feature flag、`/vendor/etc/memory-limiter-config.xml`、RAM 匹配及内核/cgroup 支持。
 
-```
-1. 使用 LeakCanary 自动检测
-2. 反复进出 Activity，观察内存是否持续增长
-3. 使用 Profiler 对比内存快照
-4. 查看 Activity 实例数量是否异常
-```
-
-### 8.2 内存优化的一般原则？
-
-```
-1. 对象复用，减少创建
-2. 及时释放不再使用的资源
-3. 使用弱引用/软引用
-4. 避免在循环中创建对象
-5. 合理使用缓存
+```text
+ProcessRecord/进程状态变更
+ -> MemoryLimiter 的进程记录选择 visible/notVisible 限额
+ -> configureLimit(nativeService, pid, uid, memHigh, swapHigh)
+ -> Native 监控 memory.high / memory.swap.high
+ -> 内存高水位后进入额外 anon+swap 采样
+ -> anon+swap 超限 -> onLimitExceeded(LIMIT_TYPE_ANON_SWAP)
+ -> 释放限额；可选触发系统 profiling
+ -> MESSAGE_KILL 延迟 KILL_DELAY_MS=30_000
+ -> Injector.killProcess -> IActivityManager.killPids -> AMS.killPids
+ -> REASON_OTHER + SUBREASON_KILL_PID
 ```
 
-### 8.3 如何处理 Bitmap OOM？
+Native 的 anon+swap 阈值对应 `memHigh + swapHigh`，不能用 PSS、RSS 或 `Runtime.maxMemory()` 直接替代。30 秒给可选 profiler 完成，不是应用保证获得的清理窗口；限额/退出描述不是稳定 SDK 契约，部分设备可能未启用。
 
-```
-1. 使用 inSampleSize 采样
-2. 使用 RGB_565 格式
-3. 使用图片加载库（Glide/Picasso）
-4. 及时 recycle 不用的 Bitmap
-5. 使用 inBitmap 复用内存
-```
-
----
-
-## 7.4 Android 17 MemoryLimiter 与退出历史
-
-MemoryLimiter 是 system_server 配合 cgroup 的进程级限制器，不是 `Runtime.maxMemory()` 的别名。`Configuration` 分 visible/notVisible 的 memory 与 swap 额度，状态变化通过 `configureLimit(pid, uid, memHigh, swapHigh)` 下发；Native 侧监控 `memory.high`、`memory.swap.high` 和 `anon+swap`。
-
-命中 `anon+swap` 后，AOSP 17 先释放限制，可按配置触发 profiling，再发送延迟 30 秒的 `MESSAGE_KILL`，reason 为 `MemoryLimiter:AnonSwap`。该延迟不给应用一个可依赖的清理回调；Java OOM、LMKD 回收和此路径的触发条件不同。
+源码：[MemoryLimiter.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/services/core/java/com/android/server/am/MemoryLimiter.java) 的 `Configuration/isMemoryLimiterSupported/onLimitExceeded`；[Native MemoryLimiter.cpp](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/services/core/jni/com_android_server_am_MemoryLimiter.cpp) 的 `testAnonSwap/configureLimit`。退出必须结合 `ApplicationExitInfo` reason、description、timestamp、PSS/RSS 和设备日志；仅 `REASON_OTHER` 不能认定 MemoryLimiter，`MemoryLimiter:AnonSwap` 只能作本 tag 的启发分类。
 
 ```kotlin
 fun classify(info: ApplicationExitInfo): String = when {
@@ -1253,9 +1182,43 @@ fun classify(info: ApplicationExitInfo): String = when {
 
 读取 `getHistoricalProcessExitReasons()` 时同时保存 timestamp、processName、pid、PSS/RSS 和 description；`REASON_OTHER` 单独不足以归因，`REASON_SIGNALED` 也不自动等于 LMKD。HPROF 不能覆盖 native/graphics，需和 `dumpsys meminfo`、匿名内存、swap 时间线结合。
 
+
+## 8. 常见问题
+
+### 8.1 如何判断是否存在内存泄漏？
+
+```text
+1. 使用 LeakCanary 自动检测
+2. 反复进出 Activity，观察内存是否持续增长
+3. 使用 Profiler 对比内存快照
+4. 查看 Activity 实例数量是否异常
+```
+
+### 8.2 内存优化的一般原则？
+
+```text
+1. 对象复用，减少创建
+2. 及时释放不再使用的资源
+3. 按生命周期解除强引用，缓存用可测量的有界预算
+4. 避免在循环中创建对象
+5. 合理使用缓存
+```
+
+### 8.3 如何处理 Bitmap OOM？
+
+```text
+1. 使用 inSampleSize 采样
+2. 使用 RGB_565 格式
+3. 使用图片加载库（Glide/Picasso）
+4. 释放持有引用；只在独占且无人使用时考虑 recycle
+5. 使用 inBitmap 复用内存
+```
+
+---
+
 ## 9. 知识体系总结
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         内存优化知识体系                                    │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1297,7 +1260,7 @@ fun classify(info: ApplicationExitInfo): String = when {
 2. **常见泄漏场景**：Activity、Handler、单例、匿名内部类、静态变量
 3. **检测工具**：LeakCanary（推荐）、Profiler、MAT、dumpsys
 4. **优化策略**：Bitmap 优化、数据结构选择、缓存策略、对象复用
-5. **OOM 预防**：大图检查、onTrimMemory 回调、合理使用内存
+5. **OOM 预防**：大图缩放、主动预算、按生命周期清理；Android 17 不依赖旧压力回调
 
 ---
 

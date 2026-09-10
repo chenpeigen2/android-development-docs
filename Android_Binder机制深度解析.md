@@ -6,62 +6,62 @@
 
 ## 目录
 
-### 第一部分：基础概念
-1. [概述](#1-概述)
-2. [为什么选择 Binder](#2-为什么选择-binder)
-3. [Binder 整体架构](#3-binder-整体架构)
-4. [Binder 全局流程图](#4-binder-全局流程图)
-
-### 第二部分：分层详解
-5. [Binder 驱动层](#5-binder-驱动层)
-   - 5.1 [核心数据结构](#51-核心数据结构)
-   - 5.2 [内存映射 (mmap)](#52-内存映射-mmap)
-   - 5.3 [ioctl 命令](#53-ioctl-命令)
-6. [Native 层](#6-native-层)
-   - 6.1 [ProcessState](#61-processstate)
-   - 6.2 [IPCThreadState](#62-ipcthreadstate)
-   - 6.3 [BpBinder 与 BBinder](#63-bpbinder-与-bbinder)
-7. [Framework 层](#7-framework-层)
-   - 7.1 [Binder.java](#71-binderjava)
-   - 7.2 [BinderProxy.java](#72-binderproxyjava)
-
-### 第三部分：AIDL 与线程
-8. [AIDL 详解](#8-aidl-详解)
-   - 8.1 [AIDL 语法](#81-aidl-语法)
-   - 8.2 [AIDL 生成的代码结构](#82-aidl-生成的代码结构)
-   - 8.3 [AIDL 完整示例](#83-aidl-完整示例)
-9. [Binder 线程池](#9-binder-线程池)
-10. [Binder 事务生命周期](#19-binder-事务生命周期)
-    - 10.1 [同步事务 vs 异步事务](#191-同步事务-vs-异步事务-oneway)
-
-### 第四部分：高级主题
-11. [Binder 对象传递](#21-binder-对象传递)
-    - 11.1 [文件描述符传递](#211-文件描述符传递)
-12. [Binder 死锁问题](#20-binder-死锁问题)
-13. [ServiceManager 详解](#12-servicemanager)
-
-### 第五部分：其他 IPC 方式
-14. [跨进程通信方式对比](#10-跨进程通信方式对比)
-15. [Messenger](#13-messenger)
-16. [ContentProvider](#14-contentprovider)
-17. [文件共享](#15-文件共享)
-18. [Socket IPC](#16-socket-ipc)
-
-### 第六部分：实践与面试
-19. [Binder 调试技巧](#17-binder-调试技巧)
-20. [Binder 调用链追踪](#22-binder-调用链追踪)
-21. [常见问题](#11-常见问题)
-22. [Binder 高频面试题](#23-binder-高频面试题)
-
-### 第七部分：总结
-23. [Binder 架构图总结](#24-binder-架构图总结)
-24. [知识体系总结](#18-总结)
+- [1. 概述](#1-概述)
+- [2. 为什么选择 Binder](#2-为什么选择-binder)
+- [3. Binder 整体架构](#3-binder-整体架构)
+- [4. Binder 全局流程图](#4-binder-全局流程图)
+- [5. Binder 驱动层](#5-binder-驱动层)
+  - [5.1 核心数据结构](#51-核心数据结构)
+  - [5.2 内存映射 (mmap)](#52-内存映射-mmap)
+  - [5.3 ioctl 命令](#53-ioctl-命令)
+- [6. Native 层](#6-native-层)
+  - [6.1 ProcessState](#61-processstate)
+  - [6.2 IPCThreadState](#62-ipcthreadstate)
+  - [6.3 BpBinder 与 BBinder](#63-bpbinder-与-bbinder)
+- [7. Framework 层](#7-framework-层)
+  - [7.1 Binder.java](#71-binderjava)
+  - [7.2 BinderProxy.java](#72-binderproxyjava)
+- [8. AIDL 详解](#8-aidl-详解)
+  - [8.1 AIDL 语法](#81-aidl-语法)
+  - [8.2 AIDL 生成的代码结构](#82-aidl-生成的代码结构)
+  - [8.3 AIDL 完整示例](#83-aidl-完整示例)
+- [9. Binder 线程池](#9-binder-线程池)
+- [10. 跨进程通信方式对比](#10-跨进程通信方式对比)
+  - [10.1 Bundle + Intent](#101-bundle--intent)
+  - [10.2 共享内存 (MemoryFile)](#102-共享内存-memoryfile)
+  - [10.3 管道 (Pipe)](#103-管道-pipe)
+  - [10.4 信号 (Signal)](#104-信号-signal)
+  - [10.5 消息队列](#105-消息队列)
+  - [10.6 信号量 (Semaphore)](#106-信号量-semaphore)
+  - [10.7 各种 IPC 方式完整对比表](#107-各种-ipc-方式完整对比表)
+- [11. 常见问题](#11-常见问题)
+  - [11.1 TransactionTooLargeException](#111-transactiontoolargeexception)
+  - [11.2 Binder 线程耗尽](#112-binder-线程耗尽)
+  - [11.3 Binder 死亡通知](#113-binder-死亡通知)
+- [12. ServiceManager](#12-servicemanager)
+- [13. Messenger](#13-messenger)
+- [14. ContentProvider](#14-contentprovider)
+- [15. 文件共享](#15-文件共享)
+- [16. Socket IPC](#16-socket-ipc)
+- [17. Binder 调试技巧](#17-binder-调试技巧)
+- [18. 总结](#18-总结)
+- [19. Binder 事务生命周期](#19-binder-事务生命周期)
+  - [19.1 同步事务 vs 异步事务 (oneway)](#191-同步事务-vs-异步事务-oneway)
+- [20. Binder 死锁问题](#20-binder-死锁问题)
+- [21. Binder 对象传递](#21-binder-对象传递)
+  - [21.1 文件描述符传递](#211-文件描述符传递)
+- [22. Binder 调用链追踪](#22-binder-调用链追踪)
+- [23. Binder 高频面试题](#23-binder-高频面试题)
+- [24. Binder 架构图总结](#24-binder-架构图总结)
+- [固定版本源码索引](#固定版本源码索引)
 
 ---
 
 ## 1. 概述
 
-```
+本文的 Java/JNI/libbinder 以 `android-17.0.0_r1` 为固定基线，讨论 **kernel Binder** 主路径，socket Binder RPC 是不同传输分支。驱动不是 platform tag 唯一确定的内核：第 5 章另固定 common kernel commit `d768b2f486b5e909eb5e489b83059400c3cb2799`，不把其文件标成 Android 17 的唯一设备驱动。
+
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         Binder 是什么？                                     │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -102,7 +102,7 @@
 
 ## 2. 为什么选择 Binder
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    为什么 Android 选择 Binder 作为主要 IPC？                 │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -165,10 +165,10 @@
   传统 Linux IPC：
   ┌─────────────────────────────────────────────────────────────────────────┐
   │                                                                         │
-  │  接收方无法获得发送方的可靠 UID/PID                                      │
-  │  只能由使用者在数据包中填入 UID/PID                                      │
+  │  普通数据包自填身份不可信；Unix domain socket 可通过内核 credentials 取得对端身份                                      │
+  │  例如 SO_PEERCRED/SCM_CREDENTIALS；不是只有 Binder 支持可靠身份                                      │
   │  ────────────────────────────────────────                               │
-  │  问题：伪造身份非常简单！                                                │
+  │  问题：只信任数据包里的自报身份会被伪造；应使用内核身份并做授权！                                                │
   │                                                                         │
   │  // 恶意进程可以伪造 UID                                                │
   │  data.uid = 1000;  // 伪造为 system_server                              │
@@ -186,8 +186,8 @@
   │  // Binder 驱动自动添加（内核层）                                        │
   │  static void binder_transaction(...) {                                  │
   │      // ★ 由内核填充，无法伪造 ★                                        │
-  │      t->sender_euid = task_euid(proc->tsk);                            │
-  │      t->sender_pid = task_tgid_nr_ns(proc->tsk);                       │
+  │      t->sender_euid = task_euid(proc->tsk); // 示意：驱动记录凭据                            │
+  │      // 接收描述符 tr.sender_pid 由发送线程与目标 PID namespace 计算；oneway 可为 0                       │
   │  }                                                                      │
   │                                                                         │
   └─────────────────────────────────────────────────────────────────────────┘
@@ -283,8 +283,8 @@
   // 1. Binder 驱动自动填充（内核层，无法伪造）
   // kernel/drivers/android/binder.c
   static void binder_transaction(...) {
-      t->sender_euid = task_euid(proc->tsk);    // 发送方的 effective UID
-      t->sender_pid = task_tgid_nr_ns(proc->tsk); // 发送方的 PID
+      t->sender_euid = task_euid(proc->tsk); // 示意：驱动记录凭据    // 发送方的 effective UID
+      // 接收描述符 tr.sender_pid 由发送线程与目标 PID namespace 计算；oneway 可为 0 // 发送方的 PID
   }
 
   // 2. 服务端获取调用方身份（Java 层）
@@ -296,15 +296,15 @@
               public void secureMethod() {
                   // 获取调用方的 UID
                   int callingUid = Binder.getCallingUid();
-                  
+
                   // 获取调用方的 PID
                   int callingPid = Binder.getCallingPid();
-                  
+
                   // 权限检查
                   if (callingUid != Process.SYSTEM_UID) {
                       throw new SecurityException("Only system can call this");
                   }
-                  
+
                   // 或者检查包名
                   String[] packages = getPackageManager()
                       .getPackagesForUid(callingUid);
@@ -316,11 +316,11 @@
   // 3. 常用 API
   // 获取调用方 UID
   int callingUid = Binder.getCallingUid();
-  
+
   // 获取调用方 PID
   int callingPid = Binder.getCallingPid();
-  
-  // 清除调用方身份（临时提升权限）
+
+  // 清除调用方身份（临时恢复本进程的 Binder 调用身份，不修改 Linux UID）
   long token = Binder.clearCallingIdentity();
   try {
       // 以本进程身份执行操作
@@ -339,7 +339,7 @@
 
 ## 3. Binder 整体架构
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         Binder 整体架构图                                   │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -427,208 +427,73 @@
 
 ## 4. Binder 全局流程图
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         Binder 完整通信流程                                 │
-│  ★★★ 从 Client 调用到 Server 响应的完整链路 ★★★                            │
-└─────────────────────────────────────────────────────────────────────────────┘
+这条主链以远程 Java AIDL 同步请求为例，transport 为 kernel Binder。每层负责不同的资源，不能把接口对象、native Parcel 和 payload 指针混用。
 
-  ┌─────────────────────────────────────────────────────────────────────────┐
-  │                           Client 进程                                    │
-  │  ┌───────────────────────────────────────────────────────────────────┐  │
-  │  │                                                                   │  │
-  │  │  1. 应用层调用                                                    │  │
-  │  │     ┌─────────────────────────────────────────────────────────┐   │  │
-  │  │     │ IMyService service = MyService.Stub.asInterface(binder)│   │  │
-  │  │     │ int result = service.getData(100);  // ★ 应用调用 ★    │   │  │
-  │  │     └─────────────────────────────────────────────────────────┘   │  │
-  │  │                            │                                       │  │
-  │  │                            ▼                                       │  │
-  │  │  2. Proxy 代理层                                                  │  │
-  │  │     ┌─────────────────────────────────────────────────────────┐   │  │
-  │  │     │ // Stub.Proxy.getData()                                  │   │  │
-  │  │     │ Parcel _data = Parcel.obtain();                         │   │  │
-  │  │     │ Parcel _reply = Parcel.obtain();                        │   │  │
-  │  │     │ _data.writeInterfaceToken(DESCRIPTOR);                  │   │  │
-  │  │     │ _data.writeInt(100);  // 写入参数                        │   │  │
-  │  │     │ mRemote.transact(TRANSACTION_getData, _data, _reply, 0) │   │  │
-  │  │     │ // ★ 调用 BinderProxy.transact() ★                      │   │  │
-  │  │     └─────────────────────────────────────────────────────────┘   │  │
-  │  │                            │                                       │  │
-  │  │                            ▼                                       │  │
-  │  │  3. Framework Binder 层                                           │  │
-  │  │     ┌─────────────────────────────────────────────────────────┐   │  │
-  │  │     │ // BinderProxy.transact()                                │   │  │
-  │  │     │ public boolean transact(int code, Parcel data,          │   │  │
-  │  │     │         Parcel reply, int flags) {                      │   │  │
-  │  │     │     return transactNative(code, data, reply, flags);    │   │  │
-  │  │     │     // ★ JNI 调用 Native 层 ★                           │   │  │
-  │  │     │ }                                                       │   │  │
-  │  │     └─────────────────────────────────────────────────────────┘   │  │
-  │  │                            │                                       │  │
-  │  │                            ▼                                       │  │
-  │  │  4. Native 层                                                     │  │
-  │  │     ┌─────────────────────────────────────────────────────────┐   │  │
-  │  │     │ // android_os_BinderProxy_transactNative()              │   │  │
-  │  │     │ IPCThreadState* ipc = IPCThreadState::self();           │   │  │
-  │  │     │ ipc->transact(handle, code, data, reply, flags);        │   │  │
-  │  │     │ // ★ IPCThreadState 发起事务 ★                          │   │  │
-  │  │     └─────────────────────────────────────────────────────────┘   │  │
-  │  │                            │                                       │  │
-  │  │                            ▼                                       │  │
-  │  │  5. IPCThreadState.writeTransactionData()                        │  │
-  │  │     ┌─────────────────────────────────────────────────────────┐   │  │
-  │  │     │ // 构造 binder_transaction_data                          │   │  │
-  │  │     │ binder_transaction_data tr;                             │   │  │
-  │  │     │ tr.target.handle = handle;  // 目标 Service 的 handle   │   │  │
-  │  │     │ tr.code = code;              // 方法编号                 │   │  │
-  │  │     │ tr.data.ptr.buffer = data->data();  // 参数数据          │   │  │
-  │  │     │ // ★ 写入命令 ★                                         │   │  │
-  │  │     │ ioctl(mProcess->mDriverFD, BINDER_WRITE_READ, &bwr);    │   │  │
-  │  │     └─────────────────────────────────────────────────────────┘   │  │
-  │  │                                                                   │  │
-  │  └───────────────────────────────────────────────────────────────────┘  │
-  └─────────────────────────────────────────────────────────────────────────┘
-                                      │
-                                      │ ioctl(BINDER_WRITE_READ)
-                                      ▼
-  ┌─────────────────────────────────────────────────────────────────────────┐
-  │                           内核层 (Binder 驱动)                            │
-  │  ┌───────────────────────────────────────────────────────────────────┐  │
-  │  │                                                                   │  │
-  │  │  6. binder_ioctl()                                                │  │
-  │  │     ┌─────────────────────────────────────────────────────────┐   │  │
-  │  │     │ static long binder_ioctl(struct file *filp,             │   │  │
-  │  │     │         unsigned int cmd, unsigned long arg) {          │   │  │
-  │  │     │     switch (cmd) {                                      │   │  │
-  │  │     │         case BINDER_WRITE_READ:                         │   │  │
-  │  │     │             binder_ioctl_write_read(filp, cmd, arg);    │   │  │
-  │  │     │             break;                                      │   │  │
-  │  │     │     }                                                   │   │  │
-  │  │     │ }                                                       │   │  │
-  │  │     └─────────────────────────────────────────────────────────┘   │  │
-  │  │                            │                                       │  │
-  │  │                            ▼                                       │  │
-  │  │  7. binder_transaction()                                          │  │
-  │  │     ┌─────────────────────────────────────────────────────────┐   │  │
-  │  │     │ static void binder_transaction(...) {                   │   │  │
-  │  │     │     // 1. 查找目标进程                                   │   │  │
-  │  │     │     target_proc = binder_get_proc_from_ref(target);     │   │  │
-  │  │     │                                                         │   │  │
-  │  │     │     // 2. 分配内核缓冲区                                 │   │  │
-  │  │     │     t->buffer = binder_alloc_buf(target_proc, size);    │   │  │
-  │  │     │                                                         │   │  │
-  │  │     │     // 3. ★ 一次拷贝 ★ (copy_from_user)                │   │  │
-  │  │     │     copy_from_user(t->buffer->data, tr.data.ptr.buffer) │   │  │
-  │  │     │                                                         │   │  │
-  │  │     │     // 4. 添加到目标进程的 todo 队列                     │   │  │
-  │  │     │     list_add_tail(&t->work.entry, &target_proc->todo);  │   │  │
-  │  │     │                                                         │   │  │
-  │  │     │     // 5. 唤醒目标进程                                   │   │  │
-  │  │     │     wake_up_interruptible(&target_proc->wait);          │   │  │
-  │  │     │ }                                                       │   │  │
-  │  │     └─────────────────────────────────────────────────────────┘   │  │
-  │  │                                                                   │  │
-  │  └───────────────────────────────────────────────────────────────────┘  │
-  └─────────────────────────────────────────────────────────────────────────┘
-                                      │
-                                      │ wake_up_interruptible()
-                                      ▼
-  ┌─────────────────────────────────────────────────────────────────────────┐
-  │                           Server 进程                                     │
-  │  ┌───────────────────────────────────────────────────────────────────┐  │
-  │  │                                                                   │  │
-  │  │  8. IPCThreadState.joinThreadPool() (阻塞等待)                    │  │
-  │  │     ┌─────────────────────────────────────────────────────────┐   │  │
-  │  │     │ void IPCThreadState::joinThreadPool() {                 │   │  │
-  │  │     │     while (true) {                                      │   │  │
-  │  │     │         // 阻塞等待 Binder 驱动                          │   │  │
-  │  │     │         result = getAndExecuteCommand();                │   │  │
-  │  │     │         // ★ ioctl 阻塞在驱动中，等待事务 ★            │   │  │
-  │  │     │     }                                                   │   │  │
-  │  │     │ }                                                       │   │  │
-  │  │     └─────────────────────────────────────────────────────────┘   │  │
-  │  │                            │                                       │  │
-  │  │                            ▼                                       │  │
-  │  │  9. IPCThreadState.executeCommand()                               │  │
-  │  │     ┌─────────────────────────────────────────────────────────┐   │  │
-  │  │     │ status_t IPCThreadState::executeCommand(int32_t cmd) {  │   │  │
-  │  │     │     switch (cmd) {                                      │   │  │
-  │  │     │         case BR_TRANSACTION: {                          │   │  │
-  │  │     │             // ★ 收到事务请求 ★                        │   │  │
-  │  │     │             binder_transaction_data* tr = ...;          │   │  │
-  │  │     │             // 调用 BBinder                             │   │  │
-  │  │     │             error = the_context_object->transact(       │   │  │
-  │  │     │                 tr->code, buffer, reply, flags);        │   │  │
-  │  │     │         }                                               │   │  │
-  │  │     │     }                                                   │   │  │
-  │  │     │ }                                                       │   │  │
-  │  │     └─────────────────────────────────────────────────────────┘   │  │
-  │  │                            │                                       │  │
-  │  │                            ▼                                       │  │
-  │  │  10. BBinder.transact() → JavaBBinder.onTransact()               │  │
-  │  │     ┌─────────────────────────────────────────────────────────┐   │  │
-  │  │     │ // JavaBBinder.onTransact()                             │   │  │
-  │  │     │ // JNI 回调到 Java 层                                    │   │  │
-  │  │     │ env->CallBooleanMethod(mObject,                         │   │  │
-  │  │     │     gBinderOffsets.mExecTransact, code, ...);           │   │  │
-  │  │     └─────────────────────────────────────────────────────────┘   │  │
-  │  │                            │                                       │  │
-  │  │                            ▼                                       │  │
-  │  │  11. Binder.execTransact() (Java)                                │  │
-  │  │     ┌─────────────────────────────────────────────────────────┐   │  │
-  │  │     │ // Binder.execTransact()                                │   │  │
-  │  │     │ public boolean execTransact(int code, long dataObj,     │   │  │
-  │  │     │         long replyObj, int flags) {                     │   │  │
-  │  │     │     Parcel data = Parcel.obtain(dataObj);               │   │  │
-  │  │     │     Parcel reply = Parcel.obtain(replyObj);             │   │  │
-  │  │     │     // ★ 调用 Stub.onTransact() ★                      │   │  │
-  │  │     │     return onTransact(code, data, reply, flags);        │   │  │
-  │  │     │ }                                                       │   │  │
-  │  │     └─────────────────────────────────────────────────────────┘   │  │
-  │  │                            │                                       │  │
-  │  │                            ▼                                       │  │
-  │  │  12. Stub.onTransact() → 实际方法执行                             │  │
-  │  │     ┌─────────────────────────────────────────────────────────┐   │  │
-  │  │     │ // MyService.Stub.onTransact()                          │   │  │
-  │  │     │ protected boolean onTransact(int code, Parcel data,     │   │  │
-  │  │     │         Parcel reply, int flags) {                      │   │  │
-  │  │     │     switch (code) {                                     │   │  │
-  │  │     │         case TRANSACTION_getData: {                     │   │  │
-  │  │     │             int _arg0 = data.readInt();                 │   │  │
-  │  │     │             // ★★★ 执行实际方法 ★★★                  │   │  │
-  │  │     │             int _result = this.getData(_arg0);          │   │  │
-  │  │     │             reply.writeNoException();                   │   │  │
-  │  │     │             reply.writeInt(_result);  // 写入返回值      │   │  │
-  │  │     │             return true;                                │   │  │
-  │  │     │         }                                               │   │  │
-  │  │     │     }                                                   │   │  │
-  │  │     │ }                                                       │   │  │
-  │  │     └─────────────────────────────────────────────────────────┘   │  │
-  │  │                                                                   │  │
-  │  └───────────────────────────────────────────────────────────────────┘  │
-  └─────────────────────────────────────────────────────────────────────────┘
-                                      │
-                                      │ 返回结果 (同样经过 Binder 驱动)
-                                      ▼
-  ┌─────────────────────────────────────────────────────────────────────────┐
-  │                           Client 进程 (收到回复)                          │
-  │  ┌───────────────────────────────────────────────────────────────────┐  │
-  │  │                                                                   │  │
-  │  │  13. IPCThreadState 等待回复                                      │  │
-  │  │      // 在 transact() 中阻塞等待回复                              │  │
-  │  │      waitForResponse(&status);                                   │  │
-  │  │                                                                   │  │
-  │  │  14. Proxy 解析返回值                                             │  │
-  │  │      // Stub.Proxy.getData()                                      │  │
-  │  │      mRemote.transact(TRANSACTION_getData, _data, _reply, 0);    │  │
-  │  │      _reply.readException();                                     │  │
-  │  │      int _result = _reply.readInt();  // ★ 读取返回值 ★          │  │
-  │  │      return _result;                                             │  │
-  │  │                                                                   │  │
-  │  └───────────────────────────────────────────────────────────────────┘  │
-  └─────────────────────────────────────────────────────────────────────────┘
+```text
+Client Java
+  IMyService.Stub.Proxy.getData(id)
+    Parcel.obtain(remote) / Parcel.obtain()
+    writeInterfaceToken(DESCRIPTOR) -> writeInt(id)
+    mRemote.transact(code, data, reply, 0)
+      BinderProxy.transact
+        检查/trace/WorkSource/监听
+        transactNative(code, jobject data, jobject reply, flags)
+Client JNI
+  android_os_BinderProxy_transact
+    parcelForJavaObject(dataObj/replyObj) -> native Parcel*
+    getBPNativeData(obj)->mObject -> IBinder*
+    target->transact(code, *data, reply, flags)
+Client libbinder
+  BpBinder::transact -> 检查活性/稳定性/transport
+    IPCThreadState::transact(handle, code, data, reply, flags)
+      writeTransactionData(BC_TRANSACTION, ...)
+        mOut: 命令 + binder_transaction_data
+      waitForResponse(reply)
+        talkWithDriver() -> ioctl(BINDER_WRITE_READ)
+Driver
+  binder_ioctl -> binder_ioctl_write_read -> binder_thread_write
+    BC_TRANSACTION -> binder_transaction
+      handle -> ref -> node -> 目标 proc
+      选择目标线程/进程，分配接收 buffer
+      复制 payload / offsets，转换 Binder 对象与 FD
+      同步事务栈 / todo / async_todo（按模式）
+      唤醒目标等待线程
+Server libbinder
+  joinThreadPool / polling -> getAndExecuteCommand
+    收到 BR_TRANSACTION 或 BR_TRANSACTION_SEC_CTX
+    executeCommand
+      保存原 calling identity，设置此次 caller PID/UID/SID
+      buffer.ipcSetDataReference(接收 mmap 地址)
+      由 tr.cookie/ptr 恢复目标 BBinder
+      BBinder::transact -> JavaBBinder::onTransact
+Server JNI / Java
+  CallBooleanMethod(Binder.execTransact, native Parcel 对象地址, ...)
+    Parcel.obtain(nativePtr)
+    execTransactInternal
+      AIDL Stub.onTransact
+        enforceInterface -> 读参数 -> enforceNoDataAvail
+        this.getData(id)
+        reply.writeNoException -> reply.writeInt(result)
+      observer/trace/异常处理
+    finally recycle Parcel wrapper / 恢复 WorkSource
+Server reply
+  IPCThreadState::sendReply -> BC_REPLY -> driver
+    同步事务栈定位原调用线程
+Client resume
+  waitForResponse 收到 BR_REPLY
+    reply.ipcSetDataReference -> 返回 JNI -> Java
+  Proxy: reply.readException -> reply.readInt
+  finally recycle data/reply
+  native freeBuffer -> BC_FREE_BUFFER 归还接收映射 buffer
 ```
+
+**同步等待期间的分支：** Client 的 waitForResponse 可以收到嵌套入站事务、死亡/引用协议或错误，不能只处理 BR_REPLY。单次 ioctl 的 read buffer 是命令/描述符，不是所有业务 payload。
+
+**本地分支：** asInterface 命中 queryLocalInterface 时直接调用本地实现，不走序列化和驱动；这也意味着业务方法可能在任意调用者线程执行。
+
+**oneway 分支：** flags 包含 TF_ONE_WAY 时，不建立业务 reply 等待，但仍等待驱动的提交完成。服务端执行资源和错误处理见第 19.1 节。
+
+**资源顺序：** 归还 buffer 与发送 reply 是独立协议动作；Java wrapper recycle、native Parcel 数据引用释放、BC_FREE_BUFFER 和驱动实际回收不是同一个时刻。
 
 ---
 
@@ -636,344 +501,95 @@
 
 ### 5.1 核心数据结构
 
+驱动对象是 per-open Binder 上下文及其节点关系，不能把早期 `binder_proc` 中的 buffer 字段当作当前声明。固定 common commit 的主要分工：
+
+```text
+binder_proc
+  threads                binder_thread 红黑树
+  nodes                  本进程 binder_node
+  refs_by_desc/by_node    本上下文持有的 binder_ref 索引
+  todo / waiting_threads  进程待办与空闲 Binder 线程
+  alloc                  struct binder_alloc，负责接收缓冲区
+  max_threads/requested_threads_started   驱动扩容计数
+
+binder_thread
+  proc / pid             所属上下文和 Linux TID
+  transaction_stack      同步嵌套事务栈
+  todo / wait            定向线程的工作与等待
+
+binder_node
+  proc / ptr / cookie    实体拥有者及用户态标识
+  refs                   各进程对此节点的引用
+  has_async_transaction / async_todo     同一 node 的 oneway 串行化
+
+binder_ref
+  proc / node            引用持有者与指向的实体
+  data.desc/strong/weak  handle 与计数，非全局地址
+
+binder_transaction
+  from/from_parent       发送线程和嵌套链
+  to_proc/to_thread/to_parent  目标及返回链
+  buffer/code/flags      本次事务数据与标志
+  sender_euid            内核凭据；不是另设固定 sender_pid 字段
+
+binder_buffer / binder_alloc
+  user_data/data_size/offsets_size  接收地址和区域大小
+  allocated/free buffers / pages   分配记账与页管理
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         Binder 驱动核心数据结构                             │
-│  源码位置: kernel/drivers/android/binder.c                                  │
-└─────────────────────────────────────────────────────────────────────────────┘
 
-  1. binder_proc - 进程上下文
-  ─────────────────────────────────────────────────────────────────────────────
+同一服务可被多个进程引用，各自 desc 不同；传递 handle 的整数值不能让另一个进程直接得到同一对象。node 死亡后驱动还需处理 refs/death work，不是简单 free 节点就能完成所有清理。
 
-  struct binder_proc {
-      struct hlist_node proc_node;        // 全局进程链表节点
-      struct rb_root threads;              // 线程红黑树
-      struct rb_root nodes;                // Binder 实体红黑树
-      struct rb_root refs_by_desc;         // 引用按描述符排序
-      struct rb_root refs_by_node;         // 引用按节点排序
-      
-      int pid;                             // 进程 PID
-      struct vm_area_struct *vma;          // 用户空间虚拟内存区域
-      struct mm_struct *vma_vm_mm;         // 内存描述符
-      
-      struct task_struct *tsk;             // 进程任务结构
-      struct files_struct *files;          // 文件描述符表
-      
-      struct hlist_node deferred_work_node;// 延迟工作节点
-      int deferred_work;                   // 延迟工作类型
-      
-      void *buffer;                        // mmap 的内核虚拟地址
-      ptrdiff_t user_buffer_offset;        // 用户/内核地址偏移
-      
-      struct list_head buffers;            // 缓冲区列表
-      struct rb_root free_buffers;         // 空闲缓冲区红黑树
-      struct rb_root allocated_buffers;    // 已分配缓冲区红黑树
-      
-      size_t buffer_size;                  // 缓冲区大小 (1M - 8K)
-      uint32_t buffer_free;                // 空闲缓冲区大小
-      
-      struct list_head todo;               // 待处理事务队列
-      wait_queue_head_t wait;              // 等待队列
-      struct binder_stats stats;           // 统计信息
-      
-      int max_threads;                     // 最大线程数 (默认 15)
-      int requested_threads;               // 请求的线程数
-      int requested_threads_started;       // 已启动的线程数
-  };
+同步事务可以直接投递到嵌套调用栈中的等待线程；其他请求进入线程/进程 todo，oneway 还受 node 的 async_todo 限制。因此“所有事务都加到 target_proc->todo”只覆盖一部分分派情况。
 
-
-  2. binder_thread - 线程上下文
-  ─────────────────────────────────────────────────────────────────────────────
-
-  struct binder_thread {
-      struct binder_proc *proc;            // 所属进程
-      struct rb_node rb_node;              // 红黑树节点
-      int pid;                             // 线程 PID
-      int looper;                          // 循环状态
-      
-      struct binder_transaction *transaction_stack;  // 事务栈
-      struct list_head todo;               // 待处理事务
-      
-      uint32_t return_error;               // 返回错误码
-      wait_queue_head_t wait;              // 等待队列
-  };
-
-
-  3. binder_node - Binder 实体 (服务端)
-  ─────────────────────────────────────────────────────────────────────────────
-
-  struct binder_node {
-      int debug_id;                        // 调试 ID
-      struct binder_work work;             // 工作项
-      union {
-          struct rb_node rb_node;          // 红黑树节点
-          struct hlist_node dead_node;     // 死亡节点
-      };
-      
-      struct binder_proc *proc;            // 所属进程
-      struct hlist_head refs;              // 引用链表
-      int internal_strong_refs;            // 内部强引用计数
-      int local_weak_refs;                 // 本地弱引用计数
-      int local_strong_refs;               // 本地强引用计数
-      
-      void __user *ptr;                    // 用户空间指针
-      void __user *cookie;                 // 用户空间 cookie
-  };
-
-
-  4. binder_ref - Binder 引用 (客户端)
-  ─────────────────────────────────────────────────────────────────────────────
-
-  struct binder_ref {
-      int debug_id;                        // 调试 ID
-      struct rb_node rb_node_desc;         // 按描述符排序的节点
-      struct rb_node rb_node_node;         // 按节点排序的节点
-      
-      struct hlist_node node_entry;        // 节点链表入口
-      struct binder_proc *proc;            // 所属进程
-      struct binder_node *node;            // 指向的 Binder 实体
-      
-      uint32_t desc;                       // 描述符 (handle)
-      int strong;                          // 强引用计数
-      int weak;                            // 弱引用计数
-  };
-
-
-  5. binder_transaction - 事务
-  ─────────────────────────────────────────────────────────────────────────────
-
-  struct binder_transaction {
-      int debug_id;                        // 调试 ID
-      struct binder_work work;             // 工作项
-      
-      struct binder_thread *from;          // 发送线程
-      struct binder_transaction *from_parent;  // 父事务
-      
-      struct binder_proc *to_proc;         // 目标进程
-      struct binder_thread *to_thread;     // 目标线程
-      struct binder_transaction *to_parent;// 目标父事务
-      
-      unsigned need_reply:1;               // 是否需要回复
-      
-      struct binder_buffer *buffer;        // 数据缓冲区
-      unsigned int    code;                // 方法代码
-      unsigned int    flags;
-      
-      pid_t    sender_euid;                // 发送方 UID
-      pid_t    sender_pid;                 // 发送方 PID (★ 内核填充，无法伪造 ★)
-  };
-
-
-  6. binder_buffer - 内存缓冲区
-  ─────────────────────────────────────────────────────────────────────────────
-
-  struct binder_buffer {
-      struct list_head entry;              // 链表节点
-      struct rb_node rb_node;              // 红黑树节点
-      
-      unsigned free:1;                     // 是否空闲
-      unsigned allow_user_free:1;          // 允许用户释放
-      unsigned async_transaction:1;        // 异步事务
-      unsigned debug_id:29;                // 调试 ID
-      
-      struct binder_transaction *transaction;  // 所属事务
-      struct binder_node *target_node;     // 目标节点
-      
-      void *data;                          // 数据指针
-      size_t data_size;                    // 数据大小
-      size_t offsets_size;                 // 偏移数组大小
-  };
-```
+---
 
 ### 5.2 内存映射 (mmap)
 
+```text
+发送进程 Parcel 的序列化 payload
+  -> 驱动复制到接收方 binder_alloc 管理的页面
+  -> 页面映射于接收进程先前 mmap 的地址范围
+  -> BR_TRANSACTION 描述符给出接收地址
+  -> Parcel::ipcSetDataReference 读取该范围
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         Binder 内存映射原理                                 │
-│  源码位置: kernel/drivers/android/binder.c                                  │
-└─────────────────────────────────────────────────────────────────────────────┘
 
-  为什么只需要一次拷贝？
-  ─────────────────────────────────────────────────────────────────────────────
+“一次拷贝”指一个方向的主要 payload 从发送缓冲区到接收缓冲区的内核搬运，不包括序列化、接收方解码成 Java 对象以及回程 reply 的另一笔传输。双方不是直接共享发送方 Parcel 内存。
 
-  ┌─────────────────────────────────────────────────────────────────────────┐
-  │                                                                         │
-  │  发送进程 (Client)                        接收进程 (Server)              │
-  │  ┌─────────────────┐                     ┌─────────────────┐            │
-  │  │ 用户空间         │                     │ 用户空间         │            │
-  │  │ ┌─────────────┐ │                     │ ┌─────────────┐ │            │
-  │  │ │ 数据缓冲区   │ │                     │ │ mmap 映射区 │ │            │
-  │  │ │ (待发送数据) │ │                     │ │ (直接读取)  │ │            │
-  │  │ └─────────────┘ │                     │ └──────▲────────┘ │            │
-  │  └────────┬────────┘                     └────────│────────┘            │
-  │           │                                       │                      │
-  │           │ copy_from_user()                      │ mmap                 │
-  │           │ (一次拷贝)                             │                      │
-  │           ▼                                       │                      │
-  │  ┌─────────────────────────────────────────────────────────────────────┐│
-  │  │                        内核空间                                      ││
-  │  │  ┌─────────────────────────────────────────────────────────────┐   ││
-  │  │  │                    Binder 缓冲区                              │   ││
-  │  │  │         (物理内存，同时映射到内核和接收进程用户空间)           │   ││
-  │  │  │                                                              │   ││
-  │  │  │    内核虚拟地址 ◄───────────────────────► 用户虚拟地址       │   ││
-  │  │  │         │                                    (Server)        │   ││
-  │  │  │         │                                                    │   ││
-  │  │  │         └────────── 同一块物理内存 ──────────────────────────┘   ││
-  │  │  │                                                              │   ││
-  │  │  └─────────────────────────────────────────────────────────────┘   ││
-  │  │                                                                     ││
-  │  └─────────────────────────────────────────────────────────────────────┘│
-  │                                                                         │
-  └─────────────────────────────────────────────────────────────────────────┘
+common commit 的 `binder_mmap()` 调用 allocator 的 mmap handler；`binder_alloc_mmap_handler()` 建立地址范围/页数组等元数据，事务分配时按需配置 backing pages。不存在旧伪码的 `proc->buffer = kzalloc(整个范围)`、循环一次性 `alloc_page()` 后 `set_page_address()` 的当前路径。
 
+libbinder 固定 tag 的预算公式：
 
-  mmap 源码分析：
-  ─────────────────────────────────────────────────────────────────────────────
-
-  // kernel/drivers/android/binder.c
-  
-  static int binder_mmap(struct file *filp, struct vm_area_struct *vma)
-  {
-      struct binder_proc *proc = filp->private_data;
-      
-      // 1. 检查映射大小 (最大 4M)
-      if (vma->vm_end > vma->vm_start + SZ_4M)
-          vma->vm_end = vma->vm_start + SZ_4M;
-      
-      // 2. 分配内核虚拟地址
-      proc->buffer = kzalloc(vma->vm_end - vma->vm_start, GFP_KERNEL);
-      
-      // 3. 计算用户/内核地址偏移
-      proc->user_buffer_offset = vma->vm_start - (uintptr_t)proc->buffer;
-      
-      // 4. 分配物理页面
-      for (page_addr = vma->vm_start; page_addr < vma->vm_end;
-              page_addr += PAGE_SIZE) {
-          
-          page = alloc_page(GFP_KERNEL);  // 分配物理页
-          
-          // 映射到用户空间
-          ret = vm_insert_page(vma, page_addr, page);
-          
-          // 映射到内核空间
-          set_page_address(page, kernel_addr);
-      }
-      
-      return 0;
-  }
-
-
-  缓冲区大小限制：
-  ─────────────────────────────────────────────────────────────────────────────
-
-  ┌─────────────────────────────────────────────────────────────────────────┐
-  │                                                                         │
-  │  ServiceManager:                                                        │
-  │  ─────────────────────────────────────────────────────────────────────  │
-  │  #define BINDER_VM_SIZE ((1 * 1024 * 1024) - (4096 * 2))  // 128K       │
-  │                                                                         │
-  │  普通应用进程:                                                           │
-  │  ─────────────────────────────────────────────────────────────────────  │
-  │  #define BINDER_VM_SIZE ((1 * 1024 * 1024) - (4096 * 2))  // ~1M - 8K   │
-  │                                                                         │
-  │  ★ 为什么减去 8K？                                                       │
-  │  ─────────────────────────────────────────────────────────────────────  │
-  │  1. 物理内存按 PAGE (4K) 划分                                            │
-  │  2. 内核需要一个 guard page (保护页)                                     │
-  │  3. 内核本身的 guard page                                                │
-  │  4. 总共 2 个 page = 8K                                                  │
-  │                                                                         │
-  │  ★ Intent 传递数据大小受此限制！                                         │
-  │  ─────────────────────────────────────────────────────────────────────  │
-  │  如果传输数据超过 (1M - 8K)，会抛出 TransactionTooLargeException        │
-  │                                                                         │
-  └─────────────────────────────────────────────────────────────────────────┘
+```cpp
+#define BINDER_VM_SIZE ((1 * 1024 * 1024) - sysconf(_SC_PAGE_SIZE) * 2)
 ```
+
+在 4KiB 页设备是 1MiB-8KiB，16KiB 页则是 1MiB-32KiB；不是 Android 全设备硬编码 8KiB。这个公式是用户态映射预算，不足以证明“驱动里固定分配两个 guard page”。当前 C++ servicemanager 使用同一个 ProcessState，不再是旧 C 版 binder_open(128KiB)。
+
+缓冲区由接收进程的多笔在途事务共享，并包含 offsets/object 元数据；oneway 另有异步空间记账。即使某一 Parcel 小于映射总大小，也可能因并发占用/碎片/其他分配失败而发生 FAILED_TRANSACTION，不能承诺“单笔小于 1MB 就安全”。
+
+接收方 Parcel 不再使用数据时，native freeBuffer 回调写 `BC_FREE_BUFFER` 归还驱动缓冲区。`BC_REPLY` 表示提交响应，不等于每个请求缓冲区都会在这一步立即释放。
+
+---
 
 ### 5.3 ioctl 命令
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         Binder ioctl 命令                                  │
-│  源码位置: kernel/drivers/android/binder.h                                  │
-└─────────────────────────────────────────────────────────────────────────────┘
+`BINDER_WRITE_READ` 是 ioctl request；BC/BR 是它所携带字节流中的协议命令，二者不要混成同一层枚举。
 
-  用户空间 → 内核 (BC_* 命令):
-  ─────────────────────────────────────────────────────────────────────────────
+| 命令 | 方向 | 含义 |
+|------|------|------|
+| BC_TRANSACTION / BC_REPLY | 用户 -> 驱动 | 请求 / 同步响应 |
+| BC_FREE_BUFFER | 用户 -> 驱动 | 归还已消费的接收 buffer |
+| BC_ENTER_LOOPER / BC_REGISTER_LOOPER | 用户 -> 驱动 | 主动加入 / 响应驱动扩容请求的线程注册 |
+| BC_REQUEST_DEATH_NOTIFICATION | 用户 -> 驱动 | 监听目标死亡 |
+| BR_TRANSACTION / BR_REPLY | 驱动 -> 用户 | 收到事务描述符 / 回复描述符 |
+| BR_TRANSACTION_COMPLETE | 驱动 -> 用户 | 提交完成，不表示远端业务已经完成 |
+| BR_SPAWN_LOOPER | 驱动 -> 用户 | 请求用户态创建工作线程 |
+| BR_DEAD_REPLY / BR_FAILED_REPLY | 驱动 -> 用户 | 对端死亡 / 事务失败 |
+| BR_FROZEN_REPLY / BR_TRANSACTION_PENDING_FROZEN | 驱动 -> 用户 | 冻结状态相关返回，需结合特性和事务模式处理 |
 
-  enum binder_driver_command_protocol {
-      BC_TRANSACTION = _IOW('c', 0, struct binder_transaction_data),  // 发起事务
-      BC_REPLY = _IOW('c', 1, struct binder_transaction_data),       // 回复事务
-      BC_FREE_BUFFER = _IOW('c', 3, binder_uintptr_t),               // 释放缓冲区
-      
-      BC_INCREFS = _IOW('c', 4, __u32),      // 增加弱引用
-      BC_ACQUIRE = _IOW('c', 5, __u32),      // 增加强引用
-      BC_RELEASE = _IOW('c', 6, __u32),      // 释放强引用
-      BC_DECREFS = _IOW('c', 7, __u32),      // 释放弱引用
-      
-      BC_REGISTER_LOOPER = _IO('c', 11),     // 注册 Looper
-      BC_ENTER_LOOPER = _IO('c', 12),        // 进入 Looper
-      BC_EXIT_LOOPER = _IO('c', 13),         // 退出 Looper
-      
-      BC_REQUEST_DEATH_NOTIFICATION = _IOW('c', 14, struct binder_handle_cookie),
-      BC_CLEAR_DEATH_NOTIFICATION = _IOW('c', 15, struct binder_handle_cookie),
-  };
+`binder_write_read.write_buffer`/`read_buffer` 指向命令缓冲区；bulk payload 的地址和 offsets 通过 `binder_transaction_data` 描述，而不是直接把所有 payload 拷进 read_buffer。处理循环须尊重 write_consumed/read_consumed，不能假定一次 ioctl 恰好处理一笔业务。
 
-
-  内核 → 用户空间 (BR_* 命令):
-  ─────────────────────────────────────────────────────────────────────────────
-
-  enum binder_driver_return_protocol {
-      BR_ERROR = _IOR('r', 0, __s32),        // 错误
-      
-      BR_TRANSACTION = _IOR('r', 2, struct binder_transaction_data),  // 收到事务
-      BR_REPLY = _IOR('r', 3, struct binder_transaction_data),        // 收到回复
-      
-      BR_ACQUIRE_RESULT = _IOR('r', 4, __s32),
-      
-      BR_NOOP = _IO('r', 12),                // 空操作
-      BR_SPAWN_LOOPER = _IO('r', 13),        // 创建新线程
-      
-      BR_TRANSACTION_COMPLETE = _IO('r', 15), // 事务已提交
-      BR_DEAD_REPLY = _IO('r', 16),          // 对方已死亡
-      BR_FAILED_REPLY = _IO('r', 17),        // 事务失败
-  };
-
-
-  ioctl 入口函数：
-  ─────────────────────────────────────────────────────────────────────────────
-
-  // kernel/drivers/android/binder.c
-  
-  static long binder_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
-  {
-      struct binder_proc *proc = filp->private_data;
-      int ret;
-      
-      binder_lock(__func__);
-      
-      switch (cmd) {
-          case BINDER_WRITE_READ:
-              ret = binder_ioctl_write_read(filp, cmd, arg, &thread);
-              break;
-              
-          case BINDER_SET_MAX_THREADS:
-              ret = binder_set_max_threads(proc, arg);
-              break;
-              
-          case BINDER_THREAD_EXIT:
-              ret = binder_thread_exit(proc, thread);
-              break;
-              
-          default:
-              ret = -EINVAL;
-      }
-      
-      binder_unlock(__func__);
-      return ret;
-  }
-```
+原文将 BR_TRANSACTION_COMPLETE 编成 `_IO('r',15)`、BR_DEAD_REPLY 编成 16、BR_FAILED_REPLY 编成 17，混淆了协议值；此处不手写一套枚举。具体编码以当前 libbinder 使用的 UAPI `linux/android/binder.h` 为准（传统编号分别是 6、5、17），新增返回值由协议头和 `executeCommand` 对应处理。
 
 ---
 
@@ -981,322 +597,108 @@
 
 ### 6.1 ProcessState
 
+ProcessState 是 libbinder 的进程单例，初始化打开指定 Binder driver，查询协议/feature、设置线程请求额度并 mmap 接收地址区。`self()` 经 `init()` 管理单例，不是旧版无参构造加全局锁的原样源码。
+
+```text
+ProcessState::self()
+  -> init(kDefaultDriver, false)
+  -> ProcessState(driver)
+     -> open_driver(driver)
+     -> mmap(..., BINDER_VM_SIZE, PROT_READ,
+             MAP_PRIVATE | MAP_NORESERVE, driverFD, 0)
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         ProcessState 详解                                   │
-│  源码位置: frameworks/native/libs/binder/ProcessState.cpp                   │
-└─────────────────────────────────────────────────────────────────────────────┘
 
-  ProcessState 是每个进程的单例，负责：
-  1. 打开 Binder 驱动
-  2. mmap 内存映射
-  3. 管理线程池
-  4. 管理 Binder 对象
+它维护 handle->BpBinder 的 handle_entry 及弱引用信息，避免为同一 handle 无限制创建代理。`getStrongProxyForHandle()` 要同时处理既存 weak 引用的升级、创建失败与 handle 0 的特殊探测，不是一个只缓存 strong pointer 的普通数组。
 
+`startThreadPool()` 才显式启动首个 PoolThread，构造本身不启动池；`joinThreadPool()` 属于 IPCThreadState 而不是 ProcessState。进程 fork 后不能直接复用已经初始化的 Binder 上下文，源码有 fork 后误用检查。
 
-  源码分析：
-  ─────────────────────────────────────────────────────────────────────────────
-
-  // frameworks/native/libs/binder/ProcessState.cpp
-  
-  class ProcessState : public virtual RefBase {
-  public:
-      // 获取单例
-      static sp<ProcessState> self();
-      
-      // 获取 Binder 驱动 FD
-      int getDriverFD() const { return mDriverFD; }
-      
-      // 启动线程池
-      void startThreadPool();
-      
-      // 加入线程池
-      void joinThreadPool();
-      
-      // 获取 Context Manager (ServiceManager)
-      sp<IBinder> getContextObject(const sp<IBinder>& caller);
-      
-  private:
-      int mDriverFD;              // Binder 驱动文件描述符
-      void* mVMStart;             // mmap 起始地址
-      size_t mVMSize;             // mmap 大小 (1M - 8K)
-      int mMaxThreads;            // 最大线程数 (默认 15)
-      
-      Vector<sp<IBinder> > mHandleToObject;  // handle → BpBinder 映射
-  };
-
-
-  // 初始化流程
-  sp<ProcessState> ProcessState::self()
-  {
-      Mutex::Autolock _l(gProcessMutex);
-      if (gProcess == NULL) {
-          gProcess = new ProcessState;
-      }
-      return gProcess;
-  }
-  
-  ProcessState::ProcessState()
-      : mDriverFD(open_driver())    // ★ 打开 /dev/binder
-      , mVMStart(MAP_FAILED)
-      , mMaxThreads(BINDER_MAX_THREADS)  // 默认 15
-  {
-      if (mDriverFD >= 0) {
-          // ★★★ mmap 内存映射 ★★★
-          mVMStart = mmap(0, BINDER_VM_SIZE, PROT_READ, 
-                          MAP_PRIVATE | MAP_NORESERVE, mDriverFD, 0);
-      }
-  }
-  
-  static int open_driver()
-  {
-      int fd = open("/dev/binder", O_RDWR | O_CLOEXEC);
-      
-      // 设置最大线程数
-      size_t maxThreads = BINDER_MAX_THREADS;
-      ioctl(fd, BINDER_SET_MAX_THREADS, &maxThreads);
-      
-      return fd;
-  }
+```cpp
+// 应用/系统 native 侧初始化示意；普通 SDK 应用不直接调用这些隐藏接口。
+sp<ProcessState> ps = ProcessState::self();
+ps->startThreadPool();
+// 专用 native daemon 如需让当前线程参与处理，可主动：
+IPCThreadState::self()->joinThreadPool();
+// app UI 线程通常不做上述 join，而是进入 Java Looper。
 ```
+
+映射失败/driver 打开失败不能当作“没有服务缓存命中”处理，它们属于 transport 初始化失败。Binder RPC 不使用相同 kernel driver 路径，需要单独分析。
+
+---
 
 ### 6.2 IPCThreadState
 
+IPCThreadState 使用线程局部状态管理 mIn/mOut、调用身份、事务处理及死亡通知。Java 调用、native daemon 线程和 Binder pool 线程都可能按需取得当前线程实例，它不等于“只有线程池线程才能 transact”。
+
+`writeTransactionData()` 把 BC 命令与 binder_transaction_data 写入 **mOut**；真正 ioctl 在 `talkWithDriver()`，不是 writeTransactionData 内部直接发送。`transact()` 先加入 TF_ACCEPT_FDS、检查 Parcel，再写入命令，最后区分同步和 oneway：
+
+```cpp
+// android-17.0.0_r1 transact 核心分支节选（省略 call restriction / tracing）。
+if ((flags & TF_ONE_WAY) == 0) {
+    if (reply) {
+        err = waitForResponse(reply);
+    } else {
+        Parcel fakeReply;
+        err = waitForResponse(&fakeReply);
+    }
+} else {
+    err = waitForResponse(nullptr, nullptr);
+}
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         IPCThreadState 详解                                 │
-│  源码位置: frameworks/native/libs/binder/IPCThreadState.cpp                 │
-└─────────────────────────────────────────────────────────────────────────────┘
 
-  IPCThreadState 是每个线程的单例，负责：
-  1. 发送/接收 Binder 事务
-  2. 管理 Binder 命令队列
-  3. 处理 Binder 回调
+因此 `reply == nullptr` 不意味着 oneway，flags 才决定；同步无 reply 仍读掉 fakeReply，oneway 仍通过 waitForResponse 驱动提交完成。
 
+下面是 waitForResponse 的返回协议分支（固定 tag 行 1173–1197）：
 
-  源码分析：
-  ─────────────────────────────────────────────────────────────────────────────
+```cpp
+        switch (cmd) {
+        case BR_ONEWAY_SPAM_SUSPECT:
+            ALOGE("Process seems to be sending too many oneway calls.");
+            CallStack::logStack("oneway spamming", CallStack::getCurrent().get(),
+                    ANDROID_LOG_ERROR);
+            [[fallthrough]];
+        case BR_TRANSACTION_COMPLETE:
+            if (!reply && !acquireResult) goto finish;
+            break;
 
-  // frameworks/native/libs/binder/IPCThreadState.cpp
-  
-  class IPCThreadState {
-  public:
-      // 获取当前线程的 IPCThreadState
-      static IPCThreadState* self();
-      
-      // 发起事务
-      status_t transact(int32_t handle,
-                        uint32_t code,
-                        const Parcel& data,
-                        Parcel* reply,
-                        uint32_t flags);
-      
-      // 加入线程池
-      void joinThreadPool(bool mainThread = false);
-      
-      // 停止线程
-      void stopThreadPool();
-      
-  private:
-      ProcessState* mProcess;     // 所属进程
-      Vector<binder_transaction_data> mPendingTransactions;  // 待处理事务
-      
-      Parcel mIn;                 // 输入缓冲区 (来自驱动)
-      Parcel mOut;                // 输出缓冲区 (发往驱动)
-  };
+        case BR_TRANSACTION_PENDING_FROZEN:
+            ALOGW("Sending oneway calls to frozen process.");
+            goto finish;
 
+        case BR_DEAD_REPLY:
+            err = DEAD_OBJECT;
+            goto finish;
 
-  // transact 源码
-  status_t IPCThreadState::transact(int32_t handle,
-                                     uint32_t code,
-                                     const Parcel& data,
-                                     Parcel* reply,
-                                     uint32_t flags)
-  {
-      // 1. 检查数据
-      status_t err = data.errorCheck();
-      
-      // 2. 写入事务数据
-      err = writeTransactionData(BC_TRANSACTION, flags, 
-                                  handle, code, data, NULL);
-      
-      if (err != NO_ERROR) {
-          return err;
-      }
-      
-      // 3. 等待响应
-      if (reply) {
-          err = waitForResponse(reply);
-      } else {
-          Parcel fakeReply;
-          err = waitForResponse(&fakeReply);
-      }
-      
-      return err;
-  }
+        case BR_FAILED_REPLY:
+            err = FAILED_TRANSACTION;
+            goto finish;
 
-
-  // waitForResponse 源码
-  status_t IPCThreadState::waitForResponse(Parcel *reply)
-  {
-      uint32_t cmd;
-      status_t err;
-      
-      while (true) {
-          // ★ 与驱动交互
-          if ((err = talkWithDriver()) < NO_ERROR) break;
-          
-          // 处理驱动返回的命令
-          cmd = (uint32_t)mIn.readInt32();
-          
-          switch (cmd) {
-              case BR_TRANSACTION_COMPLETE:
-                  // 事务已提交，继续等待回复
-                  break;
-                  
-              case BR_REPLY:
-                  // ★ 收到回复 ★
-                  binder_transaction_data tr;
-                  mIn.read(&tr, sizeof(tr));
-                  reply->ipcSetDataReference(
-                      reinterpret_cast<const uint8_t*>(tr.data.ptr.buffer),
-                      tr.data_size,
-                      reinterpret_cast<const binder_size_t*>(tr.data.ptr.offsets),
-                      tr.offsets_size/sizeof(binder_size_t),
-                      freeBuffer, this);
-                  goto finish;
-                  
-              case BR_DEAD_REPLY:
-                  err = DEAD_OBJECT;
-                  goto finish;
-                  
-              case BR_FAILED_REPLY:
-                  err = FAILED_TRANSACTION;
-                  goto finish;
-                  
-              default:
-                  // 处理其他命令
-                  err = executeCommand(cmd);
-                  break;
-          }
-      }
-      
-  finish:
-      return err;
-  }
-
-
-  // joinThreadPool 源码
-  void IPCThreadState::joinThreadPool(bool mainThread)
-  {
-      // 通知驱动进入 Looper
-      mOut.writeInt32(mainThread ? BC_ENTER_LOOPER : BC_REGISTER_LOOPER);
-      
-      status_t result;
-      
-      do {
-          // 处理待处理事务
-          processPendingDerefs();
-          
-          // ★★★ 与驱动交互，阻塞等待命令 ★★★
-          result = getAndExecuteCommand();
-          
-      } while (result != -EPIPE && !mIsLooper);
-      
-      // 退出 Looper
-      mOut.writeInt32(BC_EXIT_LOOPER);
-      talkWithDriver(false);
-  }
+        case BR_FROZEN_REPLY:
+            err = enableFrozenObjectErrorCode() ? FROZEN_OBJECT : FAILED_TRANSACTION;
+            goto finish;
 ```
+
+收到 BR_REPLY 时按 TF_STATUS_CODE 区分状态 payload 和普通 Parcel；普通回复用 ipcSetDataReference 引用映射区，不再复制一遍。收到非回复命令则 `executeCommand(cmd)`，这使同步等待线程可以处理嵌套入站事务，并解释第 20 章为什么“回调必死锁”是错误结论。
+
+`joinThreadPool(isMain)` 发送 ENTER/REGISTER 标记，循环 processPendingDerefs/getAndExecuteCommand；TIMED_OUT 对非 main 线程可退出，driver 关闭/拒绝有相应结束和错误分支。源码中的超时处理不能外推为所有 Android Binder 线程均有固定空闲回收周期。
+
+身份状态在 executeCommand 入站时保存并替换，在 transact 返回/入站完成后恢复。跨线程执行时这些 ThreadLocal 状态不会随 Runnable 迁移；服务方法应在入口完成授权，而不是在异步线程再读 getCallingUid 并当原调用方身份。
+
+---
 
 ### 6.3 BpBinder 与 BBinder
 
+```text
+IBinder
+  +-- BBinder（本地实体）
+  |     +-- JavaBBinder（Java Binder 的 native 包装）
+  +-- BpBinder（远程代理；kernel handle 或 RPC transport）
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                    BpBinder 与 BBinder 详解                                │
-│  源码位置: frameworks/native/libs/binder/BpBinder.cpp                       │
-│           frameworks/native/libs/binder/Binder.cpp                          │
-└─────────────────────────────────────────────────────────────────────────────┘
 
-  类继承关系：
-  ─────────────────────────────────────────────────────────────────────────────
+`BpBinder::transact()` 先检查对象活性、稳定性/事务标志等条件，再分支到 kernel 的 `IPCThreadState::transact()` 或 RPC session。不能省掉 transport 判定后把所有 BpBinder 写成只持一个 mHandle 的旧字段布局。
 
-  ┌─────────────────────────────────────────────────────────────────────────┐
-  │                                                                         │
-  │                    IBinder (接口)                                        │
-  │                         │                                               │
-  │           ┌─────────────┴─────────────┐                                │
-  │           │                           │                                │
-  │       BBinder                     BpBinder                             │
-  │     (服务端实体)                  (客户端代理)                           │
-  │           │                           │                                │
-  │     JavaBBinder                 (Java BinderProxy 的 Native 对应)      │
-  │     (Java Binder 的 Native 包装)                                        │
-  │                                                                         │
-  └─────────────────────────────────────────────────────────────────────────┘
+`BBinder::transact()` 处理部分平台保留事务、Parcel 读位置和回复整理，再调用 onTransact；不是所有 code 无条件直达业务重写。JavaBBinder 覆盖 onTransact，把 **native Parcel 对象地址**传给 Java 包装层，而不是把 data.ipcData() 的 payload 地址伪装成 Parcel 指针。
 
-
-  BpBinder (客户端代理):
-  ─────────────────────────────────────────────────────────────────────────────
-
-  // frameworks/native/libs/binder/BpBinder.cpp
-  
-  class BpBinder : public IBinder {
-  public:
-      BpBinder(int32_t handle);
-      
-      // 发起事务
-      virtual status_t transact(uint32_t code,
-                                const Parcel& data,
-                                Parcel* reply,
-                                uint32_t flags = 0);
-      
-      int32_t handle() const { return mHandle; }
-      
-  private:
-      int32_t mHandle;           // Binder 引用的 handle
-      const int32_t mBinderAge;
-  };
-  
-  status_t BpBinder::transact(uint32_t code,
-                              const Parcel& data,
-                              Parcel* reply,
-                              uint32_t flags)
-  {
-      // ★ 委托给 IPCThreadState 处理 ★
-      IPCThreadState* ipc = IPCThreadState::self();
-      return ipc->transact(mHandle, code, data, reply, flags);
-  }
-
-
-  BBinder (服务端实体):
-  ─────────────────────────────────────────────────────────────────────────────
-
-  // frameworks/native/libs/binder/Binder.cpp
-  
-  class BBinder : public IBinder {
-  public:
-      virtual status_t transact(uint32_t code,
-                                const Parcel& data,
-                                Parcel* reply,
-                                uint32_t flags = 0);
-      
-  protected:
-      virtual status_t onTransact(uint32_t code,
-                                  const Parcel& data,
-                                  Parcel* reply,
-                                  uint32_t flags = 0);
-  };
-  
-  status_t BBinder::transact(uint32_t code,
-                              const Parcel& data,
-                              Parcel* reply,
-                              uint32_t flags)
-  {
-      // 调用 onTransact
-      return onTransact(code, data, reply, flags);
-  }
-```
+对象关系决定语言层投影：JavaBBinder 可还原原 Java Binder；远程 native 对象由 JNI 对应到 BinderProxy。JavaBBinder 并不是“Java BinderProxy 的服务端包装”。
 
 ---
 
@@ -1304,182 +706,91 @@
 
 ### 7.1 Binder.java
 
+`Binder` 构造经 `getNativeBBinderHolder()` 获取 native holder，并由 NativeAllocationRegistry 管理清理；旧文的 `private native void init()` 不是当前初始化接口。AIDL Stub 调用 attachInterface 保存 owner 和 descriptor，queryLocalInterface 命中时直接返回本地实现。
+
+Java 入站方法的实际资源/身份回收边界：
+
+```java
+// Binder.java:1304-1332 的控制结构，省略注释。
+private boolean execTransact(int code, long dataObj, long replyObj, int flags) {
+    Parcel data = Parcel.obtain(dataObj);
+    Parcel reply = Parcel.obtain(replyObj);
+    final int callingUid = data.isForRpc() ? -1 : Binder.getCallingUid();
+    final long origWorkSource = callingUid == -1
+            ? -1 : ThreadLocalWorkSource.setUid(callingUid);
+    try {
+        return execTransactInternal(code, data, reply, flags, callingUid);
+    } finally {
+        reply.recycle();
+        data.recycle();
+        if (callingUid != -1) ThreadLocalWorkSource.restore(origWorkSource);
+    }
+}
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         Binder.java 详解                                    │
-│  源码位置: frameworks/base/core/java/android/os/Binder.java                 │
-└─────────────────────────────────────────────────────────────────────────────┘
 
-  // frameworks/base/core/java/android/os/Binder.java
-  
-  public class Binder implements IBinder {
-      
-      // Native 指针
-      private long mNativePtr;
-      
-      // 关联的接口描述符
-      private String mDescriptor;
-      
-      /**
-       * 默认构造函数
-       */
-      public Binder() {
-          init();
-      }
-      
-      /**
-       * 初始化 Native 层
-       */
-      private native void init();
-      
-      /**
-       * 处理事务 (由 Native 层调用)
-       */
-      protected boolean onTransact(int code, Parcel data, Parcel reply, int flags) {
-          if (code == INTERFACE_TRANSACTION) {
-              reply.writeString(getInterfaceDescriptor());
-              return true;
-          }
-          
-          // 子类重写此方法处理具体事务
-          return false;
-      }
-      
-      /**
-       * 执行事务 (由 Native 层 JNI 调用)
-       */
-      private boolean execTransact(int code, long dataObj, long replyObj, int flags) {
-          Parcel data = Parcel.obtain(dataObj);
-          Parcel reply = Parcel.obtain(replyObj);
-          
-          try {
-              return onTransact(code, data, reply, flags);
-          } catch (Exception e) {
-              // 异常处理
-              reply.writeException(e);
-              return true;
-          } finally {
-              data.recycle();
-              reply.recycle();
-          }
-      }
-  }
+execTransactInternal 围绕 onTransact 做 observer/trace、异常封送和 StrictMode 等清理。同步调用把可封送异常写入 reply，oneway 没有业务 reply，只记录服务端异常。因此不能用统一 `catch(Exception) { reply.writeException(e); }` 表示所有模式。
 
+JNI 回调发生在 **JavaBBinder::onTransact** 内；不存在另一个名为 android_os_Binder_execTransact 的 native 方法专门完成此桥接。onTransact 默认还支持 interface/dump/shell 等保留事务，业务 Stub 必须对接口 token、参数和权限做正确检查。
 
-  Native 层 JNI 代码：
-  ─────────────────────────────────────────────────────────────────────────────
-
-  // frameworks/base/core/jni/android_util_Binder.cpp
-  
-  static jboolean android_os_Binder_execTransact(JNIEnv* env, jobject obj,
-                                                   jint code, jlong dataObj,
-                                                   jlong replyObj, jint flags)
-  {
-      // 调用 Java 层的 execTransact
-      return env->CallBooleanMethod(obj, gBinderOffsets.mExecTransact,
-                                     code, dataObj, replyObj, flags);
-  }
-
-
-  JavaBBinder (Java Binder 的 Native 包装):
-  ─────────────────────────────────────────────────────────────────────────────
-
-  class JavaBBinder : public BBinder {
-  public:
-      JavaBBinder(JNIEnv* env, jobject object)
-          : mObject(env->NewGlobalRef(object))
-      {
-      }
-      
-      virtual status_t onTransact(uint32_t code,
-                                  const Parcel& data,
-                                  Parcel* reply,
-                                  uint32_t flags = 0)
-      {
-          JNIEnv* env = android::AndroidRuntime::getJNIEnv();
-          
-          // ★★★ JNI 回调 Java 层 ★★★
-          jboolean res = env->CallBooleanMethod(mObject, 
-                  gBinderOffsets.mExecTransact, code,
-                  (jlong)data.ipcData(), (jlong)reply->ipcData(), flags);
-          
-          return res ? NO_ERROR : UNKNOWN_ERROR;
-      }
-      
-  private:
-      jobject mObject;  // Java Binder 对象的全局引用
-  };
-```
+---
 
 ### 7.2 BinderProxy.java
 
+BinderProxy.transact 不在客户端调用 `data.enforceInterface()`；那会消费请求头且把服务器的校验放错位置。客户端生成代理调用 writeInterfaceToken，服务端生成 Stub 在解析参数前 enforceInterface/enforceNoDataAvail。
+
+```java
+// Java 签名，Parcel 参数不是 long dataObj/replyObj。
+public boolean transact(int code, Parcel data, Parcel reply, int flags)
+        throws RemoteException {
+    // 实际实现还含检查、监听、WorkSource/trace 等。
+    return transactNative(code, data, reply, flags);
+}
+public native boolean transactNative(int code, Parcel data, Parcel reply, int flags)
+        throws RemoteException;
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         BinderProxy.java 详解                               │
-│  源码位置: frameworks/base/core/java/android/os/BinderProxy.java            │
-└─────────────────────────────────────────────────────────────────────────────┘
 
-  // frameworks/base/core/java/android/os/BinderProxy.java
-  
-  final class BinderProxy implements IBinder {
-      
-      // Native 指针 (指向 BpBinder)
-      private long mNativePtr;
-      
-      /**
-       * 发起事务
-       */
-      public boolean transact(int code, Parcel data, Parcel reply, int flags) {
-          // 检查数据
-          data.enforceInterface(getInterfaceDescriptor());
-          
-          // ★ 调用 Native 方法 ★
-          return transactNative(code, data, reply, flags);
-      }
-      
-      /**
-       * Native 事务方法
-       */
-      private native boolean transactNative(int code, long dataObj, 
-                                             long replyObj, int flags);
-      
-      /**
-       * 获取接口描述符
-       */
-      public native String getInterfaceDescriptor();
-  }
+JNI 取得 BinderProxyNativeData 里的 mObject，使用 parcelForJavaObject 转换 jobject Parcel，再 `target->transact(code, *data, reply, flags)`。mNativeData 不是可以直接强转 BpBinder 的地址；参数也不是 jlong 对象。
 
+```cpp
+    IBinder* target = getBPNativeData(env, obj)->mObject.get();
+    if (target == NULL) {
+        jniThrowException(env, "java/lang/IllegalStateException", "Binder has been finalized!");
+        return JNI_FALSE;
+    }
 
-  Native 层 JNI 代码：
-  ─────────────────────────────────────────────────────────────────────────────
+    ALOGV("Java code calling transact on %p in Java object %p with code %" PRId32 "\n",
+            target, obj, code);
 
-  // frameworks/base/core/jni/android_util_Binder.cpp
-  
-  static jboolean android_os_BinderProxy_transact(JNIEnv* env, jobject obj,
-                                                    jint code, jlong dataObj,
-                                                    jlong replyObj, jint flags)
-  {
-      // 获取 Native BpBinder
-      BpBinder* binder = (BpBinder*)env->GetLongField(obj, gBinderProxyOffsets.mNativePtr);
-      
-      // 转换 Parcel
-      Parcel* data = parcelForJavaObject(env, dataObj);
-      Parcel* reply = parcelForJavaObject(env, replyObj);
-      
-      // ★ 调用 BpBinder::transact ★
-      status_t err = binder->transact(code, *data, reply, flags);
-      
-      return err == NO_ERROR;
-  }
+    //printf("Transact from Java code to %p sending: ", target); data->print();
+    status_t err = target->transact(code, *data, reply, flags);
+    //if (reply) printf("Transact from Java code to %p received: ", target); reply->print();
+
+    if (err == NO_ERROR) {
+        return JNI_TRUE;
+    }
+
+    env->CallStaticVoidMethod(gBinderOffsets.mClass, gBinderOffsets.mTransactionCallback, getpid(),
+                              code, flags, err);
+
+    if (err == UNKNOWN_TRANSACTION) {
+        return JNI_FALSE;
+    }
+
+    signalExceptionForError(env, obj, err, true /*canThrowRemoteException*/, data->dataSize());
+    return JNI_FALSE;
 ```
+
+成功返回 true；UNKNOWN_TRANSACTION 返回 false；其他 transport 失败经 signalExceptionForError 映射到 Java 异常。服务端 reply 中的业务异常则由生成代理随后 readException() 抛出，两类错误不能混为一个 false 返回值。
 
 ---
 
 ## 8. AIDL 详解
 
+AIDL 片段按文件拆分；生成 Java 展示 dispatch 模式而不是固定生成器逐字输出。真实项目由同 tag 的 AIDL 编译器生成，并保留接口 token/额外数据校验与 RemoteException 声明。
+
 ### 8.1 AIDL 语法
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         AIDL 语法详解                                       │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1489,7 +800,7 @@
 
   1. Java 基本数据类型
      ─────────────────────────────────────────────────────────────────────────
-     - byte, short, int, long
+     - byte, int, long（AIDL 不支持 Java short 标量）
      - float, double
      - boolean
      - char
@@ -1519,32 +830,32 @@
 
   // IMyService.aidl
   package com.example;
-  
+
   // 声明 Parcelable 类型
   parcelable User;
-  
+
   // 声明回调接口
   interface ICallback {
       void onResult(int code);
   }
-  
+
   // 主接口
   interface IMyService {
       // 基本类型
       int getData(int id);
-      
+
       // String
       String getName();
-      
+
       // List
       List<String> getNames();
-      
+
       // Parcelable
       User getUser(int id);
-      
+
       // 异步回调
       void getDataAsync(int id, ICallback callback);
-      
+
       // oneway 异步调用 (不等待返回)
       oneway void notifyEvent(int event);
   }
@@ -1552,7 +863,7 @@
 
 ### 8.2 AIDL 生成的代码结构
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    AIDL 生成的代码结构                                      │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1561,48 +872,48 @@
   ─────────────────────────────────────────────────────────────────────────────
 
   public interface IMyService extends android.os.IInterface {
-      
+
       // ========== 方法声明 ==========
       public int getData(int id) throws android.os.RemoteException;
-      
+
       // ========== Stub 类 (服务端) ==========
-      public static abstract class Stub extends android.os.Binder 
+      public static abstract class Stub extends android.os.Binder
               implements IMyService {
-          
+
           private static final String DESCRIPTOR = "com.example.IMyService";
-          
+
           // 方法编号
           static final int TRANSACTION_getData = 1;
           static final int TRANSACTION_getName = 2;
-          
+
           /**
            * 将 Binder 转换为接口
            */
           public static IMyService asInterface(android.os.IBinder obj) {
               if (obj == null) return null;
-              
+
               // 检查是否在同一进程
               android.os.IInterface iin = obj.queryLocalInterface(DESCRIPTOR);
               if (iin instanceof IMyService) {
                   // ★ 同一进程，直接返回 ★
                   return (IMyService) iin;
               }
-              
+
               // ★ 跨进程，返回 Proxy ★
               return new Proxy(obj);
           }
-          
+
           /**
            * 服务端处理事务
            */
           @Override
-          public boolean onTransact(int code, Parcel data, Parcel reply, int flags) {
+          public boolean onTransact(int code, Parcel data, Parcel reply, int flags) throws RemoteException {
               switch (code) {
                   case INTERFACE_TRANSACTION: {
                       reply.writeString(DESCRIPTOR);
                       return true;
                   }
-                  
+
                   case TRANSACTION_getData: {
                       data.enforceInterface(DESCRIPTOR);
                       int _arg0 = data.readInt();
@@ -1615,36 +926,36 @@
               }
               return super.onTransact(code, data, reply, flags);
           }
-          
+
           // ========== Proxy 类 (客户端) ==========
           private static class Proxy implements IMyService {
-              
+
               private android.os.IBinder mRemote;
-              
+
               Proxy(android.os.IBinder remote) {
                   mRemote = remote;
               }
-              
+
               @Override
               public int getData(int id) throws android.os.RemoteException {
                   Parcel _data = Parcel.obtain();
                   Parcel _reply = Parcel.obtain();
                   int _result;
-                  
+
                   try {
                       _data.writeInterfaceToken(DESCRIPTOR);
                       _data.writeInt(id);
-                      
+
                       // ★★★ 发起远程调用 ★★★
                       mRemote.transact(TRANSACTION_getData, _data, _reply, 0);
-                      
+
                       _reply.readException();
                       _result = _reply.readInt();
                   } finally {
                       _reply.recycle();
                       _data.recycle();
                   }
-                  
+
                   return _result;
               }
           }
@@ -1654,7 +965,7 @@
 
 ### 8.3 AIDL 完整示例
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    AIDL 双向通信完整示例                                    │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1666,34 +977,34 @@
   public class User implements Parcelable {
       public int id;
       public String name;
-      
+
       public User(int id, String name) {
           this.id = id;
           this.name = name;
       }
-      
+
       protected User(Parcel in) {
           id = in.readInt();
           name = in.readString();
       }
-      
+
       public static final Creator<User> CREATOR = new Creator<User>() {
           @Override
           public User createFromParcel(Parcel in) {
               return new User(in);
           }
-          
+
           @Override
           public User[] newArray(int size) {
               return new User[size];
           }
       };
-      
+
       @Override
       public int describeContents() {
           return 0;
       }
-      
+
       @Override
       public void writeToParcel(Parcel dest, int flags) {
           dest.writeInt(id);
@@ -1707,13 +1018,13 @@
 
   // User.aidl
   parcelable User;
-  
+
   // ICallback.aidl
   interface ICallback {
       void onUserReceived(in User user);
       void onError(int code);
   }
-  
+
   // IUserService.aidl
   interface IUserService {
       User getUser(int id);
@@ -1728,18 +1039,17 @@
 
   // UserService.java
   public class UserService extends Service {
-      
-      private CopyOnWriteArrayList<ICallback> mCallbacks = 
-              new CopyOnWriteArrayList<>();
-      
+
+      private final RemoteCallbackList<ICallback> mCallbacks = new RemoteCallbackList<>();
+
       private final IUserService.Stub mBinder = new IUserService.Stub() {
-          
+
           @Override
           public User getUser(int id) {
               // 模拟查询
               return new User(id, "User_" + id);
           }
-          
+
           @Override
           public void getUserAsync(int id, ICallback callback) {
               // 在后台线程执行
@@ -1757,38 +1067,46 @@
                   }
               }).start();
           }
-          
+
           @Override
           public void registerCallback(ICallback callback) {
               if (callback != null) {
-                  mCallbacks.add(callback);
+                  mCallbacks.register(callback);
               }
           }
-          
+
           @Override
           public void unregisterCallback(ICallback callback) {
               if (callback != null) {
-                  mCallbacks.remove(callback);
+                  mCallbacks.unregister(callback);
               }
           }
       };
-      
+
       @Override
       public IBinder onBind(Intent intent) {
           return mBinder;
       }
-      
+
       // 通知所有注册的客户端
-      private void notifyAllClients(User user) {
-          for (ICallback callback : mCallbacks) {
-              try {
-                  callback.onUserReceived(user);
-              } catch (RemoteException e) {
-                  // 客户端已断开，移除
-                  mCallbacks.remove(callback);
-              }
-          }
-      }
+      // 调用应在同一工作线程串行执行；避免重叠 beginBroadcast。
+    private void notifyAllClients(User user) {
+        int count = mCallbacks.beginBroadcast();
+        try {
+            for (int i = 0; i < count; i++) {
+                try { mCallbacks.getBroadcastItem(i).onUserReceived(user); }
+                catch (RemoteException ignored) { /* 死亡清理由 RemoteCallbackList 管理 */ }
+            }
+        } finally {
+            mCallbacks.finishBroadcast();
+        }
+    }
+
+    @Override public void onDestroy() {
+        mCallbacks.kill();
+        super.onDestroy();
+    }
+
   }
 
 
@@ -1797,58 +1115,58 @@
 
   // MainActivity.java
   public class MainActivity extends Activity {
-      
+
       private IUserService mService;
       private boolean mBound = false;
-      
+
       private ICallback mCallback = new ICallback.Stub() {
           @Override
           public void onUserReceived(User user) {
               runOnUiThread(() -> {
-                  Toast.makeText(MainActivity.this, 
+                  Toast.makeText(MainActivity.this,
                           "Received: " + user.name, Toast.LENGTH_SHORT).show();
               });
           }
-          
+
           @Override
           public void onError(int code) {
               runOnUiThread(() -> {
-                  Toast.makeText(MainActivity.this, 
+                  Toast.makeText(MainActivity.this,
                           "Error: " + code, Toast.LENGTH_SHORT).show();
               });
           }
       };
-      
+
       private ServiceConnection mConnection = new ServiceConnection() {
           @Override
           public void onServiceConnected(ComponentName name, IBinder service) {
               // ★ 获取服务接口 ★
               mService = IUserService.Stub.asInterface(service);
               mBound = true;
-              
+
               try {
                   // 注册回调
                   mService.registerCallback(mCallback);
-                  
+
                   // 同步调用
                   User user = mService.getUser(1);
                   Log.d("MainActivity", "Sync: " + user.name);
-                  
+
                   // 异步调用
                   mService.getUserAsync(2, mCallback);
-                  
+
               } catch (RemoteException e) {
                   e.printStackTrace();
               }
           }
-          
+
           @Override
           public void onServiceDisconnected(ComponentName name) {
               mService = null;
               mBound = false;
           }
       };
-      
+
       @Override
       protected void onStart() {
           super.onStart();
@@ -1856,7 +1174,7 @@
           intent.setPackage("com.example");
           bindService(intent, mConnection, BIND_AUTO_CREATE);
       }
-      
+
       @Override
       protected void onStop() {
           super.onStop();
@@ -1877,138 +1195,33 @@
 
 ## 9. Binder 线程池
 
+```text
+app 进程 RuntimeInit nativeZygoteInit / onZygoteInit
+  -> ProcessState::self()->startThreadPool()
+     -> spawnPooledThread(true)
+        -> 新 PoolThread（不是 UI 线程）
+           -> IPCThreadState::joinThreadPool(true)
+              -> BC_ENTER_LOOPER
+  UI/main 线程继续 ActivityThread.main -> Looper.loop
+
+驱动判断需要额外工作线程
+  -> BR_SPAWN_LOOPER
+  -> IPCThreadState::executeCommand
+  -> ProcessState::spawnPooledThread(false)
+  -> 新用户态线程 joinThreadPool(false) -> BC_REGISTER_LOOPER
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         Binder 线程池详解                                   │
-└─────────────────────────────────────────────────────────────────────────────┘
 
-  线程池启动流程：
-  ─────────────────────────────────────────────────────────────────────────────
+默认 DEFAULT_MAX_BINDER_THREADS 为 15，设置的是驱动请求创建线程额度。普通启动一个首线程再允许驱动扩容时，常见可达 1+15；主动 join、系统服务重新配置及 polling 模型不属于“全 Android 固定 16”的规则。首个线程的 isMain 参数表示池角色，不能在图中把 Activity 生命周期/UI 分发放进这个线程。
 
-  ┌─────────────────────────────────────────────────────────────────────────┐
-  │                                                                         │
-  │  1. App 进程启动                                                        │
-  │     Zygote.fork() → app_main.cpp → onZygoteInit()                      │
-  │                                                                         │
-  │  2. ProcessState 初始化                                                 │
-  │     ─────────────────────────────────────────────────────────────────── │
-  │     ProcessState::self() {                                              │
-  │         open("/dev/binder");
-  │         mmap(1M - 8K);
-  │         ioctl(BINDER_SET_MAX_THREADS, 15);  // ★ 最大 15 个线程 ★
-  │     }
-  │
-  │  3. 启动线程池
-  │     ─────────────────────────────────────────────────────────────────── │
-  │     ProcessState::self()->startThreadPool();
-  │     // 创建 PoolThread 线程
-  │     // 主线程 + 15 个工作线程 = 16 个 Binder 线程
-  │
-  └─────────────────────────────────────────────────────────────────────────┘
+池上限不是服务方法的并发安全屏障：本地 AIDL 直调执行在调用者线程，入站同步事务可嵌套回入等待线程。服务应对可共享状态设计锁/单线程所有权，并避免持业务锁跨远程调用。
 
-
-  线程池源码分析：
-  ─────────────────────────────────────────────────────────────────────────────
-
-  // frameworks/native/libs/binder/ProcessState.cpp
-  
-  void ProcessState::startThreadPool()
-  {
-      if (!mThreadPoolStarted) {
-          mThreadPoolStarted = true;
-          
-          // ★ 生成第一个线程 ★
-          spawnPooledThread(true);
-      }
-  }
-  
-  void ProcessState::spawnPooledThread(bool isMain)
-  {
-      if (mThreadPoolStarted) {
-          // 创建线程
-          sp<Thread> t = new PoolThread(isMain);
-          
-          // 运行线程
-          t->run("Binder Thread");
-      }
-  }
-  
-  class PoolThread : public Thread {
-  public:
-      PoolThread(bool isMain) : mIsMain(isMain) {}
-      
-  protected:
-      virtual bool threadLoop() {
-          // ★★★ 加入 Binder 线程池 ★★★
-          IPCThreadState::self()->joinThreadPool(mIsMain);
-          return false;  // 退出循环
-      }
-      
-  private:
-      bool mIsMain;
-  };
-
-
-  线程池工作原理：
-  ─────────────────────────────────────────────────────────────────────────────
-
-  ┌─────────────────────────────────────────────────────────────────────────┐
-  │                                                                         │
-  │                        Binder 线程池                                     │
-  │  ┌───────────────────────────────────────────────────────────────────┐  │
-  │  │                                                                   │  │
-  │  │  主线程 (Main Thread)                                              │  │
-  │  │  ┌─────────────────────────────────────────────────────────────┐  │  │
-  │  │  │ BC_ENTER_LOOPER                                             │  │  │
-  │  │  │ joinThreadPool()                                             │  │  │
-  │  │  │ - 处理 Activity 生命周期                                      │  │  │
-  │  │  │ - 处理 UI 事件                                               │  │  │
-  │  │  │ - 处理 Binder 事务                                           │  │  │
-  │  │  └─────────────────────────────────────────────────────────────┘  │  │
-  │  │                                                                   │  │
-  │  │  Binder Thread 1-15 (由 BR_SPAWN_LOOPER 触发创建)                  │  │
-  │  │  ┌─────────────────────────────────────────────────────────────┐  │  │
-  │  │  │ BC_REGISTER_LOOPER                                          │  │  │
-  │  │  │ joinThreadPool()                                             │  │  │
-  │  │  │ - 专门处理 Binder 事务                                        │  │  │
-  │  │  │ - 阻塞在 ioctl() 等待命令                                     │  │  │
-  │  │  └─────────────────────────────────────────────────────────────┘  │  │
-  │  │                                                                   │  │
-  │  │  ★ 线程池默认大小: 16 (1 主线程 + 15 工作线程) ★                   │  │
-  │  │  ★ 最大线程数由 BINDER_SET_MAX_THREADS 控制 (默认 15) ★           │  │
-  │  │                                                                   │  │
-  │  └───────────────────────────────────────────────────────────────────┘  │
-  │                                                                         │
-  └─────────────────────────────────────────────────────────────────────────┘
-
-
-  线程创建触发条件：
-  ─────────────────────────────────────────────────────────────────────────────
-
-  // 当驱动检测到线程不够用时，会发送 BR_SPAWN_LOOPER 命令
-  
-  // IPCThreadState::executeCommand()
-  case BR_SPAWN_LOOPER:
-      // ★ 驱动请求创建新线程 ★
-      mProcess->spawnPooledThread(false);
-      break;
-
-
-  线程池大小计算：
-  ─────────────────────────────────────────────────────────────────────────────
-
-  // frameworks/native/libs/binder/ProcessState.cpp
-  #define BINDER_MAX_THREADS 15  // 默认最大非主线程数
-
-  // 驱动中的判断逻辑 (kernel/drivers/android/binder.c)
-  // 当 requested_threads_started < max_threads 时，发送 BR_SPAWN_LOOPER
-```
+同一 node 的 oneway 串行并不保证低负载；大量 oneway 能积压异步 buffer，服务端执行慢仍会耗尽资源。把耗时业务提交到受控队列后返回，需明确拒绝、任务 ID、结果回调、取消和调用身份，不能无限 new Thread 或把排队转移成另一个无界队列。
 
 ---
 
 ## 10. 跨进程通信方式对比
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    Android 跨进程通信方式完整对比                           │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -2038,7 +1251,7 @@
   │ (MemoryFile)     │ 实时数据共享      │ 最高性能          │ 复杂            │
   ├──────────────────┼───────────────────┼───────────────────┼─────────────────┤
   │ 管道 (Pipe)      │ 简单数据流传输     │ 简单              │ 单向            │
-  │                  │ 父子进程通信      │                   │ 只能血缘进程    │
+  │                  │ 父子进程通信      │                   │ 可通过 FD 传递连接非亲缘进程    │
   ├──────────────────┼───────────────────┼───────────────────┼─────────────────┤
   │ 信号 (Signal)    │ 进程通知          │ 轻量级            │ 只能通知        │
   │                  │ 异常处理          │                   │ 不能传数据      │
@@ -2090,7 +1303,7 @@
 
 ### 10.1 Bundle + Intent
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    Bundle + Intent                                          │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -2122,11 +1335,11 @@
   intent.putExtra("string_key", "Hello");
   intent.putExtra("int_key", 100);
   intent.putExtra("boolean_key", true);
-  
+
   // 传递 Parcelable 对象
   User user = new User("张三", 25);
   intent.putExtra("user_key", user);
-  
+
   startActivity(intent);
 
 
@@ -2135,12 +1348,12 @@
       @Override
       protected void onCreate(Bundle savedInstanceState) {
           super.onCreate(savedInstanceState);
-          
+
           Intent intent = getIntent();
           String stringValue = intent.getStringExtra("string_key");
           int intValue = intent.getIntExtra("int_key", 0);
           boolean boolValue = intent.getBooleanExtra("boolean_key", false);
-          
+
           User user = intent.getParcelableExtra("user_key");
       }
   }
@@ -2149,7 +1362,7 @@
   注意事项：
   ─────────────────────────────────────────────────────────────────────────────
 
-  1. 数据大小受 Binder 限制 (1M - 8K)
+  1. 数据占接收方共享 Binder buffer（1MiB - 2*pageSize 映射预算）
   2. 不要传递大对象
   3. Parcelable 比 Serializable 效率高
   4. 跨进程传递时，对象会被序列化/反序列化
@@ -2157,82 +1370,44 @@
 
 ### 10.2 共享内存 (MemoryFile)
 
+MemoryFile 是历史封装，其 getFileDescriptor 为非 SDK 接口。Android 17 应用侧使用公开 `android.os.SharedMemory`（API 27+），把它作为 Parcelable 经 Binder/Bundle 传递，不必反射 FD。
+
+```java
+// 发送方：先写完再限制为只读，最后发送，示例为一次发布而非可变共享协议。
+SharedMemory memory = SharedMemory.create("payload", bytes.length);
+ByteBuffer writable = memory.mapReadWrite();
+try {
+    writable.put(bytes);
+} finally {
+    SharedMemory.unmap(writable);
+}
+if (!memory.setProtect(OsConstants.PROT_READ)) {
+    memory.close();
+    throw new IOException("Unable to protect shared memory");
+}
+Bundle data = new Bundle();
+data.putParcelable("memory", memory);
+// 将 data 通过自有 AIDL/Messenger 发送；传输完成后 close 本地 memory。
+
+// 接收方（取得自己的 SharedMemory/FD 所有权）：
+SharedMemory received = data.getParcelable("memory", SharedMemory.class);
+if (received == null) throw new IllegalArgumentException("missing memory");
+ByteBuffer readable = received.mapReadOnly();
+try {
+    // 按协议边界解析，验证长度和版本；不让发送方控制越界访问。
+} finally {
+    SharedMemory.unmap(readable);
+    received.close();
+}
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         共享内存 (MemoryFile)                               │
-└─────────────────────────────────────────────────────────────────────────────┘
 
-  特点：
-  ─────────────────────────────────────────────────────────────────────────────
-  - 零拷贝，性能最高
-  - 适用于大数据传输
-  - 需要自行处理同步问题
+发送方 buffer 写入本身仍是内存写/拷贝，“零拷贝”指不再把整个 payload 通过 Binder 中转。只读发布需要先取消已有可写映射，setProtect 不会倒过来撤销既存映射的写权限；可变共享数据则必须设计跨进程同步和版本/长度一致性协议。
 
-
-  使用示例：
-  ─────────────────────────────────────────────────────────────────────────────
-
-  // 创建共享内存
-  public class SharedMemory {
-      
-      private MemoryFile mMemoryFile;
-      private ParcelFileDescriptor mPfd;
-      
-      public SharedMemory(String name, int size) throws IOException {
-          mMemoryFile = new MemoryFile(name, size);
-          
-          // 获取文件描述符
-          Method method = MemoryFile.class.getDeclaredMethod("getFileDescriptor");
-          FileDescriptor fd = (FileDescriptor) method.invoke(mMemoryFile);
-          mPfd = ParcelFileDescriptor.dup(fd);
-      }
-      
-      // 写入数据
-      public void write(byte[] data, int offset, int length) throws IOException {
-          mMemoryFile.writeBytes(data, 0, offset, length);
-      }
-      
-      // 读取数据
-      public void read(byte[] buffer, int offset, int length) throws IOException {
-          mMemoryFile.readBytes(buffer, 0, offset, length);
-      }
-      
-      // 获取 ParcelFileDescriptor (用于跨进程传递)
-      public ParcelFileDescriptor getParcelFileDescriptor() {
-          return mPfd;
-      }
-  }
-
-
-  // 跨进程传递
-  // 进程 A
-  SharedMemory sharedMem = new SharedMemory("my_shared", 1024 * 1024);  // 1MB
-  sharedMem.write(data, 0, data.length);
-  
-  // 传递文件描述符给进程 B
-  Bundle bundle = new Bundle();
-  bundle.putParcelable("shared_fd", sharedMem.getParcelFileDescriptor());
-  intent.putExtras(bundle);
-
-
-  // 进程 B
-  ParcelFileDescriptor pfd = intent.getParcelableExtra("shared_fd");
-  FileDescriptor fd = pfd.getFileDescriptor();
-  
-  // 映射到内存并读取
-  // ...
-
-
-  注意事项：
-  ─────────────────────────────────────────────────────────────────────────────
-  1. 需要处理并发同步（使用信号量或文件锁）
-  2. 使用完毕需要释放资源
-  3. MemoryFile 的 getFileDescriptor() 是隐藏 API，需要反射
-```
+---
 
 ### 10.3 管道 (Pipe)
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         管道 (Pipe)                                         │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -2240,7 +1415,7 @@
   特点：
   ─────────────────────────────────────────────────────────────────────────────
   - 单向通信（半双工）
-  - 只能用于有亲缘关系的进程（父子进程）
+  - 匿名管道需共享端点；端点可经 Binder FD 传给非亲缘进程
   - 在 Android 中较少使用
 
 
@@ -2249,23 +1424,23 @@
 
   // 创建管道
   public class PipeExample {
-      
+
       private ParcelFileDescriptor[] mPipe;
-      
+
       public void createPipe() throws IOException {
           // 创建管道，返回读端和写端
           mPipe = ParcelFileDescriptor.createPipe();
-          
+
           // mPipe[0] - 读端
           // mPipe[1] - 写端
       }
-      
+
       // 写入数据
       public void write(byte[] data) throws IOException {
           FileOutputStream fos = new FileOutputStream(mPipe[1].getFileDescriptor());
           fos.write(data);
       }
-      
+
       // 读取数据
       public byte[] read(int size) throws IOException {
           FileInputStream fis = new FileInputStream(mPipe[0].getFileDescriptor());
@@ -2278,7 +1453,7 @@
 
 ### 10.4 信号 (Signal)
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         信号 (Signal)                                       │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -2310,14 +1485,14 @@
 
   // 发送信号
   Process.sendSignal(pid, Process.SIGNAL_KILL);
-  
+
   // 或使用 shell 命令
   // adb shell kill -9 <pid>
 ```
 
 ### 10.5 消息队列
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         消息队列 (Message Queue)                            │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -2325,7 +1500,7 @@
   特点：
   ─────────────────────────────────────────────────────────────────────────────
   - 异步通信
-  - 消息持久化
+  - 是否持久化由实现决定，Handler/Messenger 不持久化
   - 在 Android 中可以使用第三方库
 
 
@@ -2333,7 +1508,7 @@
   ─────────────────────────────────────────────────────────────────────────────
 
   1. Android 原生 Handler + Messenger
-  2. EventBus（跨进程需要特殊配置）
+  2. 普通 EventBus 只在进程内工作；跨进程需额外 IPC 桥
   3. RabbitMQ / Kafka（需要服务端）
 
 
@@ -2342,20 +1517,20 @@
 
   // 使用 Messenger 实现简单消息队列
   public class MessageQueueService extends Service {
-      
+
       private LinkedBlockingQueue<Message> mQueue = new LinkedBlockingQueue<>();
-      
+
       private Handler mHandler = new Handler(Looper.getMainLooper()) {
           @Override
           public void handleMessage(Message msg) {
               // 将消息放入队列
               mQueue.offer(msg);
-              
+
               // 处理消息
               processMessages();
           }
       };
-      
+
       private void processMessages() {
           while (!mQueue.isEmpty()) {
               Message msg = mQueue.poll();
@@ -2367,7 +1542,9 @@
 
 ### 10.6 信号量 (Semaphore)
 
-```
+下面 `java.util.concurrent.Semaphore` 示例只在**同一进程的线程间**共享许可，不能同步两套进程各自 new 出来的实例。跨进程共享内存需使用具有进程共享语义的 native 同步原语或经 Binder 协议协调；不要据名字相同混淆。
+
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         信号量 (Semaphore)                                  │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -2384,18 +1561,18 @@
 
   // 进程 A
   public class ProcessA {
-      
+
       private Semaphore mSemaphore;
-      
+
       public void init() throws Exception {
           // 创建信号量
           mSemaphore = new Semaphore(1);
       }
-      
+
       public void accessSharedResource() throws InterruptedException {
           // 获取许可
           mSemaphore.acquire();
-          
+
           try {
               // 访问共享资源
           } finally {
@@ -2408,7 +1585,9 @@
 
 ### 10.7 各种 IPC 方式完整对比表
 
-```
+下表拷贝次数仅比较典型用户态 buffered payload 路径，不含序列化/硬件/零拷贝变体；“无限”表示不受单次 Binder payload 的同一限制，并非没有内存、单行 CursorWindow、文件/磁盘等边界。安全性取决于权限、凭据验证和协议，不是 IPC 类型自带统一评分。Messenger 可借 replyTo 双向通信。
+
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    IPC 方式完整对比表                                        │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -2459,21 +1638,21 @@
 
 ### 11.1 TransactionTooLargeException
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    TransactionTooLargeException                            │
 └─────────────────────────────────────────────────────────────────────────────┘
 
   原因：
   ─────────────────────────────────────────────────────────────────────────────
-  Intent 传递的数据超过了 Binder 缓冲区大小 (1M - 8K)
+  接收缓冲区不足：请求或回复太大、多笔在途事务占用均可能触发
 
   解决方案：
   ─────────────────────────────────────────────────────────────────────────────
-  1. 使用 Bundle 限制数据大小
+  1. 控制序列化后的 payload，Bundle 本身不会自动限制大小
   2. 大数据使用文件共享或 ContentProvider
-  3. 使用 EventBus 等事件总线
-  4. 使用单例模式共享数据
+  3. EventBus 仅适用于同进程事件，不替代 IPC
+  4. 单例只在同进程共享，不能替代跨进程数据传输
 
 
   代码示例：
@@ -2488,7 +1667,7 @@
   // 保存到文件
   File tempFile = new File(getCacheDir(), "temp_image.jpg");
   saveBitmapToFile(largeBitmap, tempFile);
-  
+
   // 传递文件路径
   Intent intent = new Intent(this, SecondActivity.class);
   intent.putExtra("image_path", tempFile.getAbsolutePath());
@@ -2497,20 +1676,20 @@
 
 ### 11.2 Binder 线程耗尽
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         Binder 线程耗尽                                     │
 └─────────────────────────────────────────────────────────────────────────────┘
 
   原因：
   ─────────────────────────────────────────────────────────────────────────────
-  16 个 Binder 线程都被阻塞，无法处理新请求
+  当前进程的所有可用 Binder 工作线程都被阻塞，无法处理新请求
 
   解决方案：
   ─────────────────────────────────────────────────────────────────────────────
   1. 避免在 Binder 方法中执行耗时操作
   2. 使用异步方式处理请求
-  3. 使用 oneway 关键字
+  3. oneway 仍占服务端线程；需缩短处理或设计有界异步队列
 
 
   代码示例：
@@ -2528,7 +1707,7 @@
   interface IMyService {
       void getDataAsync(int id, ICallback callback);
   }
-  
+
   // 实现
   public void getDataAsync(int id, ICallback callback) {
       new Thread(() -> {
@@ -2547,7 +1726,7 @@
 
 ### 11.3 Binder 死亡通知
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         Binder 死亡通知                                     │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -2556,9 +1735,9 @@
   ─────────────────────────────────────────────────────────────────────────────
 
   public class MainActivity extends Activity {
-      
+
       private IBinder mRemoteBinder;
-      
+
       private IBinder.DeathRecipient mDeathRecipient = new IBinder.DeathRecipient() {
           @Override
           public void binderDied() {
@@ -2568,16 +1747,16 @@
                   mRemoteBinder.unlinkToDeath(this, 0);
                   mRemoteBinder = null;
               }
-              
+
               runOnUiThread(() -> {
-                  Toast.makeText(MainActivity.this, 
+                  Toast.makeText(MainActivity.this,
                           "Service died", Toast.LENGTH_SHORT).show();
                   // 重新绑定服务
                   rebindService();
               });
           }
       };
-      
+
       private void linkToDeath(IBinder binder) {
           try {
               // ★ 注册死亡通知 ★
@@ -2594,162 +1773,30 @@
 
 ## 12. ServiceManager
 
+系统服务注册中心以名称索引 Binder 引用；handle 0 是 Binder context manager 的特殊入口，不是每个服务都用 0。
+
+```text
+init 启动 /system/bin/servicemanager
+  -> frameworks/native/cmds/servicemanager/main.cpp
+  -> ProcessState::initWithDriver(driver)
+  -> setThreadPoolMaxThreadCount(0)
+  -> 创建 ServiceManager / Access，注册 manager
+  -> IPCThreadState::setTheContextObject(manager)
+  -> becomeContextManager()
+  -> Looper + BinderCallback 的 polling 模式处理 driver 事件
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         ServiceManager 详解                                 │
-│  源码位置: frameworks/native/cmds/servicemanager/                          │
-└─────────────────────────────────────────────────────────────────────────────┘
 
-  ServiceManager 是 Android 系统中 Binder 服务的"管家"：
-  ─────────────────────────────────────────────────────────────────────────────
+这是当前 C++ 实现，不是旧 `service_manager.c -> binder_open(128*1024) -> binder_loop`。它使用 ProcessState 的 mmap 预算，线程请求额度为 0，但主 polling 线程照常处理请求；“0 线程”不能解释成没有任何线程执行。
 
-  ┌─────────────────────────────────────────────────────────────────────────┐
-  │                                                                         │
-  │                        ServiceManager                                   │
-  │  ┌───────────────────────────────────────────────────────────────────┐  │
-  │  │                                                                   │  │
-  │  │    服务注册表                                                      │  │
-  │  │    ┌─────────────────────────────────────────────────────────────┐│  │
-  │  │    │  名称              │  Binder 引用                           ││  │
-  │  │    ├────────────────────┼────────────────────────────────────────┤│  │
-  │  │    │  "activity"        │  ActivityManagerService                ││  │
-  │  │    │  "package"         │  PackageManagerService                 ││  │
-  │  │    │  "window"          │  WindowManagerService                  ││  │
-  │  │    │  "audio"           │  AudioManagerService                   ││  │
-  │  │    │  ...               │  ...                                   ││  │
-  │  │    └────────────────────┴────────────────────────────────────────┘│  │
-  │  │                                                                   │  │
-  │  │    功能:                                                          │  │
-  │  │    1. addService(name, binder) - 注册服务                         │  │
-  │  │    2. getService(name) - 查询服务                                  │  │
-  │  │    3. listServices() - 列出所有服务                                │  │
-  │  │                                                                   │  │
-  │  └───────────────────────────────────────────────────────────────────┘  │
-  │                                                                         │
-  └─────────────────────────────────────────────────────────────────────────┘
+Java `ServiceManager.getService(name)` 先查 sCache，再 `Binder.allowBlocking(rawGetService(name))`；底层代理/兼容包装处理 service manager 协议。addService 经过访问控制、名称检查和 SELinux 等约束，不是普通应用可随意向系统注册任意服务的 SDK。
 
-
-  ServiceManager 启动流程：
-  ─────────────────────────────────────────────────────────────────────────────
-
-  ┌─────────────────────────────────────────────────────────────────────────┐
-  │                                                                         │
-  │  1. init 进程启动 ServiceManager                                        │
-  │     ─────────────────────────────────────────────────────────────────── │
-  │     // init.rc                                                         │
-  │     service servicemanager /system/bin/servicemanager                  │
-  │         class core                                                     │
-  │         user system                                                    │
-  │         critical                                                       │
-  │                                                                         │
-  │  2. ServiceManager 初始化                                               │
-  │     ─────────────────────────────────────────────────────────────────── │
-  │     // frameworks/native/cmds/servicemanager/service_manager.c         │
-  │     int main() {                                                        │
-  │         // 打开 Binder 驱动                                             │
-  │         bs = binder_open(128*1024);  // ★ 128K 缓冲区 ★               │
-  │                                                                         │
-  │         // 注册为上下文管理者                                           │
-  │         ioctl(bs->fd, BINDER_SET_CONTEXT_MGR, 0);                      │
-  │                                                                         │
-  │         // 进入循环                                                     │
-  │         binder_loop(bs, svcmgr_handler);                               │
-  │     }                                                                   │
-  │                                                                         │
-  │  3. 处理请求                                                            │
-  │     ─────────────────────────────────────────────────────────────────── │
-  │     int svcmgr_handler(...) {                                          │
-  │         switch(txn->code) {                                            │
-  │             case SVC_MGR_ADD_SERVICE:                                  │
-  │                 // 注册服务                                             │
-  │                 do_add_service(...);                                   │
-  │                 break;                                                 │
-  │             case SVC_MGR_GET_SERVICE:                                  │
-  │                 // 查询服务                                             │
-  │                 do_find_service(...);                                  │
-  │                 break;                                                 │
-  │         }                                                              │
-  │     }                                                                  │
-  │                                                                         │
-  └─────────────────────────────────────────────────────────────────────────┘
-
-
-  为什么 ServiceManager 缓冲区只有 128K？
-  ─────────────────────────────────────────────────────────────────────────────
-
-  ┌─────────────────────────────────────────────────────────────────────────┐
-  │                                                                         │
-  │  原因：                                                                 │
-  │  1. ServiceManager 只处理服务注册/查询                                   │
-  │  2. 传递的数据量很小（服务名称 + Binder 引用）                            │
-  │  3. 不需要传输大数据                                                    │
-  │  4. 节省内核内存                                                        │
-  │                                                                         │
-  │  对比：                                                                 │
-  │  - ServiceManager: 128K                                                │
-  │  - 普通应用进程: (1M - 8K)                                              │
-  │                                                                         │
-  └─────────────────────────────────────────────────────────────────────────┘
-
-
-  获取 ServiceManager：
-  ─────────────────────────────────────────────────────────────────────────────
-
-  // frameworks/base/core/java/android/os/ServiceManager.java
-  
-  public final class ServiceManager {
-      
-      private static IServiceManager sServiceManager;
-      
-      /**
-       * 获取 ServiceManager 代理
-       */
-      public static IServiceManager getServiceManager() {
-          if (sServiceManager != null) {
-              return sServiceManager;
-          }
-          
-          // ★ 获取 ServiceManager 的 BinderProxy (handle = 0) ★
-          sServiceManager = ServiceManagerNative.asInterface(
-                  BinderInternal.getContextObject());
-          
-          return sServiceManager;
-      }
-      
-      /**
-       * 根据名称获取服务
-       */
-      public static IBinder getService(String name) {
-          try {
-              IBinder service = sCache.get(name);
-              if (service != null) {
-                  return service;
-              }
-              return ServiceManager.getServiceManager().getService(name);
-          } catch (RemoteException e) {
-              Log.e(TAG, "error in getService", e);
-          }
-          return null;
-      }
-      
-      /**
-       * 注册服务
-       */
-      public static void addService(String name, IBinder service) {
-          try {
-              ServiceManager.getServiceManager().addService(name, service, false);
-          } catch (RemoteException e) {
-              Log.e(TAG, "error in addService", e);
-          }
-      }
-  }
-```
+查找成功得到远程 Binder 并不保证下一次 transact 仍存活；缓存需处理死亡和重新获取。把获取服务的动作写成总会阻塞直到存在也不准确，需区分 getService/checkService/waitForService 的具体协议及 lazy service 路径。
 
 ---
 
 ## 13. Messenger
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         Messenger 详解                                      │
 │  源码位置: frameworks/base/core/java/android/os/Messenger.java              │
@@ -2779,25 +1826,25 @@
   ─────────────────────────────────────────────────────────────────────────────
 
   // frameworks/base/core/java/android/os/Messenger.java
-  
+
   public final class Messenger implements Parcelable {
-      
+
       private final IMessenger mTarget;
-      
+
       /**
        * 从 Handler 创建 Messenger
        */
       public Messenger(Handler target) {
           mTarget = target.getIMessenger();
       }
-      
+
       /**
        * 发送消息
        */
       public void send(Message message) throws RemoteException {
           mTarget.send(message);
       }
-      
+
       /**
        * 获取底层的 IBinder
        */
@@ -2818,7 +1865,7 @@
 
   // 服务端
   public class MessengerService extends Service {
-      
+
       // 服务端 Handler
       private Handler mHandler = new Handler(Looper.getMainLooper()) {
           @Override
@@ -2828,13 +1875,13 @@
                       // ★ 收到客户端消息 ★
                       String data = msg.getData().getString("msg");
                       Log.d("Service", "Received: " + data);
-                      
+
                       // 回复客户端
                       Message reply = Message.obtain(null, MSG_FROM_SERVER);
                       Bundle bundle = new Bundle();
                       bundle.putString("reply", "Hello from Service");
                       reply.setData(bundle);
-                      
+
                       try {
                           // ★ 通过客户端的 Messenger 回复 ★
                           msg.replyTo.send(reply);
@@ -2845,10 +1892,10 @@
               }
           }
       };
-      
+
       // 创建 Messenger
       private final Messenger mMessenger = new Messenger(mHandler);
-      
+
       @Override
       public IBinder onBind(Intent intent) {
           // ★ 返回 Messenger 的 Binder ★
@@ -2859,10 +1906,10 @@
 
   // 客户端
   public class MainActivity extends Activity {
-      
+
       private Messenger mServiceMessenger;
       private boolean mBound = false;
-      
+
       // 客户端 Handler (接收服务端回复)
       private Handler mHandler = new Handler(Looper.getMainLooper()) {
           @Override
@@ -2875,33 +1922,33 @@
               }
           }
       };
-      
+
       // 客户端 Messenger
       private Messenger mClientMessenger = new Messenger(mHandler);
-      
+
       private ServiceConnection mConnection = new ServiceConnection() {
           @Override
           public void onServiceConnected(ComponentName name, IBinder service) {
               // ★ 获取服务端 Messenger ★
               mServiceMessenger = new Messenger(service);
               mBound = true;
-              
+
               // 发送消息
               Message msg = Message.obtain(null, MSG_FROM_CLIENT);
               Bundle bundle = new Bundle();
               bundle.putString("msg", "Hello from Client");
               msg.setData(bundle);
-              
+
               // ★ 设置回复 Messenger ★
               msg.replyTo = mClientMessenger;
-              
+
               try {
                   mServiceMessenger.send(msg);
               } catch (RemoteException e) {
                   e.printStackTrace();
               }
           }
-          
+
           @Override
           public void onServiceDisconnected(ComponentName name) {
               mServiceMessenger = null;
@@ -2915,7 +1962,7 @@
 
 ## 14. ContentProvider
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         ContentProvider 详解                                │
 │  源码位置: frameworks/base/core/java/android/content/ContentProvider.java   │
@@ -2946,25 +1993,25 @@
   ─────────────────────────────────────────────────────────────────────────────
 
   public abstract class ContentProvider {
-      
+
       // 初始化
       public abstract boolean onCreate();
-      
+
       // 查询
       public abstract Cursor query(Uri uri, String[] projection,
               String selection, String[] selectionArgs, String sortOrder);
-      
+
       // 插入
       public abstract Uri insert(Uri uri, ContentValues values);
-      
+
       // 更新
       public abstract int update(Uri uri, ContentValues values,
               String selection, String[] selectionArgs);
-      
+
       // 删除
       public abstract int delete(Uri uri, String selection,
               String[] selectionArgs);
-      
+
       // 获取类型
       public abstract String getType(Uri uri);
   }
@@ -3001,7 +2048,7 @@
   ─────────────────────────────────────────────────────────────────────────────
 
   // CursorWindow 使用共享内存传输大数据
-  
+
   ┌─────────────────────────────────────────────────────────────────────────┐
   │                                                                         │
   │  ContentProvider 进程                    Client 进程                    │
@@ -3025,7 +2072,7 @@
 
 ## 15. 文件共享
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         文件共享 IPC                                        │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -3036,6 +2083,8 @@
   - 大文件共享
   - 简单的数据交换
 
+
+  以下演示同一应用的两个进程使用同一路径；不同应用的 getExternalFilesDir 不同且受沙箱保护。跨应用需 FileProvider/ContentProvider 提供 content Uri 并授予读权限，不直接分享私有绝对路径。
 
   实现方式：
   ─────────────────────────────────────────────────────────────────────────────
@@ -3079,7 +2128,7 @@
   ─────────────────────────────────────────────────────────────────────────────
 
   // ⚠️ 注意：SharedPreferences 不支持跨进程安全访问！
-  // Android 7.0 后，MODE_MULTI_PROCESS 已废弃
+  // MODE_MULTI_PROCESS 自 API 23 废弃
 
   // 推荐使用 ContentProvider 或其他 IPC 机制
 ```
@@ -3088,7 +2137,7 @@
 
 ## 16. Socket IPC
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         Socket IPC                                          │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -3100,21 +2149,23 @@
   - 需要跨平台兼容
 
 
+  本地 Socket 只能本机 IPC；此示例仅示意连接，生产代码须用帧长度/循环读取、超时和 try-with-resources，不能假定一次 read 就是一条完整消息。
+
   本地 Socket 示例：
   ─────────────────────────────────────────────────────────────────────────────
 
   // 服务端
   public class LocalSocketServer {
-      
+
       private LocalServerSocket mServerSocket;
-      
+
       public void start() {
           try {
               mServerSocket = new LocalServerSocket("my.socket");
-              
+
               while (true) {
                   LocalSocket client = mServerSocket.accept();
-                  
+
                   // 处理客户端连接
                   new Thread(() -> handleClient(client)).start();
               }
@@ -3122,20 +2173,21 @@
               e.printStackTrace();
           }
       }
-      
+
       private void handleClient(LocalSocket client) {
           try {
               InputStream is = client.getInputStream();
               OutputStream os = client.getOutputStream();
-              
+
               // 读取数据
               byte[] buffer = new byte[1024];
               int len = is.read(buffer);
+              if (len < 0) return; // EOF，不可拿 -1 构造 String
               String msg = new String(buffer, 0, len);
-              
+
               // 回复
               os.write("Received".getBytes());
-              
+
               client.close();
           } catch (IOException e) {
               e.printStackTrace();
@@ -3146,23 +2198,24 @@
 
   // 客户端
   public class LocalSocketClient {
-      
+
       public void connect() {
           try {
               LocalSocket socket = new LocalSocket();
               socket.connect(new LocalSocketAddress("my.socket"));
-              
+
               OutputStream os = socket.getOutputStream();
               InputStream is = socket.getInputStream();
-              
+
               // 发送数据
               os.write("Hello".getBytes());
-              
+
               // 接收回复
               byte[] buffer = new byte[1024];
               int len = is.read(buffer);
+              if (len < 0) return; // 实际协议需循环读满指定帧长度
               String reply = new String(buffer, 0, len);
-              
+
               socket.close();
           } catch (IOException e) {
               e.printStackTrace();
@@ -3175,7 +2228,7 @@
 
 ## 17. Binder 调试技巧
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         Binder 调试技巧                                     │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -3184,7 +2237,7 @@
   ─────────────────────────────────────────────────────────────────────────────
 
   // 查看进程的 Binder 线程
-  adb shell cat /proc/<pid>/status | grep -i binder
+  adb shell ps -T -p <pid>  # thread 名称/状态；访问权限依设备而定
 
 
   2. 查看 Binder 统计信息
@@ -3198,15 +2251,15 @@
   ─────────────────────────────────────────────────────────────────────────────
 
   // 查看所有 Binder 进程
-  adb shell cat /d/binder/proc
+  adb shell ls /d/binder/proc  # 再读取具体 PID 文件
 
 
   4. 查看 Binder 事务
   ─────────────────────────────────────────────────────────────────────────────
 
   // 开启 Binder 事务日志
-  adb shell echo 1 > /d/binder/transaction_log
-  
+  // transaction_log 是调试输出，不能通过 echo 1 当作启用开关
+
   // 查看事务日志
   adb shell cat /d/binder/transaction_log
 
@@ -3216,10 +2269,10 @@
 
   // 查看所有服务
   adb shell service list
-  
+
   // 查看特定服务
   adb shell dumpsys activity
-  
+
   // 查看 Binder 线程池状态
   adb shell dumpsys <service_name>
 
@@ -3228,7 +2281,7 @@
   ─────────────────────────────────────────────────────────────────────────────
 
   错误: TransactionTooLargeException
-  原因: 传输数据超过 1M - 8K
+  原因: payload 太大或共享接收缓冲区不足
   解决: 减少数据量或使用文件共享
 
   错误: DeadObjectException
@@ -3248,7 +2301,7 @@
 
 ## 18. 总结
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         Binder 核心知识点总结                               │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -3269,14 +2322,14 @@
 
   3. Binder 缓冲区大小
   ─────────────────────────────────────────────────────────────────────────────
-  - 普通应用: (1M - 8K)
-  - ServiceManager: 128K
-  - 减去 8K 的原因: 2 个 guard page
+  - 普通 libbinder: 1MiB - 2 * pageSize，共享接收预算
+  - ServiceManager: 当前 C++ ProcessState mmap 预算
+  - 预算减去 2 * runtime page size，不能推断两个实际 guard page
 
 
   4. 线程池
   ─────────────────────────────────────────────────────────────────────────────
-  - 默认大小: 16 (1 主线程 + 15 工作线程)
+  - 默认驱动扩容额度 15，另有首个 PoolThread/主动 join
   - 由 BR_SPAWN_LOOPER 触发创建
 
 
@@ -3314,7 +2367,7 @@
 
 ## 19. Binder 事务生命周期
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         Binder 事务完整生命周期                             │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -3364,350 +2417,77 @@
   └─────────────────────────────────────────────────────────────────────────┘
 
 
-  事务核心数据结构：
-  ─────────────────────────────────────────────────────────────────────────────
-
-  struct binder_transaction {
-      int debug_id;                        // 调试 ID
-      
-      // 发送方信息
-      struct binder_thread *from;          // 发送线程
-      pid_t sender_euid;                   // 发送方 UID (内核填充)
-      pid_t sender_pid;                    // 发送方 PID (内核填充)
-      
-      // 接收方信息
-      struct binder_proc *to_proc;         // 目标进程
-      struct binder_thread *to_thread;     // 目标线程
-      
-      // 事务链
-      struct binder_transaction *from_parent;  // 父事务 (嵌套调用)
-      struct binder_transaction *to_parent;    // 目标父事务
-      
-      // 数据
-      struct binder_buffer *buffer;        // 数据缓冲区
-      unsigned int code;                   // 方法代码
-      unsigned int flags;                  // 标志位
-      
-      // 状态
-      unsigned need_reply:1;               // 是否需要回复
-      unsigned is_nested:1;                // 是否嵌套事务
-  };
-
-
-  事务状态枚举：
-  ─────────────────────────────────────────────────────────────────────────────
-
-  enum transaction_state {
-      TRANSACTION_STATE_NONE = 0,
-      TRANSACTION_STATE_PENDING,      // 等待处理
-      TRANSACTION_STATE_IN_PROGRESS,  // 正在处理
-      TRANSACTION_STATE_COMPLETE,     // 已完成
-      TRANSACTION_STATE_ERROR,        // 错误
-  };
+    buffer 生命周期独立于“业务调用返回”：接收 Parcel 释放后 freeBuffer 写 BC_FREE_BUFFER。
+    事务状态是通过工作队列、同步事务栈、reply 和 buffer 所有权共同表达，
+    驱动没有旧文中 TRANSACTION_STATE_PENDING/IN_PROGRESS/COMPLETE 的统一枚举。
+    嵌套链见第 5 章 binder_transaction.from_parent / to_parent。
 ```
 
 ### 19.1 同步事务 vs 异步事务 (oneway)
 
+| 模式 | 发送方等待 | 服务端结果 | 顺序 |
+|------|------------|------------|------|
+| 同步 | 提交后等 BR_REPLY，同时可执行嵌套入站命令 | reply 中返回值/异常 | 单线程调用的先后关系，不保证不同线程全局顺序 |
+| 远程 oneway | 等驱动提交完成，不等业务回复 | 无业务 reply；提交仍可能失败 | 同一 node 的异步事务串行，同一发送线程有序 |
+| 本地 AIDL 直调 | 普通函数调用 | 普通调用/异常 | 不通过驱动，oneway 不自动异步化 |
+
+```cpp
+// 核心差异在等待目标，不是 oneway 只写 mOut 然后不 flush。
+if ((flags & TF_ONE_WAY) == 0) {
+    Parcel fakeReply;
+    err = waitForResponse(reply ? reply : &fakeReply);
+} else {
+    err = waitForResponse(nullptr, nullptr);
+}
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                    同步事务 vs 异步事务 (oneway)                            │
-└─────────────────────────────────────────────────────────────────────────────┘
 
-  同步事务 (默认)：
-  ─────────────────────────────────────────────────────────────────────────────
+oneway 适合通知/事件、无返回值且允许协议级异步处理的请求。它不适合“必须确认已经执行完成”的调用；同一 node 的有序通知是允许的，因此原文“有顺序依赖一律不适合 oneway”过度绝对。跨 node 或同步/异步混用则需要业务序号/确认机制，不能推导全局顺序。
 
-  ┌─────────────────────────────────────────────────────────────────────────┐
-  │                                                                         │
-  │   Client                                                Server          │
-  │     │                                                     │             │
-  │     │  transact()                                         │             │
-  │     │     │                                               │             │
-  │     │     │  ──── BC_TRANSACTION ────►                    │             │
-  │     │     │                                               │             │
-  │     │     │  阻塞等待                                     │             │
-  │     │     │  ──────────────────────────────────────►      │             │
-  │     │     │                     执行                      │             │
-  │     │     │  ◄─── BR_REPLY ────                           │             │
-  │     │     │                                               │             │
-  │     │     ▼                                               │             │
-  │     │  返回结果                                           │             │
-  │     │                                                     │             │
-  │                                                                         │
-  │  特点：                                                                 │
-  │  - 客户端阻塞等待服务端返回                                              │
-  │  - 可以获取返回值                                                       │
-  │  - 可以抛出异常                                                         │
-  │  - 适用于需要返回值的场景                                                │
-  │                                                                         │
-  └─────────────────────────────────────────────────────────────────────────┘
-
-
-  异步事务 (oneway)：
-  ─────────────────────────────────────────────────────────────────────────────
-
-  // AIDL 定义
-  oneway interface IMyService {
-      void notifyEvent(int event);
-      void sendData(in byte[] data);
-  }
-
-  ┌─────────────────────────────────────────────────────────────────────────┐
-  │                                                                         │
-  │   Client                                                Server          │
-  │     │                                                     │             │
-  │     │  transact()                                         │             │
-  │     │     │                                               │             │
-  │     │     │  ──── BC_TRANSACTION (TF_ONE_WAY) ────►       │             │
-  │     │     │                                               │             │
-  │     │     ▼                                               │             │
-  │     │  立即返回 (不等待)                                   │             │
-  │     │                                                     │             │
-  │     │                                                     │             │
-  │     │                                  ─────────────────► │             │
-  │     │                                        异步执行      │             │
-  │     │                                                     │             │
-  │                                                                         │
-  │  特点：                                                                 │
-  │  - 客户端立即返回，不阻塞                                                │
-  │  - 不能获取返回值                                                       │
-  │  - 不能抛出异常                                                         │
-  │  - 适用于通知、事件等不需要返回的场景                                     │
-  │  - 注意：多个 oneway 调用会排队执行                                      │
-  │                                                                         │
-  └─────────────────────────────────────────────────────────────────────────┘
-
-
-  源码分析：
-  ─────────────────────────────────────────────────────────────────────────────
-
-  // IPCThreadState.cpp
-  
-  status_t IPCThreadState::transact(int32_t handle,
-                                     uint32_t code,
-                                     const Parcel& data,
-                                     Parcel* reply,
-                                     uint32_t flags)
-  {
-      // 检查是否是 oneway
-      if (flags & TF_ONE_WAY) {
-          // oneway：不需要等待回复
-          err = writeTransactionData(BC_TRANSACTION, flags, 
-                                     handle, code, data, NULL);
-          // ★ 立即返回 ★
-          return err;
-      } else {
-          // 同步：需要等待回复
-          err = writeTransactionData(BC_TRANSACTION, flags,
-                                     handle, code, data, reply);
-          // ★ 阻塞等待回复 ★
-          err = waitForResponse(reply);
-          return err;
-      }
-  }
-
-
-  oneway 使用场景：
-  ─────────────────────────────────────────────────────────────────────────────
-
-  ┌─────────────────────────────────────────────────────────────────────────┐
-  │                                                                         │
-  │  ✅ 适合 oneway：                                                        │
-  │  ─────────────────────────────────────────────────────────────────────  │
-  │  - 事件通知 (notifyEvent)                                               │
-  │  - 日志上报 (logEvent)                                                  │
-  │  - 状态更新 (updateStatus)                                              │
-  │  - 不需要返回值的操作                                                    │
-  │                                                                         │
-  │  ❌ 不适合 oneway：                                                      │
-  │  ─────────────────────────────────────────────────────────────────────  │
-  │  - 需要返回值的操作 (getData)                                            │
-  │  - 需要知道执行结果的操作                                                │
-  │  - 需要处理异常的操作                                                    │
-  │  - 有顺序依赖的操作                                                     │
-  │                                                                         │
-  └─────────────────────────────────────────────────────────────────────────┘
-```
+`BR_TRANSACTION_COMPLETE` 不意味着目标处理完成。远端进程冻结、死亡、异步缓冲区不足等仍会影响传输，不能把“无返回值”宣传成永不阻塞、永不失败。
 
 ---
 
 ## 20. Binder 死锁问题
 
+同步 Binder 等待不是只等条件变量：`waitForResponse()` 的 default 分支调用 `executeCommand()`，驱动还利用同步事务栈定向嵌套回调。因此 A -> B -> C -> A 不因“同一个线程正在等 B”就必死锁；同一 Binder 线程等待对端 reply 也不需要另一个空闲池线程接收回复。
+
+真正要分析的是**等待图和业务锁**：
+
+```text
+A:t1 持有锁 L，调用 B
+B 另起任务，调用 A 的对象
+A:t2 处理回调，试图获取 L -> 等 t1
+B 等这个任务完成 -> 等 A:t2
+A:t1 等 B 返回
+形成 t1 -> B -> t2 -> L -> t1 的环
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         Binder 死锁问题详解                                 │
-└─────────────────────────────────────────────────────────────────────────────┘
 
-  死锁场景 1：嵌套 Binder 调用
-  ─────────────────────────────────────────────────────────────────────────────
+若同步事务栈回入同一个 t1，Java synchronized 的可重入性可能避免此特定锁等待，但会让对象在尚未完成的外层状态中被重入，破坏业务不变量。native 非递归锁、跨线程派发、应用层 future.get/latch.await 则可能形成实际死锁。
 
-  ┌─────────────────────────────────────────────────────────────────────────┐
-  │                                                                         │
-  │   进程 A (Client)                进程 B (Server)                进程 C   │
-  │       │                              │                            │     │
-  │       │  1. 调用 B 的方法             │                            │     │
-  │       │  ────────────────────────►   │                            │     │
-  │       │                              │                            │     │
-  │       │  等待 B 返回...              │  2. 在方法中调用 C          │     │
-  │       │                              │  ──────────────────────────►│     │
-  │       │                              │                            │     │
-  │       │                              │  等待 C 返回...            │     │
-  │       │                              │                            │     │
-  │       │                              │                            │     │
-  │       │  3. 如果 C 需要调用 A...     │                            │     │
-  │       │  ◄───────────────────────────────────────────────────────│     │
-  │       │                              │                            │     │
-  │       │  但 A 的 Binder 线程         │                            │     │
-  │       │  正在等待 B 返回！           │                            │     │
-  │       │                              │                            │     │
-  │       │  ★★★ 死锁！★★★             │                            │     │
-  │       │                              │                            │     │
-  │                                                                         │
-  └─────────────────────────────────────────────────────────────────────────┘
-
-
-  死锁场景 2：同一进程内嵌套调用
-  ─────────────────────────────────────────────────────────────────────────────
-
-  ┌─────────────────────────────────────────────────────────────────────────┐
-  │                                                                         │
-  │   进程 A (只有 1 个 Binder 线程)                                         │
-  │  ┌───────────────────────────────────────────────────────────────────┐  │
-  │  │                                                                   │  │
-  │  │  Thread 1 (Binder 线程)                                           │  │
-  │  │  ┌─────────────────────────────────────────────────────────────┐  │  │
-  │  │  │ 1. 收到进程 B 的调用请求                                      │  │  │
-  │  │  │ 2. 在处理过程中，需要调用进程 B 的方法                         │  │  │
-  │  │  │ 3. 等待进程 B 返回...                                         │  │  │
-  │  │  │                                                               │  │  │
-  │  │  │ 问题：进程 B 的回复需要通过 Binder 线程处理                    │  │  │
-  │  │  │       但唯一的 Binder 线程正在等待！                          │  │  │
-  │  │  │                                                               │  │  │
-  │  │  │ ★★★ 死锁！★★★                                               │  │  │
-  │  │  └─────────────────────────────────────────────────────────────┘  │  │
-  │  │                                                                   │  │
-  │  └───────────────────────────────────────────────────────────────────┘  │
-  │                                                                         │
-  └─────────────────────────────────────────────────────────────────────────┘
-
-
-  死锁代码示例：
-  ─────────────────────────────────────────────────────────────────────────────
-
-  // ❌ 危险：可能导致死锁
-  public class MyService extends Service {
-      
-      private IRemoteService mRemoteService;
-      
-      private final IMyService.Stub mBinder = new IMyService.Stub() {
-          
-          @Override
-          public void processData(String data) {
-              // 在 Binder 方法中调用另一个远程服务
-              try {
-                  // ★ 如果 mRemoteService 需要回调这里，就会死锁 ★
-                  String result = mRemoteService.process(data);
-                  // 处理结果...
-              } catch (RemoteException e) {
-                  e.printStackTrace();
-              }
-          }
-      };
-  }
-
-
-  解决方案 1：使用异步调用
-  ─────────────────────────────────────────────────────────────────────────────
-
-  // ✅ 正确：使用异步方式
-  public class MyService extends Service {
-      
-      private final IMyService.Stub mBinder = new IMyService.Stub() {
-          
-          @Override
-          public void processData(String data) {
-              // 在新线程中执行耗时操作
-              new Thread(() -> {
-                  try {
-                      String result = mRemoteService.process(data);
-                      // 处理结果...
-                  } catch (RemoteException e) {
-                      e.printStackTrace();
-                  }
-              }).start();
-          }
-      };
-  }
-
-
-  解决方案 2：使用 oneway
-  ─────────────────────────────────────────────────────────────────────────────
-
-  // AIDL 定义
-  oneway interface IMyService {
-      void processData(String data);
-  }
-
-
-  解决方案 3：增加 Binder 线程数
-  ─────────────────────────────────────────────────────────────────────────────
-
-  // 在 Application 中
-  public class MyApplication extends Application {
-      @Override
-      protected void attachBaseContext(Context base) {
-          super.attachBaseContext(base);
-          // 增加最大线程数
-          try {
-              IBinder binder = ServiceManager.getService("activity");
-              // 通过反射或其他方式设置
-          } catch (Exception e) {
-              e.printStackTrace();
-          }
-      }
-  }
-
-
-  解决方案 4：避免嵌套调用
-  ─────────────────────────────────────────────────────────────────────────────
-
-  // ✅ 最佳实践：重新设计架构，避免嵌套 Binder 调用
-  // 使用回调或事件总线代替
-
-
-  死锁排查方法：
-  ─────────────────────────────────────────────────────────────────────────────
-
-  1. 使用 ANR traces 文件
-     ─────────────────────────────────────────────────────────────────────────
-     adb pull /data/anr/traces.txt
-     
-     查找 "Binder" 相关的线程堆栈
-
-  2. 使用 Debugger
-     ─────────────────────────────────────────────────────────────────────────
-     在 Binder 调用处打断点
-     观察线程状态
-
-  3. 添加日志
-     ─────────────────────────────────────────────────────────────────────────
-     在 Binder 方法入口/出口添加日志
-     追踪调用链
-
-  4. 使用 StrictMode
-     ─────────────────────────────────────────────────────────────────────────
-     StrictMode.setThreadPolicy(
-         new StrictMode.ThreadPolicy.Builder()
-             .detectCustomSlowCalls()
-             .penaltyLog()
-             .build()
-     );
+```java
+// 用状态快照避免持业务锁跨 IPC；返回后再次验证状态是否仍可提交。
+Request snapshot;
+long expectedGeneration;
+synchronized (lock) {
+    snapshot = makeSnapshot();
+    expectedGeneration = generation;
+}
+Response result = remote.process(snapshot); // 不持 lock
+synchronized (lock) {
+    if (generation == expectedGeneration) apply(result);
+    else discardStale(result);
+}
 ```
+
+异步工作队列/oneway 只能消除协议中某些等待边，不能修复“持锁等回调”的整个等待环。增加线程数也不能解决真正的循环等待，SDK 没有通过 ServiceManager.getService("activity") 调整本进程池的公开接口。
+
+排查时抓取所有相关进程的 Binder/业务线程栈与 Perfetto binder_transaction/binder_transaction_received 调度事件，标出每把锁和每个 Future 的拥有者；ANR 文件位置/读取权限依系统配置。StrictMode.detectCustomSlowCalls 需要业务显式 noteSlowCall，不能自动检测所有 Binder 死锁。
 
 ---
 
 ## 21. Binder 对象传递
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         Binder 对象传递详解                                 │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -3749,7 +2529,7 @@
   // 写入
   Parcel parcel = Parcel.obtain();
   parcel.writeStrongBinder(binder);
-  
+
   // 读取
   IBinder binder = parcel.readStrongBinder();
 
@@ -3758,80 +2538,37 @@
   // 写入
   Parcel parcel;
   parcel.writeStrongBinder(binder);
-  
+
   // 读取
   sp<IBinder> binder = parcel.readStrongBinder();
 
 
-  源码分析：
-  ─────────────────────────────────────────────────────────────────────────────
+    源码算法（Parcel.cpp: flattenBinder / unflattenBinder，kernel 分支）：
 
-  // Parcel.cpp
-  
-  status_t Parcel::writeStrongBinder(const sp<IBinder>& val)
-  {
-      return flatten_binder(ProcessState::self(), val, this);
-  }
-  
-  status_t flatten_binder(const sp<ProcessState>& proc,
-                           const sp<IBinder>& binder,
-                           Parcel* out)
-  {
-      flat_binder_object obj;
-      
-      if (binder == NULL) {
-          obj.type = BINDER_TYPE_BINDER;
-          obj.binder = 0;
-          obj.cookie = 0;
-      } else if (binder->localBinder()) {
-          // ★ 本地 Binder (BBinder) ★
-          obj.type = BINDER_TYPE_BINDER;
-          obj.binder = reinterpret_cast<uintptr_t>(binder->getWeakRefs());
-          obj.cookie = reinterpret_cast<uintptr_t>(binder.get());
-      } else {
-          // ★ 远程 Binder (BpBinder) ★
-          obj.type = BINDER_TYPE_HANDLE;
-          obj.handle = binder->getExtension();
-      }
-      
-      return out->writeObject(obj, false);
-  }
+    写入：
+    - 本地 BBinder：obj.hdr.type = BINDER_TYPE_BINDER，binder 字段保存 weakrefs 标识，
+      cookie 保存 local Binder 指针；同时写入接受 FD / SID / 调度相关 flags。
+    - 远程 BpBinder：obj.hdr.type = BINDER_TYPE_HANDLE，handle 来自 binderHandle()，
+      不是 getExtension()（后者表示 Binder 扩展对象）。
+    - null：BINDER_TYPE_BINDER + 零 binder/cookie。
+    - writeObject 写入对象和 offsets 表，finishFlattenBinder 维护稳定性信息。
 
+    驱动：
+    - 根据发送方的 node/ref 找到实体，转换为接收方的 handle；
+    - 如果接收方就是实体拥有者，则还原为本地 ptr/cookie。
 
-  sp<IBinder> Parcel::readStrongBinder() const
-  {
-      sp<IBinder> ret;
-      unflatten_binder(ProcessState::self(), *this, &ret);
-      return ret;
-  }
-  
-  status_t unflatten_binder(const sp<ProcessState>& proc,
-                             const Parcel& in,
-                             sp<IBinder>* out)
-  {
-      const flat_binder_object* flat = in.readObject(false);
-      
-      if (flat) {
-          switch (flat->type) {
-              case BINDER_TYPE_BINDER:
-                  // ★ 本地 Binder ★
-                  *out = reinterpret_cast<IBinder*>(flat->cookie);
-                  return NO_ERROR;
-                  
-              case BINDER_TYPE_HANDLE:
-                  // ★ 远程 Binder：创建 BpBinder ★
-                  *out = proc->getStrongProxyForHandle(flat->handle);
-                  return NO_ERROR;
-          }
-      }
-      
-      return BAD_TYPE;
-  }
+    读取：
+    - BINDER_TYPE_BINDER：按 cookie 恢复本地 sp<IBinder>；
+    - BINDER_TYPE_HANDLE：ProcessState::getStrongProxyForHandle() 获取/复用代理；
+    - finishUnflattenBinder 处理附加元数据。
+
+    老式 flatten_binder(proc, binder, out) 全局函数不是当前函数签名。
+    不能把 RPC Binder 经 kernel Binder 通道直接发送，源码检查并返回 INVALID_OPERATION。
 ```
 
 ### 21.1 文件描述符传递
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         文件描述符传递详解                                  │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -3874,7 +2611,7 @@
 
   // 接收方
   public ParcelFileDescriptor receiveFileDescriptor(Parcel parcel) {
-      ParcelFileDescriptor pfd = ParcelFileDescriptor.Creat(parcel.readFileDescriptor());
+      ParcelFileDescriptor pfd = parcel.readFileDescriptor(); // 接收者负责 close
       return pfd;
   }
 
@@ -3888,22 +2625,22 @@
   parcel.writeFileDescriptor(fd);
 
   // 接收
-  int new_fd = parcel.readFileDescriptor();
+  int new_fd = parcel.readFileDescriptor(); // borrowed，Parcel 存活期内有效；延长寿命需 dup
   // new_fd 与发送方的 fd 不同，但指向同一个文件
 
 
   使用场景：
   ─────────────────────────────────────────────────────────────────────────────
 
-  1. 共享内存 (MemoryFile)
+  1. 共享内存（API 27+ 使用 SharedMemory，下面旧 MemoryFile 反射只作历史说明）
      ─────────────────────────────────────────────────────────────────────────
      // 创建共享内存
      MemoryFile memoryFile = new MemoryFile("shared", 1024);
-     
+
      // 获取文件描述符
      Method method = MemoryFile.class.getDeclaredMethod("getFileDescriptor");
      FileDescriptor fd = (FileDescriptor) method.invoke(memoryFile);
-     
+
      // 传递给其他进程
      ParcelFileDescriptor pfd = ParcelFileDescriptor.dup(fd);
 
@@ -3929,7 +2666,7 @@
 
 ## 22. Binder 调用链追踪
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         Binder 调用链追踪                                   │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -3956,25 +2693,31 @@
       -c - --txt \
       -o /data/misc/perfetto-traces/trace \
       <<EOF
-  
+
   buffers: {
       size_kb: 102400
       fill_policy: RING_BUFFER
   }
-  
+
   data_sources: {
       config {
-          name: "android.binder"
+          name: "linux.ftrace"
+          ftrace_config {
+            ftrace_events: "binder/binder_transaction"
+            ftrace_events: "binder/binder_transaction_received"
+            ftrace_events: "sched/sched_switch"
+            ftrace_events: "sched/sched_waking"
+          }
           target_buffer: 0
       }
   }
-  
+
   duration_ms: 10000
   EOF
-  
+
   // 拉取 trace 文件
   $ adb pull /data/misc/perfetto-traces/trace
-  
+
   // 在 https://ui.perfetto.dev/ 打开分析
 
 
@@ -3983,27 +2726,27 @@
 
   // 自定义 Binder 追踪类
   public class BinderTrace {
-      
+
       private static final String TAG = "BinderTrace";
-      
+
       public static void logBinderCall(String method, long startTime) {
-          long duration = System.currentTimeMillis() - startTime;
+          long duration = SystemClock.elapsedRealtime() - startTime;
           Log.d(TAG, String.format("[%s] duration=%dms, thread=%s",
                   method, duration, Thread.currentThread().getName()));
       }
-      
-      public static void logBinderCall(String method, String target, 
+
+      public static void logBinderCall(String method, String target,
                                         long startTime, boolean success) {
-          long duration = System.currentTimeMillis() - startTime;
+          long duration = SystemClock.elapsedRealtime() - startTime;
           Log.d(TAG, String.format("[%s] target=%s, duration=%dms, success=%b, thread=%s",
-                  method, target, duration, success, 
+                  method, target, duration, success,
                   Thread.currentThread().getName()));
       }
   }
-  
+
   // 使用
   public int getData(int id) throws RemoteException {
-      long startTime = System.currentTimeMillis();
+      long startTime = SystemClock.elapsedRealtime();
       try {
           int result = mRemote.getData(id);
           BinderTrace.logBinderCall("getData", "RemoteService", startTime, true);
@@ -4021,30 +2764,30 @@
   // 使用 AspectJ 追踪 Binder 调用
   @Aspect
   public class BinderTraceAspect {
-      
+
       private static final String TAG = "BinderTrace";
-      
-      @Around("execution(* android.os.IBinder.transact(..))")
+
+      @Around("call(* android.os.IBinder.transact(..))") // 仅织入可控调用点，不能改写 boot classpath 实现
       public Object traceBinderCall(ProceedingJoinPoint joinPoint) throws Throwable {
-          long startTime = System.currentTimeMillis();
+          long startTime = SystemClock.elapsedRealtime();
           Object result = null;
           Throwable error = null;
-          
+
           try {
               result = joinPoint.proceed();
           } catch (Throwable t) {
               error = t;
               throw t;
           } finally {
-              long duration = System.currentTimeMillis() - startTime;
+              long duration = SystemClock.elapsedRealtime() - startTime;
               Object[] args = joinPoint.getArgs();
               int code = (int) args[0];
-              
+
               Log.d(TAG, String.format(
                   "transact: code=%d, duration=%dms, error=%s",
                   code, duration, error != null ? error.getMessage() : "none"));
           }
-          
+
           return result;
       }
   }
@@ -4055,13 +2798,13 @@
 
   // 开始追踪
   Debug.startMethodTracing("binder_trace");
-  
+
   // 执行 Binder 调用
   service.getData(1);
-  
+
   // 停止追踪
   Debug.stopMethodTracing();
-  
+
   // 分析 trace 文件
   // 使用 Android Studio 的 CPU Profiler 打开
   // 文件位置: /sdcard/Android/data/com.example/files/binder_trace.trace
@@ -4071,20 +2814,20 @@
   ─────────────────────────────────────────────────────────────────────────────
 
   public class BinderCallMonitor {
-      
-      private static final ConcurrentHashMap<String, CallStats> sStats = 
+
+      private static final ConcurrentHashMap<String, CallStats> sStats =
           new ConcurrentHashMap<>();
-      
+
       public static class CallStats {
           public long totalCount;
           public long totalTime;
           public long maxTime;
           public long errorCount;
       }
-      
+
       public static void recordCall(String method, long duration, boolean error) {
           CallStats stats = sStats.computeIfAbsent(method, k -> new CallStats());
-          
+
           synchronized (stats) {
               stats.totalCount++;
               stats.totalTime += duration;
@@ -4094,10 +2837,12 @@
               }
           }
       }
-      
+
       public static void printStats() {
           for (Map.Entry<String, CallStats> entry : sStats.entrySet()) {
               CallStats stats = entry.getValue();
+              synchronized (stats) {
+              if (stats.totalCount == 0) continue;
               Log.d("BinderMonitor", String.format(
                   "%s: count=%d, avg=%dms, max=%dms, errors=%d",
                   entry.getKey(),
@@ -4106,6 +2851,7 @@
                   stats.maxTime,
                   stats.errorCount
               ));
+              }
           }
       }
   }
@@ -4115,7 +2861,7 @@
 
 ## 23. Binder 高频面试题
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         Binder 高频面试题                                   │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -4123,11 +2869,11 @@
   Q1: Binder 为什么只需要一次内存拷贝？
   ─────────────────────────────────────────────────────────────────────────────
 
-  A: 
+  A:
   1. 发送方通过 copy_from_user() 将数据拷贝到内核缓冲区
   2. 接收方通过 mmap 将内核缓冲区映射到用户空间
   3. 接收方直接读取映射的内存，无需再次拷贝
-  
+
   对比传统 IPC：
   - Socket/管道: 需要 2 次拷贝（用户→内核→用户）
   - 共享内存: 0 次拷贝，但需要复杂的同步机制
@@ -4140,10 +2886,10 @@
   1. 内核级 UID/PID 验证
      - Binder 驱动在内核中自动填充发送方的 UID/PID
      - 无法在用户空间伪造
-  
+
   2. SELinux 策略
      - 可以限制哪些进程可以访问哪些服务
-  
+
   3. 权限检查
      - 服务端可以检查调用方的 UID/GID
      - 可以通过 checkCallingPermission() 检查权限
@@ -4153,12 +2899,12 @@
   ─────────────────────────────────────────────────────────────────────────────
 
   A:
-  - 普通应用: 约 1M - 8K (实际可用约 1M)
-  - ServiceManager: 128K
-  
+  - 普通 libbinder: 1MiB - 2 * pageSize，在途事务共享，非单笔保证
+  - ServiceManager: 当前 C++ ProcessState mmap 预算
+
   原因:
   1. Binder 使用 mmap 映射内存，需要预留空间
-  2. 减去 8K 是因为需要 2 个 guard page（保护页）
+  2. 减去的是运行时页大小的两倍，4KiB 页下才是 8KiB
   3. 异步事务占用一半空间（约 512K）
 
 
@@ -4166,8 +2912,8 @@
   ─────────────────────────────────────────────────────────────────────────────
 
   A:
-  - 默认最大 16 个线程（1 主线程 + 15 工作线程）
-  - 主线程: BC_ENTER_LOOPER
+  - 默认扩容额度 15，另有首个 PoolThread/主动 join
+  - 主动加入/首个池线程: BC_ENTER_LOOPER（不是 UI main）
   - 工作线程: BC_REGISTER_LOOPER
   - 由 BR_SPAWN_LOOPER 触发创建新线程
   - 线程阻塞在 ioctl() 等待事务
@@ -4186,7 +2932,7 @@
   ─────────────────────────────────────────────────────────────────────────────
 
   A:
-  1. 异步调用，客户端立即返回
+  1. 异步调用，提交完成后返回，不等待业务 reply
   2. 不阻塞等待服务端返回
   3. 不能有返回值
   4. 多个 oneway 调用会排队执行
@@ -4237,13 +2983,13 @@
   - Intent 通过 Binder 传递
   - Binder 缓冲区大小限制约 1M
   - 系统还要预留一部分空间
-  
+
   解决方案:
   1. 使用文件共享
   2. 使用 ContentProvider + Uri
-  3. 使用 EventBus / LiveData
-  4. 使用单例模式共享数据
-  5. 使用 EventBus
+  3. EventBus / LiveData 仅用于同进程内
+  4. 单例只在同进程共享，不能替代跨进程数据传输
+  5. 跨进程大数据可传受控 Uri/FD
 
 
   Q11: 解释 BBinder 和 BpBinder 的区别？
@@ -4255,7 +3001,7 @@
   - 继承自 IBinder
   - 实现 onTransact() 处理请求
   - 对应内核中的 binder_node
-  
+
   BpBinder (Binder 代理对象):
   - 客户端持有
   - 持有 handle (句柄)
@@ -4269,14 +3015,14 @@
   A:
   Parcel:
   - Android 专用序列化容器
-  - 基于 ByteBuffer 实现
+  - Java 包装 native Parcel 缓冲区，不是基于 java.nio.ByteBuffer
   - 读写效率高
   - 用于 Binder IPC
-  
+
   对比 Serializable:
   - Serializable 使用反射，效率低
   - Serializable 产生大量临时对象
-  - Parcel 是 Android 优化的，效率高 10 倍以上
+  - Parcel 针对 IPC 编码，性能与对象/字段和负载相关，没有统一 10 倍保证
   - Parcel 不能用于持久化存储（版本兼容问题）
 
 
@@ -4305,10 +3051,10 @@
           // 注意：在 Binder 线程中执行
       }
   };
-  
+
   // 注册监听
   binder.linkToDeath(deathRecipient, 0);
-  
+
   // 解除监听
   binder.unlinkToDeath(deathRecipient, 0);
 
@@ -4317,7 +3063,7 @@
   ─────────────────────────────────────────────────────────────────────────────
 
   A:
-  1. Java 基本类型: byte, short, int, long, float, double, boolean, char
+  1. AIDL 标量: byte, int, long, float, double, boolean, char
   2. String 和 CharSequence
   3. List (元素必须是支持的类型)
   4. Map (键值必须是支持的类型)
@@ -4329,8 +3075,8 @@
   ─────────────────────────────────────────────────────────────────────────────
 
   A:
-  - Binder 是半双工通信
-  - 一次事务中，只能单向传递
+  - Binder 是支持请求/回复与反向回调的事务式 IPC，不宜直接套用半双工标签
+  - 同步事务包含请求与回复，双方还可并发发起其他事务
   - 需要双向通信时，需要两次事务
   - 或者使用两个 Binder（各自作为 Client 和 Server）
 
@@ -4341,7 +3087,7 @@
   A:
   原因:
   - Intent 传递数据超过 Binder 缓冲区限制
-  
+
   避免:
   1. 不要传递大图片、大文件
   2. 只传递必要的数据
@@ -4359,7 +3105,7 @@
   3. 在目标进程中分配新的 fd
   4. 新 fd 指向同一个 file 对象
   5. 使用 Parcel.readFileDescriptor() 读取
-  
+
   应用场景:
   - 共享内存 (MemoryFile)
   - Socket 传递
@@ -4371,9 +3117,9 @@
 
   A:
   原因:
-  - 16 个 Binder 线程都被阻塞
+  - 当前进程的所有可用 Binder 工作线程都被阻塞
   - 无法处理新的 Binder 请求
-  
+
   避免方法:
   1. 不要在 Binder 方法中执行耗时操作
   2. 耗时操作放到新线程中
@@ -4394,14 +3140,14 @@
   6. IPCThreadState.transact()
   7. writeTransactionData()
   8. ioctl(BINDER_WRITE_READ)
-  
+
   内核层:
   9. binder_ioctl()
   10. binder_transaction()
   11. copy_from_user()
   12. 添加到目标进程 todo 队列
   13. wake_up_interruptible()
-  
+
   Server 端:
   14. IPCThreadState 阻塞返回
   15. executeCommand()
@@ -4411,7 +3157,7 @@
   19. Stub.onTransact()
   20. 执行实际方法
   21. 写入返回值
-  
+
   返回:
   22. 同样流程返回给 Client
 
@@ -4425,9 +3171,9 @@
   │  ─────────────────────────────────────────────────────────────────────  │
   │  1. Binder 是什么，为什么选择 Binder                                    │
   │  2. 一次内存拷贝原理 (mmap)                                             │
-  │  3. Binder 缓冲区大小限制 (1M - 8K)                                     │
+  │  3. Binder 接收预算与在途事务共享限制                                     │
   │  4. AIDL 使用 (Stub/Proxy/asInterface)                                  │
-  │  5. Binder 线程池 (16 个线程)                                           │
+  │  5. Binder 线程池（默认扩容额度与主动加入线程分开计算）                                           │
   │  6. oneway 关键字                                                       │
   │  7. Binder 死锁问题                                                     │
   │                                                                         │
@@ -4447,7 +3193,7 @@
 
 ## 24. Binder 架构图总结
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         Binder 完整架构图                                   │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -4535,3 +3281,17 @@
 
 *Generated by OpenClaw*
 
+
+
+## 固定版本源码索引
+
+本文平台实现基线为 `android-17.0.0_r1`。下列函数用于定位正文分析；代码标为“节选”时省略无关监控，标为“示意”时不是源码逐字复制。
+
+- [ProcessState](https://android.googlesource.com/platform/frameworks/native/+/refs/tags/android-17.0.0_r1/libs/binder/ProcessState.cpp)：`ProcessState; startThreadPool; getStrongProxyForHandle`。
+- [IPCThreadState](https://android.googlesource.com/platform/frameworks/native/+/refs/tags/android-17.0.0_r1/libs/binder/IPCThreadState.cpp)：`transact; waitForResponse; executeCommand; freeBuffer`。
+- [Parcel](https://android.googlesource.com/platform/frameworks/native/+/refs/tags/android-17.0.0_r1/libs/binder/Parcel.cpp)：`flattenBinder; unflattenBinder`。
+- [JNI](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/jni/android_util_Binder.cpp)：`JavaBBinder::onTransact; android_os_BinderProxy_transact; javaObjectForIBinder`。
+- [Binder](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/os/Binder.java)：`execTransact; execTransactInternal; getCallingUid; getCallingPid`。
+- [servicemanager](https://android.googlesource.com/platform/frameworks/native/+/refs/tags/android-17.0.0_r1/cmds/servicemanager/main.cpp)：`main; BinderCallback`。
+- [回调表](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/os/RemoteCallbackList.java)：`register; unregister; beginBroadcast; finishBroadcast`。
+- [驱动独立 commit](https://android.googlesource.com/kernel/common/+/d768b2f486b5e909eb5e489b83059400c3cb2799/drivers/android/binder.c)：`binder_transaction; binder_thread_read; binder_mmap`。

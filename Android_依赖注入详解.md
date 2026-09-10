@@ -38,14 +38,33 @@
   - [4.7 属性注入](#47-属性注入)
   - [4.8 Koin 测试](#48-koin-测试)
   - [4.9 Compose 支持](#49-compose-支持)
+    - [4.9.1 在 Compose 目的地获取 ViewModel](#491-在-compose-目的地获取-viewmodel)
 - [5. Dagger2 详解](#5-dagger2-详解)
   - [5.1 Dagger2 概述](#51-dagger2-概述)
   - [5.2 核心概念](#52-核心概念)
+    - [5.2.1 @Inject - 标记注入点](#521-inject---标记注入点)
+    - [5.2.2 @Module 的三种形式](#522-module-的三种形式)
+    - [5.2.3 @Module + @Provides - 提供依赖](#523-module--provides---提供依赖)
+    - [5.2.4 @Binds - 接口绑定](#524-binds---接口绑定)
+    - [5.2.5 @Component - 连接器](#525-component---连接器)
+    - [5.2.6 Module 和 Component 类型选择总结](#526-module-和-component-类型选择总结)
   - [5.3 自定义 Scope](#53-自定义-scope)
+    - [5.3.1 Scope 定义](#531-scope-定义)
+    - [5.3.2 Scope 规则](#532-scope-规则)
+    - [5.3.3 无 Scope 行为详解](#533-无-scope-行为详解)
+    - [5.3.4 完整 Scope 示例](#534-完整-scope-示例)
   - [5.4 @Qualifier 限定符](#54-qualifier-限定符)
+    - [5.4.1 定义和使用](#541-定义和使用)
   - [5.5 Subcomponent 子组件](#55-subcomponent-子组件)
+    - [5.5.1 Subcomponent 概念](#551-subcomponent-概念)
+    - [5.5.2 Subcomponent 示例](#552-subcomponent-示例)
   - [5.6 Component Dependencies](#56-component-dependencies)
+    - [5.6.1 概念对比](#561-概念对比)
+    - [5.6.2 Dependencies 示例](#562-dependencies-示例)
+    - [5.6.3 选择建议](#563-选择建议)
   - [5.7 依赖提升](#57-依赖提升)
+    - [5.7.1 概念](#571-概念)
+    - [5.7.2 实现示例](#572-实现示例)
   - [5.8 Dagger2 完整示例](#58-dagger2-完整示例)
   - [5.9 Dagger2 vs Hilt](#59-dagger2-vs-hilt)
   - [5.10 常见问题](#510-常见问题)
@@ -1321,10 +1340,14 @@ class MyApplication : Application() {
 
 // ==================== 获取属性 ====================
 class UserRepository {
-    private val apiKey: String by KoinJavaComponent.getKoin().getProperty("api_key")
-    private val debug: Boolean by KoinJavaComponent.getKoin().getProperty("debug", false)
+    private val apiKey: String = requireNotNull(
+        KoinJavaComponent.getKoin().getProperty<String>("api_key")
+    ) { "缺少 api_key 配置" }
+    private val debug: Boolean = KoinJavaComponent.getKoin().getProperty("debug", false)
 }
 ```
+
+`Koin.getProperty<T>(key)` 返回 `T?`，带默认值的重载返回 `T`，两者都不是属性委托。以上在对象创建时读取配置；需要延迟读取时使用 `by lazy { ... }`，需要动态配置时则显式提供 getter。源码：[Koin 3.5.0 官方发布源码包](https://repo.maven.apache.org/maven2/io/insert-koin/koin-core-jvm/3.5.0/koin-core-jvm-3.5.0-sources.jar)，`commonMain/org/koin/core/Koin.kt#getProperty`。
 
 ### 4.8 Koin 测试
 

@@ -1,63 +1,69 @@
 # Android 四大组件详解
 
+> 审阅基线：AOSP `android-17.0.0_r1`；审阅日期：2026-09-10。正文中的调用链为固定 tag 的关键路径分析，省略代码不是可独立编译的完整 AOSP 类；产品开关、权限和设备结果另行验证。
+
+
 > 作者：OpenClaw | 日期：2026-03-09
 
 ---
 
 ## 目录
 
-1. [概述](#1-概述)
-2. [Activity](#2-activity)
-   - 2.1 [Activity 是什么](#21-activity-是什么)
-   - 2.2 [Activity 生命周期](#22-activity-生命周期)
-   - 2.3 [Activity 启动模式](#23-activity-启动模式)
-   - 2.4 [Activity 任务栈](#24-activity-任务栈)
-   - 2.5 [Activity 启动流程](#25-activity-启动流程)
-   - 2.6 [Activity 常见问题](#26-activity-常见问题)
-3. [Service](#3-service)
-   - 3.1 [Service 是什么](#31-service-是什么)
-   - 3.2 [Service 生命周期](#32-service-生命周期)
-   - 3.3 [Service 类型](#33-service-类型)
-   - 3.4 [Service 启动方式](#34-service-启动方式)
-   - 3.5 [Service 与 Thread 区别](#35-service-与-thread-区别)
-   - 3.6 [Service 常见问题](#36-service-常见问题)
-4. [BroadcastReceiver](#4-broadcastreceiver)
-   - 4.1 [BroadcastReceiver 是什么](#41-broadcastreceiver-是什么)
-   - 4.2 [广播类型](#42-广播类型)
-   - 4.3 [广播注册方式](#43-广播注册方式)
-   - 4.4 [广播发送方式](#44-广播发送方式)
-   - 4.5 [广播权限控制](#45-广播权限控制)
-   - 4.6 [广播限制](#46-广播限制)
-   - 4.7 [常用系统广播](#47-常用系统广播)
-   - 4.8 [本地广播 LocalBroadcastManager](#48-本地广播-localbroadcastmanager)
-   - 4.9 [广播原理](#49-广播原理)
-   - 4.10 [BroadcastReceiver 常见问题](#410-broadcastreceiver-常见问题)
-5. [ContentProvider](#5-contentprovider)
-   - 5.1 [ContentProvider 是什么](#51-contentprovider-是什么)
-   - 5.2 [ContentProvider 原理](#52-contentprovider-原理)
-   - 5.3 [ContentProvider 启动流程](#53-contentprovider-启动流程经典面试题)
-   - 5.4 [Application 启动流程](#54-application-启动流程)
-   - 5.5 [ContentProvider 核心方法](#55-contentprovider-核心方法)
-   - 5.6 [自定义 ContentProvider 完整示例](#56-自定义-contentprovider-完整示例)
-   - 5.7 [UriMatcher 使用](#57-urimatcher-使用)
-   - 5.8 [ContentObserver 监听数据变化](#58-contentobserver-监听数据变化)
-   - 5.9 [批量操作](#59-批量操作)
-   - 5.10 [ContentProvider 权限控制](#510-contentprovider-权限控制)
-   - 5.11 [ContentProvider 与 Room](#511-contentprovider-与-room)
-   - 5.12 [常用系统 ContentProvider](#512-常用系统-contentprovider)
-   - 5.13 [ContentProvider 常见问题](#513-contentprovider-常见问题)
-6. [四大组件对比](#6-四大组件对比)
-7. [进程间通信 IPC](#7-进程间通信-ipc)
-8. [常见问题](#8-常见问题)
-9. [知识体系总结](#9-知识体系总结)
-10. [资深工程师深度解析](#10-资深工程师深度解析)
-    - 10.1 [四大组件与进程生命周期](#101-四大组件与进程生命周期)
-    - 10.2 [组件间通信最佳实践](#102-组件间通信最佳实践)
-    - 10.3 [四大组件常见踩坑](#103-四大组件常见踩坑)
-    - 10.4 [组件化架构中的四大组件](#104-组件化架构中的四大组件)
-    - 10.5 [四大组件性能优化](#105-四大组件性能优化)
-    - 10.6 [Android 版本演进对四大组件的影响](#106-android-版本演进对四大组件的影响)
-11. [面试高频题精选](#11-面试高频题精选)
+- [1. 概述](#1-概述)
+- [2. Activity](#2-activity)
+  - [2.1 Activity 是什么](#21-activity-是什么)
+  - [2.2 Activity 生命周期](#22-activity-生命周期)
+  - [2.3 Activity 启动模式](#23-activity-启动模式)
+  - [2.4 Activity 任务栈](#24-activity-任务栈)
+  - [2.5 Activity 启动流程](#25-activity-启动流程)
+    - [状态保存的版本边界](#状态保存的版本边界)
+  - [2.6 Activity 常见问题](#26-activity-常见问题)
+- [3. Service](#3-service)
+  - [3.1 Service 是什么](#31-service-是什么)
+  - [3.2 Service 生命周期](#32-service-生命周期)
+    - [绑定缓存、重绑定与非保证回调](#绑定缓存重绑定与非保证回调)
+  - [3.3 Service 类型](#33-service-类型)
+  - [3.4 Service 启动方式](#34-service-启动方式)
+  - [3.5 Service 与 Thread 区别](#35-service-与-thread-区别)
+  - [3.6 Service 常见问题](#36-service-常见问题)
+- [4. BroadcastReceiver](#4-broadcastreceiver)
+  - [4.1 BroadcastReceiver 是什么](#41-broadcastreceiver-是什么)
+  - [4.2 广播类型](#42-广播类型)
+  - [4.3 广播注册方式](#43-广播注册方式)
+  - [4.4 广播发送方式](#44-广播发送方式)
+  - [4.5 广播权限控制](#45-广播权限控制)
+  - [4.6 广播限制](#46-广播限制)
+  - [4.7 常用系统广播](#47-常用系统广播)
+  - [4.8 本地广播 LocalBroadcastManager](#48-本地广播-localbroadcastmanager)
+  - [4.9 广播原理](#49-广播原理)
+  - [4.10 BroadcastReceiver 常见问题](#410-broadcastreceiver-常见问题)
+- [5. ContentProvider](#5-contentprovider)
+  - [5.1 ContentProvider 是什么](#51-contentprovider-是什么)
+  - [5.2 ContentProvider 原理](#52-contentprovider-原理)
+  - [5.3 ContentProvider 启动流程（经典面试题）](#53-contentprovider-启动流程经典面试题)
+  - [5.4 Application 启动流程](#54-application-启动流程)
+  - [5.5 ContentProvider 核心方法](#55-contentprovider-核心方法)
+  - [5.6 自定义 ContentProvider 示例与 URI 约束](#56-自定义-contentprovider-示例与-uri-约束)
+  - [5.7 UriMatcher 使用](#57-urimatcher-使用)
+  - [5.8 ContentObserver 监听数据变化](#58-contentobserver-监听数据变化)
+  - [5.9 批量操作](#59-批量操作)
+    - [批量原子性与通知时机](#批量原子性与通知时机)
+  - [5.10 ContentProvider 权限控制](#510-contentprovider-权限控制)
+  - [5.11 ContentProvider 与 Room](#511-contentprovider-与-room)
+  - [5.12 常用系统 ContentProvider](#512-常用系统-contentprovider)
+  - [5.13 ContentProvider 常见问题](#513-contentprovider-常见问题)
+- [6. 四大组件对比](#6-四大组件对比)
+- [7. 进程间通信 IPC](#7-进程间通信-ipc)
+- [8. 常见问题](#8-常见问题)
+- [9. 知识体系总结](#9-知识体系总结)
+- [10. 资深工程师深度解析](#10-资深工程师深度解析)
+  - [10.1 四大组件与进程生命周期](#101-四大组件与进程生命周期)
+  - [10.2 组件间通信最佳实践](#102-组件间通信最佳实践)
+  - [10.3 四大组件常见踩坑](#103-四大组件常见踩坑)
+  - [10.4 组件化架构中的四大组件](#104-组件化架构中的四大组件)
+  - [10.5 四大组件性能优化](#105-四大组件性能优化)
+  - [10.6 Android 版本演进对四大组件的影响](#106-android-版本演进对四大组件的影响)
+- [11. 面试高频题精选](#11-面试高频题精选)
 
 ---
 
@@ -65,7 +71,7 @@
 
 Android 四大组件是 Android 应用的基石，它们分别是：Activity、Service、BroadcastReceiver 和 ContentProvider。每个组件都有其特定的职责和使用场景，理解它们的工作原理和相互关系，是掌握 Android 开发的关键。
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         四大组件概览                                        │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -88,10 +94,10 @@ Android 四大组件是 Android 应用的基石，它们分别是：Activity、S
 
   共同特点：
   ─────────────────────────────────────────────────────────────────────────
-  1. 都需要在 AndroidManifest.xml 中注册
+  1. Activity/Service/Provider 及静态 Receiver 需在 Manifest 注册；动态 Receiver 例外
   2. 都有独立的生命周期
   3. 都可以跨进程通信
-  4. 都由系统管理（AMS/PMS）
+  4. 由系统注册/调度（Activity 主要 ATMS，其他主要 AMS；PMS 负责包解析）
 ```
 
 ---
@@ -100,7 +106,7 @@ Android 四大组件是 Android 应用的基石，它们分别是：Activity、S
 
 ### 2.1 Activity 是什么
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         Activity 定义                                       │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -128,7 +134,7 @@ Android 四大组件是 Android 应用的基石，它们分别是：Activity、S
   Activity
     └── Window (PhoneWindow)
           └── DecorView (FrameLayout)
-                ├── StatusBar
+                ├── 状态栏区域的装饰/背景（不是 SystemUI 状态栏窗口）
                 ├── TitleView (optional)
                 └── ContentView (FrameLayout, id=content)
                       └── 用户布局
@@ -136,7 +142,7 @@ Android 四大组件是 Android 应用的基石，它们分别是：Activity、S
 
 ### 2.2 Activity 生命周期
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         Activity 生命周期                                   │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -157,7 +163,7 @@ Android 四大组件是 Android 应用的基石，它们分别是：Activity、S
   │         │                                                              │
   │         ▼                                                              │
   │    ┌──────────┐                                                        │
-  │    │ onResume │  ← 可交互：获得焦点，可交互                              │
+  │    │ onResume │  ← RESUMED：可交互状态，不保证窗口焦点                              │
   │    └────┬─────┘                                                        │
   │         │        ┌─────────────────────────────────┐                   │
   │         │        │     Activity Running            │                   │
@@ -182,7 +188,7 @@ Android 四大组件是 Android 应用的基石，它们分别是：Activity、S
   └─────────────────────────────────────────────────────────────────────────┘
 ```
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         生命周期场景分析                                    │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -221,14 +227,17 @@ Android 四大组件是 Android 应用的基石，它们分别是：Activity、S
     ② B.onCreate()  → B.onStart()  → B.onResume()   ← B 完整启动
     ③ A.onStop()                   ← A 确认 B 已显示后才停止
 
-    ⚠️ 关键点：A.onPause() 和 B.onResume() 不能同时执行，
-       旧 Activity 的 onPause 先执行完，新 Activity 才会 onResume。
-       因此不要在 onPause 中做耗时操作，否则会阻塞新 Activity 的显示。
+    ⚠️ 以上描述同一任务/显示区域中正常非透明页面切换的典型顺序，
+不是跨进程、跨窗口的全局串行契约。Android 17 的服务端相关路径在
+TaskFragment.startPausing()/completePause()，而不是 ActivityStack.java。
 
-    ⚠️ 源码依据：ActivityStack.java 中的 completePauseLocked() 方法
-       会触发新 Activity 的启动，确保旧 Activity 先 pause 再 resume 新的。
+普通路径会等待旧页面 pause 完成，再推进目标 resumed；但存在 pause 超时、
+resume-while-pausing、跨任务及多窗口 multi-resume 分支。窗口焦点也不等于
+RESUMED：Activity 已 resumed 时可短暂没有焦点，多窗口中可有多个 resumed。
+独占资源还应依据 onTopResumedActivityChanged、窗口焦点与具体 API 契约协调。
+不要在 onPause 执行持久化大 I/O，它会阻塞本进程主线程并影响切换。
 
-  【按 Back 键从 B 返回 A 的回调顺序】
+【按 Back 键从 B 返回 A 的回调顺序】
 
     ④ B.onPause()                  ← B 先暂停
     ⑤ A.onRestart() → A.onStart() → A.onResume()   ← A 重新可见并可交互
@@ -284,11 +293,11 @@ Android 四大组件是 Android 应用的基石，它们分别是：Activity、S
   场景7：屏幕旋转
   ─────────────────────────────────────────────────────────────────────────
   onPause → onStop → onDestroy → onCreate → onStart → onResume
-  （相当于销毁重建）
+  （默认未自行处理相关 configChanges 时；进程重建和状态恢复另算）
 
   场景8：按Home键
   ─────────────────────────────────────────────────────────────────────────
-  onPause → onStop（不会 onDestroy）
+  通常 onPause → onStop；后台进程可能被杀，不保证 onDestroy
 
   场景9：从最近任务返回
   ─────────────────────────────────────────────────────────────────────────
@@ -325,13 +334,13 @@ public class MainActivity extends AppCompatActivity {
         super.onResume();
         // Activity 可交互
         // - 恢复暂停的操作
-        // - 获取相机/传感器等独占资源
+        // - 独占资源结合 top-resumed、窗口焦点及具体 API 能力管理
     }
     
     @Override
     protected void onPause() {
         super.onPause();
-        // Activity 失去焦点
+        // Activity 进入 PAUSED；窗口焦点由 onWindowFocusChanged 单独通知
         // - 保存未提交的数据
         // - 释放独占资源
         // - 不要执行耗时操作！
@@ -377,7 +386,7 @@ public class MainActivity extends AppCompatActivity {
 
 ### 2.3 Activity 启动模式
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         Activity 启动模式                                   │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -410,13 +419,13 @@ public class MainActivity extends AppCompatActivity {
   │                                                                         │
   │  3. singleTask（栈内复用）                                              │
   │  ─────────────────────────────────────────────────────────────────────── │
-  │  整个系统中只存在一个实例，如果在栈中存在则复用并清除其上的所有 Activity  │
+  │  在系统选定的 task 中复用目标实例并清除其上页面；不能跨用户/多任务绝对化  │
   │                                                                         │
   │  情况1 - A 已在栈中：                                                   │
   │  任务栈：[A, B, C, D] → 启动 A → [A]（清除 B, C, D，调用 onNewIntent）   │
   │                                                                         │
   │  情况2 - A 不在栈中：                                                   │
-  │  任务栈：[B, C] → 启动 A → [B, C, A]（创建新实例）                       │
+  │  目标不存在时按任务选择、affinity 与 flags 建立/选择 task，不保证追加到 [B,C]                       │
   │                                                                         │
   │  特点：                                                                 │
   │  - 可以指定 taskAffinity，在新任务栈中创建                               │
@@ -428,7 +437,7 @@ public class MainActivity extends AppCompatActivity {
   │                                                                         │
   │  4. singleInstance（单实例）                                            │
   │  ─────────────────────────────────────────────────────────────────────── │
-  │  整个系统中只存在一个实例，且独占一个任务栈                               │
+  │  在对应用户/任务匹配规则内具有独占 task 语义；不要跨用户宣称全局唯一                               │
   │                                                                         │
   │  任务栈1：[A, B, C] → 启动 D(singleInstance)                            │
   │  任务栈1：[A, B, C]                                                     │
@@ -448,14 +457,17 @@ public class MainActivity extends AppCompatActivity {
     android:name=".MainActivity"
     android:launchMode="singleTask" />
     
-<!-- 或使用 Intent Flags -->
+```
+
+```java
+// Intent flags 示例（不与 manifest launchMode 一一等价）
 Intent intent = new Intent(this, MainActivity.class);
 intent.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);      // singleTop
 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);        // singleTask
 intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);       // 清除目标之上的 Activity
 ```
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         常用 Intent Flags                                  │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -476,7 +488,7 @@ intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);       // 清除目标之上的 
 
 ### 2.4 Activity 任务栈
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         Activity 任务栈（Task）                             │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -516,78 +528,59 @@ intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);       // 清除目标之上的 
 
 ### 2.5 Activity 启动流程
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         Activity 启动流程                                   │
-└─────────────────────────────────────────────────────────────────────────────┘
+以需要新建 Activity 实例的普通路径为例，固定 tag 的关键调用关系如下：
 
-  ┌─────────────────────────────────────────────────────────────────────────┐
-  │                                                                         │
-  │  应用进程：                    系统进程：                                │
-  │                                                                         │
-  │  Activity.startActivity()                                               │
-  │         │                                                              │
-  │         ▼                                                              │
-  │  Instrumentation.execStartActivity()                                   │
-  │         │                                                              │
-  │         ▼                                                              │
-  │  ActivityTaskManager.getService()                                      │
-  │  .startActivity()  ───────────────────►  ATMS.startActivity()          │
-  │                                               │                        │
-  │                                               ▼                        │
-  │                                         检查权限                       │
-  │                                               │                        │
-  │                                               ▼                        │
-  │                                         解析 Intent                    │
-  │                                               │                        │
-  │                                               ▼                        │
-  │                                         查找/创建目标进程               │
-  │                                               │                        │
-  │                                               ▼                        │
-  │  ◄───────────────────────────────────────  ApplicationThread            │
-  │         .scheduleTransaction()               .scheduleLaunchActivity()  │
-  │         │                                                              │
-  │         ▼                                                              │
-  │  ActivityThread.handleLaunchActivity()                                  │
-  │         │                                                              │
-  │         ▼                                                              │
-  │  ActivityThread.performLaunchActivity()                                 │
-  │         │                                                              │
-  │         ▼                                                              │
-  │  1. 创建 Activity 实例                                                  │
-  │  2. 创建 PhoneWindow                                                    │
-  │  3. Activity.attach()                                                   │
-  │  4. Activity.onCreate()                                                 │
-  │  5. Activity.onStart()                                                  │
-  │  6. Activity.onResume()                                                 │
-  │                                                                         │
-  └─────────────────────────────────────────────────────────────────────────┘
-
-  关键类：
-  ─────────────────────────────────────────────────────────────────────────
-  - ActivityTaskManagerService (ATMS)：管理 Activity 任务栈（Android 10+）
-  - ActivityManagerService (AMS)：管理 Activity 生命周期
-  - ApplicationThread：应用进程与系统进程通信的 Binder
-  - ActivityThread：应用主线程，管理 Activity 生命周期
-  - Instrumentation：Activity 启动的监控和拦截
+```text
+App: Activity.startActivity -> startActivityForResult
+  -> Instrumentation.execStartActivity
+  -> IActivityTaskManager.startActivity
+system_server:
+  ActivityTaskManagerService -> ActivityStarter.execute
+    -> 解析目标 / 权限与背景启动限制 / task 选择 / 进程准备
+  ActivityTaskSupervisor.realStartActivityLocked
+    -> ClientTransaction: LaunchActivityItem + lifecycle request
+App:
+  IApplicationThread.scheduleTransaction
+    -> ActivityThread.scheduleTransaction -> TransactionExecutor.execute
+      -> LaunchActivityItem.execute -> ActivityThread.handleLaunchActivity
+        -> performLaunchActivity
+           instantiate Activity
+           makeApplicationInner if necessary
+           Activity.attach (inside: PhoneWindow creation)
+           Instrumentation.callActivityOnCreate
+      -> lifecycle items / state path
+           handleStartActivity -> onStart
+           handleResumeActivity -> onResume / window attachment
 ```
+
+`performLaunchActivity()` 不是直接调用 onCreate/onStart/onResume 的一个连续方法；start/resume 由事务执行器补齐目标生命周期。`scheduleLaunchActivity()` 是旧接口名称，不能替代 Android 17 的 scheduleTransaction 路径。
+
+复用实例、透明 Activity、进程已经存在、配置重建与跨显示启动会经过不同分支；上图不是所有启动都 fork 一次。Activity.attach 创建 PhoneWindow，不应把“先在外部创建 PhoneWindow 再 attach”写成实际顺序。
+
+ATMS 管任务与 Activity 服务端生命周期；AMS 管进程及服务/广播/Provider 等。PMS 提供包和组件解析；WMS 协调窗口。客户端真正执行回调的是 ActivityThread/Instrumentation，而不是 system_server 直接调用应用 Java 对象。
+
+#### 状态保存的版本边界
+
+`ActivityThread.performStopActivityInner()` 按 target 判断：需要保存且 target >= 28 时，先完成 onStop，再调用 onSaveInstanceState；旧 target 存在不同顺序。它不是“总在 onStop 之前”。主动 finish、系统直接杀进程等情况不保证保存/销毁回调，因此 Bundle 不能代替持久化存储。
+
+`singleInstancePerTask` 也是现代启动模式：目标 Activity 作为 task root、同一 task 内单实例，但可根据 NEW_DOCUMENT/MULTIPLE_TASK 等规则出现在不同任务中。不能把“四种模式”的旧口诀当成 Android 17 的完整枚举。
 
 ### 2.6 Activity 常见问题
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         Activity 常见问题                                   │
 └─────────────────────────────────────────────────────────────────────────────┘
 
   Q1: onSaveInstanceState 什么时候调用？
   ─────────────────────────────────────────────────────────────────────────
-  A: 在 Activity 可能被系统销毁前调用：
+  A: 在框架需要保存可恢复 UI 状态时调用，不是进程终止通知；以下为常见场景：
      - 按 Home 键
      - 切换到其他应用
      - 屏幕旋转
      - 启动新 Activity
      
-     注意：按 Back 键不会调用，因为这是用户主动退出
+     注意：主动 finish 通常不保存；根 Launcher Activity 的 Back 可能把任务移到后台，不能只按按键名称判断
 
   Q2: onNewIntent 什么时候调用？
   ─────────────────────────────────────────────────────────────────────────
@@ -603,7 +596,7 @@ intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);       // 清除目标之上的 
 
   Q4: Activity 如何传递大数据？
   ─────────────────────────────────────────────────────────────────────────
-  A: Intent 传递数据有大小限制（约 1MB），大数据方案：
+  A: Binder 事务缓冲是进程内在途事务共享预算（常见约 1MiB），不是单个 Intent 可用额度。大数据方案：
      - 使用单例/静态变量
      - 使用 EventBus/RxBus
      - 使用 ViewModel 共享数据
@@ -622,7 +615,7 @@ intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);       // 清除目标之上的 
 
 ### 3.1 Service 是什么
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         Service 定义                                        │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -643,7 +636,7 @@ intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);       // 清除目标之上的 
   - Service 默认在主线程执行（不是子线程！）
   - 耗时操作需要在 Service 内部创建子线程
   - Android 8.0+ 后台 Service 受限
-  - 长时任务需要使用前台服务
+  - 长时任务按用途选择合法前台服务或可调度工作；前台服务不是后台限制通行证
 
   误区：
   ─────────────────────────────────────────────────────────────────────────
@@ -651,12 +644,12 @@ intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);       // 清除目标之上的 
   ✓ Service 在主线程执行，耗时操作需要自己开线程
 
   ❌ Service 可以无限后台运行
-  ✓ Android 8.0+ 后台 Service 会被限制，很快被杀
+  ✓ 后台 Service 启动和存活受限；具体停止/进程回收不能归结为固定几分钟
 ```
 
 ### 3.2 Service 生命周期
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         Service 生命周期                                    │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -670,7 +663,7 @@ intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);       // 清除目标之上的 
   │         │                                                              │
   │         ▼                                                              │
   │    ┌──────────┐                                                        │
-  │    │ onCreate │  ← 创建（只调用一次）                                   │
+  │    │ onCreate │  ← 每个 Service 实例创建一次；进程重建会产生新实例                                   │
   │    └────┬─────┘                                                        │
   │         │                                                              │
   │         ▼                                                              │
@@ -731,14 +724,22 @@ intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);       // 清除目标之上的 
   │                   ↑               ↑                                    │
   │            startService()      bindService()                           │
   │                                                                         │
-  │    销毁条件：stopService() 且 所有客户端 unbindService()                │
+  │    销毁条件：不再 started（stopService/stopSelf 等），且不再有保留服务的有效绑定                │
   │                                                                         │
   └─────────────────────────────────────────────────────────────────────────┘
 ```
 
+#### 绑定缓存、重绑定与非保证回调
+
+`onBind()` 通常针对一组匹配 Intent 的绑定记录调用一次，系统复用返回的 Binder，不是每个客户端绑定都重新调用。最后一个相关绑定释放时调用 `onUnbind()`；如果返回 true 且服务仍存活，后续绑定可能调用 `onRebind()`，不是再次调用 onBind。
+
+Service 同时 started/bound 时，stopService 清除 started 状态但不抹掉有效绑定。进程被杀不会保证执行 onDestroy；START_STICKY 仅表达允许系统在条件满足时重建，并不承诺立即重启，重建时 intent 也可能为 null。
+
+源码对照：`ActiveServices` 管理启动/绑定记录，`ActivityThread.handleCreateService()` 注入 Context 后调用 onCreate，`handleServiceArgs()` 传递 startId 并调用 onStartCommand，`handleBindService()` / `handleUnbindService()` 分发绑定回调。
+
 ### 3.3 Service 类型
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         Service 类型                                        │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -747,7 +748,7 @@ intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);       // 清除目标之上的 
   │     类型         │                      说明                                │
   ├─────────────────┼─────────────────────────────────────────────────────────┤
   │ Started Service  │ startService() 启动，独立运行                           │
-  │                  │ 必须手动停止 stopSelf()                                 │
+  │                  │ 完成后停止 started 状态（stopSelf/stopService）                                 │
   │                  │ 适合：一次性任务                                        │
   ├─────────────────┼─────────────────────────────────────────────────────────┤
   │ Bound Service    │ bindService() 启动，与绑定者生命周期绑定                │
@@ -759,7 +760,7 @@ intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);       // 清除目标之上的 
   │                  │ 适合：用户可感知的长时任务                              │
   ├─────────────────┼─────────────────────────────────────────────────────────┤
   │ Background       │ 后台运行，Android 8.0+ 受限                            │
-  │ Service          │ 几分钟后被杀死                                          │
+  │ Service          │ 后台执行受限，停止服务与杀进程需区分                                          │
   │                  │ 不推荐使用                                              │
   └─────────────────┴─────────────────────────────────────────────────────────┘
 ```
@@ -789,10 +790,10 @@ public class MyStartedService extends Service {
         }).start();
         
         // 返回值说明：
-        // START_STICKY: 被杀后重启，intent 为 null
-        // START_NOT_STICKY: 被杀后不重启
-        // START_REDELIVER_INTENT: 被杀后重启，重新传递 intent
-        return START_STICKY;
+        // START_STICKY: 条件允许时可重建，没有待交付 Intent 时可能传 null
+        // START_NOT_STICKY: 无待处理启动时不因这个结果自动重建
+        // START_REDELIVER_INTENT: 条件允许时重建并重新交付未完成 Intent
+        return START_NOT_STICKY; // 示例一次性任务不依赖空 Intent 重启
     }
     
     @Override
@@ -847,12 +848,13 @@ public class MyBoundService extends Service {
 public class MainActivity extends AppCompatActivity {
     private MyBoundService service;
     private boolean bound = false;
+    private boolean bindingRequested = false;
     
     private ServiceConnection connection = new ServiceConnection() {
         @Override
         public void onServiceConnected(ComponentName name, IBinder service) {
-            LocalBinder binder = (LocalBinder) service;
-            MyBoundService.this.service = binder.getService();
+            MyBoundService.LocalBinder binder = (MyBoundService.LocalBinder) service;
+            MainActivity.this.service = binder.getService();
             bound = true;
         }
         
@@ -866,23 +868,27 @@ public class MainActivity extends AppCompatActivity {
     protected void onStart() {
         super.onStart();
         Intent intent = new Intent(this, MyBoundService.class);
-        bindService(intent, connection, Context.BIND_AUTO_CREATE);
+        bindingRequested = bindService(intent, connection, Context.BIND_AUTO_CREATE);
     }
     
     @Override
     protected void onStop() {
         super.onStop();
-        if (bound) {
+        if (bindingRequested) {
             unbindService(connection);
-            bound = false;
+            bindingRequested = false;
         }
+        bound = false;
+        service = null;
     }
 }
 ```
 
+绑定示例只适用于同进程 LocalBinder，跨进程应使用 AIDL/IBinder 协议。`bindService()` 返回成功与 `onServiceConnected()` 到达是两个阶段，因此必须按 bindingRequested 配对解绑，避免页面在连接回调前退出而泄漏。`onServiceDisconnected()` 表示非正常断连，不是正常 unbind 的必到回调；完整工程还需处理 onNullBinding/onBindingDied 并释放绑定。
+
 ### 3.5 Service 与 Thread 区别
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         Service vs Thread                                   │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -911,7 +917,7 @@ public class MainActivity extends AppCompatActivity {
 
 ### 3.6 Service 常见问题
 
-```
+```text
 Q1: Service 如何执行耗时操作？
 ─────────────────────────────────────────────────────────────────────────
 A: Service 默认在主线程，耗时操作需要：
@@ -923,7 +929,7 @@ A: Service 默认在主线程，耗时操作需要：
 Q2: Android 8.0+ 后台 Service 限制？
 ─────────────────────────────────────────────────────────────────────────
 A: 后台应用无法创建后台 Service：
-   - 使用 startForegroundService() + 5秒内调用 startForeground()
+   - 仅在满足前台服务启动/类型/权限条件时调用 startForegroundService，并立即提升到前台；不要等固定 5 秒预算
    - 使用 WorkManager 替代
 
 Q3: Service 和 IntentService 区别？
@@ -937,7 +943,7 @@ Q4: 如何保证 Service 不被杀死？
 A: 无法完全保证，但可以提高优先级：
    - 使用前台服务（ForegroundService）
    - 返回 START_STICKY
-   - 在 onDestroy 中重启
+   - 不要依赖 onDestroy 中自启保活：回调可能不到达且后台启动可能被拒绝
 ```
 
 ---
@@ -946,7 +952,7 @@ A: 无法完全保证，但可以提高优先级：
 
 ### 4.1 BroadcastReceiver 是什么
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         BroadcastReceiver 定义                              │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -964,9 +970,9 @@ A: 无法完全保证，但可以提高优先级：
   特点：
   ─────────────────────────────────────────────────────────────────────────
   - 无界面组件
-  - onReceive() 在主线程执行
-  - 执行时间有限制（10秒/60秒）
-  - 可以启动 Activity/Service
+  - 默认在主线程执行；动态注册可指定 Handler 调度
+  - 有广播完成期限；普通/前台广播、设备配置与 ANR 调度分支不同
+  - 启动 Activity/Service 仍受后台启动、权限与前台服务限制
 
   注意：
   ─────────────────────────────────────────────────────────────────────────
@@ -976,21 +982,21 @@ A: 无法完全保证，但可以提高优先级：
 
 ### 4.2 广播类型
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         广播类型                                            │
 └─────────────────────────────────────────────────────────────────────────────┘
 
   1. 无序广播（Normal Broadcast）
   ─────────────────────────────────────────────────────────────────────────
-  - 所有接收者同时接收
+  - 没有跨接收者结果传递/执行顺序保证，不承诺同一时刻并行执行
   - 无法拦截，无法修改
   - 效率高
   - sendBroadcast() 发送
 
   2. 有序广播（Ordered Broadcast）
   ─────────────────────────────────────────────────────────────────────────
-  - 按优先级顺序接收
+  - 有序链传递结果；现代版本不应依赖跨进程 priority 全局排序
   - 可以拦截（abortBroadcast）
   - 可以修改数据（setResult）
   - sendOrderedBroadcast() 发送
@@ -1009,51 +1015,60 @@ A: 无法完全保证，但可以提高优先级：
 
 ### 4.3 广播注册方式
 
+静态 receiver 随包安装被解析，但“应用没进程也能唤起”受 stopped 状态、广播豁免、Direct Boot、用户与权限等限制，不是永久无条件有效。
+
+```xml
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <application>
+        <receiver android:name=".BootReceiver" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
+    </application>
+</manifest>
+```
+
 ```java
-/**
- * 静态注册（在 AndroidManifest.xml 中）
- * 特点：应用未运行时也能接收
- */
 public class BootReceiver extends BroadcastReceiver {
-    @Override
-    public void onReceive(Context context, Intent intent) {
+    @Override public void onReceive(Context context, Intent intent) {
         if (Intent.ACTION_BOOT_COMPLETED.equals(intent.getAction())) {
-            // 开机启动
-        }
-    }
-}
-
-<!-- AndroidManifest.xml -->
-<receiver android:name=".BootReceiver" android:exported="true">
-    <intent-filter>
-        <action android:name="android.intent.action.BOOT_COMPLETED" />
-    </intent-filter>
-</receiver>
-
-/**
- * 动态注册（代码中注册）
- * 特点：只在注册后生效，需要手动注销
- */
-public class MainActivity extends AppCompatActivity {
-    private NetworkReceiver networkReceiver;
-    
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        networkReceiver = new NetworkReceiver();
-        IntentFilter filter = new IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION);
-        registerReceiver(networkReceiver, filter);
-    }
-    
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        if (networkReceiver != null) {
-            unregisterReceiver(networkReceiver);
+            // 调度适合的短工作/持久任务；不在这里无条件拉起 Activity/FGS。
         }
     }
 }
 ```
+
+动态注册应按需要明确 exported 属性。以下为 Android 17 同应用广播示例；兼容更低 API 可使用 AndroidX 对应封装，但不把库实现冒充 AOSP：
+
+```java
+public class MainActivity extends Activity {
+    private boolean registered;
+    private final BroadcastReceiver receiver = new BroadcastReceiver() {
+        @Override public void onReceive(Context context, Intent intent) {
+            if ("com.example.DATA_CHANGED".equals(intent.getAction())) {
+                // 校验 payload 后更新轻量状态。
+            }
+        }
+    };
+    @Override protected void onStart() {
+        super.onStart();
+        registerReceiver(receiver, new IntentFilter("com.example.DATA_CHANGED"),
+                Context.RECEIVER_NOT_EXPORTED);
+        registered = true;
+    }
+    @Override protected void onStop() {
+        if (registered) {
+            unregisterReceiver(receiver);
+            registered = false;
+        }
+        super.onStop();
+    }
+}
+```
+
+跨应用或来自某些特权应用进程的广播可能需要 EXPORTED；结合发送者权限和内容校验，不能把 NOT_EXPORTED 当所有系统广播都可接收的万能配置。网络变化优先研究 NetworkCallback，不必为了旧 CONNECTIVITY_ACTION 固定维护广播方案。
 
 ### 4.4 广播发送方式
 
@@ -1102,70 +1117,41 @@ LocalBroadcastManager.getInstance(context)
 
 ```xml
 <!-- 1. 声明权限 -->
-<permission android:name="com.example.MY_PERMISSION" />
+<permission android:name="com.example.MY_PERMISSION" android:protectionLevel="signature" />
 
 <!-- 2. 发送带权限的广播 -->
 <uses-permission android:name="com.example.MY_PERMISSION" />
 ```
 
 ```java
-// 发送方：只有声明了权限的应用才能接收
+// 发送方：只有已获授该权限的接收者才能接收（声明不等于授权）
 sendBroadcast(intent, "com.example.MY_PERMISSION");
 
-// 接收方：只有声明了权限的应用才能发送
-registerReceiver(receiver, filter, "com.example.MY_PERMISSION", null);
+// 接收方：只接受已获授指定权限的发送方
+registerReceiver(receiver, filter, "com.example.MY_PERMISSION", null,
+        Context.RECEIVER_EXPORTED); // 跨应用时仍验证 payload
 ```
 
 ### 4.6 广播限制
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         Android 8.0+ 广播限制                               │
-└─────────────────────────────────────────────────────────────────────────────┘
+Android 8.0 起针对相应 target 限制 manifest 注册的大部分隐式广播；此限制与进程是否活着、包是否 stopped、接收者 exported 和发送权限共同作用。不能把所有系统 action 都列为豁免，也不能把“动态注册”理解为无时效、无权限和无调度限制。
 
-限制原因：
-- 后台应用监听广播会消耗资源
-- 静态注册的广播会在应用未运行时唤醒应用
+典型需要区分的事件：
 
-限制内容：
-- 静态注册的隐式广播不再生效（大部分）
+| 事件 | 关键语义 |
+|---|---|
+| BOOT_COMPLETED | 用户正常启动/解锁阶段的启动广播，需 RECEIVE_BOOT_COMPLETED |
+| LOCKED_BOOT_COMPLETED | Direct Boot 阶段，**用户尚未解锁**；receiver 需 directBootAware，仅访问设备保护存储 |
+| TIME_SET / TIMEZONE_CHANGED / LOCALE_CHANGED | 系统时间/地区变化，按官方豁免与声明条件判断 |
+| MY_PACKAGE_REPLACED | 针对自己的包更新；不等于任意 PACKAGE_REPLACED 都获豁免 |
+| SCREEN_ON / SCREEN_OFF / BATTERY_CHANGED | 不能仅靠 manifest 订阅所有此类事件；核对 Intent 文档的 registered-only 语义 |
+| CONNECTIVITY_ACTION | 历史网络广播，改用适当网络监听 API |
 
-不受限制的广播（可以静态注册）：
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  广播 Action                          │  说明                               │
-├────────────────────────────────────────┼────────────────────────────────────┤
-│  BOOT_COMPLETED                       │  开机完成                           │
-│  LOCKED_BOOT_COMPLETED                │  开机完成且设备已解锁               │
-│  TIMEZONE_CHANGED                     │  时区变化                           │
-│  TIME_SET                             │  时间变化                           │
-│  DATE_CHANGED                         │  日期变化                           │
-│  LOCALE_CHANGED                       │  语言变化                           │
-│  MY_PACKAGE_REPLACED                  │  应用更新（仅自己）                 │
-│  PACKAGE_REPLACED                     │  应用更新（需要权限）               │
-│  PACKAGE_ADDED                        │  应用安装                           │
-│  PACKAGE_REMOVED                      │  应用卸载                           │
-│  ACTION_POWER_CONNECTED               │  连接电源                           │
-│  ACTION_POWER_DISCONNECTED            │  断开电源                           │
-│  BATTERY_LOW                          │  电量低                             │
-│  BATTERY_OKAY                         │  电量恢复                           │
-│  DEVICE_STORAGE_LOW                   │  存储空间低                         │
-│  DEVICE_STORAGE_OK                    │  存储空间恢复                       │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-受限制的广播（需要动态注册）：
-- CONNECTIVITY_ACTION（网络变化）
-- WIFI_STATE_CHANGED（WiFi 状态）
-- SCREEN_ON / SCREEN_OFF（屏幕开关）
-
-解决方案：
-1. 使用动态注册
-2. 使用 JobScheduler / WorkManager 替代
-3. 使用系统 API 替代（如 ConnectivityManager.registerNetworkCallback）
-```
+旧文将 PACKAGE_ADDED、PACKAGE_REPLACED、电源/电池等整表写成“全部不受限制”是不成立的。系统 API 是否允许静态注册，应按该 action 文档与当前广播策略核对；省电、缓存进程延迟、后台活动启动限制也不因 action 属于豁免而取消。
 
 ### 4.7 常用系统广播
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         常用系统广播列表                                    │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1234,7 +1220,7 @@ registerReceiver(receiver, filter, "com.example.MY_PERMISSION", null);
 
 ### 4.8 本地广播 LocalBroadcastManager
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         LocalBroadcastManager                               │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1244,7 +1230,7 @@ registerReceiver(receiver, filter, "com.example.MY_PERMISSION", null);
 - 安全性高，其他应用无法发送/接收
 - 效率高，不经过系统 Binder
 - 不受 Android 8.0+ 限制
-- 不会产生 ANR
+- 不受系统广播完成 ACK 计时，但阻塞主线程仍可能引发输入等 ANR
 
 // 依赖
 implementation 'androidx.localbroadcastmanager:localbroadcastmanager:1.1.0'
@@ -1294,13 +1280,13 @@ public class MainActivity extends AppCompatActivity {
 }
 ```
 
-```
+```text
 推荐替代方案：
 ─────────────────────────────────────────────────────────────────────────
 
 1. LiveData / Flow（推荐）
    - 生命周期感知
-   - 自动取消订阅
+   - Flow 必须结合 repeatOnLifecycle 等收集；不会凭类型自动取消
 
 2. EventBus / RxBus
    - 更灵活的事件总线
@@ -1313,64 +1299,60 @@ public class MainActivity extends AppCompatActivity {
 
 ### 4.9 广播原理
 
+Android 17 固定 tag 的服务端实现是 `BroadcastController`、`BroadcastQueueImpl` 与 `BroadcastProcessQueue` 等，不是只存在 fgQueue/bgQueue 两条旧全局队列，也不是把上一版 `BroadcastQueueModernImpl` 名字照搬过来。
+
+```text
+ContextImpl.sendBroadcast / sendOrderedBroadcast
+  -> AMS Binder entry -> BroadcastController
+       resolve candidates / permission / exported / skip checks
+  -> BroadcastQueueImpl
+       per-process BroadcastProcessQueue, runnable/cold-start scheduling
+  -> manifest receiver:
+       IApplicationThread.scheduleReceiver
+       ActivityThread.handleReceiver -> instantiate/dispatch onReceive
+  -> registered receiver:
+       IIntentReceiver delivery -> LoadedApk.ReceiverDispatcher
+       Handler/Runnable -> onReceive
+  -> PendingResult.finish / finishReceiver -> server completion
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         广播分发原理                                        │
-└─────────────────────────────────────────────────────────────────────────────┘
 
-发送方                      AMS                        接收方
-   │                         │                           │
-   │  sendBroadcast()        │                           │
-   │────────────────────────►│                           │
-   │                         │                           │
-   │                         │  查找匹配的 Receiver      │
-   │                         │  按优先级排序             │
-   │                         │                           │
-   │                         │  无序广播：并行分发       │
-   │                         │  有序广播：串行分发       │
-   │                         │                           │
-   │                         │  scheduleRegisteredReceiver
-   │                         │──────────────────────────►│
-   │                         │                           │
-   │                         │                   onReceive()
-   │                         │                           │
-   │                         │◄──────────────────────────│
-   │                         │     处理完成              │
+`FLAG_RECEIVER_FOREGROUND` 是广播调度/超时分类，不是“接收 App 当前有前台 Activity”。BroadcastQueueImpl 用相应前后台常量构建超时记录，并通过 ANR timer 路径处理；配置、调试器、豁免及调度因素都可能影响结果。不能把任意 onReceive 的预算写死为“10 秒/60 秒”。
 
-关键类：
-- ActivityManagerService (AMS)：管理广播分发
-- BroadcastQueue：管理广播队列
-- BroadcastRecord：广播记录
-- ReceiverList：接收者列表
-- IntentResolver：Intent 匹配
-
-两种 BroadcastQueue：
-- fgQueue：前台广播队列，超时 10 秒
-- bgQueue：后台广播队列，超时 60 秒
-```
+动态注册允许指定调度 Handler，因此其 onReceive 不必永远在主线程；manifest receiver 通常由 ActivityThread 主线程分发。同进程主线程上的普通广播当然不会真的同时运行多个 onReceive。
 
 ### 4.10 BroadcastReceiver 常见问题
 
-```
-Q1: onReceive() 可以执行耗时操作吗？
-A: 不可以，onReceive() 在主线程执行：
-   - 前台广播：10 秒超时
-   - 后台广播：60 秒超时
-   - 超时会导致 ANR
-   
-   解决方案：使用 goAsync() 或启动 Service
+**goAsync 是否自动给 30 秒？** 不。它将 PendingResult 从同步回调移交给异步工作，仍必须在总的广播完成期限内调用 finish；排队等待工作线程的时间也消耗预算。它不是持久任务调度器，进程消失仍会中断工作。
 
-Q2: 动态注册忘记注销会怎样？
-A: 会导致内存泄漏，必须在 onDestroy() 中注销
+```java
+public final class ShortReceiver extends BroadcastReceiver {
+    // 示例由应用生命周期拥有并限制并发的工作执行器。
+    private static final ExecutorService WORK = Executors.newSingleThreadExecutor();
+    @Override public void onReceive(Context context, Intent intent) {
+        PendingResult result = goAsync();
+        try {
+            WORK.execute(() -> {
+                try {
+                    // 只做有界短工作；长任务交给合适的调度器。
+                    processSmallPayload(intent);
+                } finally {
+                    result.finish();
+                }
+            });
+        } catch (RejectedExecutionException failure) {
+            result.finish();
+        }
+    }
+}
 ```
 
----
+`processSmallPayload` 是业务占位方法，示例未编译。生产实现要限制任务队列，避免前序工作占满完成期限。动态注册的注销应与注册作用域配对，不一定只能 onDestroy；如果 onStart 注册，onStop 注销更准确。
 
 ## 5. ContentProvider
 
 ### 5.1 ContentProvider 是什么
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         ContentProvider 定义                                │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1397,337 +1379,91 @@ A: 会导致内存泄漏，必须在 onDestroy() 中注销
 
 ### 5.2 ContentProvider 原理
 
+ContentResolver 先获取目标 IContentProvider，再调用数据接口。AMS/ContentProviderHelper 负责查找或拉起 Provider，并不替每次 query 代理转发 Cursor：
+
+```text
+client ContentResolver.query(uri, ...)
+  -> acquireProvider / acquireUnstableProvider
+       -> ActivityThread.acquireProvider
+       -> AMS.getContentProvider -> ContentProviderHelper
+            resolve authority / permissions / user / process
+            wait for publish if provider process is starting
+       <- IContentProvider binder handle
+  -> IContentProvider.query(...) -----------------> provider process
+                                                    ContentProvider.Transport
+                                                    permission checks
+                                                    provider.query(...)
+  <- cursor adapter / CursorWindow / data
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         ContentProvider 原理                                │
-└─────────────────────────────────────────────────────────────────────────────┘
 
-客户端进程                          系统进程 (AMS)                     服务端进程
-     │                                   │                                  │
-     │  ContentResolver.query()          │                                  │
-     │         │                         │                                  │
-     │         ▼                         │                                  │
-     │  ApplicationContentResolver       │                                  │
-     │         │                         │                                  │
-     │         │  getContentProvider()   │                                  │
-     │         ├────────────────────────►│                                  │
-     │         │                         │                                  │
-     │         │                         │  查找/启动 Provider 进程         │
-     │         │                         │                                  │
-     │         │                         │  IContentProvider.query()        │
-     │         │                         ├─────────────────────────────────►│
-     │         │                         │                                  │
-     │         │                         │                          ContentProvider.query()
-     │         │                         │                                  │
-     │         │                         │◄─────────────────────────────────┤
-     │         │                         │         返回 Cursor              │
-     │         │                         │                                  │
-     │         │◄────────────────────────│                                  │
-     │         │   返回 Cursor           │                                  │
-     │         │                         │                                  │
-     │         ▼                         │                                  │
-     │  返回给调用者                     │                                  │
-
-关键类：
-- ContentResolver：客户端访问入口
-- IContentProvider：Binder 接口
-- ContentProvider：服务端实现
-- ContentProviderNative：Binder Native 层
-
-特点：
-- 通过 Binder 实现跨进程
-- 数据以 Cursor 形式返回
-- 支持批量操作（applyBatch）
-```
+同进程 Provider 可以直接在调用线程执行；跨进程请求通常在 Provider 进程 Binder 线程池执行。`ContentProviderNative` 是 Java Binder Stub，不是“Native C++ 数据库层”。每个 CRUD 方法需要考虑并发与 caller 身份，Provider 自己的 onCreate 则在进程绑定的主线程阶段执行。
 
 ### 5.3 ContentProvider 启动流程（经典面试题）
 
+Provider 不只在其他进程首次访问时创建。应用因 Activity、Service 或广播启动时，`handleBindApplication()` 也会安装本进程所分配的 provider 列表；其他进程访问某 authority 只是拉起该进程的一种触发方式。
+
+固定 tag 中普通、非 restricted-backup 绑定应用路径的顺序是：
+
+```text
+ActivityThread.handleBindApplication(data)
+  -> data.info.makeApplicationInner(data.restrictedBackupMode, null)
+       -> instantiate Application through Instrumentation/AppComponentFactory
+       -> Application.attach(context)
+            -> attachBaseContext(context)
+  -> mInitialApplication = app
+  -> if not restrictedBackupMode and providers non-empty:
+       installContentProviders(app, data.providers)
+         -> for providers assigned to this process:
+              installProvider -> instantiateProvider
+              -> ContentProvider.attachInfo(context, ProviderInfo)
+                   -> provider.onCreate()
+         -> ActivityManager.getService().publishContentProviders(...)
+  -> mInstrumentation.callApplicationOnCreate(app)
+  -> later component transactions/callbacks
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                    ContentProvider 启动流程                                  │
-└─────────────────────────────────────────────────────────────────────────────┘
 
-触发时机：
-─────────────────────────────────────────────────────────────────────────
-当其他进程通过 ContentResolver 访问本进程的 ContentProvider 时，
-如果本进程尚未启动，系统会先启动本进程，然后初始化 ContentProvider。
+**发布发生在 installContentProviders 内，因此早于后续 Application.onCreate。** 不能把 Application.onCreate 同时画在 providers 前和后，也不能写成遍历所有进程的 manifest Provider。Direct Boot、用户状态和 restricted backup 会改变传入列表及是否安装。
 
-启动流程（时序）：
-─────────────────────────────────────────────────────────────────────────
+早发布使外部客户端可能在 Application.onCreate 尚未完成时访问 Provider。Provider 不能依赖 Application.onCreate 才初始化的静态字段；其自身 onCreate 只做轻量准备，数据服务必须能够独立、安全地完成首次访问。
 
-  其他进程                         系统进程 (AMS)                   本进程
-     │                                 │                              │
-     │ ContentResolver.query()        │                              │
-     │        │                        │                              │
-     │        ▼                        │                              │
-     │ ApplicationContentResolver      │                              │
-     │        │                        │                              │
-     │        │ acquireProvider()      │                              │
-     │        ├───────────────────────►│                              │
-     │        │                        │                              │
-     │        │                        │ ① 查找目标 ContentProvider   │
-     │        │                        │    所在进程是否已启动        │
-     │        │                        │                              │
-     │        │                        │ ② 进程未启动 →               │
-     │        │                        │    AMS.startProcessLocked()  │
-     │        │                        ├─────────────────────────────►│
-     │        │                        │                              │
-     │        │                        │                    ③ 进程启动入口
-     │        │                        │                       ActivityThread.main()
-     │        │                        │                              │
-     │        │                        │                    ④ ActivityThread.attach()
-     │        │                        │                              │
-     │        │                        │              ⑤ ┌──────────────────────────┐
-     │        │                        │                │ Application 启动流程：    │
-     │        │                        │                │  a) LoadedApk.makeApplication()
-     │        │                        │                │     → new Application()    │
-     │        │                        │                │  b) Application.attach()   │
-     │        │                        │                │     → attachBaseContext()  │
-     │        │                        │                └──────────────────────────┘
-     │        │                        │                              │
-     │        │                        │              ⑥ installContentProviders()
-     │        │                        │                ┌──────────────────────────────┐
-     │        │                        │                │ 遍历 AndroidManifest.xml 中  │
-     │        │                        │                │ 注册的所有 ContentProvider：  │
-     │        │                        │                │                              │
-     │        │                        │                │ for each provider:            │
-     │        │                        │                │   a) ClassLoader 加载类       │
-     │        │                        │                │   b) ContentProvider.         │
-     │        │                        │                │      attachInfo()             │
-     │        │                        │                │   c) ContentProvider.onCreate()│
-     │        │                        │                └──────────────────────────────┘
-     │        │                        │                              │
-     │        │                        │              ⑦ Application.onCreate()
-     │        │                        │                              │
-     │        │                        │              ⑧ AMS 发布 Provider
-     │        │                        │◄─────────────────────────────│
-     │        │                        │  publishContentProviders()   │
-     │        │                        │                              │
-     │        │                        │ ⑨ 将 IContentProvider       │
-     │        │                        │    注册到 AMS               │
-     │        │                        │                              │
-     │        │◄───────────────────────│                              │
-     │        │ 返回 IContentProvider  │                              │
-     │        │                        │                              │
-     │        ▼                        │                              │
-     │ 通过 Binder 调用               │                              │
-     │ ContentProvider.query()        │                              │
-
-⚠️ 关键顺序（面试高频）：
-─────────────────────────────────────────────────────────────────────────
-
-  Application 构造函数
-        │
-        ▼
-  Application.attachBaseContext()    ← ContextImpl 注入
-        │
-        ▼
-  ContentProvider.attachInfo()       ← Provider 关联 Context
-        │
-        ▼
-  ContentProvider.onCreate()         ← Provider 初始化
-        │
-        ▼
-  Application.onCreate()             ← Application 初始化
-        │
-        ▼
-  Activity/Service.onCreate()        ← 组件创建
-
-  结论：ContentProvider.onCreate() 先于 Application.onCreate() 执行！
-
-源码路径：
-─────────────────────────────────────────────────────────────────────────
-  frameworks/base/core/java/android/app/ActivityThread.java
-    → handleBindApplication()
-      → LoadedApk.makeApplication()     // ⑤ 创建 Application
-      → installContentProviders()        // ⑥ 安装所有 ContentProvider
-      → Application.onCreate()           // ⑦ 回调 Application
-      → ActivityManagerService            // ⑧ 发布到 AMS
-        .publishContentProviders()
-
-  frameworks/base/core/java/android/app/ContentProvider.java
-    → attachInfo()                        // 关联 Context 和 ProviderInfo
-    → onCreate()                          // 子类实现初始化逻辑
-
-⚠️ 面试陷阱：
-─────────────────────────────────────────────────────────────────────────
-  Q: 在 ContentProvider.onCreate() 中能用 getContext() 吗？
-  A: 可以。attachInfo() 在 onCreate() 之前调用，此时 Context 已注入。
-
-  Q: 为什么 ContentProvider 要在 Application.onCreate() 之前初始化？
-  A: 因为其他进程可能在 Application 还没初始化完成时就尝试访问 Provider，
-     系统需要保证 Provider 尽早可用。
-
-  Q: ContentProvider.onCreate() 能做耗时操作吗？
-  A: 绝对不能！它在主线程执行，且阻塞 Application.onCreate()。
-     耗时操作会延迟整个应用的启动速度。
-```
+`ContentProvider` 的真实源码路径是 `core/java/android/content/ContentProvider.java`，不是 android/app。attachInfo 在 onCreate 前注入 Context，因此 onCreate 中可使用 getContext，但不应进行大 I/O 或长阻塞。
 
 ### 5.4 Application 启动流程
 
+```text
+Activity / Service / Receiver / Provider demand
+  -> system resolves component + process
+  -> if missing: process startup through AMS / Zygote machinery
+  -> ActivityThread.main -> main Looper -> attach
+  -> server bindApplication -> ActivityThread.handleBindApplication
+       -> Application construction
+       -> attachBaseContext
+       -> process-local Provider attachInfo/onCreate + publish
+       -> Application.onCreate
+  -> component-specific work
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                      Application 启动流程                                   │
-└─────────────────────────────────────────────────────────────────────────────┘
 
-一、冷启动完整流程
-─────────────────────────────────────────────────────────────────────────
+这张图是责任顺序，不把 `ActivityThread.attach()` 与 makeApplicationInner 描述为同一同步调用栈。Activity 启动入口主要是 ATMS，AMS 承担进程管理，不能继续引用 `ActivityManagerNative.getDefault()` 的旧名称。
 
-  用户点击 App 图标
-        │
-        ▼
-  Launcher.startActivity()
-        │
-        ▼
-  AMS.startActivity()                    ← Binder 调用到系统进程
-        │
-        ▼
-  AMS 解析 Intent，查找目标进程
-        │
-        ├── 进程已存在 → 直接调度 Activity
-        │
-        └── 进程不存在 → ② 创建新进程
-                │
-                ▼
-          Zygote.fork()                  ← 从 Zygote 进程 fork
-                │
-                ▼
-          ActivityThread.main()          ← App 进程入口
-                │
-                ▼
-          ┌─────────────────────────────────────────────────────────┐
-          │                  Application 创建链路                    │
-          │                                                         │
-          │  ActivityThread.main()                                  │
-          │       │                                                 │
-          │       ▼                                                 │
-          │  Looper.prepareMainLooper()   ← 创建主线程 Looper      │
-          │       │                                                 │
-          │       ▼                                                 │
-          │  ActivityThread.attach()      ← 通知 AMS 进程就绪      │
-          │       │                                                 │
-          │       ▼                                                 │
-          │  ┌─ LoadedApk.makeApplication() ─────────────────────┐  │
-          │  │                                                  │  │
-          │  │  1) Instrumentation.newApplication()              │  │
-          │  │       │                                          │  │
-          │  │       ▼                                          │  │
-          │  │     ClassLoader.loadClass()                       │  │
-          │  │       │      ← 加载 Application 子类             │  │
-          │  │       ▼                                          │  │
-      ┌─────── new Application()  ◄─── Application 构造函数     │  │
-      │ │  │       │                                          │  │
-      │ │  │       ▼                                          │  │
-      │ │  │  Application.attach(context)                      │  │
-      │ │  │       │                                          │  │
-      │ │  │       ▼                                          │  │
-      │ │  │  Application.attachBaseContext()  ◄── 最早的回调   │  │
-      │ │  │       │                                          │  │
-      │ │  │       ▼                                          │  │
-      │ │  │  Instrumentation.callApplicationOnCreate()        │  │
-      │ │  │       │                                          │  │
-      │ │  │       ▼                                          │  │
-      │ │  └─ Application.onCreate()  ◄─── 常用初始化入口     ─┘  │
-      │ │         │                                                │
-      │ └─────────┼────────────────────────────────────────────────┘
-      │           │
-      │           ▼
-      │     installContentProviders()  ← 初始化所有 ContentProvider
-      │           │
-      │           ▼
-      │     Application.onCreate() 已经执行完（上面第⑦步）
-      │           │
-      │           ▼
-      │     Activity.onCreate()        ← 第一个 Activity 创建
-      │
-      │ 源码路径：
-      │   frameworks/base/core/java/android/app/ActivityThread.java
-      │     → handleBindApplication()
-      │       → createAppContext()
-      │       → LoadedApk.makeApplication()
-      │       → installContentProviders()
-      │       → mInstrumentation.callApplicationOnCreate()
-      │       → ActivityManagerNative.getDefault()
-      │         .publishContentProviders()
+正常应用每次进程生命周期有自己的 Application 实例；多进程有多个实例，不能用单例跨进程共享状态。测试 instrumentation、特殊加载与系统进程路径另行分析，不将“每个进程一次”扩大到任何场景。
 
-二、Application 生命周期方法完整顺序
-─────────────────────────────────────────────────────────────────────────
+进程优先级不是由“最初是 Activity/Provider/广播启动”永久确定。系统综合当前组件状态、绑定依赖、可见性和调用关系调整 OOM adj；Provider 依赖还可能提升服务端优先级。
 
-  ┌──────────────────────┐
-  │  Application 构造函数  │  ← 最先执行，此时还没有 Context
-  └──────────┬───────────┘
-             │
-             ▼
-  ┌──────────────────────┐
-  │ attachBaseContext()   │  ← Context 注入，最早能用到 Context 的时机
-  └──────────┬───────────┘
-             │
-             ▼
-  ┌──────────────────────────────┐
-  │ ContentProvider.attachInfo()  │
-  │ ContentProvider.onCreate()    │  ← 所有 Provider 依次初始化
-  └──────────┬───────────────────┘
-             │
-             ▼
-  ┌──────────────────────┐
-  │ Application.onCreate() │  ← 常规初始化入口（三方 SDK 初始化等）
-  └──────────┬───────────┘
-             │
-             ▼
-  ┌──────────────────────┐
-  │ Activity/Service      │  ← 四大组件开始工作
-  │ onCreate()            │
-  └──────────────────────┘
-
-三、进程优先级与 Application 的关系
-─────────────────────────────────────────────────────────────────────────
-
-  App 进程被创建的触发方式（按优先级从高到低）：
-
-  1. 前台 Activity 启动              → 可见进程优先级
-  2. startForegroundService()        → 服务进程优先级
-  3. ContentProvider 被访问           → 后台进程优先级（可能被 AMS 杀掉）
-  4. 发送有序广播触发                 → 后台进程优先级
-
-  ⚠️ 无论哪种触发方式，Application 的初始化流程都一样：
-     构造 → attachBaseContext → ContentProvider → onCreate
-
-四、面试高频问题
-─────────────────────────────────────────────────────────────────────────
-
-  Q1: Application 构造函数被调用几次？
-  A: 每个进程只调用一次。多进程 App 中，每个进程都有自己的 Application 实例。
-
-  Q2: attachBaseContext() 和 onCreate() 有什么区别？
-  A: attachBaseContext() 是 Context 注入时机，onCreate() 是初始化时机。
-     如果需要在最早时机获取 Context（如初始化全局数据库），用 attachBaseContext()。
-     大部分场景用 onCreate() 即可。
-
-  Q3: ContentProvider 的初始化为什么插在 attachBaseContext 和 onCreate 之间？
-  A: 源码设计决策。attachBaseContext 先让 Application 获得 Context 能力，
-     然后初始化 ContentProvider（需要 Context），最后才回调 onCreate 给开发者。
-     这保证了开发者在 onCreate 中能正常使用所有 Provider。
-
-  Q4: 多进程情况下如何区分当前进程？
-  A: 在 attachBaseContext() 或 onCreate() 中通过进程名判断：
-
-     String currentProcess = getCurrentProcessName();
-     if (currentProcess.endsWith(":push")) {
-         // 推送进程，只初始化推送 SDK
-     } else {
-         // 主进程，全量初始化
-     }
-
-  Q5: 如何优化 Application 启动速度？
-  A: 1) 延迟初始化：非必须的三方 SDK 移到子线程或首次使用时初始化
-     2) 减少 ContentProvider 数量：每个 Provider 都在主线程初始化
-     3) 使用 App Startup 库统一管理初始化
-     4) 避免在 attachBaseContext() 中做 IO 操作
+```java
+// API 28+ 的公开进程名读取；在附着 Context 后使用上下文相关服务。
+String process = Application.getProcessName();
+if (process.endsWith(":push")) {
+    // 只初始化该进程确实需要的模块。
+} else {
+    // 主进程关键初始化；非关键工作按线程约束延迟处理。
+}
 ```
+
+非必要库可以延迟初始化，但不能盲目移至子线程：某些 SDK/View/Handler 要求主线程。App Startup 的依赖声明能管理同一初始化体系内的顺序，不会消除 Provider 本身，也不保证其他独立 Provider 的任意依赖自然满足。
 
 ### 5.5 ContentProvider 核心方法
 
-```
+```text
 ┌─────────────────┬─────────────────────────────────────────────────────────┐
 │       方法       │                      说明                                │
 ├─────────────────┼─────────────────────────────────────────────────────────┤
@@ -1737,7 +1473,7 @@ A: 会导致内存泄漏，必须在 onDestroy() 中注销
 │ update()         │ 更新数据，返回受影响的行数                               │
 │ delete()         │ 删除数据，返回受影响的行数                               │
 │ getType()        │ 返回 MIME 类型                                          │
-│ call()           │ 自定义方法调用（Android 5.0+）                          │
+│ call()           │ 自定义方法调用（基础 call API 11 起；重载按 API 区分）                          │
 │ bulkInsert()     │ 批量插入                                                │
 │ applyBatch()     │ 批量操作                                                │
 └─────────────────┴─────────────────────────────────────────────────────────┘
@@ -1747,123 +1483,114 @@ MIME 类型格式：
 - 多条记录：vnd.android.cursor.dir/vnd.com.example.users
 ```
 
-### 5.6 自定义 ContentProvider 完整示例
+### 5.6 自定义 ContentProvider 示例与 URI 约束
+
+下面提供可审阅的 CRUD 核心，省略 imports 与具体数据库 schema。`DbHelper` 为应用实现的 SQLiteOpenHelper，建库/迁移须另行实现；不要将其称为复制即编译的完整工程。关键是所有操作验证 URI、单条路径加入 `_id` 限制、绑定参数不拼用户值、Cursor 设置通知 URI。
 
 ```java
-/**
- * 自定义 ContentProvider 完整实现
- */
 public class UserProvider extends ContentProvider {
-    
     private static final String AUTHORITY = "com.example.provider";
-    private static final int USER_DIR = 1;
-    private static final int USER_ITEM = 2;
-    
-    private static final UriMatcher uriMatcher = new UriMatcher(UriMatcher.NO_MATCH);
-    
+    private static final Uri USERS = Uri.parse("content://" + AUTHORITY + "/users");
+    private static final int DIR = 1, ITEM = 2;
+    private static final UriMatcher MATCH = new UriMatcher(UriMatcher.NO_MATCH);
     static {
-        uriMatcher.addURI(AUTHORITY, "users", USER_DIR);
-        uriMatcher.addURI(AUTHORITY, "users/#", USER_ITEM);
+        MATCH.addURI(AUTHORITY, "users", DIR);
+        MATCH.addURI(AUTHORITY, "users/#", ITEM);
     }
-    
-    private SQLiteDatabase db;
-    
-    @Override
-    public boolean onCreate() {
-        // 在主线程调用，不能执行耗时操作
-        DbHelper helper = new DbHelper(getContext());
-        db = helper.getWritableDatabase();
+    private DbHelper helper;
+
+    @Override public boolean onCreate() {
+        helper = new DbHelper(requireContext()); // 不在此打开/迁移数据库。
         return true;
     }
-    
-    @Nullable
-    @Override
-    public Cursor query(@NonNull Uri uri, @Nullable String[] projection,
-                        @Nullable String selection, @Nullable String[] selectionArgs,
-                        @Nullable String sortOrder) {
-        
-        String tableName = getTableName(uri);
-        
-        switch (uriMatcher.match(uri)) {
-            case USER_DIR:
-                return db.query(tableName, projection, selection, 
-                    selectionArgs, null, null, sortOrder);
-            case USER_ITEM:
-                String id = uri.getPathSegments().get(1);
-                return db.query(tableName, projection, "_id = ?", 
-                    new String[]{id}, null, null, sortOrder);
-            default:
-                throw new IllegalArgumentException("Unknown URI: " + uri);
+
+    private int match(Uri uri) {
+        if (!"content".equals(uri.getScheme()) || !AUTHORITY.equals(uri.getAuthority())) {
+            throw new IllegalArgumentException("Wrong authority/scheme");
+        }
+        int kind = MATCH.match(uri);
+        if (kind != DIR && kind != ITEM) throw new IllegalArgumentException("Unknown URI");
+        return kind;
+    }
+
+    // 示例收敛为固定列/排序，拒绝外部传 SQL，避免伪完整的任意表达式接口。
+    private void checkQuery(String[] projection, String selection, String[] args, String order) {
+        if (projection != null || selection != null || args != null || order != null) {
+            throw new IllegalArgumentException("This example only supports fixed queries");
         }
     }
-    
-    @Nullable
-    @Override
-    public Uri insert(@NonNull Uri uri, @Nullable ContentValues values) {
-        String tableName = getTableName(uri);
-        long id = db.insert(tableName, null, values);
-        
-        if (id > 0) {
-            Uri newUri = ContentUris.withAppendedId(uri, id);
-            // 通知数据变化
-            getContext().getContentResolver().notifyChange(newUri, null);
-            return newUri;
-        }
-        return null;
+    private String where(Uri uri) { return match(uri) == ITEM ? "_id=?" : null; }
+    private String[] args(Uri uri) {
+        return match(uri) == ITEM ? new String[]{Long.toString(ContentUris.parseId(uri))} : null;
     }
-    
-    @Override
-    public int update(@NonNull Uri uri, @Nullable ContentValues values,
-                      @Nullable String selection, @Nullable String[] selectionArgs) {
-        String tableName = getTableName(uri);
-        int count = db.update(tableName, values, selection, selectionArgs);
-        
-        if (count > 0) {
-            getContext().getContentResolver().notifyChange(uri, null);
+
+    private ContentValues safeValues(ContentValues input) {
+        if (input == null || input.size() == 0) throw new IllegalArgumentException("Empty values");
+        ContentValues result = new ContentValues();
+        for (String key : input.keySet()) {
+            if ("name".equals(key)) {
+                String name = input.getAsString(key);
+                if (name == null || name.length() > 200) throw new IllegalArgumentException("name");
+                result.put(key, name);
+            } else if ("age".equals(key)) {
+                Integer age = input.getAsInteger(key);
+                if (age == null || age < 0 || age > 150) throw new IllegalArgumentException("age");
+                result.put(key, age);
+            } else {
+                throw new IllegalArgumentException("Unsupported column");
+            }
         }
-        return count;
+        return result;
     }
-    
-    @Override
-    public int delete(@NonNull Uri uri, @Nullable String selection,
-                      @Nullable String[] selectionArgs) {
-        String tableName = getTableName(uri);
-        int count = db.delete(tableName, selection, selectionArgs);
-        
-        if (count > 0) {
-            getContext().getContentResolver().notifyChange(uri, null);
-        }
-        return count;
+
+    @Override public Cursor query(Uri uri, String[] projection, String selection,
+            String[] selectionArgs, String sortOrder) {
+        checkQuery(projection, selection, selectionArgs, sortOrder);
+        Cursor cursor = helper.getReadableDatabase().query("users",
+                new String[]{"_id", "name", "age"}, where(uri), args(uri),
+                null, null, "_id ASC");
+        cursor.setNotificationUri(requireContext().getContentResolver(), USERS);
+        return cursor; // 调用方关闭 Cursor。
     }
-    
-    @Nullable
-    @Override
-    public String getType(@NonNull Uri uri) {
-        switch (uriMatcher.match(uri)) {
-            case USER_DIR:
-                return "vnd.android.cursor.dir/vnd.com.example.users";
-            case USER_ITEM:
-                return "vnd.android.cursor.item/vnd.com.example.user";
-            default:
-                throw new IllegalArgumentException("Unknown URI: " + uri);
-        }
+
+    @Override public Uri insert(Uri uri, ContentValues values) {
+        if (match(uri) != DIR) throw new IllegalArgumentException("Insert requires directory URI");
+        long id = helper.getWritableDatabase().insertOrThrow("users", null, safeValues(values));
+        requireContext().getContentResolver().notifyChange(USERS, null);
+        return ContentUris.withAppendedId(USERS, id);
     }
-    
-    private String getTableName(Uri uri) {
-        return "users";
+
+    @Override public int update(Uri uri, ContentValues values, String selection, String[] suppliedArgs) {
+        checkQuery(null, selection, suppliedArgs, null);
+        int changed = helper.getWritableDatabase().update("users", safeValues(values), where(uri), args(uri));
+        if (changed != 0) requireContext().getContentResolver().notifyChange(USERS, null);
+        return changed;
+    }
+
+    @Override public int delete(Uri uri, String selection, String[] suppliedArgs) {
+        checkQuery(null, selection, suppliedArgs, null);
+        int changed = helper.getWritableDatabase().delete("users", where(uri), args(uri));
+        if (changed != 0) requireContext().getContentResolver().notifyChange(USERS, null);
+        return changed;
+    }
+
+    @Override public String getType(Uri uri) {
+        return match(uri) == DIR ? "vnd.android.cursor.dir/vnd.example.users"
+                                : "vnd.android.cursor.item/vnd.example.user";
     }
 }
 ```
 
+同应用使用可设置 exported=false；若要对外开放，定义并授予所需权限，不能只写一个未声明的权限字符串。目录 URI 的 update/delete 在本示例影响全表，应由产品接口决定是否允许，敏感应用可直接拒绝 DIR 写入。
+
 ```xml
-<!-- AndroidManifest.xml 注册 -->
 <provider
     android:name=".UserProvider"
     android:authorities="com.example.provider"
-    android:exported="true"
-    android:readPermission="com.example.READ_USER"
-    android:writePermission="com.example.WRITE_USER" />
+    android:exported="false" />
 ```
+
+跨进程 query 常在 Binder 线程上执行，但同进程 ContentResolver 调用可直接在调用线程执行，因此数据库首次打开不能依靠“Provider 一定后台”规避主线程 I/O。客户端仍应异步请求，并处理取消与异常。
 
 ### 5.7 UriMatcher 使用
 
@@ -1977,7 +1704,7 @@ public void batchInsert(List<User> users) {
     }
     
     try {
-        // 批量执行，在一个事务中
+        // 批量 IPC；是否单事务由 Provider 实现保证，默认实现不保证
         resolver.applyBatch("com.example.provider", operations);
     } catch (Exception e) {
         e.printStackTrace();
@@ -2002,6 +1729,12 @@ public int bulkInsert(List<User> users) {
 }
 ```
 
+#### 批量原子性与通知时机
+
+`ContentProvider.applyBatch()` 默认逐个应用 operation，`bulkInsert()` 默认循环 insert，不自动开启数据库事务。若需要全成全败，Provider 必须 beginTransaction，执行操作并检查结果，成功后 setTransactionSuccessful，finally 中 endTransaction；只在提交成功后一次 notifyChange。旧例逐条 insert 通知若原样放入事务，可能在回滚前泄露错误的变更信号。
+
+不同数据库或跨 Provider 操作没有自动分布式事务。批量过大仍可能触及 Binder/内存限制，应按业务分块并说明各块是否允许部分成功。
+
 ### 5.10 ContentProvider 权限控制
 
 ```xml
@@ -2009,12 +1742,12 @@ public int bulkInsert(List<User> users) {
 <permission
     android:name="com.example.READ_USER"
     android:label="Read User"
-    android:protectionLevel="normal" />
+    android:protectionLevel="signature" />
     
 <permission
     android:name="com.example.WRITE_USER"
     android:label="Write User"
-    android:protectionLevel="dangerous" />
+    android:protectionLevel="signature" />
 
 <!-- 2. Provider 配置权限 -->
 <provider
@@ -2040,7 +1773,10 @@ public int bulkInsert(List<User> users) {
     <grant-uri-permission android:pathPattern="/users/.*" />
 </provider>
 
-<!-- 客户端通过 Intent 临时获取权限 -->
+```
+
+```java
+// 持有授权能力的发送方通过 Intent 向接收方临时授予 URI 权限
 Intent intent = new Intent();
 intent.setData(Uri.parse("content://com.example.provider/users/123"));
 intent.setFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
@@ -2073,7 +1809,8 @@ public interface UserDao {
 }
 
 // ContentProvider 使用 Room
-public class RoomProvider extends ContentProvider {
+// 节选：仅展示 Room 初始化/query；其他 ContentProvider 抽象方法须完整实现。
+public abstract class RoomProvider extends ContentProvider {
     
     private AppDatabase database;
     
@@ -2094,9 +1831,11 @@ public class RoomProvider extends ContentProvider {
 }
 ```
 
+Room 的 build() 不等于在主线程完成查询。该同步 DAO 在同进程主线程访问时仍可能被 Room 拒绝；不要用 allowMainThreadQueries 掩盖调用线程问题。query 返回 Cursor 要设置通知 URI，写操作也要提供 notifyChange 与权限/URI 校验。
+
 ### 5.12 常用系统 ContentProvider
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         常用系统 ContentProvider                            │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -2104,17 +1843,17 @@ public class RoomProvider extends ContentProvider {
 ┌─────────────────────┬───────────────────────────────────────────────────────┐
 │  Provider           │  URI                                      │  说明     │
 ├─────────────────────┼───────────────────────────────────────────────────────┤
-│  Contacts           │  content://contacts/people               │  联系人   │
+│  Contacts           │  ContactsContract.Contacts.CONTENT_URI               │  联系人   │
 │  CallLog            │  content://call_log/calls                │  通话记录 │
 │  MediaStore.Images  │  content://media/external/images/media   │  图片     │
 │  MediaStore.Video   │  content://media/external/video/media    │  视频     │
 │  MediaStore.Audio   │  content://media/external/audio/media    │  音频     │
 │  MediaStore.Files   │  content://media/external/file           │  文件     │
 │  Calendar           │  content://com.android.calendar/events   │  日历     │
-│  Browser            │  content://browser/bookmarks             │  书签     │
+│  Browser            │  历史 Browser URI（非 17 通用公开契约）             │  书签     │
 │  Settings           │  content://settings/system               │  系统设置 │
 │  UserDictionary     │  content://user_dictionary/words         │  用户词典 │
-│  Downloads          │  content://downloads/my_downloads        │  下载     │
+│  Downloads          │  使用 DownloadManager 公共 API（不要依赖内部 URI）        │  下载     │
 └─────────────────────┴───────────────────────────────────────────────────────┘
 
 // 查询联系人示例
@@ -2128,17 +1867,16 @@ Cursor cursor = getContentResolver().query(
 Cursor cursor = getContentResolver().query(
     MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
     new String[]{MediaStore.Images.Media._ID,
-                 MediaStore.Images.Media.DISPLAY_NAME,
-                 MediaStore.Images.Media.DATA},
+                 MediaStore.Images.Media.DISPLAY_NAME},
     null, null, 
     MediaStore.Images.Media.DATE_ADDED + " DESC");
 ```
 
 ### 5.13 ContentProvider 常见问题
 
-```
+```text
 Q1: ContentProvider 的方法在哪个线程执行？
-A: onCreate() 在主线程，其他方法在调用者线程
+A: 常规安装时 onCreate 在主线程；跨进程请求在 Provider 的 Binder 线程，本地调用可在调用者线程
 
 Q2: ContentProvider.onCreate() 和 Application.onCreate() 顺序？
 A: ContentProvider.onCreate() 先于 Application.onCreate()
@@ -2176,7 +1914,7 @@ A: - ContentProvider：通用数据共享
 
 ## 6. 四大组件对比
 
-```
+```text
 ┌─────────────────┬──────────────────────────────────────────────────────────┐
 │     组件         │                      核心特点                             │
 ├─────────────────┼──────────────────────────────────────────────────────────┤
@@ -2196,7 +1934,7 @@ A: - ContentProvider：通用数据共享
 └─────────────────┴──────────────────────────────────────────────────────────┘
 
 共同点：
-1. 都需要在 AndroidManifest.xml 中注册
+1. Activity/Service/Provider 及静态 Receiver 需在 Manifest 注册；动态 Receiver 例外
 2. 都有独立的生命周期
 3. 都由系统管理
 4. 都支持跨进程通信
@@ -2206,7 +1944,7 @@ A: - ContentProvider：通用数据共享
 
 ## 7. 进程间通信 IPC
 
-```
+```text
 ┌─────────────────┬──────────────────────────────────────────────────────────┐
 │     方式         │                      说明                                │
 ├─────────────────┼──────────────────────────────────────────────────────────┤
@@ -2224,7 +1962,7 @@ A: - ContentProvider：通用数据共享
 
 ## 8. 常见问题
 
-```
+```text
 Q1: 四大组件可以不在 Manifest 中注册吗？
 A: 不可以，都必须注册（动态注册的广播例外）
 
@@ -2246,7 +1984,7 @@ A:
 
 ## 9. 知识体系总结
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         四大组件知识体系                                    │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -2290,7 +2028,9 @@ A:
 
 ### 10.1 四大组件与进程生命周期
 
-```
+以下层级是理解用的进程重要性模型，不是 Android 17 OOM adj 的完整枚举。实际优先级由 OomAdjuster/绑定依赖/可见状态等动态计算；前台服务不是 top Activity，持续执行回调也不等于永久最高优先级。
+
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    四大组件与进程优先级                                       │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -2306,7 +2046,7 @@ A:
   │     • 正在执行 onResume() 的 Activity                                   │
   │     • 绑定到前台 Activity 的 Service                                    │
   │     • 正在执行 onCreate/onStartCommand/onDestroy 的 Service             │
-  │     • 调用了 startForeground() 的 Service                               │
+  │     • 正在执行特定回调的 Service（前台服务常态另有独立重要性）                               │
   │     • 正在执行 onReceive() 的 BroadcastReceiver                         │
   │                                                                         │
   │  2. 可见进程（Visible Process）                                         │
@@ -2335,7 +2075,7 @@ A:
   └─────────────────────────────────────────────────────────────────────────┘
 ```
 
-```
+```text
 组件对进程保活的影响：
 ─────────────────────────────────────────────────────────────────────────
 
@@ -2362,13 +2102,13 @@ A:
   ─────────────────────────────────────────────────────────────────────────
   1. 音乐播放必须使用 ForegroundService，否则切后台很快被杀
   2. 后台下载任务应使用 WorkManager 而非 Service
-  3. BroadcastReceiver.onReceive() 执行时间短，应尽快启动 Service
+  3. BroadcastReceiver.onReceive() 执行时间短，长工作交合适调度器；不能无条件后台启动 Service
   4. 多进程架构中，每个进程有独立的组件生命周期
 ```
 
 ### 10.2 组件间通信最佳实践
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    组件间通信方式全景                                        │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -2380,7 +2120,7 @@ A:
   │                                                                          │
   │  1. Intent + Bundle（Activity / Service / BroadcastReceiver）            │
   │     优点：标准方式，系统支持                                             │
-  │     缺点：数据大小限制（约 1MB）                                         │
+  │     缺点：受进程共享 Binder 事务缓冲预算限制                                         │
   │     场景：简单数据传递                                                   │
   │                                                                          │
   │  2. ViewModel + LiveData（Activity / Fragment）                          │
@@ -2497,7 +2237,7 @@ public class MainActivity extends AppCompatActivity {
 }
 ```
 
-```
+```text
 通信方式选择决策树：
 ─────────────────────────────────────────────────────────────────────────
 
@@ -2529,7 +2269,7 @@ public class MainActivity extends AppCompatActivity {
 
 ### 10.3 四大组件常见踩坑
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    Activity 常见踩坑                                        │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -2551,7 +2291,7 @@ public class MainActivity extends AppCompatActivity {
   ─────────────────────────────────────────────────────────────────────────
   问题：屏幕旋转后异步回调引用了旧的 Activity 实例
   原因：Activity 重建后引用失效
-  解决：使用 ViewModel 存储数据、弱引用、或在回调前检查 isFinishing()
+  解决：由 lifecycle/cancellation 管理回调，重建后重新订阅；仅弱引用或 isFinishing 不足以保证有效
 
   坑4：透明 Activity 导致生命周期异常
   ─────────────────────────────────────────────────────────────────────────
@@ -2560,7 +2300,7 @@ public class MainActivity extends AppCompatActivity {
   解决：注意 onPause 和 onStop 的区别，在 onPause 中也做必要的资源释放
 ```
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    Service 常见踩坑                                         │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -2580,16 +2320,16 @@ public class MainActivity extends AppCompatActivity {
 
   坑3：后台 Service 被系统杀死
   ─────────────────────────────────────────────────────────────────────────
-  问题：Android 8.0+ 后台 Service 几分钟后被杀
+  问题：后台服务受到启动和执行限制，停止服务与进程被杀是不同事件
   解决：使用 ForegroundService / WorkManager / JobScheduler
 
   坑4：IntentService 内存泄漏
   ─────────────────────────────────────────────────────────────────────────
   问题：IntentService 持有 Context 引用（已废弃）
-  解决：使用 JobIntentService 或 CoroutineWorker 替代
+  解决：按任务选择 WorkManager/CoroutineWorker 等；JobIntentService 也已弃用
 ```
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    BroadcastReceiver 常见踩坑                               │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -2609,7 +2349,7 @@ public class MainActivity extends AppCompatActivity {
   坑3：onReceive() 中执行耗时操作 ANR
   ─────────────────────────────────────────────────────────────────────────
   问题：onReceive() 在主线程，前台广播 10 秒超时
-  解决：使用 goAsync() 延长到 30 秒，或启动 Service 处理
+  解决：goAsync 移交完成责任但不延长为固定 30 秒；长工作交合适调度器
 
   坑4：有序广播优先级设置无效
   ─────────────────────────────────────────────────────────────────────────
@@ -2619,7 +2359,7 @@ public class MainActivity extends AppCompatActivity {
   解决：同一注册方式内比较 priority 值（-1000 到 1000）
 ```
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    ContentProvider 常见踩坑                                 │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -2649,7 +2389,7 @@ public class MainActivity extends AppCompatActivity {
 
 ### 10.4 组件化架构中的四大组件
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    组件化架构中的组件管理                                    │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -2689,7 +2429,7 @@ public class MainActivity extends AppCompatActivity {
   └─────────────────────────────────────────────────────────────────────────┘
 ```
 
-```
+```text
 组件化中四大组件的挑战与解决方案：
 ─────────────────────────────────────────────────────────────────────────
 
@@ -2741,13 +2481,12 @@ public class MainActivity extends AppCompatActivity {
  * App Startup 统一初始化
  */
 // 模块 A 的 Initializer
-public class ModuleAInitializer implements Initializer<Void> {
+public class ModuleAInitializer implements Initializer<ModuleA> {
     @NonNull
     @Override
-    public Void create(@NonNull Context context) {
+    public ModuleA create(@NonNull Context context) {
         // 模块 A 初始化逻辑
-        ModuleA.init(context);
-        return null;
+        return ModuleA.init(context); // 约定返回非空 ModuleA 实例
     }
 
     @NonNull
@@ -2758,7 +2497,10 @@ public class ModuleAInitializer implements Initializer<Void> {
     }
 }
 
-// AndroidManifest.xml
+```
+
+```xml
+<!-- 在声明 tools namespace 的 manifest/application 中合并 -->
 <provider
     android:name="androidx.startup.InitializationProvider"
     android:authorities="${applicationId}.androidx-startup"
@@ -2774,7 +2516,7 @@ public class ModuleAInitializer implements Initializer<Void> {
 
 ### 10.5 四大组件性能优化
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    Activity 性能优化                                        │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -2806,7 +2548,7 @@ public class ModuleAInitializer implements Initializer<Void> {
       initCriticalComponents();
       
       // 非核心初始化（子线程）
-      Executors.newSingleThreadExecutor().execute(() -> {
+      AppExecutors.background().execute(() -> { // 应用拥有并负责关闭的共享执行器
           initSDK();
           initDatabase();
           loadConfig();
@@ -2826,7 +2568,7 @@ public class ModuleAInitializer implements Initializer<Void> {
   - 使用 ViewModel 持有数据，避免重建时重新加载
 ```
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    Service 性能优化                                         │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -2856,7 +2598,7 @@ public class ModuleAInitializer implements Initializer<Void> {
   - 使用 LifecycleObserver 自动管理
 ```
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    BroadcastReceiver 性能优化                               │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -2870,8 +2612,8 @@ public class ModuleAInitializer implements Initializer<Void> {
   优化2：onReceive() 中避免耗时操作
   ─────────────────────────────────────────────────────────────────────────
   - 短操作：直接处理
-  - 中等操作：使用 goAsync()（最多 30 秒）
-  - 长操作：启动 Service 或调度 WorkManager
+  - 有界短异步操作：goAsync，仍受广播整体完成期限约束
+  - 长操作：调度合适工作，启动 Service/FGS 仍须满足系统条件
 
   // goAsync() 示例
   public class MyReceiver extends BroadcastReceiver {
@@ -2881,7 +2623,7 @@ public class ModuleAInitializer implements Initializer<Void> {
           
           new Thread(() -> {
               try {
-                  // 执行耗时操作（不超过 30 秒）
+                  // 仅做有界短工作；不是固定 30 秒预算
                   processData(intent);
               } finally {
                   pendingResult.finish();
@@ -2896,14 +2638,14 @@ public class ModuleAInitializer implements Initializer<Void> {
   - 减少跨进程通信开销
 ```
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    ContentProvider 性能优化                                 │
 └─────────────────────────────────────────────────────────────────────────────┘
 
   优化1：批量操作代替单条操作
   ─────────────────────────────────────────────────────────────────────────
-  - 使用 applyBatch() 批量操作（单事务）
+  - 使用 applyBatch() 减少 IPC；Provider 实现事务才具备原子性
   - 使用 bulkInsert() 批量插入
   - 减少 Binder 调用次数
 
@@ -2911,13 +2653,13 @@ public class ModuleAInitializer implements Initializer<Void> {
   ─────────────────────────────────────────────────────────────────────────
   - 使用 projection 限制查询列
   - 使用 selection 过滤行
-  - 使用 sortOrder + limit 分页查询
+  - 使用 Provider 支持的结构化 query 参数分页；不要通用拼接 sortOrder + limit
   - 及时关闭 Cursor
 
   优化3：notifyChange 优化
   ─────────────────────────────────────────────────────────────────────────
   - 批量操作完成后调用一次
-  - 使用 notifyForDescendants 控制通知范围
+  - 在 registerContentObserver 中用 notifyForDescendants 控制对子路径的监听
   - 避免在循环中反复调用
 
   优化4：异步查询
@@ -2929,140 +2671,67 @@ public class ModuleAInitializer implements Initializer<Void> {
 
 ### 10.6 Android 版本演进对四大组件的影响
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                    Android 版本对四大组件的限制演进                          │
-└─────────────────────────────────────────────────────────────────────────────┘
+版本史必须区分运行系统版本、target SDK 和 API 引入时间，不能把旧限制搬到 Android 17 再称为新增。
 
-  ┌──────────┬──────────────────────────────────────────────────────────────┐
-  │  版本     │  影响内容                                                   │
-  ├──────────┼──────────────────────────────────────────────────────────────┤
-  │          │  Activity：                                                │
-  │ Android  │  - 多窗口模式支持                                          │
-  │  7.0     │  - 通知栏快捷回复（直接回复 RemoteInput）                   │
-  │ (API 24) │                                                            │
-  │          │  BroadcastReceiver：                                        │
-  │          │  - CONNECTIVITY_ACTION 不再能静态注册                       │
-  ├──────────┼──────────────────────────────────────────────────────────────┤
-  │          │  Activity：                                                │
-  │ Android  │  - 画中画模式（PictureInPicture）                          │
-  │  8.0     │                                                            │
-  │ (API 26) │  Service：                                                 │
-  │          │  - 后台 Service 限制，必须使用 startForegroundService()     │
-  │          │  - 5 秒内必须调用 startForeground()                        │
-  │          │                                                            │
-  │          │  BroadcastReceiver：                                        │
-  │          │  - 静态注册隐式广播大部分失效                               │
-  │          │  - 新增豁免列表                                            │
-  ├──────────┼──────────────────────────────────────────────────────────────┤
-  │          │  Activity：                                                │
-  │ Android  │  - 支持 Bubble（气泡）显示                                 │
-  │  10      │                                                            │
-  │ (API 29) │  Service：                                                 │
-  │          │  - 后台启动 Activity 限制                                  │
-  │          │                                                            │
-  │          │  ContentProvider：                                          │
-  │          │  - 默认 exported=false（之前默认 true）                     │
-  ├──────────┼──────────────────────────────────────────────────────────────┤
-  │          │  Activity：                                                │
-  │ Android  │  - 强制分区存储（Scoped Storage）                          │
-  │  11      │                                                            │
-  │ (API 30) │  Service：                                                 │
-  │          │  - 前台服务类型（foregroundServiceType）必须声明            │
-  │          │  - 后台启动限制更严格                                      │
-  │          │                                                            │
-  │          │  BroadcastReceiver：                                        │
-  │          │  - 自定义广播默认 ordered=true                             │
-  ├──────────┼──────────────────────────────────────────────────────────────┤
-  │          │  Service：                                                 │
-  │ Android  │  - 前台服务类型新增 health、connectedDevice 等              │
-  │  14      │  - 运行时动态注册广播必须指定 EXPORTED 标志                │
-  │ (API 34) │                                                            │
-  │          │  Activity：                                                │
-  │          │  - 隐式 Intent 限制更严格                                  │
-  │          │  - 后台启动 Activity 需要特殊权限                           │
-  └──────────┴──────────────────────────────────────────────────────────────┘
+| 阶段 | 与本文相关的真实变化/边界 |
+|---|---|
+| API 24 | 多窗口与 Direct Boot；相关 target 下 CONNECTIVITY_ACTION manifest 接收受限 |
+| API 26 | 后台 Service/隐式广播限制；startForegroundService 请求不等于已成为前台服务 |
+| API 28 target | onSaveInstanceState 的正常 stop 保存顺序在 onStop 之后；非 SDK 接口限制需要单独评估 |
+| Android 10+ | Activity 管理由 ATMS/任务体系承担；多窗口 multi-resume 不支持“全局只能一个 resumed”口诀 |
+| Android 12 相应 target | 带 intent-filter 的组件显式 exported；后台启动 FGS 受限制 |
+| Android 13/14 相应 target | 通知权限、前台服务类型/类型权限、动态 receiver 导出属性等分别生效 |
+| Android 17 固定 tag | 客户端 Activity transaction items、BroadcastQueueImpl 按进程调度、Provider 安装与发布顺序见本文源码链 |
+
+Provider 的 exported 默认值变化不是 Android 10 才引入，较早 target 行为已不同；现代工程应显式声明。自定义广播不会在 Android 11 默认变成 ordered=true，发送方式仍由 sendBroadcast/sendOrderedBroadcast 区分。
+
+前台服务是“用户可感知并符合用途”的任务机制，不是永久保活 API。声明 foregroundServiceType、对应权限以及摄像头/麦克风/定位等运行时前提后，还须满足启动来源限制，及时提供通知，并在任务结束停止服务。
+
+```xml
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <application>
+        <service android:name=".MusicService"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback" />
+    </application>
+</manifest>
 ```
 
-```
-前台服务类型（Android 14+ 必须声明）：
-─────────────────────────────────────────────────────────────────────────
-
-  ┌──────────────────────┬────────────────────────────────────────────────┐
-  │  foregroundServiceType │  说明                                       │
-  ├──────────────────────┼────────────────────────────────────────────────┤
-  │  camera               │  相机                                       │
-  │  connectedDevice      │  连接的设备（蓝牙等）                       │
-  │  dataSync             │  数据同步                                   │
-  │  health               │  健康相关（心率等）                         │
-  │  location             │  位置服务                                   │
-  │  mediaPlayback        │  媒体播放                                   │
-  │  mediaProjection      │  屏幕录制/投影                              │
-  │  microphone           │  麦克风                                     │
-  │  phoneCall            │  电话                                       │
-  │  remoteMessaging      │  远程消息                                   │
-  │  shortService         │  短时任务（系统级）                         │
-  │  specialUse           │  特殊用途                                   │
-  │  systemExempted       │  系统豁免                                   │
-  └──────────────────────┴────────────────────────────────────────────────┘
-
-  <!-- AndroidManifest.xml 声明 -->
-  <service
-      android:name=".MusicService"
-      android:foregroundServiceType="mediaPlayback" />
-
-  // 代码中启动
-  startForeground(notificationId, notification,
-      ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK);
+```java
+// 服务已经通过合法路径启动，并已创建有效通知渠道。
+startForeground(notificationId, notification,
+        ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK);
 ```
 
-```
-适配建议：
-─────────────────────────────────────────────────────────────────────────
+常见类型包括 camera、microphone、location、mediaPlayback、mediaProjection、dataSync、health、connectedDevice 等，具体类型有各自前置条件和超时；shortService 并非“仅系统能用”，systemExempted 也不是应用自填字符串即可豁免。
 
-  1. Activity 适配
-     - 支持 ViewModel + SavedStateHandle 应对重建
-     - 处理多窗口/画中画生命周期
-     - 使用 Navigation 组件管理跳转
+`ActiveServices.scheduleServiceForegroundTransitionTimeoutLocked()` 读取服务转换期限，`serviceForegroundTimeout()` 执行超时处理。前台通知延迟展示与这个转换期限是两回事；不要写成“一律 5 秒”“一律延迟 10 秒”，更不要用通知尚未显示判断 startForeground 一定未调用。
 
-  2. Service 适配
-     - 后台任务迁移到 WorkManager
-     - 前台服务声明正确的 foregroundServiceType
-     - 注意 Android 12+ 前台服务通知延迟（10 秒）
-
-  3. BroadcastReceiver 适配
-     - 静态广播仅保留系统豁免列表中的
-     - 动态注册注意生命周期管理
-     - 应用内事件使用 Flow/LiveData 替代
-
-  4. ContentProvider 适配
-     - exported 默认 false，按需开放
-     - 分区存储下 MediaStore 使用受限
-     - 考虑 App Startup 替代 ContentProvider 初始化
-```
-
----
+适配应该回归：冷启动/复用/旋转/进程死亡恢复、多窗口和 top-resumed、Service 启动与绑定交叉、广播 export/权限/异步完成、Direct Boot 与 Provider 提前初始化。这里列出的是需要进行的设备测试，不代表本轮已执行。
 
 ## 11. 面试高频题精选
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    Activity 相关面试题                                      │
 └─────────────────────────────────────────────────────────────────────────────┘
 
-  Q1: Activity 的四种启动模式分别在什么场景下使用？
+  Q1: Activity 常见启动模式如何选择？
   ─────────────────────────────────────────────────────────────────────────
   A:
   - standard：默认模式，适合大多数普通页面
   - singleTop：适合消息详情页、通知点击页（避免栈顶重复创建）
   - singleTask：适合应用主页面（如微信主页，返回时清除上层）
-  - singleInstance：适合系统级独立页面（如闹钟、来电界面）
+  - singleInstance：确实需要独占 task 时使用；不是只限系统
+- singleInstancePerTask：每任务 root 单实例，可依规则存在于多个任务
 
   Q2: onSaveInstanceState 和 onRestoreInstanceState 的调用时机？
   ─────────────────────────────────────────────────────────────────────────
   A:
   调用时机：
-  - onSaveInstanceState：在 onStop 之前，不一定触发（系统认为需要时才调用）
+  - onSaveInstanceState：target >= 28 的正常 stop 保存路径在 onStop 之后；是否调用有条件
   - onRestoreInstanceState：在 onStart 之后、onResume 之前
   
   触发条件（onSaveInstanceState）：
@@ -3070,11 +2739,11 @@ public class ModuleAInitializer implements Initializer<Void> {
   - 启动新 Activity
   - 屏幕旋转
   - 切换到其他应用
-  不触发：按 Back 键（用户主动退出）
+  主动 finish 通常不保存；Back 可能将根任务退到后台，不应按键名绝对判断
 
   注意：
   - 不要和持久化存储混淆，这只是临时状态保存
-  - Bundle 有大小限制（约 1MB）
+  - Bundle 受共享 Binder 事务预算限制，只存小型可恢复状态
 
   Q3: Activity 启动过程经历了哪些主要步骤？
   ─────────────────────────────────────────────────────────────────────────
@@ -3085,7 +2754,7 @@ public class ModuleAInitializer implements Initializer<Void> {
   4. ATMS 解析 Intent，查找目标 Activity
   5. 如果目标进程不存在，通过 Socket 通知 Zygote fork 新进程
   6. 新进程中 ActivityThread.main() 启动
-  7. 通过 ApplicationThread.scheduleLaunchActivity() 回调
+  7. 通过 ApplicationThread.scheduleTransaction() -> LaunchActivityItem.execute() 回调
   8. ActivityThread.handleLaunchActivity()
   9. performLaunchActivity()：创建 Activity 实例，调用 attach()、onCreate()
   10. handleResumeActivity()：调用 onResume()， DecorView 添加到 WindowManager
@@ -3113,7 +2782,7 @@ public class ModuleAInitializer implements Initializer<Void> {
   }
 ```
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    Service 相关面试题                                       │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -3146,7 +2815,7 @@ public class ModuleAInitializer implements Initializer<Void> {
   A:
   限制内容：
   - 后台应用无法自由创建后台 Service
-  - 调用 startForegroundService() 后必须 5 秒内调用 startForeground()
+  - 合法启动后立即调用 startForeground；实际转换期限由系统配置，不写死 5 秒
   
   应对方案：
   - 用户可感知任务 → ForegroundService + 通知
@@ -3176,7 +2845,7 @@ public class ModuleAInitializer implements Initializer<Void> {
   }
 ```
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    BroadcastReceiver 相关面试题                             │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -3207,7 +2876,7 @@ public class ModuleAInitializer implements Initializer<Void> {
   3. 传递给下一个：setResultData() / setResultCode()
   4. 拦截：abortBroadcast()
   
-  执行顺序：高优先级先接收，可以修改数据或拦截
+  有序回调可传结果/按条件中止；不能依赖跨进程 priority 的全局顺序
 
   Q10: LocalBroadcastManager 和全局广播的区别？
   ─────────────────────────────────────────────────────────────────────────
@@ -3227,7 +2896,7 @@ public class ModuleAInitializer implements Initializer<Void> {
   注意：LocalBroadcastManager 已废弃，官方推荐使用 LiveData/Flow
 ```
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    ContentProvider 相关面试题                               │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -3289,7 +2958,7 @@ public class ModuleAInitializer implements Initializer<Void> {
   - App Startup 可以优化多个 SDK 的初始化顺序
 ```
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    综合面试题                                               │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -3298,7 +2967,7 @@ public class ModuleAInitializer implements Initializer<Void> {
   ─────────────────────────────────────────────────────────────────────────
   A:
   - Activity：必须注册，否则抛出 ActivityNotFoundException
-  - Service：必须注册，否则抛出 ServiceNotFoundException
+  - Service：必须注册；startService 找不到目标可返回 null，bindService 可返回 false；权限/限制还可能抛异常，不存在通用 ServiceNotFoundException
   - BroadcastReceiver：静态注册必须声明；动态注册不需要
   - ContentProvider：必须注册，否则无法通过 ContentResolver 访问
 
@@ -3312,11 +2981,11 @@ public class ModuleAInitializer implements Initializer<Void> {
   - ContentProvider：AMS
   
   共同点：
-  1. 都在 AndroidManifest.xml 中注册
+  1. 系统组件通过 Manifest 注册；动态 Receiver 使用运行时注册
   2. 都有独立的生命周期
   3. 都由系统服务管理（不由应用控制）
   4. 都支持跨进程通信
-  5. 都可以携带 Intent 数据
+  5. Activity/Service/Receiver 使用 Intent；Provider 使用 URI/参数等协议
 
   Q16: 如何选择 IPC 方式？
   ─────────────────────────────────────────────────────────────────────────
@@ -3356,3 +3025,21 @@ public class ModuleAInitializer implements Initializer<Void> {
 ---
 
 > 作者：OpenClaw | 日期：2026-03-09
+
+
+**固定 tag 源码证据：**
+
+- [handleBindApplication / installContentProviders / performLaunchActivity / performStopActivityInner](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/app/ActivityThread.java)
+- [makeApplicationInner / ReceiverDispatcher](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/app/LoadedApk.java)
+- [attach / lifecycle APIs](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/app/Activity.java)
+- [started and bound lifecycle / onRebind](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/app/Service.java)
+- [startPausing / completePause](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/services/core/java/com/android/server/wm/TaskFragment.java)
+- [realStartActivityLocked](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/services/core/java/com/android/server/wm/ActivityTaskSupervisor.java)
+- [execute / lifecycle transition](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/app/servertransaction/TransactionExecutor.java)
+- [execute](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/app/servertransaction/LaunchActivityItem.java)
+- [service start/bind / foreground timeout](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/services/core/java/com/android/server/am/ActiveServices.java)
+- [receiver registration / exported checks](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/services/core/java/com/android/server/am/BroadcastController.java)
+- [delivery scheduling / timeout](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/services/core/java/com/android/server/am/BroadcastQueueImpl.java)
+- [goAsync / PendingResult.finish](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/content/BroadcastReceiver.java)
+- [getContentProvider / publishContentProviders](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/services/core/java/com/android/server/am/ContentProviderHelper.java)
+- [attachInfo / Transport / applyBatch / bulkInsert](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/content/ContentProvider.java)

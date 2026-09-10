@@ -2,31 +2,110 @@
 
 > 作者：OpenClaw | 日期：2026-04-15
 > Android 开发者必备的调试工具全面指南 | 命令速查 + 深度解析 + 实战技巧
+> 固定源码基线：AOSP `android-17.0.0_r1`。下文 `$` 是 Bash 提示符，不要复制；反斜杠续行/grep/awk 按 Bash 执行，PowerShell 示例单独标注。涉及数据清除/系统设置只在授权测试机操作并记录恢复值。
 
 ---
 
 ## 目录
 
-1. [概述](#1-概述)
-2. [ADB 基础](#2-adb-基础)
-3. [设备与系统命令](#3-设备与系统命令)
-4. [应用管理（pm）](#4-应用管理pm)
-5. [Activity 管理（am）](#5-activity-管理am)
-6. [文件操作](#6-文件操作)
-7. [日志系统（logcat）](#7-日志系统logcat)
-8. [Input 模拟](#8-input-模拟)
-9. [网络与端口转发](#9-网络与端口转发)
-10. [屏幕操作](#10-屏幕操作)
-11. [dumpsys 深度解析](#11-dumpsys-深度解析)
-12. [进程与性能调试](#12-进程与性能调试)
-    - 12.4 [系统排查与 Dump 分析](#124-系统排查与-dump-分析)
-13. [SQLite 与 Content Provider](#13-sqlite-与-content-provider)
-14. [Systrace 与 Perfetto](#14-systrace-与-perfetto)
-15. [Android Studio 调试工具](#15-android-studio-调试工具)
-16. [APK 分析工具](#16-apk-分析工具)
-17. [高级调试技巧](#17-高级调试技巧)
-18. [面试常见问题](#18-面试常见问题)
-19. [命令速查表](#19-命令速查表)
+- [1. 概述](#1-概述)
+  - [1.1 ADB 工具链全景](#11-adb-工具链全景)
+- [2. ADB 基础](#2-adb-基础)
+  - [2.1 环境配置](#21-环境配置)
+  - [2.2 设备连接](#22-设备连接)
+  - [2.3 ADB Server 管理](#23-adb-server-管理)
+- [3. 设备与系统命令](#3-设备与系统命令)
+  - [3.1 设备信息](#31-设备信息)
+  - [3.2 系统属性](#32-系统属性)
+  - [3.3 系统操作](#33-系统操作)
+- [4. 应用管理（pm）](#4-应用管理pm)
+  - [4.1 安装与卸载](#41-安装与卸载)
+  - [4.2 包信息查询](#42-包信息查询)
+  - [4.3 权限管理](#43-权限管理)
+  - [4.4 数据管理](#44-数据管理)
+- [5. Activity 管理（am）](#5-activity-管理am)
+  - [5.1 启动 Activity](#51-启动-activity)
+  - [5.2 启动 Service](#52-启动-service)
+  - [5.3 发送广播](#53-发送广播)
+  - [5.4 强制停止与调试](#54-强制停止与调试)
+- [6. 文件操作](#6-文件操作)
+  - [6.1 基本文件传输](#61-基本文件传输)
+  - [6.2 Shell 文件操作](#62-shell-文件操作)
+  - [6.3 应用数据操作](#63-应用数据操作)
+- [7. 日志系统（logcat）](#7-日志系统logcat)
+  - [7.1 基本用法](#71-基本用法)
+  - [7.2 日志级别与过滤](#72-日志级别与过滤)
+  - [7.3 日志格式化](#73-日志格式化)
+  - [7.4 缓冲区管理](#74-缓冲区管理)
+  - [7.5 高级用法](#75-高级用法)
+- [8. Input 模拟](#8-input-模拟)
+  - [8.1 触摸与滑动](#81-触摸与滑动)
+  - [8.2 按键模拟](#82-按键模拟)
+  - [8.3 文本输入](#83-文本输入)
+  - [8.4 手势录制与回放](#84-手势录制与回放)
+- [9. 网络与端口转发](#9-网络与端口转发)
+  - [9.1 端口转发](#91-端口转发)
+  - [9.2 网络配置](#92-网络配置)
+- [10. 屏幕操作](#10-屏幕操作)
+  - [10.1 截图](#101-截图)
+  - [10.2 录屏](#102-录屏)
+  - [10.3 屏幕设置](#103-屏幕设置)
+  - [10.4 投屏工具（scrcpy）](#104-投屏工具scrcpy)
+- [11. dumpsys 深度解析](#11-dumpsys-深度解析)
+  - [11.1 dumpsys 概述](#111-dumpsys-概述)
+  - [11.2 Activity 信息](#112-activity-信息)
+  - [11.3 内存信息](#113-内存信息)
+  - [11.4 电池信息](#114-电池信息)
+  - [11.5 网络统计](#115-网络统计)
+  - [11.6 其他常用 dump](#116-其他常用-dump)
+- [12. 进程与性能调试](#12-进程与性能调试)
+  - [12.1 进程管理](#121-进程管理)
+  - [12.2 CPU 分析](#122-cpu-分析)
+  - [12.3 内存分析](#123-内存分析)
+  - [12.4 系统排查与 Dump 分析](#124-系统排查与-dump-分析)
+    - [12.4.1 ANR 问题排查](#1241-anr-问题排查)
+    - [12.4.2 Hprof 内存dump分析](#1242-hprof-内存dump分析)
+    - [12.4.3 线程状态dump (kill -3 / SIGQUIT)](#1243-线程状态dump-kill--3--sigquit)
+    - [12.4.4 systrace / Perfetto 系统trace](#1244-systrace--perfetto-系统trace)
+    - [12.4.5 GfxInfo 帧渲染分析](#1245-gfxinfo-帧渲染分析)
+    - [12.4.6 ProcStats 内存压力分析](#1246-procstats-内存压力分析)
+    - [12.4.7 Bugreport 全面系统dump](#1247-bugreport-全面系统dump)
+    - [12.4.8 常用 Dump 命令速查](#1248-常用-dump-命令速查)
+- [13. SQLite 与 Content Provider](#13-sqlite-与-content-provider)
+  - [13.1 SQLite 数据库操作](#131-sqlite-数据库操作)
+  - [13.2 Content Provider 操作](#132-content-provider-操作)
+  - [13.3 设置命令](#133-设置命令)
+- [14. Systrace 与 Perfetto](#14-systrace-与-perfetto)
+  - [14.1 Systrace](#141-systrace)
+  - [14.2 Perfetto](#142-perfetto)
+  - [14.3 ADB、adbd 与 run-as 的权限边界](#143-adbadbd-与-run-as-的权限边界)
+- [15. Android Studio 调试工具](#15-android-studio-调试工具)
+  - [15.1 Layout Inspector](#151-layout-inspector)
+  - [15.2 Database Inspector](#152-database-inspector)
+  - [15.3 Profiler](#153-profiler)
+  - [15.4 App Inspection](#154-app-inspection)
+- [16. APK 分析工具](#16-apk-分析工具)
+  - [16.1 aapt / aapt2](#161-aapt--aapt2)
+  - [16.2 apkanalyzer](#162-apkanalyzer)
+  - [16.3 dexdump](#163-dexdump)
+  - [16.4 jadx](#164-jadx)
+- [17. 高级调试技巧](#17-高级调试技巧)
+  - [17.1 WebView 调试](#171-webview-调试)
+  - [17.2 Choreographer 分析](#172-choreographer-分析)
+  - [17.3 开发者选项调试技巧](#173-开发者选项调试技巧)
+  - [17.4 Shell 脚本技巧](#174-shell-脚本技巧)
+- [18. 面试常见问题](#18-面试常见问题)
+  - [18.1 ADB 基础相关](#181-adb-基础相关)
+  - [18.2 日志与调试相关](#182-日志与调试相关)
+  - [18.3 性能分析相关](#183-性能分析相关)
+  - [18.4 命令实战相关](#184-命令实战相关)
+  - [18.5 综合面试题](#185-综合面试题)
+- [19. 命令速查表](#19-命令速查表)
+  - [19.1 设备管理](#191-设备管理)
+  - [19.2 应用操作](#192-应用操作)
+  - [19.3 日志调试](#193-日志调试)
+  - [19.4 文件与屏幕](#194-文件与屏幕)
+  - [19.5 性能与调试](#195-性能与调试)
 
 ---
 
@@ -34,7 +113,7 @@
 
 ADB（Android Debug Bridge）是 Android 开发中最核心的调试工具，它是一个客户端-服务端架构的命令行工具，提供了与 Android 设备通信的能力。
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         ADB 架构                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -50,9 +129,9 @@ ADB（Android Debug Bridge）是 Android 开发中最核心的调试工具，它
   ─────────────────────────────────────────────────────────────────────────
   1. ADB Client 发送命令到本地 ADB Server（TCP 5037）
   2. ADB Server 发现连接的设备，建立连接
-     - USB 连接：通过 adb forward 映射端口
+     - USB 连接：通过 USB transport 连接，不依赖 adb forward
      - WiFi 连接：通过 TCP 直接连接（adb connect）
-  3. ADB Server 将命令转发给设备上的 adbd（端口号 5555）
+  3. ADB Server 将命令转发给设备上的 adbd（USB 无 TCP 端口；传统 tcpip 常用 5555，无线调试为动态 TLS 端口）
   4. adbd 执行命令并返回结果
 
   ADB Server 职责：
@@ -65,15 +144,15 @@ ADB（Android Debug Bridge）是 Android 开发中最核心的调试工具，它
   adbd 职责：
   ─────────────────────────────────────────────────────────────────────────
   - 运行在 Android 设备上的后台守护进程
-  - 路径：/sbin/adbd（或 /system/bin/adbd）
+  - 路径：现代模块化系统通常由 com.android.adbd APEX 提供，不能固定为 /sbin/adbd
   - 以 root 或 shell 用户运行
-  - userdebug/eng 版本默认以 root 运行
+  - userdebug 通常默认降为 shell，adb root 可请求重启；eng/属性配置不同
   - user 版本以 shell 用户运行（受限）
 ```
 
 ### 1.1 ADB 工具链全景
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    Android 调试工具全景                                      │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -113,7 +192,7 @@ ADB（Android Debug Bridge）是 Android 开发中最核心的调试工具，它
 
 ### 2.1 环境配置
 
-```
+```text
 安装方式：
   ─────────────────────────────────────────────────────────────────────────
   方式一：Android Studio（推荐）
@@ -141,7 +220,7 @@ ADB（Android Debug Bridge）是 Android 开发中最核心的调试工具，它
 
 ### 2.2 设备连接
 
-```
+```text
 USB 连接：
   ─────────────────────────────────────────────────────────────────────────
   1. 手机开启「开发者选项」→「USB 调试」
@@ -161,7 +240,7 @@ USB 连接：
   offline     → 设备未响应（重启 adb server）
   unauthorized→ 未授权（手机上点击授权）
   recovery    → 设备在 Recovery 模式
-  fastboot    → 设备在 Fastboot 模式
+  fastboot    → 使用 fastboot devices，不属于 adb devices 状态
 
   WiFi 连接（Android 11+ 无线调试）：
   ─────────────────────────────────────────────────────────────────────────
@@ -169,6 +248,8 @@ USB 连接：
   # 手机：开发者选项 → 无线调试 → 使用配对码配对设备
   $ adb pair <ip>:<pairing_port>
   Enter pairing code: XXXXXX
+# 配对后若未自动发现，再连接无线调试页面显示的连接端口（不是 pairing_port）。
+$ adb connect <ip>:<connection_port>
 
   # 方式二：先 USB 后 WiFi（需要同网络）
   $ adb tcpip 5555                    # 切换到 TCP 模式
@@ -181,7 +262,7 @@ USB 连接：
 
 ### 2.3 ADB Server 管理
 
-```
+```text
 # 启动 ADB Server
 $ adb start-server
 
@@ -207,7 +288,7 @@ $ adb usb
 
 ### 3.1 设备信息
 
-```
+```text
 # 查看所有已连接设备
 $ adb devices [-l]    # -l 显示设备详细信息
 
@@ -225,7 +306,7 @@ $ adb -e shell <command>                # 只用模拟器
 
 ### 3.2 系统属性
 
-```
+```text
 # 查看所有系统属性
 $ adb shell getprop
 
@@ -256,7 +337,7 @@ $ adb shell setprop persist.sys.locale zh-CN
 
 ### 3.3 系统操作
 
-```
+```text
 # 重启设备
 $ adb reboot                    # 普通重启
 $ adb reboot recovery           # 重启到 Recovery
@@ -284,14 +365,14 @@ $ adb shell wm density          # 屏幕密度（DPI）
 
 ### 4.1 安装与卸载
 
-```
+```text
 # 安装 APK
 $ adb install app.apk                     # 普通安装
 $ adb install -r app.apk                  # 覆盖安装（保留数据）
 $ adb install -r -t app.apk              # 允许安装测试 APK
 $ adb install -r -d app.apk              # 允许降级安装
-$ adb install -r -g app.apk              # 安装并授予所有权限
-$ adb install --split apk_base.apk apk_arm64.apk  # 安装 Split APK
+$ adb install -r -g app.apk              # 安装并授予可授予的运行时权限；不授予 signature/特殊访问权限
+$ adb install-multiple apk_base.apk apk_arm64.apk  # 安装 Split APK
 $ adb install-multiple base.apk config.apk        # 安装多 APK
 $ adb install -i com.android.vending app.apk      # 指定安装来源（模拟 Play Store）
 
@@ -303,12 +384,12 @@ $ adb uninstall -k com.example.app        # 卸载但保留数据（-k = keep）
   ─────────────────────────────────────────────────────────────────────────
   adb install → adb push /data/local/tmp/app.apk
               → pm install /data/local/tmp/app.apk
-              → adb shell rm /data/local/tmp/app.apk
+              → 完成后清理 session；旧 --no-streaming 路径才先暂存文件
 ```
 
 ### 4.2 包信息查询
 
-```
+```text
 # 列出所有已安装应用
 $ adb shell pm list packages                     # 所有
 $ adb shell pm list packages -3                  # 仅第三方
@@ -337,7 +418,7 @@ $ adb shell dumpsys package com.example.app | grep versionName
 
 ### 4.3 权限管理
 
-```
+```text
 # 列出应用的所有权限
 $ adb shell dumpsys package com.example.app | grep permission
 
@@ -357,12 +438,12 @@ $ adb shell dumpsys package com.example.app | grep -A 20 "runtime permissions"
 
 ### 4.4 数据管理
 
-```
+```text
 # 清除应用数据（等同于设置中的「清除数据」）
 $ adb shell pm clear com.example.app
 
 # 清除缓存
-$ adb shell pm trim-caches 999999999999FREE  # 释放尽可能多的缓存空间
+$ adb shell pm trim-caches 999999999999  # 尽力使空闲空间达到该字节数，系统范围而非单包缓存
 
 # 查看应用数据路径
 $ adb shell pm dump com.example.app | grep dataDir
@@ -378,15 +459,15 @@ $ adb shell dumpsys diskstats
 
 ### 5.1 启动 Activity
 
-```
+```text
 # 基本启动
 $ adb shell am start -n com.example.app/.MainActivity
 
 # 带参数启动
 $ adb shell am start -n com.example.app/.MainActivity \
-    --es "key_string" "value" \          # 额外 String
-    --ei "key_int" 100 \                 # 额外 int
-    --ez "key_bool" true \               # 额外 boolean
+    --es "key_string" "value" \
+    --ei "key_int" 100 \
+    --ez "key_bool" true \
     --el "key_long" 999999L              # 额外 long
 
 # 带 Action 启动（隐式 Intent）
@@ -411,7 +492,7 @@ $ adb shell am start -a android.settings.WIFI_SETTINGS  # WiFi 设置
 
 ### 5.2 启动 Service
 
-```
+```text
 # 启动 Service
 $ adb shell am startservice -n com.example.app/.MyService
 
@@ -424,7 +505,7 @@ $ adb shell am stopservice -n com.example.app/.MyService
 
 ### 5.3 发送广播
 
-```
+```text
 # 发送自定义广播
 $ adb shell am broadcast -a com.example.ACTION_CUSTOM
 
@@ -442,7 +523,7 @@ $ adb shell am broadcast -n com.example.app/.MyReceiver \
 
 ### 5.4 强制停止与调试
 
-```
+```text
 # 强制停止应用
 $ adb shell am force-stop com.example.app
 
@@ -464,7 +545,7 @@ $ adb shell am monitor    # 监控 ANR 和 Crash
 
 ### 6.1 基本文件传输
 
-```
+```text
 # 推送文件到设备
 $ adb push local.txt /sdcard/remote.txt           # 推送单个文件
 $ adb push local_dir/ /sdcard/remote_dir/          # 推送整个目录
@@ -486,7 +567,7 @@ $ adb push --sync local_dir/ /sdcard/remote_dir/
 
 ### 6.2 Shell 文件操作
 
-```
+```text
 # 列出文件
 $ adb shell ls -la /sdcard/
 $ adb shell ls -la /sdcard/Download/
@@ -515,30 +596,22 @@ $ adb shell du -sh /data/data/com.example.app/
 
 ### 6.3 应用数据操作
 
-```
-# 备份应用数据
-$ adb shell cp -r /data/data/com.example.app/ /sdcard/backup/
+普通 adb shell/pull 不能因为包 debuggable 就直接读 `/data/user/0/<pkg>`。debuggable 包用 `run-as` 切换应用 UID；量产非调试包只能使用应用主动导出或系统允许的诊断入口。
 
-# 查看 SharedPreferences（需要 root 或 debuggable 应用）
-$ adb shell cat /data/data/com.example.app/shared_prefs/*.xml
-
-# 查看应用数据库
-$ adb shell ls /data/data/com.example.app/databases/
-
-# 拉取应用数据库到本地分析
-$ adb pull /data/data/com.example.app/databases/app.db ./
-
-# 查看应用缓存大小
-$ adb shell du -sh /data/data/com.example.app/cache/
+```bash
+adb shell run-as com.example.app ls files
+adb shell run-as com.example.app ls databases
+# Bash 的 exec-out 二进制重定向；PowerShell 旧版本不要经文本管道传二进制。
+adb exec-out run-as com.example.app cat files/diagnostic.txt > diagnostic.txt
 ```
 
----
+SQLite WAL 模式不能在数据库仍写入时只复制 app.db 就宣称一致备份；使用 Database Inspector 导出、SQLite backup API，或协调停写/检查点后复制相关文件。app.db-wal 可能包含未 checkpoint 的最新提交。日志/数据库/HPROF 含隐私，限制本地访问并脱敏。
 
 ## 7. 日志系统（logcat）
 
 ### 7.1 基本用法
 
-```
+```text
 # 实时查看日志（Ctrl+C 停止）
 $ adb logcat
 
@@ -554,7 +627,7 @@ $ adb logcat -g
 
 ### 7.2 日志级别与过滤
 
-```
+```text
 日志级别（优先级从低到高）：
   ─────────────────────────────────────────────────────────────────────────
   V → Verbose（详细）
@@ -591,7 +664,7 @@ $ adb logcat | grep -E "Exception|Error"  # 正则
 
 ### 7.3 日志格式化
 
-```
+```text
 # 格式选项
 $ adb logcat -v brief      # 默认：priority/tag(PID): message
 $ adb logcat -v long       # 长格式：带时间戳和线程信息
@@ -612,7 +685,7 @@ $ adb logcat -v threadtime > logcat.txt
 
 ### 7.4 缓冲区管理
 
-```
+```text
 # Android 有多个日志缓冲区
 $ adb logcat -b main       # 主日志（默认）
 $ adb logcat -b system     # 系统日志
@@ -634,7 +707,7 @@ $ adb logcat -g
 
 ### 7.5 高级用法
 
-```
+```text
 # 统计 Tag 的日志数量
 $ adb logcat -v brief | awk '{print $1}' | sort | uniq -c | sort -rn | head -20
 
@@ -666,7 +739,7 @@ $ adb logcat -b events | grep "am_proc_start"
 
 ### 8.1 触摸与滑动
 
-```
+```text
 # 点击（x, y 坐标）
 $ adb shell input tap 500 1000
 
@@ -686,7 +759,7 @@ $ adb shell wm size
 
 ### 8.2 按键模拟
 
-```
+```text
 # 模拟按键（KeyEvent）
 $ adb shell input keyevent KEYCODE_HOME        # Home 键
 $ adb shell input keyevent KEYCODE_BACK         # 返回键
@@ -711,9 +784,9 @@ $ adb shell input keyevent KEYCODE_RECENT_APPS  # 最近任务
 
 ### 8.3 文本输入
 
-```
+```text
 # 输入文本（不支持中文，仅 ASCII）
-$ adb shell input text "hello world"
+$ adb shell input text hello%sworld
 
 # 中文输入方案：通过剪贴板
 $ adb shell am broadcast -a clipper.set \
@@ -728,12 +801,12 @@ $ adb shell am broadcast -a ADB_INPUT_TEXT --es msg "中文"
 
 ### 8.4 手势录制与回放
 
-```
+```text
 # 录制 getevent 原始数据
 $ adb shell getevent -l /dev/input/event2 > events.txt
 
-# 回放（需要 root）
-$ adb shell sendevent /dev/input/event2 <events>
+# 回放需将已捕获事件转换为数值 type/code/value，并保持 SYN_REPORT 和时序；-l 文本不能直接重定向回放
+$ adb shell sendevent /dev/input/event2 <type> <code> <value>
 
 # 使用 adb 录制/回放更简单的方式：
 # 录制操作序列（需要第三方工具如 adb-record）
@@ -746,10 +819,10 @@ $ adb shell sendevent /dev/input/event2 <events>
 
 ### 9.1 端口转发
 
-```
-# 正向转发（设备 → 本机）
+```text
+# 正向转发：本机发起连接 → 设备服务
   ─────────────────────────────────────────────────────────────────────────
-  手机端口 → 电脑端口
+  本机监听端口 → 设备目标端口
 
   # 将手机 8080 端口映射到电脑 8080
   $ adb forward tcp:8080 tcp:8080
@@ -767,9 +840,9 @@ $ adb shell sendevent /dev/input/event2 <events>
   # 转发到 Unix socket（如 Chrome DevTools）
   $ adb forward tcp:9222 localabstract:chrome_devtools_remote
 
-# 反向转发（本机 → 设备）
+# 反向转发：设备发起连接 → 本机服务
   ─────────────────────────────────────────────────────────────────────────
-  电脑端口 → 手机端口
+  设备监听端口 → 本机目标端口
 
   # 将电脑 3000 端口映射到手机 3000
   $ adb reverse tcp:3000 tcp:3000
@@ -787,7 +860,7 @@ $ adb shell sendevent /dev/input/event2 <events>
 
 ### 9.2 网络配置
 
-```
+```text
 # 查看网络接口
 $ adb shell ifconfig
 $ adb shell ip addr
@@ -820,7 +893,7 @@ $ adb pull /sdcard/capture.pcap
 
 ### 10.1 截图
 
-```
+```text
 # 方式一：adb 截图（推荐）
 $ adb shell screencap -p /sdcard/screenshot.png
 $ adb pull /sdcard/screenshot.png
@@ -838,35 +911,37 @@ $ adb exec-out screencap -p | pbcopy
 
 ### 10.2 录屏
 
-```
+```text
 # 开始录制
 $ adb shell screenrecord /sdcard/video.mp4
 
-# 限制时长（默认 180s，最大 180s）
+# 限制时长（本 tag 默认 180s；--time-limit 0 可取消时间限制）
 $ adb shell screenrecord --time-limit 30 /sdcard/video.mp4
 
 # 指定分辨率
 $ adb shell screenrecord --size 1280x720 /sdcard/video.mp4
 
-# 指定比特率（默认 4Mbps）
+# 指定比特率（本 tag 默认 20Mbps）
 $ adb shell screenrecord --bit-rate 8000000 /sdcard/video.mp4
 
 # 录制并显示触摸点
-$ adb shell screenrecord --show-touches /sdcard/video.mp4
+$ adb shell settings put system show_touches 1
+$ adb shell screenrecord /sdcard/video.mp4
+# 结束后恢复 show_touches 的原值；screenrecord 本身无 --show-touches
 
 # 拉取录制文件
 $ adb pull /sdcard/video.mp4
 
 # 注意：
   ─────────────────────────────────────────────────────────────────────────
-  - 录屏最长 3 分钟（180 秒）
+  - 本 tag 默认 180 秒，支持 --time-limit 0；资源/编码器可能限制实际时长
   - 不支持录制音频
   - 某些设备不支持录制（安全限制，如 DRM 内容）
 ```
 
 ### 10.3 屏幕设置
 
-```
+```text
 # 查看当前分辨率
 $ adb shell wm size
   Physical size: 1080x2400
@@ -894,7 +969,7 @@ $ adb shell dumpsys input | grep "SurfaceOrientation"
 
 ### 10.4 投屏工具（scrcpy）
 
-```
+```text
 scrcpy — 开源高性能投屏工具：
   ─────────────────────────────────────────────────────────────────────────
   安装：sudo apt install scrcpy / brew install scrcpy
@@ -934,7 +1009,7 @@ scrcpy — 开源高性能投屏工具：
 
 ### 11.1 dumpsys 概述
 
-```
+```text
 dumpsys 是 Android 系统自带的诊断工具，可以输出系统服务的状态信息：
 
   ─────────────────────────────────────────────────────────────────────────
@@ -974,7 +1049,7 @@ dumpsys 是 Android 系统自带的诊断工具，可以输出系统服务的状
 
 ### 11.2 Activity 信息
 
-```
+```text
 # 查看 Activity 栈
 $ adb shell dumpsys activity activities
 
@@ -1002,7 +1077,7 @@ $ adb shell dumpsys activity intents
 
 ### 11.3 内存信息
 
-```
+```text
 # 查看应用内存使用（最重要的内存分析命令之一）
 $ adb shell dumpsys meminfo com.example.app
 
@@ -1030,7 +1105,7 @@ $ adb shell dumpsys meminfo com.example.app
     rows:        12345      preparing:          0
 
 # 按类型排序
-$ adb shell dumpsys meminfo --sort <field>
+$ adb shell dumpsys meminfo -h # 无通用 --sort 参数，导出后在主机按字段处理
 
 # 查看系统整体内存
 $ adb shell dumpsys meminfo
@@ -1044,7 +1119,9 @@ $ diff before.txt after.txt
 
 ### 11.4 电池信息
 
-```
+模拟电池状态只在测试机使用，完成后务必 `dumpsys battery reset`；这不改变实际电池电量。
+
+```text
 # 查看电池状态
 $ adb shell dumpsys battery
 
@@ -1063,7 +1140,7 @@ $ adb shell dumpsys battery
 # 模拟电池状态（测试低电量场景）
 $ adb shell dumpsys battery set level 5         # 设置电量为 5%
 $ adb shell dumpsys battery set status 3         # 设置为放电状态
-$ adb shell dumpsys battery set charging false   # 设置未在充电
+$ adb shell dumpsys battery unplug   # 模拟断开所有电源，完成后 battery reset
 $ adb shell dumpsys battery reset                # 恢复真实状态
 
 # 电池历史记录分析
@@ -1073,7 +1150,7 @@ $ adb shell dumpsys batterystats --charged com.example.app  # 充电以来的统
 
 ### 11.5 网络统计
 
-```
+```text
 # 查看网络流量统计
 $ adb shell dumpsys netstats
 
@@ -1089,7 +1166,7 @@ $ adb shell dumpsys netpolicy
 
 ### 11.6 其他常用 dump
 
-```
+```text
 # GPU 渲染信息（分析卡顿）
 $ adb shell dumpsys gfxinfo com.example.app
 
@@ -1131,7 +1208,7 @@ $ adb shell dumpsys webviewupdate
 
 ### 12.1 进程管理
 
-```
+```text
 # 查看所有进程
 $ adb shell ps
 $ adb shell ps -A                          # 显示所有进程
@@ -1156,12 +1233,12 @@ $ adb shell ps -T -p <pid>                 # 查看某进程的所有线程
 $ adb shell top
 $ adb shell top -m 10                      # 只显示前 10
 $ adb shell top -p <pid>                   # 只监控某进程
-$ adb shell top -t                         # 显示线程
+$ adb shell top -H                         # 显示线程
 ```
 
 ### 12.2 CPU 分析
 
-```
+```text
 # CPU 使用率
 $ adb shell top -n 1 | head -20
 
@@ -1186,18 +1263,18 @@ $ adb shell cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq
   $ simpleperf report -i perf.data
 
   # 火焰图
-  $ simpleperf report -i perf.data --proto > perf.proto
-  # 然后用 chrome://tracing 打开
+  $ python3 report_html.py -i perf.data -o report.html
+  # 在 NDK simpleperf 脚本目录执行，浏览器打开 report.html
 ```
 
 ### 12.3 内存分析
 
-```
+```text
 # 应用内存概览
 $ adb shell dumpsys meminfo com.example.app
 
 # 查看 Native 堆内存分配（需要 malloc debug）
-$ adb shell dumpsys meminfo --malloc <pid>
+$ adb shell am dumpheap -n <pid> /data/local/tmp/native-heap.txt # Native allocator dump 需可调试/受支持的跟踪配置
 
 # 触发 GC（查看 GC 后的内存变化）
 $ adb shell am dumpheap com.example.app /sdcard/heap.hprof
@@ -1216,7 +1293,7 @@ $ adb shell getprop dalvik.vm.heapsize        # Dalvik 堆大小
 # 查看 OOM 级别
 $ adb shell getprop | grep dalvik.vm.heap
   dalvik.vm.heapstartsize=8m
-  dalvik.vm.heapgrowthlimit=256m       ← dexopt 进程的堆上限
+  dalvik.vm.heapgrowthlimit=256m       ← 普通应用 ART 堆增长限制，不是 dexopt 专属
   dalvik.vm.heapsize=512m              ← 大堆（largeHeap=true）
 ```
 
@@ -1228,7 +1305,7 @@ $ adb shell getprop | grep dalvik.vm.heap
 
 ANR（Application Not Responding）的标准排查流程：
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         ANR 排查流程                                        │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1284,14 +1361,14 @@ ANR（Application Not Responding）的标准排查流程：
 │     → 异步化，使用 WorkerThread/Coroutines                                  │
 │                                                                             │
 │  2. 主线程网络请求                                                          │
-│     → 强制要求在子线程，Android 9+ 会直接抛 NetworkOnMainThreadException    │
+│     → 强制要求在子线程，targetSdk>=11 的主线程受 StrictMode 网络策略约束；异步 enqueue/suspend 发起不等于同步 I/O    │
 │                                                                             │
 │  3. 服务超时 (BroadcastReceiver/Service)                                   │
 │     → onReceive/onCreate 执行超过 10s / 前台服务 20s                        │
 │     → 检查是否有阻塞操作                                                    │
 │                                                                             │
 │  4. ContentProvider publish 超时                                            │
-│     → Application.onCreate 中做了过多初始化                                │
+│     → Provider.onCreate/安装阶段慢（安装通常早于 Application.onCreate）                                │
 │                                                                             │
 │  5. 死锁                                                                    │
 │     → trace 中出现两个线程互相等待对方持有的锁                              │
@@ -1300,20 +1377,20 @@ ANR（Application Not Responding）的标准排查流程：
 
 ```bash
 # 查看 ANR trace
-$ adb shell cat /data/anr/traces.txt
+$ adb shell ls -lt /data/anr/ # 仅有权限的调试机；按真实 anr_* 文件读取
 
 # 查看上一次 ANR 简要信息
-$ adb shell dumpsys activity ANR
+$ adb shell dumpsys activity lastanr
 
-# 强制触发一次 ANR dump（用于实时分析）
-$ adb shell dumpsys activity dumpheap --local com.example.app /sdcard/adhoc_anr.hprof
+# 导出托管堆快照（不是 ANR 线程堆栈，不会制造 ANR）
+$ adb shell am dumpheap com.example.app /data/local/tmp/adhoc_heap.hprof
 ```
 
 #### 12.4.2 Hprof 内存dump分析
 
 Hprof 是 Java 堆的完整快照，用于定位内存泄漏和大对象。
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         Hprof 获取方式                                      │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1327,7 +1404,7 @@ Hprof 是 Java 堆的完整快照，用于定位内存泄漏和大对象。
 │  $ adb pull /sdcard/app.hprof ./.                                           │
 │                                                                             │
 │  # 注意事项:                                                                │
-│  • 导出的 hprof 无法直接用 hprof-conv 转换                                  │
+│  • ART HPROF 含 Android 扩展；Android Studio 可直接读取，MAT 不识别时用 hprof-conv                                  │
 │  • 文件较大，拉取需要时间                                                    │
 │  • 需要有足够存储空间                                                        │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1338,7 +1415,7 @@ Hprof 是 Java 堆的完整快照，用于定位内存泄漏和大对象。
 │                                                                             │
 │  ```kotlin                                                                  │
 │  // 在需要dump的时刻调用                                                    │
-│  Debug.dumpHprofData("/sdcard/dump.hprof")                                 │
+│  Debug.dumpHprofData(File(context.filesDir, "dump.hprof").absolutePath) // 应用私有可写目录                                 │
 │  ```                                                                        │
 │                                                                             │
 │  # 拉取文件                                                                  │
@@ -1369,7 +1446,7 @@ Hprof 是 Java 堆的完整快照，用于定位内存泄漏和大对象。
 
 ```bash
 # Hprof 转换（如果需要用旧版 MAT）
-$ hprof-conf app.hprof converted.hprof
+$ hprof-conv app.hprof converted.hprof
 
 # 使用 Android Studio 打开分析（直接支持标准格式）
 # File → Open → 选择 .hprof 文件
@@ -1377,7 +1454,7 @@ $ hprof-conf app.hprof converted.hprof
 
 **Hprof 分析要点（MAT / Android Studio Analyzer）：**
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         Hprof 分析核心视图                                  │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1402,7 +1479,7 @@ $ hprof-conf app.hprof converted.hprof
 
 #### 12.4.3 线程状态dump (kill -3 / SIGQUIT)
 
-最常用的现场保存手段，不中断进程，打印所有线程的当前栈。
+最常用的现场保存手段，ART Signal Catcher 处理 SIGQUIT 转储，不是强制杀进程；转储仍有暂停/开销，其他 Native 进程不能套用 ART 行为。
 
 ```bash
 # 方式一: adb shell kill -3（发送 SIGQUIT）
@@ -1416,7 +1493,7 @@ $ top -t -H              # 显示线程
 
 # 方式三: debug .dumpAllThreads()
 # 代码中调用:
-Debug.dumpAllThreads()
+Thread.getAllStackTraces() // Java 栈快照，不是系统 ANR 全量报告
 
 # 方式四: DDMS / Android Studio
 # Devices 面板 → 选择进程 → 点击 "Dump Threads" 按钮
@@ -1424,7 +1501,7 @@ Debug.dumpAllThreads()
 
 **SIGQUIT 输出解读：**
 
-```
+```text
 "main" prio=5 tid=1 Runnable              ← 主线程，Runnable状态
   | group="main" sCount=0 ucsCount=0
   | stack=....                             ← 栈起始地址
@@ -1445,7 +1522,7 @@ Debug.dumpAllThreads()
 
 **线程状态速查：**
 
-```
+```text
 ┌───────────────┬─────────────────────────────────────────────────────────────┐
 │  状态          │  含义                                                       │
 ├───────────────┼─────────────────────────────────────────────────────────────┤
@@ -1484,8 +1561,8 @@ data_sources: {
             ftrace_events: "sched/sched_wakeup"
             ftrace_events: "power/cpu_frequency"
             ftrace_events: "power/cpu_idle"
-            ftrace_events: "power/gpu_frequency"
-            ftrace_events: "power/gpu_busy"
+            # gpu_frequency 依内核实现，不作为通用必需事件
+            # GPU 事件非通用；按设备可用的 GPU 数据源配置
         }
     }
 }
@@ -1506,7 +1583,7 @@ $ open https://ui.perfetto.dev
 
 **Perfetto 关键分析维度：**
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         Perfetto 分析面板                                  │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1534,58 +1611,23 @@ $ open https://ui.perfetto.dev
 
 #### 12.4.5 GfxInfo 帧渲染分析
 
-专门分析 UI 渲染性能，定位掉帧原因。
-
 ```bash
-# 获取当前帧渲染统计
-$ adb shell dumpsys gfxinfo com.example.app
-
-# 获取最近 120 帧的详细信息
-$ adb shell dumpsys gfxinfo com.example.app framerstats
-
-# 获取带时间戳的帧数据（Android 10+）
-$ adb shell dumpsys gfxinfo com.example.app framestats
-
-# 重置统计（分析特定操作前必须重置）
-$ adb shell dumpsys gfxinfo com.example.app reset
+adb shell dumpsys gfxinfo com.example.app reset
+# 复现目标动作
+adb shell dumpsys gfxinfo com.example.app framestats
 ```
 
-**framestats 输出解读：**
+`framestats` 提供 HWUI FrameInfo 的 CSV 样本，字段按实际 header 解析，不存在本文旧示例的 `SF COMPOSER`/`SF Composer Duration` 字段。样本数量和保留窗口不保证最近 120 帧。
 
+```text
+Flags,IntendedVsync,Vsync,...,PerformTraversalsStart,DrawStart,
+SyncQueued,SyncStart,IssueDrawCommandsStart,SwapBuffers,FrameCompleted,
+DequeueBufferDuration,QueueBufferDuration,...
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         Frame Timing Data (framestats)                        │
-└─────────────────────────────────────────────────────────────────────────────┘
 
-SF COMPOSER:              # SurfaceFlinger 合成
-  187865489093734         # 帧提交时间 (ns)
+`DrawStart - PerformTraversalsStart` 是该采样区间的布局遍历耗时；`SyncStart - DrawStart` 包含绘制和等待，不能当纯 GPU 时间。`COMMAND_ISSUE_DURATION` 是命令提交，真正 GPU 时间使用支持设备的 GPU 完成字段/FrameMetrics.GPU_DURATION。`FrameCompleted-IntendedVsync` 与该帧 deadline 比较，而不是全设备固定 16.67ms。SurfaceFlinger 的合成/呈现由 Perfetto FrameTimeline 补全。
 
-JANKY FRAMES:             # 标记超过 16.67ms 的帧
-  50  (total frames: 120)
-
-HISTOGRAM:
-  16ms: 65                # 65帧在 16ms 内完成
-  17ms: 20                # 20帧 16-17ms
-  33ms: 5                 # 5帧 33ms+（明显卡顿）
-  ...
-
-帧耗时分解（每帧详情）：
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  Frame Completed: 187865490000000                                          │
-│  • DequeueQueue Duration: -XXX       # Buffer出队耗时                      │
-│  • Queue Duration: XXXX              # App提交Buffer到SF的耗时               │
-│  • SF Composer Duration: XXXX        # SurfaceFlinger合成耗时               │
-│                                                                             │
-│  对应Android Performance Pipeline:                                         │
-│  app:  Draw + Prepare + Process + Execute  →  提交到 HWUI                   │
-│  surfacelflinger: SurfaceFlinger 处理 BufferQueue → 合成到屏幕               │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-常见掉帧原因：
-• DequeueQueue 耗时高 → GPU 渲染太慢 / buffer 不足
-• Queue Duration 高   → App 提交太慢（主线程被阻塞）
-• SF Composer 耗时高  → 合成层数过多 / GPU 负载高
-```
+源码：[FrameInfo.h](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/libs/hwui/FrameInfo.h)。
 
 #### 12.4.6 ProcStats 内存压力分析
 
@@ -1598,8 +1640,8 @@ $ adb shell dumpsys procstats com.example.app
 # 查看系统整体 procstats（所有应用）
 $ adb shell dumpsys procstats
 
-# 导出为 JSON（方便程序化分析）
-$ adb shell dumpsys procstats --json com.example.app > procstats.json
+# 导出 checkin 文本（无 --json 选项，协议含版本需按字段解析）
+$ adb shell dumpsys procstats --checkin com.example.app > procstats-checkin.txt
 
 # 查看最近 3 小时的数据
 $ adb shell dumpsys procstats --hours 3 com.example.app
@@ -1607,7 +1649,7 @@ $ adb shell dumpsys procstats --hours 3 com.example.app
 
 **procstats 输出解读：**
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         ProcStats 解读                                      │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1649,7 +1691,7 @@ Bugreport 是最完整的系统状态打包，包含所有服务 dump、logcat�
 $ adb bugreport bugreport.zip
 
 # 只获取文本报告（更快）
-$ adb bugreport -d bugreport.txt
+$ adb shell bugreport > bugreport.txt # 传统文本入口，不保证比 bugreportz 快
 
 # 查看 bugreport 内容结构
 $ unzip -l bugreport.zip
@@ -1659,7 +1701,7 @@ $ unzip -l bugreport.zip
 
 **bugreport 结构解读：**
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         Bugreport 文件结构                                  │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1694,7 +1736,7 @@ bugreport-xxx.txt 主要章节：
 
 **定位 ANR 的 bugreport 步骤：**
 
-```
+```text
 1. 搜索 "ANR in" 找到 ANR 发生位置
 2. 向上找 "Reason:" 字段，看 ANR 类型
 3. 跳到 "CPU state" 部分，看 ANR 时 CPU 在做什么
@@ -1713,7 +1755,7 @@ adb shell cat /proc/<pid>/maps            # 内存映射
 adb shell cat /proc/<pid>/smaps           # 详细内存映射
 
 # === ANR ===
-adb shell cat /data/anr/traces.txt        # 当前 ANR traces
+adb shell ls -lt /data/anr/ # 仅有权限的调试机；按真实 anr_* 文件读取        # 当前 ANR traces
 adb shell ls /data/anr/                    # 所有 ANR 文件
 adb pull /data/anr/ ./.                    # 拉取所有 ANR dump
 
@@ -1760,7 +1802,9 @@ adb shell dumpsys gfxinfo <pkg> reset      # 重置统计
 
 ### 13.1 SQLite 数据库操作
 
-```
+以下设备 sqlite3 示例仅限有该二进制且可读目标路径的授权调试设备；通常用 run-as（debuggable 包）或 Database Inspector。量产 shell 不能直接访问其他 UID 数据。
+
+```text
 # 进入 SQLite 命令行
 $ adb shell sqlite3 /data/data/com.example.app/databases/app.db
 
@@ -1792,7 +1836,7 @@ $ adb shell du -h /data/data/com.example.app/databases/
 
 ### 13.2 Content Provider 操作
 
-```
+```text
 # 查询
 $ adb shell content query --uri content://com.example.provider/users
 
@@ -1830,7 +1874,7 @@ $ adb shell content query --uri content://com.android.contacts/contacts
 
 ### 13.3 设置命令
 
-```
+```text
 # 查看系统设置
 $ adb shell settings list system
 $ adb shell settings list secure
@@ -1866,7 +1910,7 @@ $ adb shell settings put global development_settings_enabled 1
 
 ### 14.1 Systrace
 
-```
+```text
 Systrace 是 Android 系统级的性能分析工具，通过 ftrace 收集内核和框架事件：
 
   # 采集 Systrace（需要 Python 环境）
@@ -1910,67 +1954,83 @@ Systrace 是 Android 系统级的性能分析工具，通过 ftrace 收集内核
 
 ### 14.2 Perfetto
 
-```
-Perfetto 是 Systrace 的继任者，功能更强大：
+配置同时覆盖 CPU/进程映射、应用 trace 和 FrameTimeline，便于与 ANR/渲染章节交叉分析。
 
-  # 使用 adb 采集 Perfetto trace
-  $ adb shell perfetto \
-      -c - --txt \
-      -o /data/misc/perfetto-traces/trace.pb <<EOF
-  buffers: {
-      size_kb: 63488
-  }
-  data_sources: {
-      config {
-          name: "linux.ftrace"
-          ftrace_config {
-              ftrace_events: "sched/sched_switch"
-              ftrace_events: "power/cpu_frequency"
-              ftrace_events: "sched/sched_wakeup"
-              atrace_categories: "view"
-              atrace_categories: "am"
-              atrace_categories: "gfx"
-          }
-      }
-  }
-  duration_ms: 10000
-  EOF
-
-  # 拉取 trace 文件
-  $ adb pull /data/misc/perfetto-traces/trace.pb
-
-  # 使用 Perfetto UI 打开
-  # 访问 https://ui.perfetto.dev 拖入 trace.pb 文件
-
-  # 简化方式：使用 record_android_trace 工具
-  $ ./record_android_trace \
-      -t 10s \
-      -o trace.pb \
-      sched freq idle am wm view gfx input dalvik
-
-  Perfetto vs Systrace：
-  ─────────────────────────────────────────────────────────────────────────
-  ┌──────────────┬────────────────────┬──────────────────────┐
-  │     特性      │    Systrace        │     Perfetto         │
-  ├──────────────┼────────────────────┼──────────────────────┤
-  │  输出格式    │ HTML               │ Protocol Buffer      │
-  │  数据量      │ 较小               │ 更大（更丰富）       │
-  │  查看工具    │ Chrome             │ Perfetto UI          │
-  │  自定义      │ 有限               │ 灵活（SQL 查询）     │
-  │  AndroidX    │ 逐步弃用           │ 推荐                 │
-  │  长时间采集  │ 不支持             │ 支持                 │
-  └──────────────┴────────────────────┴──────────────────────┘
+```textproto
+buffers { size_kb: 32768 fill_policy: RING_BUFFER }
+duration_ms: 15000
+data_sources { config { name: "linux.ftrace" ftrace_config {
+  ftrace_events: "sched/sched_switch"
+  ftrace_events: "sched/sched_waking"
+  ftrace_events: "power/cpu_frequency"
+  ftrace_events: "power/cpu_idle"
+  ftrace_events: "binder/binder_transaction"
+  ftrace_events: "binder/binder_transaction_received"
+  atrace_categories: "am"
+  atrace_categories: "wm"
+  atrace_categories: "gfx"
+  atrace_categories: "view"
+  atrace_categories: "input"
+  atrace_categories: "dalvik"
+  atrace_apps: "com.example.app"
+} } }
+data_sources { config { name: "linux.process_stats" process_stats_config {
+  scan_all_processes_on_start: true
+} } }
+data_sources { config { name: "android.surfaceflinger.frametimeline" } }
 ```
 
----
+```powershell
+adb push .\feed.pbtxt /data/local/tmp/feed.pbtxt
+adb shell perfetto --txt -c /data/local/tmp/feed.pbtxt -o /data/misc/perfetto-traces/feed.perfetto-trace
+# 终端 B：终端 A 正在采集时执行目标动作，不是采集结束后才操作
+adb shell am start -W -n com.example.app/.MainActivity
+# 终端 A 采集结束后再拉取
+adb pull /data/misc/perfetto-traces/feed.perfetto-trace .\feed.perfetto-trace
+```
 
-## 14.3 ADB、adbd 与 run-as 的权限边界
+`--txt` 用于 textproto 配置，不与无 -c 的简单分类模式混用。包满足采样条件且 atrace_apps 匹配。分类和 ftrace 事件依设备支持；检查 stderr、Trace stats 的丢包和缺失数据，空轨道不证明无耗时。
+
+```sql
+SELECT name, value, severity FROM stats WHERE value != 0 AND severity != 'info';
+SELECT COUNT(*) AS sched_count FROM sched;
+SELECT COUNT(*) AS frame_count FROM actual_frame_timeline_slice;
+SELECT s.id, s.name, s.ts, ROUND(s.dur / 1e6, 3) AS wall_ms,
+       t.name AS thread_name, p.name AS process_name
+FROM slice s JOIN thread_track tt ON tt.id = s.track_id
+JOIN thread t ON t.utid = tt.utid JOIN process p ON p.upid = t.upid
+WHERE p.name = 'com.example.app' AND s.dur > 0
+ORDER BY s.dur DESC LIMIT 50;
+WITH target AS (
+ SELECT s.id, s.ts, s.dur, tt.utid FROM slice s
+ JOIN thread_track tt ON tt.id = s.track_id
+ JOIN thread t ON t.utid = tt.utid JOIN process p ON p.upid = t.upid
+ WHERE p.name = 'com.example.app' AND s.name = 'Feed.load' AND s.dur > 0
+)
+SELECT target.id, st.state,
+ ROUND(SUM(MIN(target.ts + target.dur, st.ts + st.dur) -
+           MAX(target.ts, st.ts)) / 1e6, 3) AS overlap_ms
+FROM target JOIN thread_state st ON st.utid = target.utid
+ AND st.dur > 0 AND st.ts < target.ts + target.dur
+ AND st.ts + st.dur > target.ts
+GROUP BY target.id, st.state ORDER BY target.id, overlap_ms DESC;
+SELECT a.id, p.name, a.layer_name, a.surface_frame_token,
+       a.jank_type, a.present_type, ROUND(a.dur / 1e6, 3) AS actual_ms
+FROM actual_frame_timeline_slice a JOIN process p ON p.upid = a.upid
+WHERE p.name = 'com.example.app' AND a.dur > 0 ORDER BY a.ts;
+```
+
+空结果不是没有卡顿。同步 slice 父子不可累加；状态时长必须裁剪到 section 的交叠区间。FrameTimeline 配对 expected/actual 看期限，surface/display 帧并非一对一；跨线程/协程 async slice 用 flow 关联，不能强制映射单个 thread_track。
+
+来源：[Perfetto CLI](https://perfetto.dev/docs/reference/perfetto-cli)、[SQL tables](https://perfetto.dev/docs/analysis/sql-tables)、[FrameTimeline](https://perfetto.dev/docs/data-sources/frametimeline)。
+
+### 14.3 ADB、adbd 与 run-as 的权限边界
 
 ADB client 经主机 server 连接设备上的 adbd；`adb shell` 是 shell UID，不能读取任意应用目录。Android 17 的 adbd 根据 user/userdebug/eng 和调试属性决定是否降权；`run-as` 还会检查包存在且 debuggable，再切到目标应用 UID。profileable 允许部分性能采样，不等于可调试或可读私有数据。
 
 ```powershell
 $serial = 'DEVICE_SERIAL'; $pkg = 'com.example.app'
-adb -s $serial getprop ro.build.fingerprint
+adb -s $serial shell getprop ro.build.fingerprint
 adb -s $serial shell getconf PAGE_SIZE
 adb -s $serial shell dumpsys meminfo $pkg
 adb -s $serial shell dumpsys activity exit-info $pkg
@@ -1983,7 +2043,7 @@ adb -s $serial shell run-as $pkg ls files
 
 ### 15.1 Layout Inspector
 
-```
+```text
 Layout Inspector — 查看 UI 布局层级：
 
   打开方式：Android Studio → Tools → Layout Inspector
@@ -2012,7 +2072,7 @@ Layout Inspector — 查看 UI 布局层级：
 
 ### 15.2 Database Inspector
 
-```
+```text
 Database Inspector — 可视化查看 Room/SQLite 数据库：
 
   打开方式：Android Studio → View → Tool Windows → App Inspection
@@ -2043,7 +2103,7 @@ Database Inspector — 可视化查看 Room/SQLite 数据库：
 
 ### 15.3 Profiler
 
-```
+```text
 Profiler — CPU/内存/网络/能耗分析：
 
   打开方式：Android Studio → View → Tool Windows → Profiler
@@ -2083,7 +2143,7 @@ Profiler — CPU/内存/网络/能耗分析：
 
 ### 15.4 App Inspection
 
-```
+```text
 App Inspection — 综合检查工具：
 
   打开方式：Android Studio → View → Tool Windows → App Inspection
@@ -2107,7 +2167,7 @@ App Inspection — 综合检查工具：
 
 ### 16.1 aapt / aapt2
 
-```
+```text
 aapt（Android Asset Packaging Tool）— APK 资源分析：
 
   # 查看 APK 基本信息
@@ -2132,12 +2192,12 @@ aapt（Android Asset Packaging Tool）— APK 资源分析：
   # 编译资源
   $ aapt2 compile --dir res -o compiled_resources.zip
   # 链接
-  $ aapt2 link -o app.apk -I android.jar compiled_resources.zip
+  $ aapt2 link -o app.apk --manifest AndroidManifest.xml -I android.jar compiled_resources.zip
 ```
 
 ### 16.2 apkanalyzer
 
-```
+```text
 apkanalyzer — Android SDK 自带的 APK 分析工具：
 
   # APK 文件大小分析
@@ -2147,12 +2207,12 @@ apkanalyzer — Android SDK 自带的 APK 分析工具：
 
   # 查看文件组成
   $ apkanalyzer files list app.apk
-  $ apkanalyzer files cat app.apk AndroidManifest.xml
+  $ apkanalyzer files cat --file /AndroidManifest.xml app.apk
 
   # Dex 分析
   $ apkanalyzer dex list app.apk              # 列出 DEX 文件
   $ apkanalyzer dex references app.apk        # 引用统计
-  $ apkanalyzer dex count app.apk             # 方法数/字段数
+  $ apkanalyzer dex references app.apk             # 方法数/字段数
 
   # 查看方法数（关键：65K 限制）
   $ apkanalyzer dex references --files classes.dex app.apk
@@ -2168,7 +2228,7 @@ apkanalyzer — Android SDK 自带的 APK 分析工具：
 
 ### 16.3 dexdump
 
-```
+```text
 dexdump — DEX 文件分析工具：
 
   # 查看 DEX 文件内容
@@ -2190,7 +2250,7 @@ dexdump — DEX 文件分析工具：
 
 ### 16.4 jadx
 
-```
+```text
 jadx — 开源 APK/DEX 反编译工具：
 
   安装：https://github.com/skylot/jadx
@@ -2219,11 +2279,11 @@ jadx — 开源 APK/DEX 反编译工具：
 
 ### 17.1 WebView 调试
 
-```
+```text
 # 开启 WebView 调试
   ─────────────────────────────────────────────────────────────────────────
   // 代码中开启（Application.onCreate）
-  if (Build.VERSION_CODES.DEBUG) {
+  if (BuildConfig.DEBUG) {
       WebView.setWebContentsDebuggingEnabled(true)
   }
 
@@ -2241,7 +2301,9 @@ jadx — 开源 APK/DEX 反编译工具：
 
 ### 17.2 Choreographer 分析
 
-```
+下面为历史 CSV 字段示意；本 tag 字段见 12.4.5，按 header 解析并使用实际 deadline，不能将 GPU 命令提交耗时等同 GPU 执行。
+
+```text
 # 查看 VSync 和帧渲染信息
 $ adb shell dumpsys gfxinfo com.example.app framestats
 
@@ -2266,13 +2328,13 @@ $ adb shell dumpsys gfxinfo com.example.app framestats
 
 ### 17.3 开发者选项调试技巧
 
-```
+```text
 常用开发者选项：
   ─────────────────────────────────────────────────────────────────────────
   # 通过 adb 开启/关闭
   # 显示布局边界
   $ adb shell setprop debug.layout true
-  $ adb shell service call window 3
+  $ # 不使用硬编码 Binder transaction 编号；开发者选项中切换并验证 debug.layout
 
   # 显示 GPU 过度绘制
   $ adb shell setprop debug.hwui.overdraw show
@@ -2295,16 +2357,16 @@ $ adb shell dumpsys gfxinfo com.example.app framestats
   # 开启「不保留活动」（测试 Activity 恢复）
   $ adb shell settings put global always_finish_activities 1
 
-  # 限制后台进程数
+  # 限制 phantom 子进程（不是普通后台进程数；勿据此测试后台 Activity 配额）
   $ adb shell settings put global activity_manager_constants max_phantom_processes=0
 
-  # 开启布局检验器
+  # 关闭窗口模糊设置（不是启用 Layout Inspector，后者在 Android Studio 中打开）
   $ adb shell settings put global enable_blur_on_windows 0
 ```
 
 ### 17.4 Shell 脚本技巧
 
-```
+```text
 # 自动化测试脚本示例
   ─────────────────────────────────────────────────────────────────────────
   #!/bin/bash
@@ -2317,7 +2379,7 @@ $ adb shell dumpsys gfxinfo com.example.app framestats
   echo "Starting monkey test for $PACKAGE..."
   adb shell monkey -p $PACKAGE \
       --throttle 300 \
-      --seed $SEED \
+      -s $SEED \
       --pct-touch 40 \
       --pct-motion 25 \
       --pct-nav 15 \
@@ -2370,7 +2432,7 @@ $ adb shell dumpsys gfxinfo com.example.app framestats
 
 **Q1：ADB 的架构是什么？客户端、服务端、守护进程分别做什么？**
 
-```
+```text
 ADB 采用 C/S 架构，三个组件：
 
   1. ADB Client
@@ -2387,7 +2449,7 @@ ADB 采用 C/S 架构，三个组件：
   3. ADB Daemon（adbd）
      - 运行在 Android 设备上
      - 执行实际命令并返回结果
-     - 路径：/sbin/adbd
+     - 路径：通常 /apex/com.android.adbd/bin/adbd，具体看 init 配置
 
   面试加分：
   ─────────────────────────────────────────────────────────────────────────
@@ -2398,11 +2460,11 @@ ADB 采用 C/S 架构，三个组件：
 
 **Q2：adb install 安装 APK 的完整流程是什么？**
 
-```
+```text
 安装流程：
   ─────────────────────────────────────────────────────────────────────────
-  1. adb push APK 到 /data/local/tmp/
-  2. 调用 pm install 发起安装
+  1. 新设备默认 session/流式安装；--no-streaming 才使用暂存路径
+  2. 经 package shell/PackageInstaller 创建、写入、提交安装会话
   3. PMS（PackageManagerService）校验：
      - 签名验证
      - 版本号检查
@@ -2424,7 +2486,7 @@ ADB 采用 C/S 架构，三个组件：
 
 **Q3：ADB 的端口转发（forward/reverse）有什么区别？使用场景是什么？**
 
-```
+```text
 adb forward（正向转发）：
   电脑端口 → 设备端口
   场景：电脑浏览器访问设备上的服务
@@ -2452,7 +2514,7 @@ adb forward（正向转发）：
 
 **Q4：adb logcat 的缓冲区有哪些？各有什么用？**
 
-```
+```text
 Android 日志缓冲区：
   ─────────────────────────────────────────────────────────────────────────
   main    → 应用日志（默认缓冲区）
@@ -2472,11 +2534,11 @@ Android 日志缓冲区：
 
 **Q5：如何用 ADB 排查 ANR？**
 
-```
+```text
 ANR 排查步骤：
   ─────────────────────────────────────────────────────────────────────────
   1. 查看 traces 文件（最重要）
-     $ adb pull /data/anr/traces.txt
+     $ adb bugreport bugreport.zip # 量产机优先，直接 /data/anr 通常不可读
      # 或者
      $ adb logcat -b main *:E | grep "ANR"
 
@@ -2489,7 +2551,7 @@ ANR 排查步骤：
 
   4. dump 线程栈
      $ adb shell kill -3 <pid>
-     $ adb pull /data/anr/traces.txt
+     $ adb bugreport bugreport.zip # 量产机优先，直接 /data/anr 通常不可读
 
   5. 使用 StrictMode 检测
      # 在 Application 中开启 StrictMode
@@ -2507,7 +2569,7 @@ ANR 排查步骤：
 
 **Q6：如何用 ADB 排查内存泄漏？**
 
-```
+```text
 内存泄漏排查步骤：
   ─────────────────────────────────────────────────────────────────────────
   1. 监控内存增长
@@ -2542,7 +2604,7 @@ ANR 排查步骤：
 
 **Q7：如何用 ADB 分析 UI 卡顿？**
 
-```
+```text
 UI 卡顿分析步骤：
   ─────────────────────────────────────────────────────────────────────────
   1. GPU 呈现模式分析
@@ -2574,7 +2636,7 @@ UI 卡顿分析步骤：
 
 **Q8：Systrace 和 Perfetto 的区别？怎么选？**
 
-```
+```text
 ┌──────────────┬────────────────────┬──────────────────────┐
 │     特性      │    Systrace        │     Perfetto         │
 ├──────────────┼────────────────────┼──────────────────────┤
@@ -2600,7 +2662,7 @@ UI 卡顿分析步骤：
 
 **Q9：如何通过 ADB 模拟用户操作（点击、滑动、输入）？**
 
-```
+```text
 点击：
   $ adb shell input tap <x> <y>
 
@@ -2624,7 +2686,7 @@ UI 卡顿分析步骤：
 
 **Q10：如何在不用 Android Studio 的情况下分析一个 APK？**
 
-```
+```text
 完整分析流程：
   ─────────────────────────────────────────────────────────────────────────
   1. 基本信息
@@ -2642,20 +2704,21 @@ UI 卡顿分析步骤：
      $ jadx -d output app.apk
 
   5. DEX 分析
-     $ unzip -p app.apk classes.dex | dexdump -f -
+     $ unzip -p app.apk classes.dex > classes.dex
+$ dexdump -f classes.dex
 
   6. 资源分析
      $ aapt dump resources app.apk
      $ aapt dump configurations app.apk
 
   7. 签名信息
-     $ keytool -printcert -jarfile app.apk
+     $ keytool -printcert -jarfile app.apk # 仅 v1/JAR 证书；v2/v3 用下一条 apksigner
      $ apksigner verify --print-certs app.apk
 ```
 
 **Q11：adb shell dumpsys meminfo 的输出怎么看？**
 
-```
+```text
 关键指标解读：
   ─────────────────────────────────────────────────────────────────────────
   Pss（Proportional Set Size）：
@@ -2664,7 +2727,7 @@ UI 卡顿分析步骤：
 
   关键字段：
   ─────────────────────────────────────────────────────────────────────────
-  Native Heap    → C/C++ malloc 分配的内存（JNI/Bitmap 在旧版本）
+  Native Heap    → C/C++ malloc 分配的内存（JNI/软件 Bitmap 像素在 API 26+）
   Dalvik Heap    → Java 堆（对象分配）
   .so mmap       → Native 库映射
   .dex mmap      → DEX 代码映射
@@ -2681,13 +2744,13 @@ UI 卡顿分析步骤：
   ─────────────────────────────────────────────────────────────────────────
   1. 重点关注 TOTAL 行的 Pss Total
   2. 对比多次 dump，看哪个部分在增长
-  3. Activities 数 > 预期 → Activity 泄漏
-  4. Native Heap 增长 → Native 泄漏
+  3. Activities 数 > 预期 → 保留对象候选，用 GC Roots 与生命周期确认
+  4. Native Heap 持续增长 → 候选泄漏，先排除缓存/分配峰值
 ```
 
 **Q12：ADB 的 am 和 pm 命令有什么区别？**
 
-```
+```text
 am（Activity Manager）：
   ─────────────────────────────────────────────────────────────────────────
   管理应用运行时行为
@@ -2721,7 +2784,7 @@ am（Activity Manager）：
 
 **Q13：如何用 ADB 做自动化测试？**
 
-```
+```text
 基础方案：
   ─────────────────────────────────────────────────────────────────────────
   1. Monkey（压力测试）
@@ -2749,7 +2812,7 @@ am（Activity Manager）：
 
 **Q14：adb bugreport 包含哪些信息？怎么用？**
 
-```
+```text
 bugreport 是一份完整的设备诊断报告：
 
   生成方式：
@@ -2778,7 +2841,7 @@ bugreport 是一份完整的设备诊断报告：
 
 **Q15：如何用 ADB 调试多进程应用？**
 
-```
+```text
 # 查看应用的所有进程
 $ adb shell ps | grep com.example
   u0_a123  12345  ...  com.example.app           # 主进程
@@ -2803,7 +2866,7 @@ $ adb logcat --pid=12346
 
 **Q16：adb shell dumpsys activity activities 输出怎么看？**
 
-```
+```text
 输出结构：
   ─────────────────────────────────────────────────────────────────────────
   Main stack:
@@ -2828,7 +2891,7 @@ $ adb logcat --pid=12346
 
 **Q17：如何用 ADB 实现应用的冷启动/热启动测试？**
 
-```
+```text
 冷启动测试：
   ─────────────────────────────────────────────────────────────────────────
   $ adb shell am force-stop com.example.app      # 杀掉进程
@@ -2854,7 +2917,7 @@ $ adb logcat --pid=12346
 
 **Q18：什么是 dropbox？如何用 ADB 查看？**
 
-```
+```text
 Dropbox 是 Android 系统的持久化错误日志系统：
 
   查看方式：
@@ -2880,7 +2943,7 @@ Dropbox 是 Android 系统的持久化错误日志系统：
 
 **Q19：如何通过 ADB 查看 Android 应用的网络请求？**
 
-```
+```text
 方式一：通过 dumpsys 查看统计
 $ adb shell dumpsys netstats
 
@@ -2905,7 +2968,7 @@ $ adb shell settings put global http_proxy :0
 
 **Q20：adb shell 中的 monkey 命令怎么用？有哪些关键参数？**
 
-```
+```text
 Monkey 是 Android 自带的压力测试工具：
 
   基本用法：
@@ -2917,7 +2980,7 @@ Monkey 是 Android 自带的压力测试工具：
   -p <package>       指定包名
   -v / -v -v -v -v   日志详细程度（1-3级）
   --throttle <ms>    事件间隔（默认无间隔）
-  --seed <num>       随机种子（重现测试）
+  -s <num>       随机种子（重现测试）
   --pct-touch <p>    触摸事件百分比
   --pct-motion <p>   滑动事件百分比
   --pct-nav <p>      导航键百分比
@@ -2946,7 +3009,7 @@ Monkey 是 Android 自带的压力测试工具：
 
 ### 19.1 设备管理
 
-```
+```text
 ┌──────────────────────────────────────────────────────────────────────────────┐
 │                           设备管理速查                                       │
 ├─────────────────────────────────────┬────────────────────────────────────────┤
@@ -2966,7 +3029,7 @@ Monkey 是 Android 自带的压力测试工具：
 
 ### 19.2 应用操作
 
-```
+```text
 ┌─────────────────────────────────────┬────────────────────────────────────────┐
 │              命令                    │              说明                      │
 ├─────────────────────────────────────┼────────────────────────────────────────┤
@@ -2984,7 +3047,7 @@ Monkey 是 Android 自带的压力测试工具：
 
 ### 19.3 日志调试
 
-```
+```text
 ┌─────────────────────────────────────┬────────────────────────────────────────┐
 │              命令                    │              说明                      │
 ├─────────────────────────────────────┼────────────────────────────────────────┤
@@ -3003,7 +3066,7 @@ Monkey 是 Android 自带的压力测试工具：
 
 ### 19.4 文件与屏幕
 
-```
+```text
 ┌─────────────────────────────────────┬────────────────────────────────────────┐
 │              命令                    │              说明                      │
 ├─────────────────────────────────────┼────────────────────────────────────────┤
@@ -3011,7 +3074,7 @@ Monkey 是 Android 自带的压力测试工具：
 │ adb pull <remote> [local]           │ 拉取文件                               │
 │ adb shell ls -la <path>             │ 列出文件                               │
 │ adb shell screencap -p <path>       │ 截图                                   │
-│ adb shell screenrecord <path>       │ 录屏（最长 3 分钟）                   │
+│ adb shell screenrecord <path>       │ 录屏（默认 3 分钟，可配置）                   │
 │ adb shell wm size                   │ 查看分辨率                             │
 │ adb shell wm size 720x1280          │ 修改分辨率                             │
 │ adb shell wm density                │ 查看密度                               │
@@ -3020,7 +3083,7 @@ Monkey 是 Android 自带的压力测试工具：
 
 ### 19.5 性能与调试
 
-```
+```text
 ┌─────────────────────────────────────┬────────────────────────────────────────┐
 │              命令                    │              说明                      │
 ├─────────────────────────────────────┼────────────────────────────────────────┤
@@ -3041,3 +3104,5 @@ Monkey 是 Android 自带的压力测试工具：
 ---
 
 > 作者：OpenClaw | 日期：2026-04-15
+
+固定 tag 工具证据：[screenrecord.cpp](https://android.googlesource.com/platform/frameworks/av/+/refs/tags/android-17.0.0_r1/cmds/screenrecord/screenrecord.cpp) 的 main/usage；[PackageManagerShellCommand.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/services/core/java/com/android/server/pm/PackageManagerShellCommand.java) 的 runTrimCaches；[ActivityManagerShellCommand.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/services/core/java/com/android/server/am/ActivityManagerShellCommand.java) 的 runDumpHeap；[adbd main.cpp](https://android.googlesource.com/platform/packages/modules/adb/+/refs/tags/android-17.0.0_r1/daemon/main.cpp) 的 should_drop_privileges；[run-as.cpp](https://android.googlesource.com/platform/system/core/+/refs/tags/android-17.0.0_r1/run-as/run-as.cpp) 的 main。

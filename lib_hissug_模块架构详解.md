@@ -328,8 +328,10 @@ fun searchPages(queries: Flow<String>, source: SuggestionSource): Flow<SearchPag
             if (error is IOException) emit(SearchPage.Failed(query, "网络不可用，请重试"))
             else throw error
         }
-    }
+    }.buffer(0) // flatMapLatest 默认带输出缓冲；不排队尚未被下游接收的旧结果。
 ```
+
+`flatMapLatest` 会取消并等待旧分支结束，因此 `SuggestionSource.search` 必须使用可取消的挂起 I/O；普通阻塞调用不能仅靠这个操作符中断。`buffer(0)` 约束的是交付队列，不会撤回已渲染的结果；回调式数据源还需在适配层取消底层请求并检查请求身份。源码：[kotlinx.coroutines 1.7.3 `Merge.kt#flatMapLatest/transformLatest`](https://github.com/Kotlin/kotlinx.coroutines/blob/1.7.3/kotlinx-coroutines-core/common/src/flow/operators/Merge.kt)。
 
 Fragment 在 `viewLifecycleOwner.lifecycleScope` 中通过 `repeatOnLifecycle(STARTED)` 收集；如果结果需要跨旋转保留，把流放入 ViewModel 并用 `stateIn` 持有状态。搜索历史写入应与网络请求解耦，用户明确提交搜索时再记录，不能把每个输入中间态都写入历史。
 
@@ -337,6 +339,15 @@ Fragment 在 `viewLifecycleOwner.lifecycleScope` 中通过 `repeatOnLifecycle(ST
 
 输入法显示、His 首帧和 Sug 首次结果是三个不同时间点。记录入口点击、页面首帧、输入法可见、请求结束、结果提交等时间戳，才能区分布局耗时、网络耗时和输入法时序。离屏列表应停止动画和图片请求；复用时重置内容、点击监听器、字号和主题状态。
 
-Android 17 AOSP 在 `frameworks/base/core/java/android/os/MessageQueue.java` 中演进了消息队列实现；应用诊断应通过公开的 Looper/Trace 能力观察消息分发，不反射队列内部链表。该实现细节不是应用可依赖的 API，不能把它表述为所有 targetSdk 37 应用都必然使用的稳定契约。远端 HTTPS 搜索不等于局域网访问；只有访问局域网端点的功能才进入本地网络权限流程。
+固定 AOSP tag `android-17.0.0_r1` 的 MessageQueue 应从 **`frameworks/base/core/java/Android.bp` 的 `messagequeue-gen`** 定位：构建规则先排除候选实现目录，再按 `release_package_messagequeue_implementation` 选择 `android/os/%s`；未覆盖时默认 `android/os/CombinedMessageQueue/*.java`，生成统一的 `android/os/MessageQueue.java`。因此旧的 `core/java/android/os/MessageQueue.java` 不是此 tag 中直接维护的唯一实现源码入口。
+
+- 选中 `core/java/android/os/CombinedMessageQueue/MessageQueue.java` 时，`next()` 依据 `sUseConcurrent` 分流到 `nextConcurrent()` 或 `nextLegacy()`；运行模式还有兼容变更、flags 和进程条件，不是仅由 targetSdk 数字决定。
+- 选中 `core/java/android/os/CombinedDeliMessageQueue/MessageQueue.java` 时，`setUseDeliQueue()` 初始化模式，`next()` 依据 `sUseDeliQueue` 分流到 `nextDeliQueue()` 或 `nextLegacy()`。这是另一套构建候选，不能把它的字段与 Combined 的并发实现混为一个类。
+
+构建选源与队列内部运行分支是两个层次，所以不能写成“Android 17/target 37 一律采用无锁队列”。应用监控应使用公开 Looper/Trace 能力，不依赖生成类的私有字段布局。
+
+实际入口：[Android.bp:252–264 `messagequeue-gen`](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/Android.bp#252)、[Combined `next():1080`](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/os/CombinedMessageQueue/MessageQueue.java#1080)、[CombinedDeli `next():769`](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/os/CombinedDeliMessageQueue/MessageQueue.java#769)。
+
+远端 HTTPS 搜索不等于局域网访问；访问局域网端点的功能需要单独判断本地网络权限要求。
 
 参考：[Flow 取消](https://kotlinlang.org/docs/cancellation-and-timeouts.html)、[生命周期协程](https://developer.android.com/topic/libraries/architecture/coroutines)、[Android 17 行为变化](https://developer.android.com/about/versions/17/behavior-changes-17)。

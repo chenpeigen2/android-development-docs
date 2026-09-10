@@ -1,45 +1,46 @@
 # Android ClassLoader 详解
 
-_作者：OpenClaw_  
+_作者：OpenClaw_
 _日期：2026-03-08_
 
 ---
 
 ## 目录
 
-1. [概述](#1-概述)
-2. [Java ClassLoader 回顾](#2-java-classloader-回顾)
-   - 2.1 [JVM ClassLoader 体系](#21-jvm-classloader-体系)
-   - 2.2 [双亲委派模型](#22-双亲委派模型)
-3. [Android ClassLoader 体系](#3-android-classloader-体系)
-   - 3.1 [Android ClassLoader 继承关系](#31-android-classloader-继承关系)
-   - 3.2 [BaseDexClassLoader](#32-basedexclassloader)
-   - 3.3 [DexPathList](#33-dexpathlist)
-4. [BootClassLoader](#4-bootclassloader)
-   - 4.1 [概述](#41-概述)
-   - 4.2 [源码分析](#42-源码分析)
-   - 4.3 [预加载类](#43-预加载类)
-5. [PathClassLoader](#5-pathclassloader)
-   - 5.1 [概述](#51-概述)
-   - 5.2 [源码分析](#52-源码分析)
-   - 5.3 [应用启动时的创建](#53-应用启动时的创建)
-6. [DexClassLoader](#6-dexclassloader)
-   - 6.1 [概述](#61-概述)
-   - 6.2 [源码分析](#62-源码分析)
-   - 6.3 [插件化示例](#63-插件化示例)
-7. [InMemoryDexClassLoader](#7-inmemorydexclassloader)
-   - 7.1 [概述](#71-概述)
-   - 7.2 [源码分析](#72-源码分析)
-   - 7.3 [适用场景](#73-适用场景)
-8. [双亲委派模型](#8-双亲委派模型)
-   - 8.1 [Android 中的双亲委派](#81-android-中的双亲委派)
-   - 8.2 [打破双亲委派](#82-打破双亲委派)
-9. [热修复与插件化](#9-热修复与插件化)
-   - 9.1 [热修复原理](#91-热修复原理)
-   - 9.2 [热修复实现](#92-热修复实现)
-   - 9.3 [插件化原理](#93-插件化原理)
-   - 9.4 [插件化实现](#94-插件化实现)
-10. [总结](#10-总结)
+- [1. 概述](#1-概述)
+- [2. Java ClassLoader 回顾](#2-java-classloader-回顾)
+  - [2.1 JVM ClassLoader 体系](#21-jvm-classloader-体系)
+  - [2.2 双亲委派模型](#22-双亲委派模型)
+- [3. Android ClassLoader 体系](#3-android-classloader-体系)
+  - [3.1 Android ClassLoader 继承关系](#31-android-classloader-继承关系)
+  - [3.2 BaseDexClassLoader](#32-basedexclassloader)
+  - [3.3 DexPathList](#33-dexpathlist)
+- [4. BootClassLoader](#4-bootclassloader)
+  - [4.1 概述](#41-概述)
+  - [4.2 源码分析](#42-源码分析)
+  - [4.3 预加载类](#43-预加载类)
+- [5. PathClassLoader](#5-pathclassloader)
+  - [5.1 概述](#51-概述)
+  - [5.2 源码分析](#52-源码分析)
+  - [5.3 应用启动时的创建](#53-应用启动时的创建)
+- [6. DexClassLoader](#6-dexclassloader)
+  - [6.1 概述](#61-概述)
+  - [6.2 源码分析](#62-源码分析)
+  - [6.3 插件化示例](#63-插件化示例)
+- [7. InMemoryDexClassLoader](#7-inmemorydexclassloader)
+  - [7.1 概述](#71-概述)
+  - [7.2 源码分析](#72-源码分析)
+  - [7.3 适用场景](#73-适用场景)
+- [8. 双亲委派模型](#8-双亲委派模型)
+  - [8.1 Android 中的双亲委派](#81-android-中的双亲委派)
+  - [8.2 打破双亲委派](#82-打破双亲委派)
+- [9. 热修复与插件化](#9-热修复与插件化)
+  - [9.1 热修复原理](#91-热修复原理)
+  - [9.2 热修复实现](#92-热修复实现)
+  - [9.3 插件化原理](#93-插件化原理)
+  - [9.4 插件化实现](#94-插件化实现)
+- [10. 总结](#10-总结)
+- [固定版本源码索引](#固定版本源码索引)
 
 ---
 
@@ -47,7 +48,7 @@ _日期：2026-03-08_
 
 ClassLoader 是 Java/Android 中负责加载类文件的核心组件。理解 ClassLoader 对于掌握热修复、插件化等技术至关重要。
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         ClassLoader 作用                                    │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -73,7 +74,9 @@ Object 对象
 
 ### 2.1 JVM ClassLoader 体系
 
-```
+下图是 Java 8 的历史模型；Java 9+ 的平台类加载器取代 Extension ClassLoader，Android 的 BootClassLoader/DEX 路径不能用桌面 JVM 的 ext 目录解释。
+
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         JVM ClassLoader 体系                                │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -108,11 +111,11 @@ Object 对象
 ```java
 /**
  * Java 双亲委派模型
- * 
+ *
  * 加载类时，先委托父加载器加载
  * 父加载器无法加载时，才自己加载
  */
-protected Class<?> loadClass(String name, boolean resolve) {
+protected Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
     // 1. 检查是否已加载
     Class<?> c = findLoadedClass(name);
     if (c == null) {
@@ -127,7 +130,7 @@ protected Class<?> loadClass(String name, boolean resolve) {
         } catch (ClassNotFoundException e) {
             // 父加载器无法加载
         }
-        
+
         if (c == null) {
             // 4. 自己加载
             c = findClass(name);
@@ -139,7 +142,7 @@ protected Class<?> loadClass(String name, boolean resolve) {
 
 **双亲委派的好处：**
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         双亲委派的好处                                      │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -161,53 +164,34 @@ protected Class<?> loadClass(String name, boolean resolve) {
 
 ### 3.1 Android ClassLoader 继承关系
 
+```text
+java.lang.ClassLoader
+  +-- java.lang.BootClassLoader（libcore 内部类，桥接 ART boot class path）
+  +-- dalvik.system.BaseDexClassLoader
+        +-- PathClassLoader
+        |     +-- DelegateLastClassLoader
+        +-- DexClassLoader
+        +-- InMemoryDexClassLoader
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         Android ClassLoader 体系                            │
-└─────────────────────────────────────────────────────────────────────────────┘
 
-                        ┌─────────────────────────┐
-                        │     java.lang.ClassLoader│
-                        └───────────┬─────────────┘
-                                    │
-            ┌───────────────────────┼───────────────────────┐
-            │                       │                       │
-            ▼                       ▼                       ▼
-┌───────────────────┐   ┌───────────────────┐   ┌───────────────────┐
-│ BootClassLoader   │   │ PathClassLoader   │   │ DexClassLoader    │
-│ (系统启动类加载器) │   │ (应用类加载器)    │   │ (动态加载器)      │
-└───────────────────┘   └───────────────────┘   └───────────────────┘
-        │                       │                       │
-        │                       │                       │
-        ▼                       ▼                       ▼
-  加载系统核心类          加载已安装 APK          加载外部 DEX/APK
-  android.jar            classes.dex             插件化/热修复
-```
+这是继承关系，不是 parent 委派链。应用的 parent、共享库加载器和 split 加载器由 LoadedApk 配置，不一定只是单层 BootClassLoader。
+
+---
 
 ### 3.2 BaseDexClassLoader
 
-```java
-/**
- * BaseDexClassLoader 是 PathClassLoader 和 DexClassLoader 的父类
- * 
- * 核心实现：
- * - DexPathList pathList: 管理 DEX 文件列表
- */
-public class BaseDexClassLoader extends ClassLoader {
-    
-    private final DexPathList pathList;
-    
-    @Override
-    protected Class<?> findClass(String name) throws ClassNotFoundException {
-        // 委托给 DexPathList 查找
-        Class<?> clazz = pathList.findClass(name, suppressedExceptions);
-        if (clazz == null) {
-            throw new ClassNotFoundException(name);
-        }
-        return clazz;
-    }
-}
+`BaseDexClassLoader` 持有 `DexPathList`，但 `findClass()` 并非只查 `dexElements`。外层 `ClassLoader.loadClass()` 已先做已加载检查与 parent 委派；进入本类后按下列顺序搜索：
+
+```text
+sharedLibraryLoaders（每个调用 loadClass）
+  -> pathList.findClass(name, suppressedExceptions)
+  -> sharedLibraryLoadersAfter（每个调用 loadClass）
+  -> ClassNotFoundException，附带所有 suppressedExceptions
 ```
+
+前置共享库可以先于应用自身命中，后置库只在应用查找失败后命中。这是平台加载器图的一部分，不应把“补丁放到 dexElements[0]”解释为能覆盖 parent 或共享库已经定义的类。
+
+---
 
 ### 3.3 DexPathList
 
@@ -218,10 +202,10 @@ public class BaseDexClassLoader extends ClassLoader {
 final class DexPathList {
     // DEX 文件列表
     private Element[] dexElements;
-    
+
     // 原生库路径
     private final List<File> nativeLibraryDirectories;
-    
+
     Class<?> findClass(String name, List<Throwable> suppressed) {
         // 遍历所有 DEX 文件查找类
         for (Element element : dexElements) {
@@ -241,18 +225,18 @@ final class DexPathList {
 
 ### 4.1 概述
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         BootClassLoader                                     │
 └─────────────────────────────────────────────────────────────────────────────┘
 
 作用：
-- Android 系统启动时预加载核心系统类
+- 负责 boot class path 的类查找；预加载由 ZygoteInit 驱动
 - 类似于 JVM 的 Bootstrap ClassLoader
-- 由 Java 实现（非 C++）
+- Java 门面 + ART native 类查找，并非纯 Java 实现
 
 加载内容：
-- android.jar 中的类
+- boot class path 中的运行时 DEX / boot image 类
 - java.lang.* 核心类
 - android.* 系统类
 
@@ -268,26 +252,26 @@ final class DexPathList {
  * BootClassLoader 源码
  */
 class BootClassLoader extends ClassLoader {
-    
+
     private static BootClassLoader instance;
-    
-    public static BootClassLoader getInstance() {
+
+    public static synchronized BootClassLoader getInstance() {
         if (instance == null) {
             instance = new BootClassLoader();
         }
         return instance;
     }
-    
+
     public BootClassLoader() {
         super(null);  // 无父加载器
     }
-    
+
     @Override
     protected Class<?> findClass(String name) throws ClassNotFoundException {
         // 从系统 DEX 缓存中查找
         return Class.classForName(name, false, null);
     }
-    
+
     @Override
     protected URL findResource(String name) {
         // 从系统资源中查找
@@ -310,7 +294,7 @@ private static void preloadClasses() {
 
 ### 4.3 预加载类
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         预加载类列表 (preloaded-classes)                    │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -328,7 +312,7 @@ private static void preloadClasses() {
 │  java.lang.String                                                           │
 │  java.lang.Object                                                           │
 │  java.lang.Class                                                            │
-│  ... (约 3000+ 个类)                                                        │
+│  ...（实际集合以本 tag 配置及产品预加载策略为准）                                                        │
 └─────────────────────────────────────────────────────────────────────────────┘
 
 预加载的好处:
@@ -343,7 +327,7 @@ private static void preloadClasses() {
 
 ### 5.1 概述
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         PathClassLoader                                     │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -353,8 +337,8 @@ private static void preloadClasses() {
 - 加载系统应用的类
 
 特点：
-- 只能加载已安装的 APK
-- 无法加载外部 DEX/APK
+- 可从传入路径加载 DEX/APK/JAR，不以是否安装为限制
+- 同样能加载可访问、格式有效且符合动态加载策略的 DEX/APK
 - Android 应用的默认类加载器
 ```
 
@@ -365,10 +349,10 @@ private static void preloadClasses() {
  * PathClassLoader 源码
  */
 public class PathClassLoader extends BaseDexClassLoader {
-    
+
     /**
      * 创建 PathClassLoader
-     * 
+     *
      * @param dexPath        DEX 文件路径 (APK 路径)
      * @param librarySearchPath 原生库搜索路径
      * @param parent         父加载器
@@ -376,7 +360,7 @@ public class PathClassLoader extends BaseDexClassLoader {
     public PathClassLoader(String dexPath, String librarySearchPath, ClassLoader parent) {
         super(dexPath, null, librarySearchPath, parent);
     }
-    
+
     /**
      * 简化构造函数
      */
@@ -395,43 +379,21 @@ PathClassLoader pathClassLoader = new PathClassLoader(
 
 ### 5.3 应用启动时的创建
 
-```java
-/**
- * ActivityThread 中创建 PathClassLoader
- */
-public static ActivityThread currentActivityThread() {
-    // ...
-}
+Android 17 的主链如下（源码函数名，省略 instrumentation/split 的分支）：
 
-private void handleBindApplication(AppBindData data) {
-    // 创建应用的 PathClassLoader
-    mInitialApplication = data.info.makeApplication(data.restrictedBackupMode, null);
-}
-
-// LoadedApk.makeApplication()
-public Application makeApplication(boolean forceDefaultAppClass, Instrumentation instrumentation) {
-    // 创建 PathClassLoader
-    ClassLoader cl = getClassLoader();
-    // ...
-}
-
-// LoadedApk.getClassLoader()
-public ClassLoader getClassLoader() {
-    synchronized (this) {
-        if (mClassLoader == null) {
-            // 创建 PathClassLoader
-            mClassLoader = ApplicationLoaders.getDefault().getClassLoader(
-                zip,
-                mApplicationInfo.targetSdkVersion,
-                mLibraries,
-                getClassLoader(),
-                mAppDir
-            );
-        }
-        return mClassLoader;
-    }
-}
+```text
+ActivityThread.handleBindApplication(data)
+  -> LoadedApk.makeApplicationInner(...)
+     -> LoadedApk.getClassLoader()
+        -> 若 mClassLoader == null：createOrUpdateClassLoaderLocked(null)
+           -> ApplicationLoaders.getDefault().getClassLoaderWithSharedLibraries(...)
+           -> mDefaultClassLoader
+           -> AppComponentFactory.instantiateClassLoader(...)
+           -> mClassLoader
+     -> Instrumentation.newApplication(classLoader, appClass, context)
 ```
+
+`getClassLoader()` 可能先创建默认加载器，再让 AppComponentFactory 定制；隔离 split 和共享库增加委派边。它不会在构造参数里递归调用自己，否则未初始化的 `mClassLoader` 将导致无限递归。SDK 的 `android.jar` 只有编译桩，运行时实现来自设备 boot class path。
 
 ---
 
@@ -439,7 +401,7 @@ public ClassLoader getClassLoader() {
 
 ### 6.1 概述
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         DexClassLoader                                     │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -449,8 +411,8 @@ public ClassLoader getClassLoader() {
 - 常用于插件化、热修复等场景
 
 特点：
-- 可以加载任意路径的 DEX/APK
-- 需要指定优化输出目录
+- 可加载应用可访问且符合安全策略的 DEX/APK
+- optimizedDirectory 从 API 26 起被忽略，构造参数可传 null
 - 灵活性高
 ```
 
@@ -461,10 +423,10 @@ public ClassLoader getClassLoader() {
  * DexClassLoader 源码
  */
 public class DexClassLoader extends BaseDexClassLoader {
-    
+
     /**
      * 创建 DexClassLoader
-     * 
+     *
      * @param dexPath          DEX/APK 文件路径 (支持多个，用 File.pathSeparator 分隔)
      * @param optimizedDirectory 优化后的 DEX 输出目录 (已废弃，API 26+ 忽略)
      * @param librarySearchPath 原生库搜索路径
@@ -477,8 +439,9 @@ public class DexClassLoader extends BaseDexClassLoader {
 }
 
 // 使用示例
-String dexPath = "/sdcard/plugin.apk";
-String optimizedDirectory = context.getCacheDir().getAbsolutePath();
+String dexPath = new File(context.getCodeCacheDir(), "verified-plugin.apk").getPath();
+// 前置条件：来源/签名已验证，文件按只读发布；不可直接加载可篡改的共享存储代码。
+String optimizedDirectory = null; // API 26+ 忽略
 String librarySearchPath = null;
 ClassLoader parent = getClass().getClassLoader();
 
@@ -491,31 +454,33 @@ DexClassLoader dexClassLoader = new DexClassLoader(
 
 // 加载类
 Class<?> clazz = dexClassLoader.loadClass("com.example.plugin.PluginClass");
-Object instance = clazz.newInstance();
+Object instance = clazz.getDeclaredConstructor().newInstance();
 ```
 
 ### 6.3 插件化示例
+
+以下只演示可信插件入口的加载；调用前需校验包完整性，并在写入完成前将目标文件设为只读后发布。反射 AssetManager.addAssetPath 属于非 SDK 历史方式，不能作为 Android 17 应用兼容方案；API 30+ 的资源扩展应使用 ResourcesLoader/ResourcesProvider，并隔离宿主与插件资源生命周期。
 
 ```java
 /**
  * 插件化加载示例
  */
 public class PluginManager {
-    
+
     private DexClassLoader pluginClassLoader;
     private Context context;
-    
+
     public PluginManager(Context context) {
         this.context = context;
     }
-    
+
     /**
      * 加载插件 APK
      */
     public void loadPlugin(String pluginPath) {
         // 1. 获取插件的优化目录
         File optimizedDirectory = context.getDir("plugin_dex", Context.MODE_PRIVATE);
-        
+
         // 2. 创建 DexClassLoader
         pluginClassLoader = new DexClassLoader(
             pluginPath,
@@ -523,7 +488,7 @@ public class PluginManager {
             null,
             context.getClassLoader()
         );
-        
+
         // 3. 加载插件入口类
         try {
             Class<?> pluginClass = pluginClassLoader.loadClass("com.plugin.PluginEntry");
@@ -533,23 +498,9 @@ public class PluginManager {
             e.printStackTrace();
         }
     }
-    
-    /**
-     * 加载插件的资源
-     */
-    public Resources loadPluginResources(String pluginPath) {
-        try {
-            AssetManager assetManager = AssetManager.class.newInstance();
-            Method addAssetPath = AssetManager.class.getMethod("addAssetPath", String.class);
-            addAssetPath.invoke(assetManager, pluginPath);
-            
-            Resources superRes = context.getResources();
-            return new Resources(assetManager, superRes.getDisplayMetrics(), superRes.getConfiguration());
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        return null;
-    }
+
+    // 资源加载不由 DexClassLoader 完成；交给基于 ResourcesLoader 的资源适配层。
+
 }
 ```
 
@@ -559,7 +510,7 @@ public class PluginManager {
 
 ### 7.1 概述
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         InMemoryDexClassLoader                             │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -571,7 +522,7 @@ public class PluginManager {
 特点：
 - DEX 文件不需要存储在文件系统
 - 适合动态下载的 DEX
-- 安全性更高（不落地）
+- 不落地不等于安全沙箱，仍以宿主 UID/权限执行
 ```
 
 ### 7.2 源码分析
@@ -581,15 +532,15 @@ public class PluginManager {
  * InMemoryDexClassLoader 源码
  */
 public class InMemoryDexClassLoader extends BaseDexClassLoader {
-    
+
     /**
      * 创建 InMemoryDexClassLoader
-     * 
+     *
      * @param dexBuffers  DEX 文件的 ByteBuffer 数组
      * @param librarySearchPath 原生库搜索路径
      * @param parent      父加载器
      */
-    public InMemoryDexClassLoader(ByteBuffer[] dexBuffers, 
+    public InMemoryDexClassLoader(ByteBuffer[] dexBuffers,
             String librarySearchPath, ClassLoader parent) {
         super(dexBuffers, librarySearchPath, parent);
     }
@@ -597,7 +548,7 @@ public class InMemoryDexClassLoader extends BaseDexClassLoader {
 
 // 使用示例
 public class DynamicLoader {
-    
+
     /**
      * 从网络下载 DEX 并加载
      */
@@ -605,14 +556,14 @@ public class DynamicLoader {
         // 1. 将 byte[] 转换为 ByteBuffer
         ByteBuffer dexBuffer = ByteBuffer.wrap(dexBytes);
         ByteBuffer[] dexBuffers = new ByteBuffer[] { dexBuffer };
-        
+
         // 2. 创建 InMemoryDexClassLoader
         InMemoryDexClassLoader classLoader = new InMemoryDexClassLoader(
             dexBuffers,
             null,
             getClass().getClassLoader()
         );
-        
+
         // 3. 加载类
         try {
             Class<?> clazz = classLoader.loadClass("com.example.DynamicClass");
@@ -626,7 +577,7 @@ public class DynamicLoader {
 
 ### 7.3 适用场景
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         InMemoryDexClassLoader 适用场景                     │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -639,12 +590,12 @@ public class DynamicLoader {
 2. 安全加固
    - DEX 文件加密存储
    - 运行时解密到内存
-   - 防止逆向分析
+   - 减少落地文件，不阻止内存转储或运行时分析
 
 3. 热修复
    - 下载补丁 DEX
    - 内存中加载
-   - 动态替换类
+   - 通过新加载器加载新类；不能替换已定义的 Class
 
 4. 插件化
    - 插件动态下载
@@ -658,7 +609,7 @@ public class DynamicLoader {
 
 ### 8.1 Android 中的双亲委派
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         Android 双亲委派模型                                │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -692,61 +643,17 @@ public class DynamicLoader {
 
 ### 8.2 打破双亲委派
 
+平台提供 `DelegateLastClassLoader`（API 27+），不必从另一个加载器上直接调用 protected `findClass()`。下面使用公开构造函数加载经过验证并只读发布的代码：
+
 ```java
-/**
- * 打破双亲委派模型
- * 
- * 场景：热修复、插件化需要先加载补丁类
- */
-public class HotFixClassLoader extends PathClassLoader {
-    
-    private final DexClassLoader patchClassLoader;
-    
-    public HotFixClassLoader(String dexPath, ClassLoader parent, String patchPath) {
-        super(dexPath, parent);
-        
-        // 创建补丁 ClassLoader
-        patchClassLoader = new DexClassLoader(
-            patchPath,
-            null,
-            null,
-            parent  // 注意：父加载器相同
-        );
-    }
-    
-    @Override
-    protected Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
-        // 1. 先检查是否已加载
-        Class<?> clazz = findLoadedClass(name);
-        if (clazz != null) {
-            return clazz;
-        }
-        
-        // 2. 先从补丁中加载（打破双亲委派）
-        try {
-            clazz = patchClassLoader.findClass(name);
-            if (clazz != null) {
-                return clazz;
-            }
-        } catch (ClassNotFoundException e) {
-            // 补丁中没有，继续
-        }
-        
-        // 3. 再委托父加载器
-        try {
-            clazz = super.loadClass(name, resolve);
-            if (clazz != null) {
-                return clazz;
-            }
-        } catch (ClassNotFoundException e) {
-            // 父加载器没有，继续
-        }
-        
-        // 4. 自己加载
-        return findClass(name);
-    }
-}
+ClassLoader pluginLoader = new DelegateLastClassLoader(
+        verifiedPluginPath, context.getClassLoader());
+Class<?> entry = pluginLoader.loadClass("com.example.plugin.Entry");
 ```
+
+其 `loadClass(name, resolve)` 顺序为：`findLoadedClass` -> boot class path -> 自己的 `findClass` -> parent。boot class path 仍优先，所以这不是允许覆盖 `java.lang.String` 的安全绕过。插件与宿主共享接口必须由共同的 parent 定义；插件不能再打包同名接口副本，否则同名类因 defining loader 不同而不可强转。
+
+新加载器不重定义原加载器中已经加载的 Class，调用方仍需通过显式接口/入口切换到新实现。仅改变查找顺序不会自动替换已经实例化的对象或已链接的方法。
 
 ---
 
@@ -754,7 +661,7 @@ public class HotFixClassLoader extends PathClassLoader {
 
 ### 9.1 热修复原理
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         热修复原理                                          │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -776,12 +683,14 @@ public class HotFixClassLoader extends PathClassLoader {
 
 ### 9.2 热修复实现
 
+以下保留为理解 dexElements 的**非 SDK 反射实验**，不是 Android 17 可交付热修复方案。字段访问可能被隐藏 API 策略拒绝，只能影响此加载器尚未定义的类，且需要与类加载并发协调。
+
 ```java
 /**
  * 热修复工具类
  */
 public class HotFix {
-    
+
     /**
      * 注入补丁 DEX
      */
@@ -789,17 +698,17 @@ public class HotFix {
         try {
             // 1. 获取应用的 PathClassLoader
             PathClassLoader pathClassLoader = (PathClassLoader) context.getClassLoader();
-            
+
             // 2. 获取 PathClassLoader 的 pathList 字段
             Field pathListField = BaseDexClassLoader.class.getDeclaredField("pathList");
             pathListField.setAccessible(true);
             Object pathList = pathListField.get(pathClassLoader);
-            
+
             // 3. 获取原始的 dexElements
             Field dexElementsField = pathList.getClass().getDeclaredField("dexElements");
             dexElementsField.setAccessible(true);
             Object[] oldElements = (Object[]) dexElementsField.get(pathList);
-            
+
             // 4. 创建补丁的 DexClassLoader
             DexClassLoader patchClassLoader = new DexClassLoader(
                 patchPath,
@@ -807,19 +716,22 @@ public class HotFix {
                 null,
                 pathClassLoader.getParent()
             );
-            
+
             // 5. 获取补丁的 dexElements
             Object patchPathList = pathListField.get(patchClassLoader);
             Object[] patchElements = (Object[]) dexElementsField.get(patchPathList);
-            
+
             // 6. 合并 dexElements (补丁在前)
-            Object[] newElements = new Object[patchElements.length + oldElements.length];
+            Object[] newElements = (Object[]) java.lang.reflect.Array.newInstance(
+                    oldElements.getClass().getComponentType(),
+                    patchElements.length + oldElements.length);
+            // 字段类型为 Element[]，不能用运行时类型 Object[] 赋值。
             System.arraycopy(patchElements, 0, newElements, 0, patchElements.length);
             System.arraycopy(oldElements, 0, newElements, patchElements.length, oldElements.length);
-            
+
             // 7. 设置新的 dexElements
             dexElementsField.set(pathList, newElements);
-            
+
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -829,7 +741,7 @@ public class HotFix {
 
 ### 9.3 插件化原理
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         插件化原理                                          │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -862,92 +774,40 @@ public class HotFix {
 
 ### 9.4 插件化实现
 
+ClassLoader 只解决类加载，不向 PackageManager 注册组件。`new Intent(context, pluginClass)` 不能直接启动未安装 APK 中的 Activity；它生成的是宿主包的组件名，而该类不在宿主 manifest 中。
+
+一个可控的插件接口应定义在宿主公共 API 中，插件只提供业务/视图实现；宿主 Activity 仍在 manifest 注册：
+
 ```java
-/**
- * 插件化管理器
- */
-public class PluginManager {
-    
-    private static final Map<String, DexClassLoader> plugins = new HashMap<>();
-    
-    /**
-     * 加载插件
-     */
-    public static void loadPlugin(Context context, String pluginPath) {
-        if (plugins.containsKey(pluginPath)) {
-            return;
-        }
-        
-        // 1. 创建优化目录
-        File optimizedDirectory = context.getDir("plugin_dex", Context.MODE_PRIVATE);
-        
-        // 2. 创建 DexClassLoader
-        DexClassLoader classLoader = new DexClassLoader(
-            pluginPath,
-            optimizedDirectory.getAbsolutePath(),
-            null,
-            context.getClassLoader()
-        );
-        
-        // 3. 缓存
-        plugins.put(pluginPath, classLoader);
-        
-        // 4. 加载插件资源
-        loadPluginResources(pluginPath, classLoader);
-    }
-    
-    /**
-     * 加载插件资源
-     */
-    private static void loadPluginResources(String pluginPath, DexClassLoader classLoader) {
-        try {
-            AssetManager assetManager = AssetManager.class.newInstance();
-            Method addAssetPath = AssetManager.class.getMethod("addAssetPath", String.class);
-            addAssetPath.invoke(assetManager, pluginPath);
-            
-            // 创建 Resources 对象
-            Resources superRes = context.getResources();
-            Resources pluginResources = new Resources(
-                assetManager,
-                superRes.getDisplayMetrics(),
-                superRes.getConfiguration()
-            );
-            
-            // 缓存资源
-            pluginResourcesMap.put(pluginPath, pluginResources);
-            
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
-    
-    /**
-     * 启动插件的 Activity
-     */
-    public static void startPluginActivity(Context context, String pluginPath, 
-            String activityClassName) {
-        DexClassLoader classLoader = plugins.get(pluginPath);
-        if (classLoader == null) {
-            loadPlugin(context, pluginPath);
-            classLoader = plugins.get(pluginPath);
-        }
-        
-        try {
-            Class<?> activityClass = classLoader.loadClass(activityClassName);
-            Intent intent = new Intent(context, activityClass);
-            context.startActivity(intent);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
+// 宿主公共接口：插件编译时依赖，但不要再打包一份。
+public interface PluginEntry {
+    void attach(Context hostContext);
+    View createView(Context hostContext);
 }
+
+// 业务入口加载（异常交给上层处理），verifiedReadOnlyPath 由可信分发层提供。
+public static PluginEntry loadPlugin(Context context, String verifiedReadOnlyPath)
+        throws ReflectiveOperationException {
+    ClassLoader loader = new DexClassLoader(
+            verifiedReadOnlyPath, null, null, context.getClassLoader());
+    Class<?> type = loader.loadClass("com.plugin.PluginEntryImpl");
+    PluginEntry entry = type.asSubclass(PluginEntry.class)
+            .getDeclaredConstructor().newInstance();
+    entry.attach(context);
+    return entry;
+}
+
+// 主线程中启动已声明的宿主容器，而不是任意插件 Activity。
+context.startActivity(new Intent(context, PluginHostActivity.class));
 ```
+
+资源不能由 loader 自动合并：Android 17 可使用公开 `ResourcesProvider.loadFromApk()` 与 `ResourcesLoader.addProvider()`/`Resources.addLoaders()`，并设计资源 ID 隔离、关闭 provider 的时机及容器销毁回调。宿主容器需负责 Activity 生命周期转发、状态保存和配置变化；仅加载入口并不意味着这些问题已经解决。
 
 ---
 
 ## 10. 总结
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         ClassLoader 总结                                    │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -957,13 +817,13 @@ public class PluginManager {
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                         │
 │  BootClassLoader:                                                       │
-│  - 加载系统核心类 (android.jar)                                         │
+│  - 加载 boot class path 的运行时类（非 SDK android.jar）                                         │
 │  - Zygote 进程中创建，所有应用共享                                       │
 │                                                                         │
 │  PathClassLoader:                                                       │
 │  - 加载已安装 APK 的类                                                   │
 │  - 应用的默认类加载器                                                    │
-│  - 无法加载外部 DEX/APK                                                 │
+│  - 同样能加载可访问、格式有效且符合动态加载策略的 DEX/APK                                                 │
 │                                                                         │
 │  DexClassLoader:                                                        │
 │  - 加载外部 DEX/APK                                                      │
@@ -973,7 +833,7 @@ public class PluginManager {
 │  InMemoryDexClassLoader (API 26+):                                      │
 │  - 从内存加载 DEX                                                        │
 │  - 不需要文件存储                                                        │
-│  - 安全性高                                                              │
+│  - 需要同等严格的来源验证和代码信任边界                                                              │
 │                                                                         │
 └─────────────────────────────────────────────────────────────────────────────┘
 
@@ -992,3 +852,16 @@ public class PluginManager {
 ---
 
 *本文档由 OpenClaw 生成*
+
+
+## 固定版本源码索引
+
+本文平台实现基线为 `android-17.0.0_r1`。下列函数用于定位正文分析；代码标为“节选”时省略无关监控，标为“示意”时不是源码逐字复制。
+
+- [加载器搜索图](https://android.googlesource.com/platform/libcore/+/refs/tags/android-17.0.0_r1/dalvik/src/main/java/dalvik/system/BaseDexClassLoader.java#232)：`findClass`。
+- [PathClassLoader](https://android.googlesource.com/platform/libcore/+/refs/tags/android-17.0.0_r1/dalvik/src/main/java/dalvik/system/PathClassLoader.java)：`constructors`。
+- [DexClassLoader](https://android.googlesource.com/platform/libcore/+/refs/tags/android-17.0.0_r1/dalvik/src/main/java/dalvik/system/DexClassLoader.java)：`constructor`。
+- [BootClassLoader](https://android.googlesource.com/platform/libcore/+/refs/tags/android-17.0.0_r1/ojluni/src/main/java/java/lang/ClassLoader.java)：`BootClassLoader.findClass; findResource`。
+- [应用加载器创建](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/app/LoadedApk.java)：`getClassLoader; createOrUpdateClassLoaderLocked; makeApplicationInner`。
+- [DelegateLast](https://android.googlesource.com/platform/libcore/+/refs/tags/android-17.0.0_r1/dalvik/src/main/java/dalvik/system/DelegateLastClassLoader.java)：`loadClass`。
+- [DEX 顺序](https://android.googlesource.com/platform/libcore/+/refs/tags/android-17.0.0_r1/dalvik/src/main/java/dalvik/system/DexPathList.java)：`findClass`。

@@ -7,74 +7,105 @@
 
 ## 目录
 
-1. [概述](#1-概述)
-2. [Java 线程基础](#2-java-线程基础)
-   - 2.1 [Thread 创建与启动](#21-thread-创建与启动)
-   - 2.2 [线程状态与生命周期](#22-线程状态与生命周期)
-   - 2.3 [线程优先级](#23-线程优先级)
-   - 2.4 [守护线程](#24-守护线程)
-3. [线程同步机制](#3-线程同步机制)
-   - 3.1 [synchronized](#31-synchronized)
-   - 3.2 [volatile](#32-volatile)
-   - 3.3 [wait/notify/notifyAll](#33-waitnotifynotifyall)
-   - 3.4 [Lock 与 ReentrantLock](#34-lock-与-reentrantlock)
-   - 3.5 [ReadWriteLock](#35-readwritelock)
-   - 3.6 [Condition](#36-condition)
-   - 3.7 [StampedLock](#37-stampedlock)
-4. [Java 并发工具类](#4-java-并发工具类)
-   - 4.1 [CountDownLatch](#41-countdownlatch)
-   - 4.2 [CyclicBarrier](#42-cyclicbarrier)
-   - 4.3 [Semaphore](#43-semaphore)
-   - 4.4 [Exchanger](#44-exchanger)
-   - 4.5 [Phaser](#45-phaser)
-5. [原子类与 CAS](#5-原子类与-cas)
-   - 5.1 [AtomicInteger/AtomicLong](#51-atomicintegeratomiclong)
-   - 5.2 [AtomicReference](#52-atomicreference)
-   - 5.3 [AtomicIntegerFieldUpdater](#53-atomicintegerfieldupdater)
-   - 5.4 [LongAdder（高并发场景）](#54-longadder高并发场景)
-   - 5.5 [CAS 原理](#55-cas-原理)
-6. [并发集合](#6-并发集合)
-   - 6.1 [ConcurrentHashMap](#61-concurrenthashmap)
-   - 6.2 [CopyOnWriteArrayList](#62-copyonwritearraylist)
-   - 6.3 [BlockingQueue](#63-blockingqueue)
-   - 6.4 [ConcurrentLinkedQueue/Deque](#64-concurrentlinkedqueuedeque)
-   - 6.5 [ThreadLocalMap](#65-threadlocalmap)
-7. [线程池](#7-线程池)
-   - 7.1 [ThreadPoolExecutor 核心参数](#71-threadpoolexecutor-核心参数)
-   - 7.2 [线程池执行流程](#72-线程池执行流程)
-   - 7.3 [线程池分类](#73-线程池分类)
-   - 7.4 [线程池饱和策略](#74-线程池饱和策略)
-   - 7.5 [线程池参数配置](#75-线程池参数配置)
-8. [Kotlin 协程原理](#8-kotlin-协程原理)
-   - 8.1 [协程是什么](#81-协程是什么)
-   - 8.2 [协程调度器](#82-协程调度器-dispatchers)
-   - 8.3 [协程上下文与作用域](#83-协程上下文与作用域)
-   - 8.4 [suspend 原理](#84-suspend-原理)
-   - 8.5 [协程构建器](#85-协程构建器)
-   - 8.6 [协程取消](#86-协程取消)
-   - 8.7 [协程异常处理](#87-协程异常处理)
-   - 8.8 [Flow 异步数据流](#88-flow-异步数据流)
-9. [Android 线程模型](#9-android-线程模型)
-   - 9.1 [主线程职责](#91-主线程职责)
-   - 9.2 [Binder 线程池](#92-binder-线程池)
-   - 9.3 [Android 特有的线程优先级](#93-android-特有的线程优先级)
-10. [并发设计模式](#10-并发设计模式)
-    - 10.1 [Thread-Per-Message](#101-thread-per-message)
-    - 10.2 [Worker Thread](#102-worker-thread)
-    - 10.3 [Producer-Consumer](#103-producer-consumer)
-    - 10.4 [Pipeline](#104-pipeline)
-    - 10.5 [Actor 模型](#105-actor-模型)
-11. [性能与反模式](#11-性能与反模式)
-    - 11.1 [常见性能问题](#111-常见性能问题)
-    - 11.2 [并发反模式](#112-并发反模式)
-12. [面试高频问题](#12-面试高频问题)
-13. [Android 并发专题](#13-android-并发专题)
-    - 13.1 [Handler 与线程](#131-handler-与线程)
-    - 13.2 [runOnUiThread vs post vs View.post](#132-runonuithread-vs-post-vs-viewpost)
-    - 13.3 [IntentService vs JobIntentService](#133-intentservice-vs-jobintentservice)
-    - 13.4 [AsyncTask 废弃原因](#134-asyncTask-废弃原因)
-    - 13.5 [WorkManager 并发模型](#135-workmanager-并发模型)
-    - 13.6 [子线程操作 Android UI 的正确方式](#136-子线程操作-android-ui-的正确方式)
+- [1. 概述](#1-概述)
+  - [为什么需要多线程](#为什么需要多线程)
+  - [Android 并发技术演进](#android-并发技术演进)
+- [2. Java 线程基础](#2-java-线程基础)
+  - [2.1 Thread 创建与启动](#21-thread-创建与启动)
+  - [2.2 线程状态与生命周期](#22-线程状态与生命周期)
+  - [2.3 线程优先级](#23-线程优先级)
+    - [Android 特有优先级](#android-特有优先级)
+  - [2.4 守护线程](#24-守护线程)
+- [3. 线程同步机制](#3-线程同步机制)
+  - [3.1 synchronized](#31-synchronized)
+    - [synchronized 的三大特性](#synchronized-的三大特性)
+    - [可重入性（Reentrant）](#可重入性reentrant)
+    - [锁的升级（ART Thin / Fat）](#锁的升级art-thin--fat)
+  - [3.2 volatile](#32-volatile)
+    - [volatile 适用场景](#volatile-适用场景)
+    - [volatile 的内存语义](#volatile-的内存语义)
+    - [防止指令重排序](#防止指令重排序)
+    - [synchronized vs volatile 详细对比](#synchronized-vs-volatile-详细对比)
+    - [什么情况下 i++ 需要 synchronized](#什么情况下-i-需要-synchronized)
+  - [3.3 wait/notify/notifyAll](#33-waitnotifynotifyall)
+    - [wait/notifyAll 经典模式：生产者-消费者](#waitnotifyall-经典模式生产者-消费者)
+    - [为什么必须用 while 不用 if](#为什么必须用-while-不用-if)
+    - [notify vs notifyAll](#notify-vs-notifyall)
+  - [3.4 Lock 与 ReentrantLock](#34-lock-与-reentrantlock)
+    - [synchronized vs ReentrantLock 全面对比](#synchronized-vs-reentrantlock-全面对比)
+  - [3.5 ReadWriteLock](#35-readwritelock)
+    - [读写锁的规则](#读写锁的规则)
+  - [3.6 Condition](#36-condition)
+    - [Object.wait/notify vs Condition](#objectwaitnotify-vs-condition)
+  - [3.7 StampedLock](#37-stampedlock)
+- [4. Java 并发工具类](#4-java-并发工具类)
+  - [4.1 CountDownLatch](#41-countdownlatch)
+    - [CountDownLatch 核心方法](#countdownlatch-核心方法)
+  - [4.2 CyclicBarrier](#42-cyclicbarrier)
+    - [CountDownLatch vs CyclicBarrier](#countdownlatch-vs-cyclicbarrier)
+  - [4.3 Semaphore](#43-semaphore)
+    - [Semaphore 核心方法](#semaphore-核心方法)
+  - [4.4 Exchanger](#44-exchanger)
+  - [4.5 Phaser](#45-phaser)
+- [5. 原子类与 CAS](#5-原子类与-cas)
+  - [5.1 AtomicInteger/AtomicLong](#51-atomicintegeratomiclong)
+  - [5.2 AtomicReference](#52-atomicreference)
+  - [5.3 AtomicIntegerFieldUpdater](#53-atomicintegerfieldupdater)
+  - [5.4 LongAdder（高并发场景）](#54-longadder高并发场景)
+  - [5.5 CAS 原理](#55-cas-原理)
+    - [ABA 问题及解决方案](#aba-问题及解决方案)
+- [6. 并发集合](#6-并发集合)
+  - [6.1 ConcurrentHashMap](#61-concurrenthashmap)
+  - [6.2 CopyOnWriteArrayList](#62-copyonwritearraylist)
+  - [6.3 BlockingQueue](#63-blockingqueue)
+  - [6.4 ConcurrentLinkedQueue/Deque](#64-concurrentlinkedqueuedeque)
+  - [6.5 ThreadLocalMap](#65-threadlocalmap)
+- [7. 线程池](#7-线程池)
+  - [7.1 ThreadPoolExecutor 核心参数](#71-threadpoolexecutor-核心参数)
+  - [7.2 线程池执行流程](#72-线程池执行流程)
+  - [7.3 线程池分类](#73-线程池分类)
+  - [7.4 线程池饱和策略](#74-线程池饱和策略)
+  - [7.5 线程池参数配置](#75-线程池参数配置)
+- [8. Kotlin 协程原理](#8-kotlin-协程原理)
+  - [8.1 协程是什么](#81-协程是什么)
+  - [8.2 协程调度器 Dispatchers](#82-协程调度器-dispatchers)
+  - [8.3 协程上下文与作用域](#83-协程上下文与作用域)
+  - [8.4 suspend 原理](#84-suspend-原理)
+  - [8.5 协程构建器](#85-协程构建器)
+  - [8.6 协程取消](#86-协程取消)
+  - [8.7 协程异常处理](#87-协程异常处理)
+  - [8.8 Flow 异步数据流](#88-flow-异步数据流)
+- [9. Android 线程模型](#9-android-线程模型)
+  - [9.1 主线程职责](#91-主线程职责)
+  - [9.2 Binder 线程池](#92-binder-线程池)
+  - [9.3 Android 特有的线程优先级](#93-android-特有的线程优先级)
+- [10. 并发设计模式](#10-并发设计模式)
+  - [10.1 Thread-Per-Message](#101-thread-per-message)
+  - [10.2 Worker Thread](#102-worker-thread)
+  - [10.3 Producer-Consumer](#103-producer-consumer)
+  - [10.4 Pipeline](#104-pipeline)
+  - [10.5 Actor 模型](#105-actor-模型)
+- [11. 性能与反模式](#11-性能与反模式)
+  - [11.1 常见性能问题](#111-常见性能问题)
+    - [锁竞争激烈](#锁竞争激烈)
+    - [线程过多](#线程过多)
+    - [伪共享（False Sharing）](#伪共享false-sharing)
+  - [11.2 并发反模式](#112-并发反模式)
+    - [反模式1：在锁内执行耗时操作](#反模式1在锁内执行耗时操作)
+    - [反模式2：省略 finally 中的 unlock](#反模式2省略-finally-中的-unlock)
+    - [反模式3：使用 Thread.sleep 等待条件](#反模式3使用-threadsleep-等待条件)
+    - [反模式4：混淆线程和协程](#反模式4混淆线程和协程)
+- [12. 面试高频问题](#12-面试高频问题)
+- [13. Android 并发专题](#13-android-并发专题)
+  - [13.1 Handler 与线程](#131-handler-与线程)
+    - [子线程创建 Handler 的坑](#子线程创建-handler-的坑)
+  - [13.2 runOnUiThread vs post vs View.post](#132-runonuithread-vs-post-vs-viewpost)
+  - [13.3 IntentService vs JobIntentService](#133-intentservice-vs-jobintentservice)
+  - [13.4 AsyncTask 废弃原因](#134-asynctask-废弃原因)
+  - [13.5 WorkManager 并发模型](#135-workmanager-并发模型)
+  - [13.6 子线程操作 Android UI 的正确方式](#136-子线程操作-android-ui-的正确方式)
+- [总结](#总结)
+- [固定版本源码索引](#固定版本源码索引)
 
 ---
 
@@ -84,7 +115,7 @@
 
 现代 Android 开发虽然已经进入 Kotlin 协程时代，但理解底层原理、掌握 Java 并发工具类，对于写出高效正确的并发代码至关重要。
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         并发 vs 并行                                        │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -124,7 +155,7 @@
 
 ### Android 并发技术演进
 
-```
+```text
 2008  Android 1.0    Thread / Handler / Runnable
 2009  Android 1.5    AsyncTask（2017 废弃）
 2011  Android 3.0    Loader / IntentService
@@ -182,7 +213,7 @@ new Thread(task).start();
 String result = task.get();  // 阻塞等待返回值
 ```
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         start() vs run()                                    │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -202,7 +233,7 @@ String result = task.get();  // 阻塞等待返回值
 
 线程有 6 种状态，通过 `Thread.getState()` 可查看：
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         线程状态转换图                                       │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -260,11 +291,13 @@ public class ThreadStateDemo {
 
         System.out.println(thread.getState());  // NEW
         thread.start();
-        System.out.println(thread.getState());  // RUNNABLE
+        System.out.println(thread.getState());  // 瞬时状态，调度不同可能已睡眠
         Thread.sleep(100);
         System.out.println(thread.getState());  // TIMED_WAITING（sleep）
         Thread.sleep(2100);
-        System.out.println(thread.getState());  // WAITING（wait）
+        System.out.println(thread.getState());  // WAITING（wait），仅为可能观察值
+        thread.interrupt();
+        thread.join(); // 避免演示线程永远等待
     }
 }
 ```
@@ -309,7 +342,7 @@ nice 值映射到 Linux 优先级：Linux 优先级 = 120 + nice 值（所以 ni
 
 ### 2.4 守护线程
 
-JVM 中所有非守护线程结束时，守护线程被 JVM 自动强制终止。
+桌面 JVM 的退出通常不等待守护线程；Android 应用由系统管理进程生存期，daemon 标志不是保活保证。进程终止时不保证执行 finally。
 
 ```java
 Thread daemon = new Thread(() -> {
@@ -377,47 +410,27 @@ public void method() {
 
 #### synchronized 的三大特性
 
+- **互斥**：持有同一 monitor 的代码不会被另一个持有该 monitor 的线程交错访问；并不禁止操作系统抢占，也不提供异常回滚。
+- **可见性**：一次 unlock happens-before 后续对同一 monitor 的 lock；不用同一同步协议读取的线程不自动获得保证。
+- **有序性**：遵守 happens-before 与单线程语义即可，编译器仍可做合法重排序；不是“块内完全不重排”，也不是把每次访问都强制直达 DRAM。
+
+```java
+class VisibilityDemo {
+    private boolean ready;
+    synchronized void writer() {
+        ready = true;
+        notifyAll();
+    }
+    synchronized void reader() throws InterruptedException {
+        while (!ready) wait(); // 释放 monitor，writer 才能进入。
+        System.out.println("done");
+    }
+}
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         synchronized 三大特性                                │
-└─────────────────────────────────────────────────────────────────────────────┘
 
-  1. 原子性（Atomicity）
-  ─────────────────────────────────────────────────────────────────────────
-  一组操作不可中断，要么全部执行，要么全部不执行
-  synchronized 修饰的方法或代码块是原子的
+在 synchronized 内忙等 `while (!ready) {}` 会一直占着锁，writer 无法进入；可见性并不能补救这个活性错误。
 
-  2. 可见性（Visibility）
-  ─────────────────────────────────────────────────────────────────────────
-  线程 A 获取锁进入 synchronized 代码块，
-  退出时强制刷新共享变量到主内存；
-  线程 B 进入同一 synchronized 代码块时，
-  强制从主内存读取最新值。
-
-  3. 有序性（Ordering）
-  ─────────────────────────────────────────────────────────────────────────
-  synchronized 块内的代码不会被指令重排序。
-  保证了"进入时可见其他线程的修改，退出时可见自己的修改"。
-
-  ┌─────────────────────────────────────────────────────────────────────┐
-  │  可见性示例：                                                        │
-  │                                                                      │
-  │  class VisibilityDemo {                                              │
-  │      boolean flag = false;                                          │
-  │                                                                      │
-  │      synchronized void writer() {                                    │
-  │          flag = true;           // 退出时强制刷主存                  │
-  │      }                                                               │
-  │                                                                      │
-  │      synchronized void reader() {                                    │
-  │          while (!flag) {        // 进入时强制读主存                  │
-  │              // wait                                                    │
-  │          }                                                           │
-  │          System.out.println("done");                                 │
-  │      }                                                               │
-  │  }                                                                   │
-  └─────────────────────────────────────────────────────────────────────┘
-```
+---
 
 #### 可重入性（Reentrant）
 
@@ -448,51 +461,26 @@ public class ReentrantDemo {
 
 可重入实现：JVM 为每个锁维护一个计数器 + 持有线程 ID。同一线程进入，计数器 +1；退出，计数器 -1；计数器归零时锁释放。
 
-#### 锁的升级（偏向锁 → 轻量级锁 → 重量级锁）
+#### 锁的升级（ART Thin / Fat）
 
-JVM 对 synchronized 做了优化，锁会逐步升级：
+Android 17 的 `LockWord`/`Monitor` 路径不是旧 HotSpot 的 biased-lock 栈锁记录模型：
 
+```text
+unlocked -> CAS 设置 thin lock owner 和递归计数
+当前 owner 再入 -> 增加递归计数
+其他线程竞争 -> 重试，必要时 Inflate 成 fat lock
+hash / wait / 递归溢出等 -> 需要 Monitor 的路径
+fat -> Monitor::Lock / Unlock，竞争时等待
+空闲 Monitor -> 在安全条件下 Deflate（并非绝对不可逆）
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         锁升级过程（不可逆）                                  │
-└─────────────────────────────────────────────────────────────────────────────┘
 
-  无竞争状态（单线程）：
-  ─────────────────────────────────────────────────────────────────────────
-  偏向锁：
-  - 第一次获取锁时，CAS 设置偏向模式
-  - 记录持有锁的线程 ID
-  - 同一线程再次进入，只需检查线程 ID，几乎无开销
-  - 对象头记录偏向线程 ID
+薄锁状态存储在对象头 LockWord；膨胀后编码 Monitor 标识，不是把头改为指向当前线程栈上 Lock Record。不能宣称固定自旋 10 次、每次解锁降级或 ART 存在偏向锁。
 
-  轻度竞争（多线程交替执行，轻量级自旋）：
-  ─────────────────────────────────────────────────────────────────────────
-  轻量级锁：
-  - 偏向锁被访问，撤销偏向，膨胀为轻量级锁
-  - 线程在栈帧中创建锁记录（Lock Record）
-  - CAS 将对象头指向锁记录，成功则获得锁
-  - 失败则自旋等待（空转重试）
-
-  激烈竞争（大量线程同时抢锁）：
-  ─────────────────────────────────────────────────────────────────────────
-  重量级锁：
-  - 自旋超过阈值（默认 10 次），膨胀为重量级锁
-  - 未抢到锁的线程进入阻塞（park）
-  - 需要 OS 调度，有用户态到内核态的切换
-  - 开销最大，但不会空转浪费 CPU
-
-  ┌─────────────────────────────────────────────────────────────────────┐
-  │  性能对比：                                                          │
-  │  偏向锁 < 轻量级锁 < 重量级锁（开销递增）                             │
-  │  偏向锁：几乎无额外开销（单线程最优）                                  │
-  │  轻量级锁：少量自旋开销                                              │
-  │  重量级锁：线程阻塞 + 系统调用（最重）                                │
-  └─────────────────────────────────────────────────────────────────────┘
-```
+---
 
 ### 3.2 volatile
 
-volatile 是轻量级同步机制，不加锁，只保证**可见性**和**有序性**，**不保证原子性**。
+volatile 是轻量级同步机制，不加锁，保证**可见性**和相应的**有序性**；单次读/写原子，**不保证 i++ 等复合操作原子性**。
 
 #### volatile 适用场景
 
@@ -531,33 +519,19 @@ public class Singleton {
 
 #### volatile 的内存语义
 
+对一个 volatile 变量的写 synchronizes-with 后续读，由此发布写前的普通字段修改；JMM 的工作内存不是 CPU cache 的一一映射。编译器/ART 按目标 ISA 用 acquire/release、屏障或原子指令实现语义，不能解释为“每次都刷新 RAM”。
+
+```java
+int payload;
+volatile boolean ready;
+// writer
+payload = 42;
+ready = true;
+// reader（观察到这次 ready=true 后，payload 可见）
+if (ready) use(payload);
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         volatile 内存语义                                    │
-└─────────────────────────────────────────────────────────────────────────────┘
 
-  写操作（Store Barrier）：
-  ─────────────────────────────────────────────────────────────────────────
-  volatile 写操作会插入 Store Barrier，
-  强制将工作内存中的值刷新到主内存。
-
-  读操作（Load Barrier）：
-  ─────────────────────────────────────────────────────────────────────────
-  volatile 读操作会插入 Load Barrier，
-  强制从主内存读取最新值到工作内存。
-
-  工作内存（CPU Cache）←→ 主内存（RAM）
-
-  ┌─────────────────────────────────────────────────────────────────────┐
-  │  普通变量读写：                                                      │
-  │  线程A: 写变量 → 工作内存 → (可能不同步) → 主内存                   │
-  │  线程B: 读变量 ← 工作内存 ← (可能过期) ← 主内存                     │
-  │                                                                      │
-  │  volatile 变量读写：                                                  │
-  │  线程A: 写变量 → 强制刷主内存                                        │
-  │  线程B: 读变量 → 强制读主内存                                        │
-  └─────────────────────────────────────────────────────────────────────┘
-```
+---
 
 #### 防止指令重排序
 
@@ -583,9 +557,9 @@ instance = new Singleton();
 
 | 特性 | synchronized | volatile |
 |------|-------------|----------|
-| 原子性 | 保证 | 不保证 |
+| 原子性 | 同一锁协议下保护复合操作 | 单次读写原子，复合操作不原子 |
 | 可见性 | 保证 | 保证 |
-| 有序性 | 保证（块内） | 保证（单个变量） |
+| 有序性 | monitor 的 happens-before | volatile 发布/获取的 happens-before |
 | 锁机制 | 隐式管程锁 | 无锁 |
 | 阻塞线程 | 会（重量级锁时） | 不会 |
 | 性能开销 | 较重 | 极轻 |
@@ -640,7 +614,7 @@ synchronized (lock) {
         lock.wait();  // 释放锁，进入 WAITING 状态
     }
     // 业务逻辑（此时已持有锁）
-    lock.notify();      // 通知一个等待线程（随机）
+    lock.notify();      // 通知一个等待线程（选择未规定，不保证随机或公平）
     // 或 lock.notifyAll();  // 通知所有等待线程
 }
 // 退出 synchronized 时释放锁
@@ -820,7 +794,7 @@ public void put(K key, V value) {
 
 #### 读写锁的规则
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         读写锁访问规则                                       │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -829,24 +803,24 @@ public void put(K key, V value) {
   读-写：互斥（读的时候不能写，写的时候不能读）
   写-写：互斥（同一时刻只能一个线程写）
 
-  注意：ReentrantReadWriteLock 允许从写锁降级为读锁：
-  rwLock.writeLock().lock();
-  try {
-      // 写操作
-      rwLock.readLock().lock();  // 同一个线程可以再次获取读锁
-      try {
-          // 读操作（降级后可以读）
-      } finally {
-          rwLock.readLock().unlock();  // 先释放读锁
-      }
-  } finally {
-      rwLock.writeLock().unlock();  // 最后释放写锁
-  }
+  注意：先获取读锁，再释放写锁，才能形成真正的降级：
+rwLock.writeLock().lock();
+try {
+    // 写操作
+    rwLock.readLock().lock();
+} finally {
+    rwLock.writeLock().unlock(); // 到这里才降为只持读锁
+}
+try {
+    // 读操作：其他读者可以并发，写者仍被阻塞
+} finally {
+    rwLock.readLock().unlock();
+}
 ```
 
 ### 3.6 Condition
 
-Condition（条件变量）是比 wait/notify 更强大的等待机制，**必须和 ReentrantLock 配合使用**。
+Condition（条件变量）是比 wait/notify 更强大的等待机制，**与创建它的 Lock 配合使用**（常见为 ReentrantLock，也可来自 ReentrantReadWriteLock 的写锁）。
 
 ```java
 private final ReentrantLock lock = new ReentrantLock();
@@ -950,7 +924,7 @@ public void move(double deltaX, double deltaY) {
 }
 ```
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    StampedLock 三种模式                                     │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1007,7 +981,7 @@ public class GameServer {
             }).start();
         }
 
-        Thread.sleep(500);  // 等待所有玩家准备
+        Thread.sleep(500);  // 仅模拟延时，不保证所有玩家已 ready；精确屏障应再设 ready latch
         System.out.println("Game starting!");
         startSignal.countDown();  // 主线程发出开始信号
 
@@ -1027,11 +1001,11 @@ public class GameServer {
 | `countDown()` | 计数减一，不能重置 |
 | `getCount()` | 获取当前计数值 |
 
-**注意**：CountDownLatch 不能重置，计数到 0 后不能再用。
+**注意**：CountDownLatch 不能重置，计数到 0 后所有后续 await 都直接通过，不能重置成新一轮计数。
 
 ### 4.2 CyclicBarrier
 
-循环栅栏，让一组线程互相等待，到达某点后一起恢复执行。**可以重置后重用**。
+循环栅栏，让一组线程互相等待，到达某点后一起恢复执行。**正常一轮完成后自动开启下一轮，reset 用于显式重置**。
 
 ```java
 // 场景：多线程执行，分阶段同步
@@ -1086,6 +1060,7 @@ public class MatrixSolver {
 class ConnectionPool {
     private final Semaphore available;
     private final Object[] connections;
+    private final Set<Object> borrowed = Collections.newSetFromMap(new IdentityHashMap<>());
 
     public ConnectionPool(int poolSize) {
         available = new Semaphore(poolSize);
@@ -1096,9 +1071,9 @@ class ConnectionPool {
     }
 
     public Object getConnection(long timeout, TimeUnit unit)
-            throws InterruptedException {
+            throws InterruptedException, TimeoutException {
         if (!available.tryAcquire(timeout, unit)) {
-            throw new InterruptedException("Timeout waiting for connection");
+            throw new TimeoutException("Timeout waiting for connection");
         }
         return acquireConnection();
     }
@@ -1109,6 +1084,7 @@ class ConnectionPool {
                 if (connections[i] != null) {
                     Object conn = connections[i];
                     connections[i] = null;  // 标记为已借出
+                    borrowed.add(conn);
                     return conn;
                 }
             }
@@ -1118,6 +1094,9 @@ class ConnectionPool {
 
     public void releaseConnection(Object conn) {
         synchronized (connections) {
+            if (!borrowed.remove(conn)) {
+                throw new IllegalArgumentException("Unknown or already returned connection");
+            }
             for (int i = 0; i < connections.length; i++) {
                 if (connections[i] == null) {
                     connections[i] = conn;  // 归还
@@ -1191,53 +1170,38 @@ class DataProcessor {
 
 ### 4.5 Phaser
 
-多阶段同步器，比 CyclicBarrier 更灵活，支持动态注册 participants。
+Phaser 支持动态注册及多阶段屏障。`arriveAndAwaitAdvance()` **不抛 InterruptedException**；单次 `awaitAdvance(phase)` 只等待该阶段变化，不能据此宣称所有阶段完成。
 
 ```java
-// 场景：多阶段任务，每阶段需全部完成后才能进入下一阶段
-public class PhaserDemo {
-    public void execute() throws InterruptedException {
-        Phaser phaser = new Phaser(3);  // 3 个参与线程
-
-        for (int i = 0; i < 3; i++) {
-            final int threadId = i;
-            new Thread(() -> {
-                try {
-                    // 阶段0：初始化
-                    System.out.println("Thread-" + threadId + " 阶段0 初始化");
-                    phaser.arriveAndAwaitAdvance();  // 到达，等待其他线程
-
-                    // 阶段1：执行
-                    System.out.println("Thread-" + threadId + " 阶段1 执行");
-                    phaser.arriveAndAwaitAdvance();
-
-                    // 阶段2：收尾
-                    System.out.println("Thread-" + threadId + " 阶段2 收尾");
-                    phaser.arriveAndAwaitAdvance();
-
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
+public void execute() {
+    Phaser phaser = new Phaser(4); // 三个 worker + 一个协调线程
+    for (int i = 0; i < 3; i++) {
+        final int id = i;
+        new Thread(() -> {
+            try {
+                for (int phase = 0; phase < 3; phase++) {
+                    if (phaser.isTerminated()) return;
+                    System.out.println(id + " phase=" + phase);
+                    if (phaser.arriveAndAwaitAdvance() < 0) return;
                 }
-            }).start();
-        }
-
-        // 主线程等待所有阶段完成
-        phaser.awaitAdvance(phaser.getPhase());
-        System.out.println("所有阶段完成");
+                phaser.arriveAndDeregister();
+            } catch (Throwable failure) {
+                phaser.forceTermination(); // 防止其他参与者永远等待
+                throw failure;
+            }
+        }).start();
     }
+    for (int phase = 0; phase < 3; phase++) {
+        if (phaser.arriveAndAwaitAdvance() < 0) {
+            throw new IllegalStateException("阶段执行失败");
+        }
+    }
+    phaser.arriveAndDeregister();
+    System.out.println("所有阶段完成");
 }
 ```
 
-#### Phaser 核心方法
-
-| 方法 | 说明 |
-|------|------|
-| `Phaser(int parties)` | 构造函数，注册 parties 个参与线程 |
-| `arriveAndAwaitAdvance()` | 到达并等待其他线程 |
-| `arrive()` | 到达（不等待），返回当前 phase |
-| `arriveAndDeregister()` | 到达并退出 Phaser |
-| `bulkRegister(int parties)` | 批量注册 |
-| `awaitAdvance(int phase)` | 等待 phase 前进 |
+需要可中断等待时，先 `arrive()` 获得 phase，再用 `awaitAdvanceInterruptibly(phase)`，并在取消时协调注销/终止，避免参与数与实际工作不一致。
 
 ---
 
@@ -1356,11 +1320,11 @@ class Singleton {
 
 ```java
 class Student {
-    volatile int score;  // 必须是 volatile，不能是 private
+    volatile int score;  // 必须是 volatile int；调用 newUpdater 的类必须有字段访问权限
 }
 
 class ScoreTracker {
-    // 注意：字段必须是 volatile，不能是 private
+    // 注意：字段必须是 volatile int；调用 newUpdater 的类必须有字段访问权限
     private final AtomicIntegerFieldUpdater<Student> scoreUpdater =
         AtomicIntegerFieldUpdater.newUpdater(Student.class, "score");
 
@@ -1399,7 +1363,7 @@ public class UpdaterDemo {
 
 高并发计数器，比 AtomicLong 性能更好。热点数据分段，多线程更新不同单元，最后汇总。
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    AtomicLong vs LongAdder 原理对比                          │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1412,8 +1376,8 @@ public class UpdaterDemo {
   LongAdder：
   ─────────────────────────────────────────────────────────────────────────
   分段思想：热点数据分成多个单元
-  每个线程更新自己的单元（无竞争）
-  sum() 时汇总所有单元
+  线程经 probe 映射到 cell，可能碰撞，并非线程独占
+  sum() 时汇总所有单元；并发更新时不是原子快照
 
   ┌─────────────────────────────────────────────────────────────────────┐
   │  LongAdder 内部结构：                                                 │
@@ -1424,8 +1388,8 @@ public class UpdaterDemo {
   │  更新逻辑：                                                          │
   │  1. 先 CAS 更新 base（无竞争时）                                     │
   │  2. 有竞争 → 懒创建 cells 数组                                       │
-  │  3. 取 cell 索引 = threadId % cells.length                          │
-  │  4. CAS 更新对应的 cell（无竞争）                                     │
+  │  3. 取 cell 索引 = (cells.length - 1) & getProbe()                          │
+  │  4. CAS 更新对应 cell，碰撞时可推进 probe/扩容                                     │
   │  5. 再次失败 → 自旋重试                                              │
   │                                                                     │
   │  sum() 汇总：base + sum(cells[])                                    │
@@ -1458,7 +1422,7 @@ class Analytics {
 // LongAccumulator：更通用的累加器
 class ScoreAccumulator {
     private final LongAccumulator maxScore = new LongAccumulator(
-        Long::max,  // 累加规则（可以是任意二元运算）
+        Long::max,  // 累加规则应无副作用、满足结合律；一般还需交换律
         0           // 初始值
     );
 
@@ -1476,7 +1440,7 @@ class ScoreAccumulator {
 
 CAS（Compare-And-Swap）是硬件级别的原子操作，CPU 提供支持。
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         CAS 原理                                            │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1492,7 +1456,7 @@ CAS（Compare-And-Swap）是硬件级别的原子操作，CPU 提供支持。
 
   CPU 指令：
   - x86: CMPXCHG（单核）
-  - x86: LOCK CMPXCHG（多核，锁总线）
+  - x86: LOCK CMPXCHG（通常锁定缓存行的一致性协议，不一律锁总线）
   - ARM: LDREX/STREX（加载exclusive/存储exclusive）
 
   Java 实现（Unsafe 类）：
@@ -1536,23 +1500,17 @@ Thread t2 = new Thread(() -> {
     // t2 以为值没变，实际已被 t1 修改过
 });
 
-// 解决方案：AtomicStampedReference（带版本号）
-AtomicStampedReference<Integer> stampedRef =
-    new AtomicStampedReference<>(100, 1);
-
-Thread t1 = new Thread(() -> {
-    int[] stamp = new int[1];
-    Integer value = stampedRef.get(stamp);  // 获取值和版本
-    stampedRef.compareAndSet(100, 200, stamp[0], stamp[0] + 1);  // 同时比较版本
-    stampedRef.compareAndSet(200, 100, stamp[0] + 1, stamp[0] + 2);
-});
-
-Thread t2 = new Thread(() -> {
-    int[] stamp = new int[1];
-    Integer value = stampedRef.get(stamp);  // 获取值和版本
-    // stamp[0] 已变化，CAS 失败！
-    stampedRef.compareAndSet(100, 300, stamp[0], stamp[0] + 1);
-});
+// 解决方案：版本同时参与比较。演示严格安排“旧读取 -> A-B-A -> CAS”。
+Integer a = Integer.valueOf(100);
+Integer b = Integer.valueOf(200);
+AtomicStampedReference<Integer> stampedRef = new AtomicStampedReference<>(a, 0);
+int[] observedStamp = new int[1];
+Integer observed = stampedRef.get(observedStamp); // 模拟线程2保存旧状态
+stampedRef.compareAndSet(a, b, 0, 1);             // 模拟线程1 A -> B
+stampedRef.compareAndSet(b, a, 1, 2);             // 模拟线程1 B -> A
+boolean changed = stampedRef.compareAndSet(observed, Integer.valueOf(300),
+        observedStamp[0], observedStamp[0] + 1);  // false，stamp 已变化
+// Reference 比较是引用身份而不是 Integer.equals；真正并发测试须用同步原语安排时序。
 ```
 
 ---
@@ -1564,7 +1522,7 @@ Thread t2 = new Thread(() -> {
 高性能并发哈希映射，JDK 8+ 用 CAS + synchronized 实现。
 
 ```java
-ConcurrentHashMap<String, Object> map = new ConcurrentHashMap<>();
+ConcurrentHashMap<String, String> map = new ConcurrentHashMap<>();
 
 // 基本操作（线程安全）
 map.put("key", "value");
@@ -1589,13 +1547,13 @@ map.merge("key", "value", (oldVal, newVal) -> oldVal + newVal);
 
 // 批量操作
 map.forEach((k, v) -> System.out.println(k + ":" + v));
-map.forEach(3, (k, v) -> System.out.println(k + ":" + v));  // 并行度3
+map.forEach(3, (k, v) -> System.out.println(k + ":" + v));  // parallelismThreshold=3，不是线程数
 
 // search 搜索
 String result = map.search(3, (k, v) -> k.startsWith("a") ? k : null);
 ```
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    ConcurrentHashMap JDK 8+ 实现原理                        │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1604,7 +1562,7 @@ String result = map.search(3, (k, v) -> k.startsWith("a") ? k : null);
   ─────────────────────────────────────────────────────────────────────────
   - 数组（Node[] table）：每个元素是一个桶
   - 链表：桶内元素少时（<8）用链表
-  - 红黑树：桶内元素多时（>8）链表转红黑树
+  - 红黑树：插入达到 treeify 触发条件还要 table.length >= 64，否则先扩容
 
   线程安全机制：
   ─────────────────────────────────────────────────────────────────────────
@@ -1744,7 +1702,7 @@ deque.pollLast();        // 尾出
 
 ### 6.5 ThreadLocalMap
 
-ThreadLocal 的内部实现，使用弱引用 key 防止内存泄漏。
+ThreadLocal 的内部实现使用弱引用 key，但 value 仍被线程的 map 强引用；弱 key 不保证不泄漏，线程池任务应在 finally remove。
 
 ```java
 // 基本使用
@@ -1815,7 +1773,7 @@ public ThreadPoolExecutor(
 
 ### 7.2 线程池执行流程
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    ThreadPoolExecutor 执行流程                               │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1826,8 +1784,8 @@ public ThreadPoolExecutor(
      是 ──► 创建核心线程，执行任务
      否 ──► ②
 
-  ② 队列未满？
-     是 ──► 任务入队列等待（核心线程空闲时取执行）
+  ② 线程池仍 RUNNING 且队列 offer 成功？
+     是 ──► 入队后复查 runState；若已关闭则 remove/reject，若 workerCount=0 则补建消费者
      否 ──► ③
 
   ③ 线程数 < maximumPoolSize？
@@ -1902,7 +1860,7 @@ ThreadPoolExecutor customPool = new ThreadPoolExecutor(
 
 ### 7.4 线程池饱和策略
 
-队列满 + 线程数达最大值时触发：
+无法接收新任务时触发，包括饱和、线程创建失败及关闭状态：
 
 ```java
 // 四种饱和策略
@@ -1913,8 +1871,8 @@ new ThreadPoolExecutor.AbortPolicy()
 // 2. CallerRunsPolicy：用调用者线程执行
 new ThreadPoolExecutor.CallerRunsPolicy()
 // 任务由提交任务的线程执行
-// 优点：防止任务丢失，且有减速效果（调用者线程被占用）
-// 缺点：提交任务的线程被阻塞
+// 运行中会让提交者执行，形成背压；shutdown 后仍会丢弃
+// 缺点：若提交者是 UI/Binder 线程，会在该线程执行耗时工作
 
 // 3. DiscardPolicy：丢弃任务
 new ThreadPoolExecutor.DiscardPolicy()
@@ -1928,7 +1886,7 @@ new ThreadPoolExecutor.DiscardOldestPolicy()
 
 ### 7.5 线程池参数配置
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    线程池参数配置公式                                        │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1952,13 +1910,13 @@ new ThreadPoolExecutor.DiscardOldestPolicy()
   ─────────────────────────────────────────────────────────────────────────
   1. 不要写死核心线程数
   2. 使用有界队列，防止 OOM
-  3. 拒绝策略用 CallerRunsPolicy，防止任务丢失
+  3. 明确拒绝/重试策略；UI/Binder 提交者不应盲用 CallerRunsPolicy
   4. 合理设置 keepAliveTime
   5. 监控队列大小和拒绝次数
-  6. 线程池数量不宜过多（CPU 核心数 * 1.5 到 2 倍）
+  6. 按总并行度、任务内存和测量结果限制线程池数量，没有按核数倍增池数量的规则
 
   ┌─────────────────────────────────────────────────────────────────────┐
-  │  Android 主线程池（系统管理，不要自己创建）：                        │
+  │  Android 常见执行设施（并非都是主线程池）：                        │
   │  - IntentService：单线程 + Handler                                  │
   │  - AsyncTask：SERIAL_EXECUTOR（串行）/ THREAD_POOL_EXECUTOR（并行）│
   │  - Coroutines：Dispatchers.Main/IO/Default                        │
@@ -1976,7 +1934,7 @@ new ThreadPoolExecutor.DiscardOldestPolicy()
 | 对比项 | 线程 | 协程 |
 |--------|------|------|
 | 调度者 | 操作系统 | 用户态（协程库） |
-| 切换开销 | 大（1-2KB 栈，CPU 上下文切换） | 极小（状态机，寄存器保存） |
+| 切换开销 | 线程栈/OS 上下文，大小由平台和创建参数决定 | 状态机与调度开销，不保存一套独立 OS 栈/寄存器 |
 | 阻塞 | 阻塞线程 | 挂起协程，线程可执行其他任务 |
 | 数量 | 受系统限制（千级） | 可轻松创建百万级 |
 | 并发模型 | 抢占式 | 协作式（主动让出） |
@@ -1990,10 +1948,10 @@ fun threadModel() {
 }
 
 // 协程模型：单线程内交替执行
-suspend fun coroutineModel() {
+suspend fun coroutineModel() = coroutineScope {
     launch { doWorkA() }   // 协程A
     launch { doWorkB() }   // 协程B
-    // 在同一个线程内交替执行
+    // 是否同线程取决于继承的 dispatcher，不由 suspend 决定
 }
 ```
 
@@ -2010,7 +1968,7 @@ launch(Dispatchers.IO) {
     val data = api.fetch()       // 网络请求
     val content = readFile()     // 文件读写
     val users = db.query()       // 数据库操作
-    // 自动切换到主线程更新UI
+    // 显式切换到主线程更新UI
     withContext(Dispatchers.Main) {
         textView.text = data
     }
@@ -2024,19 +1982,20 @@ launch(Dispatchers.Default) {
 
 // Dispatchers.Unconfined：不限制线程（不推荐）
 launch(Dispatchers.Unconfined) {
-    // 启动时在主线程，恢复时在哪个线程就在哪个
+    // 启动于调用者线程；挂起后由所用挂起函数决定恢复线程
 }
 
 // 自定义调度器（限制并发数）
-val singleThread = Dispatchers.Default.limitedParallelism(1)
-launch(singleThread) {
-    // 所有协程在这个单线程执行，可保证线程安全
+val serialDispatcher = Dispatchers.Default.limitedParallelism(1)
+launch(serialDispatcher) {
+    // 只限制同时运行的片段数量，不固定同一个 Thread；挂起点仍可交错。
+    // 跨挂起点保护状态请用 Mutex 或单消费者 Channel。
 }
 ```
 
 线程池大小：
 
-- `Dispatchers.IO`：max(2, CPU 核心数 × 2)
+- `Dispatchers.IO`：默认并行上限 max(64, CPU 核心数)，可由系统属性配置；与 Default 共享调度资源，limitedParallelism 视图有弹性
 - `Dispatchers.Default`：max(2, CPU 核心数)
 
 ### 8.3 协程上下文与作用域
@@ -2132,7 +2091,7 @@ class FetchDataContinuation : Continuation<String> {
 
 挂起原理：
 
-```
+```text
 挂起点 = 状态机的状态保存点
 恢复 = 从保存的状态继续执行
 
@@ -2183,7 +2142,7 @@ viewModelScope.launch {
     val result = withTimeoutOrNull(3000L) {
         delay(2000L)
         "success"  // 不超时
-    }  // result = null（超时）
+    }  // 此例 2 秒内完成，结果为 success；真正超时才为 null
 }
 
 // runBlocking（测试用，阻塞当前线程）
@@ -2251,9 +2210,12 @@ viewModelScope.launch {  // 父协程
 }
 
 // SupervisorJob：子协程失败不影响父和兄弟
-viewModelScope.launch(SupervisorJob()) {  // 父协程
-    launch { throw Exception("Child 1 failed") }  // 失败
-    launch { delay(1000L) }  // 仍然执行
+viewModelScope.launch {
+    supervisorScope {
+        val errors = CoroutineExceptionHandler { _, e -> handleError(e) }
+        launch(errors) { throw Exception("Child 1 failed") }
+        launch { delay(1000L) } // 兄弟不因上一个 launch 的失败被取消
+    }
 }
 
 // 清理资源
@@ -2269,59 +2231,32 @@ viewModelScope.launch {
 
 ### 8.7 协程异常处理
 
+普通结构化父子关系中，launch **和 async** 的非取消异常都会立即取消父 job。async 把异常保存在 Deferred 并在 await 再抛出，不意味着等 await 才传播。要局部处理且保持兄弟任务存活，使用 supervisorScope，并处理根 launch 的未捕获异常：
+
 ```kotlin
-// try-catch
 viewModelScope.launch {
-    try {
-        val data = api.fetch()
-    } catch (e: Exception) {
-        handleError(e)
+    supervisorScope {
+        val deferred = async { api.fetch() }
+        try {
+            val data = deferred.await()
+            consume(data)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: IOException) {
+            handleError(e)
+        }
     }
 }
 
-// CoroutineExceptionHandler
-val handler = CoroutineExceptionHandler { ctx, e ->
-    println("Error in $ctx: $e")
-}
-
-// 全局作用域
-GlobalScope.launch(handler) { throw Exception("error") }
-
-// 自定义作用域
-val scope = CoroutineScope(SupervisorJob() + handler)
-scope.launch { throw Exception("error") }
-
-// async 的异常在 await() 时抛出
-viewModelScope.launch {
-    val deferred = async {
-        throw Exception("async error")
-    }
-    try {
-        deferred.await()  // 异常在这里抛出
-    } catch (e: Exception) {
-        handleError(e)
-    }
-}
-
-// 推荐：runCatching
+// runCatching 会捕获 CancellationException，必须恢复取消传播。
 val result = runCatching { api.fetch() }
-result.onSuccess { data -> /* 处理成功 */ }
-result.onFailure { e -> handleError(e) }
-
-// 异常与结构化并发
-viewModelScope.launch {
-    // launch：子协程异常会直接传播给父协程
-    // async：子协程异常在 await() 时才抛出
-}
-
-// 避免异常吞掉
-viewModelScope.launch {
-    supervisorScope {  // 用 supervisorScope 让子协程失败不影响父
-        launch { throw Exception("error") }
-        launch { /* 仍然执行 */ }
-    }
-}
+result.exceptionOrNull()?.let { if (it is CancellationException) throw it }
+result.onFailure { handleError(it) }
 ```
+
+`CoroutineExceptionHandler` 处理没有其他接收方的异常，不能恢复已失败协程；普通子协程委托父处理，Deferred 应通过 await 消费结果。`launch(SupervisorJob())` 会替换父 Job 且并不把 launch 自身变成 supervisor，不能拿它替代 supervisorScope，否则既破坏 viewModelScope 的生命周期，又无法隔离孙协程失败。
+
+---
 
 ### 8.8 Flow 异步数据流
 
@@ -2358,7 +2293,7 @@ viewModelScope.launch {
 // StateFlow：状态流（类似 LiveData）
 class StateFlowViewModel : ViewModel() {
     private val _state = MutableStateFlow(0)
-    val state: StateFlow<Int> = _state.asReadOnlyStateFlow()
+    val state: StateFlow<Int> = _state.asStateFlow()
 
     fun update(value: Int) {
         _state.value = value
@@ -2379,7 +2314,7 @@ class SharedFlowViewModel : ViewModel() {
 
     fun sendEvent(event: Event) {
         viewModelScope.launch {
-            _events.emit(event)  // 所有订阅者收到
+            _events.emit(event)  // 当前订阅者接收；默认 replay=0，无订阅者时不保留
         }
     }
 }
@@ -2391,7 +2326,7 @@ fun channelDemo() {
     // 生产者
     viewModelScope.launch {
         for (i in 1..10) {
-            channel.send(i)  // 挂起直到消费者接收
+            channel.send(i)  // 有缓冲时可先入队；只有缓冲满等条件下才挂起
         }
         channel.close()
     }
@@ -2411,9 +2346,11 @@ val flow = MutableSharedFlow<Int>(
     onBufferOverflow = BufferOverflow.SUSPEND  // 背压策略
 )
 
-flow.onBufferOverflow(BufferOverflow.DROP_OLDEST)  // 丢弃旧值
-flow.onBufferOverflow(BufferOverflow.DROP_LATEST)   // 丢弃新值
-flow.onBufferOverflow(BufferOverflow.SUSPEND)       // 挂起（默认）
+// overflow 是构造参数，不是可修改实例的方法；DROP 策略需要正的容量。
+val dropping = MutableSharedFlow<Int>(
+    extraBufferCapacity = 1,
+    onBufferOverflow = BufferOverflow.DROP_OLDEST
+)
 ```
 
 ---
@@ -2424,7 +2361,7 @@ flow.onBufferOverflow(BufferOverflow.SUSPEND)       // 挂起（默认）
 
 Android 主线程（UI 线程）职责：
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         Android 主线程职责                                  │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -2457,31 +2394,11 @@ Android 主线程（UI 线程）职责：
 
 ### 9.2 Binder 线程池
 
-Binder 是 Android IPC（进程间通信）核心机制，Binder 线程池处理 IPC 调用。
+`ProcessState.cpp` 的默认 `DEFAULT_MAX_BINDER_THREADS = 15` 是交给驱动请求扩容的上限，不是全进程绝对 16。`startThreadPool()` 先启动一个 `PoolThread(isMain=true)`，后续 `BR_SPAWN_LOOPER -> spawnPooledThread(false)` 在用户态创建线程；主动 `joinThreadPool()`、系统服务配置都可能改变总数。
 
-```java
-// 位置：frameworks/native/libs/binder/ProcessState.cpp
-static constexpr int kMaxThreadPoolSize = 16;
+普通 app 的 main/UI 线程执行 Looper，不自动加入 Binder 池。“main Binder thread”是首个 PoolThread 的角色标记，不是 ActivityThread.main。oneway 不等待远端业务回复，但服务端仍要执行代码并占用 Binder 线程；应迅速校验参数、复制调用身份，再交给有界工作队列，并明确回调/拒绝/取消协议。
 
-// Binder 线程池特点：
-// 1. 最大 16 个线程
-// 2. 按需创建（第一个客户端调用时创建）
-// 3. 空闲回收
-// 4. 处理来自其他进程的 IPC 请求
-
-// 常见错误：在 Binder 线程中执行耗时操作
-// AIDL 示例
-class MyAidlImpl extends IMyAidlInterface.Stub {
-    @Override
-    public String getData() throws RemoteException {
-        // 错误：Binder 线程执行耗时操作
-        return doNetworkRequest();  // 会阻塞其他 IPC 调用！
-
-        // 正确：转发到工作线程
-        // ...
-    }
-}
-```
+---
 
 ### 9.3 Android 特有的线程优先级
 
@@ -2490,9 +2407,9 @@ class MyAidlImpl extends IMyAidlInterface.Stub {
 // nice 值越低，优先级越高
 
 // Java 线程优先级 1-10 映射：
-// Thread.MIN_PRIORITY(1) = nice +19（最低）
+// 映射见 art/runtime/thread.cc 的 PriorityToNiceness，不按 1..10 线性覆盖 -20..19
 // Thread.NORM_PRIORITY(5) = nice 0（默认）
-// Thread.MAX_PRIORITY(10) = nice -20（最高）
+// Java MAX_PRIORITY 不意味着获得 Linux nice=-20 或实时调度权限
 
 // Android 专用优先级常量
 Process.setThreadPriority(Process.THREAD_PRIORITY_DEFAULT);      // 0，主线程默认
@@ -2507,8 +2424,8 @@ Process.setThreadPriority(Process.THREAD_PRIORITY_URGENT_AUDIO); // -19，实时
 Process.setThreadPriority(Process.THREAD_PRIORITY_BACKGROUND);
 
 // 设置其他线程优先级
-Thread otherThread = thread;
-Process.setThreadPriority(otherThread, Process.THREAD_PRIORITY_FOREGROUND);
+// API 参数为 Linux tid（可由目标线程内 Process.myTid() 发布），不是 Thread 对象/Java getId。
+Process.setThreadPriority(linuxTid, Process.THREAD_PRIORITY_FOREGROUND);
 
 // 注意：nice 值范围是 -20 到 +19
 // Android Process.setThreadPriority 接受的是 Android 优先级常量，不是 Java 优先级
@@ -2525,7 +2442,7 @@ Process.setThreadPriority(otherThread, Process.THREAD_PRIORITY_FOREGROUND);
 ```java
 // 不推荐：每个请求一个线程，开销大
 public void handleRequest(Request request) {
-    new Thread(() -> handleRequest(request)).start();
+    new Thread(() -> processRequest(request)).start();
 }
 
 // 推荐：使用线程池
@@ -2533,10 +2450,10 @@ public class ThreadPoolDemo {
     private final ExecutorService executor = Executors.newFixedThreadPool(10);
 
     public void handleRequest(Request request) {
-        executor.execute(() -> handleRequest(request));
+        executor.execute(() -> processRequest(request));
     }
 
-    private void handleRequest(Request request) {
+    private void processRequest(Request request) {
         // 业务逻辑
     }
 }
@@ -2571,9 +2488,11 @@ class WorkerThreadDemo {
         }
     }
 
-    public void submit(Task task) {
-        taskQueue.offer(task);
+    public boolean submit(Task task) {
+        return taskQueue.offer(task); // 调用方处理 false，不能静默丢任务。
     }
+
+    public void close() { workers.shutdownNow(); }
 
     interface Task {
         void execute();
@@ -2600,6 +2519,7 @@ class ProducerConsumerPattern {
                         queue.put(item);
                     } catch (InterruptedException e) {
                         Thread.currentThread().interrupt();
+                        break;
                     }
                 }
             }, "Producer-" + i).start()
@@ -2614,6 +2534,7 @@ class ProducerConsumerPattern {
                         consume(item);
                     } catch (InterruptedException e) {
                         Thread.currentThread().interrupt();
+                        break;
                     }
                 }
             }, "Consumer-" + i).start()
@@ -2629,59 +2550,33 @@ class ProducerConsumerPattern {
 
 ### 10.4 Pipeline
 
-流水线处理，每阶段可并行，用 BlockingQueue 连接各阶段。
+流水线以有界队列连接阶段：`put/take` 提供背压，不能在 while(true) 中持续 poll 空队列，也不能忽略 offer(false) 导致丢数据。
 
 ```java
-// Pipeline 模式
-class PipelineDemo {
-    private final BlockingQueue<Data> q1 = new LinkedBlockingQueue<>(50);
-    private final BlockingQueue<Data> q2 = new LinkedBlockingQueue<>(50);
-    private final BlockingQueue<Data> q3 = new LinkedBlockingQueue<>(50);
-
-    public void pipeline() {
-        startStage("Reader", () -> {
-            while (true) {
-                Data d = readData();
-                if (!q1.offer(d)) {
-                    // 处理满的情况
-                }
-            }
-        });
-
-        startStage("Processor", () -> {
-            while (true) {
-                Data d = q1.poll();
-                if (d != null) {
-                    Data processed = process(d);
-                    q2.offer(processed);
-                }
-            }
-        });
-
-        startStage("Writer", () -> {
-            while (true) {
-                Data d = q2.poll();
-                if (d != null) {
-                    writeData(d);
-                }
-            }
-        });
-    }
-
-    private void startStage(String name, Runnable task) {
-        new Thread(() -> {
-            Thread.currentThread().setName(name);
-            task.run();
-        }).start();
-    }
-
-    private Data readData() { return new Data(); }
-    private Data process(Data d) { return d; }
-    private void writeData(Data d) { }
-
-    static class Data { }
-}
+BlockingQueue<Data> q1 = new ArrayBlockingQueue<>(50);
+BlockingQueue<Data> q2 = new ArrayBlockingQueue<>(50);
+ExecutorService stages = Executors.newFixedThreadPool(3);
+stages.execute(() -> {
+    try {
+        while (!Thread.currentThread().isInterrupted()) q1.put(readData());
+    } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+});
+stages.execute(() -> {
+    try {
+        while (!Thread.currentThread().isInterrupted()) q2.put(process(q1.take()));
+    } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+});
+stages.execute(() -> {
+    try {
+        while (!Thread.currentThread().isInterrupted()) writeData(q2.take());
+    } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+});
+// 所属组件结束时 stages.shutdownNow()；实际 IO 必须支持取消。
 ```
+
+这是无限流示意。有限流应有明确结束消息/关闭协议；任一阶段业务异常应通知协调者取消其他阶段，避免后续永久等空队列或前级永久等满队列。
+
+---
 
 ### 10.5 Actor 模型
 
@@ -2716,7 +2611,9 @@ class CounterActor {
         return reply.await()
     }
 
-    fun close() {
+    suspend fun close() {
+        channel.close() // 停止接收新请求，消费者先 drain 已接收消息。
+        scope.coroutineContext[Job]?.children?.toList()?.joinAll()
         scope.cancel()
     }
 
@@ -2725,11 +2622,14 @@ class CounterActor {
     class GetCount(val reply: CompletableDeferred<Int>) : Msg()
 }
 
-// 使用
-val actor = CounterActor()
-actor.increment()
-actor.increment()
-val count = runBlocking { actor.getCount() }  // count = 2
+// 在挂起上下文调用，不在 UI 上 runBlocking。
+suspend fun useActor() {
+    val actor = CounterActor()
+    actor.increment()
+    actor.increment()
+    val count = actor.getCount() // 2
+    actor.close()               // 等待已接受请求完成
+}
 ```
 
 ---
@@ -2899,7 +2799,7 @@ suspend fun right() {
 
 **Q2: volatile 和 synchronized 的区别？**
 
-volatile 只保证可见性和有序性，不保证原子性；synchronized 保证原子性、可见性和有序性。volatile 是轻量级的，不阻塞线程。
+volatile 单次读写原子并提供可见性/有序性，但不保证复合操作原子性；synchronized 保证原子性、可见性和有序性。volatile 是轻量级的，不阻塞线程。
 
 **Q3: 线程池的核心参数有哪些？**
 
@@ -2911,7 +2811,7 @@ corePoolSize（核心线程数）、maximumPoolSize（最大线程数）、keepA
 
 **Q5: ConcurrentHashMap 如何实现线程安全？**
 
-JDK 7 分段锁（Segment 分段）；JDK 8+ 用 CAS + synchronized，读操作无锁（volatile 读取），写操作锁粒度细化到单个桶，链表超过 8 个节点转红黑树。
+JDK 7 分段锁（Segment 分段）；JDK 8+ 用 CAS + synchronized，读操作无锁（volatile 读取），写操作锁粒度细化到单个桶，达到树化阈值还需容量至少 64，否则优先扩容。
 
 **Q6: 什么是 CAS？有什么问题？**
 
@@ -2935,7 +2835,7 @@ Compare-And-Swap，硬件级原子操作。三个操作数：内存位置、预�
 
 **Q11: 什么是伪共享？如何避免？**
 
-CPU 缓存行 64 字节，多线程访问同一缓存行的不同变量，一个修改导致整个缓存行失效。避免方式：LongAdder 分段设计、使用 @Contended 注解（JDK 8+）、手动 padding。
+CPU 缓存行大小依架构，常见为 64 字节，多线程访问同一缓存行的不同变量，一个修改导致整个缓存行失效。避免方式：LongAdder 分段设计、使用 @Contended 注解（JDK 8+）、手动 padding。
 
 **Q12: Coroutine 的 suspend 原理？**
 
@@ -2951,8 +2851,8 @@ Handler 是 Android 消息机制的核心，关联线程的 Looper 和 MessageQu
 
 ```java
 // 主线程：系统已创建 Looper，直接使用
-class MainActivity extends AppCompatActivity {
-    private Handler handler = new Handler(Looper.getMainLooper());
+class MainActivity extends AppCompatActivity implements Handler.Callback {
+    private Handler handler = new Handler(Looper.getMainLooper(), this);
 
     public void onClick(View v) {
         // 1. post(Runnable)
@@ -2996,9 +2896,8 @@ class MyThread extends Thread {
 
         handler = new Handler(Looper.myLooper()) {
             @Override
-            public boolean handleMessage(Message msg) {
+            public void handleMessage(Message msg) {
                 // 处理消息
-                return true;
             }
         };
 
@@ -3061,7 +2960,7 @@ class UiThreadDemo extends AppCompatActivity {
 
     // 方式3：View.post
     // 当 View 已经 attached 到窗口时，Runnable 在主线程执行
-    // 比 runOnUiThread 更可靠（Activity 未完全创建时也能用）
+    // 未 attach 时缓存到 RunQueue，直到 attach 才投递；不保证一定执行
     public void method3() {
         textView.post(() -> {
             textView.setText("updated");
@@ -3073,9 +2972,9 @@ class UiThreadDemo extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        // 此时 View 已 attached，post 肯定在主线程执行
+        // setContentView 返回不保证已 attach/完成布局
         textView.post(() -> {
-            // 此时肯定可以获取到宽高
+            // post 不是 layout 完成协议；取尺寸应注册 OnLayoutChangeListener/doOnLayout
             int width = textView.getWidth();
             int height = textView.getHeight();
         });
@@ -3089,7 +2988,7 @@ class UiThreadDemo extends AppCompatActivity {
 |------|---------|--------|---------|
 | runOnUiThread | 检查当前线程 | 一般 | Activity 内通用 |
 | Handler.post | 固定线程 | 高 | 明确知道目标线程 |
-| View.post | View 已 attached | 最高 | onCreate/onResume 中获取 View 尺寸 |
+| View.post | 已 attach 投递到 ViewRoot Handler，否则缓存 | 不保证布局完成 | 与 View 关联的延后操作；尺寸用 layout 回调 |
 
 ### 13.3 IntentService vs JobIntentService
 
@@ -3110,10 +3009,9 @@ public class MyIntentService extends IntentService {
     }
 }
 
-// 问题：IntentService 是半废弃的
-// Android 11 开始系统不再bind到未声明 exported 的 IntentService
+// IntentService 从 API 30 废弃，但并未删除；exported 检查不是废弃原因
 
-// 推荐：JobIntentService（支持 Android 8.0+）
+// 历史：JobIntentService（AndroidX 已废弃，现代持久任务用 WorkManager）
 public class MyJobIntentService extends JobIntentService {
 
     public static void enqueueWork(Context context, Intent work) {
@@ -3200,9 +3098,11 @@ WorkManager 是 Android 后台任务推荐方案，支持延迟、周期、约�
 ```java
 // WorkManager 基本使用
 class WorkManagerDemo {
+    private final Context context;
+    WorkManagerDemo(Context context) { this.context = context.getApplicationContext(); }
 
     public void simpleWork() {
-        OneTimeWorkRequest work = new OneTimeWorkRequestBuilder<MyWorker>()
+        OneTimeWorkRequest work = new OneTimeWorkRequest.Builder(MyWorker.class)
             .build();
 
         WorkManager.getInstance(context).enqueue(work);
@@ -3216,7 +3116,7 @@ class WorkManagerDemo {
             .setRequiresCharging(true)                     // 充电中
             .build();
 
-        OneTimeWorkRequest work = new OneTimeWorkRequestBuilder<MyWorker>()
+        OneTimeWorkRequest work = new OneTimeWorkRequest.Builder(MyWorker.class)
             .setConstraints(constraints)
             .setInitialDelay(10, TimeUnit.SECONDS)         // 延迟
             .addTag("myWork")                              // 标签
@@ -3227,7 +3127,7 @@ class WorkManagerDemo {
 
     // PeriodicWorkRequest：周期任务（最小15分钟）
     public void periodicWork() {
-        PeriodicWorkRequest periodicWork = new PeriodicWorkRequestBuilder<MyWorker>(
+        PeriodicWorkRequest periodicWork = new PeriodicWorkRequest.Builder(MyWorker.class,
             15, TimeUnit.MINUTES,  // 重复间隔
             5, TimeUnit.MINUTES     // 弹性间隔
         ).build();
@@ -3241,10 +3141,11 @@ class WorkManagerDemo {
     }
 
     // 观察工作状态
-    public void observeWork() {
+    public void observeWork(LifecycleOwner owner, OneTimeWorkRequest workRequest) {
         WorkManager.getInstance(context)
             .getWorkInfoByIdLiveData(workRequest.getId())
-            .observe(this, workInfo -> {
+            .observe(owner, workInfo -> {
+                    if (workInfo == null) return;
                 if (workInfo.getState() == WorkInfo.State.SUCCEEDED) {
                     // 成功
                 } else if (workInfo.getState() == WorkInfo.State.FAILED) {
@@ -3281,7 +3182,7 @@ public class MyWorker extends Worker {
 
 WorkManager 并发特点：
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         WorkManager 特性                                    │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -3417,7 +3318,7 @@ public class LeakDemo extends AppCompatActivity {
 
 ## 总结
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         Android 并发知识体系                                  │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -3474,4 +3375,21 @@ public class LeakDemo extends AppCompatActivity {
 
 ---
 
-*文档更新时间: 2026-03-24*
+*文档更新时间: 2026-09-10*
+
+
+## 固定版本源码索引
+
+本文平台实现基线为 `android-17.0.0_r1`。下列函数用于定位正文分析；代码标为“节选”时省略无关监控，标为“示意”时不是源码逐字复制。
+
+- [Monitor](https://android.googlesource.com/platform/art/+/refs/tags/android-17.0.0_r1/runtime/monitor.cc)：`MonitorEnter; Inflate; Deflate`。
+- [Thread](https://android.googlesource.com/platform/art/+/refs/tags/android-17.0.0_r1/runtime/thread.cc)：`PriorityToNiceness`。
+- [Phaser](https://android.googlesource.com/platform/libcore/+/refs/tags/android-17.0.0_r1/ojluni/src/main/java/java/util/concurrent/Phaser.java)：`arriveAndAwaitAdvance; awaitAdvance`。
+- [读写锁](https://android.googlesource.com/platform/libcore/+/refs/tags/android-17.0.0_r1/ojluni/src/main/java/java/util/concurrent/locks/ReentrantReadWriteLock.java)：`lock downgrading`。
+- [原子字段](https://android.googlesource.com/platform/libcore/+/refs/tags/android-17.0.0_r1/ojluni/src/main/java/java/util/concurrent/atomic/AtomicIntegerFieldUpdater.java)：`newUpdater; access checks`。
+- [分段计数](https://android.googlesource.com/platform/libcore/+/refs/tags/android-17.0.0_r1/ojluni/src/main/java/java/util/concurrent/atomic/Striped64.java)：`longAccumulate; getProbe`。
+- [并发哈希表](https://android.googlesource.com/platform/libcore/+/refs/tags/android-17.0.0_r1/ojluni/src/main/java/java/util/concurrent/ConcurrentHashMap.java)：`putVal; treeifyBin; batchFor`。
+- [线程池](https://android.googlesource.com/platform/libcore/+/refs/tags/android-17.0.0_r1/ojluni/src/main/java/java/util/concurrent/ThreadPoolExecutor.java)：`execute; CallerRunsPolicy.rejectedExecution`。
+- [Binder 池](https://android.googlesource.com/platform/frameworks/native/+/refs/tags/android-17.0.0_r1/libs/binder/ProcessState.cpp)：`startThreadPool; spawnPooledThread`。
+- [协程调度器上游](https://kotlinlang.org/api/kotlinx.coroutines/kotlinx-coroutines-core/kotlinx.coroutines/-coroutine-dispatcher/limited-parallelism.html)：`limitedParallelism`。
+- [协程异常上游](https://kotlinlang.org/docs/exception-handling.html)：`async; supervisorScope`。

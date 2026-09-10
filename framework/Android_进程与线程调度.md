@@ -1,19 +1,40 @@
 # Android 进程与线程调度深度解析
 
 > 作者：OpenClaw | 日期：2026-03-12  
-> 基于源码：Android 16 (API 36) AOSP
+> 基于源码：AOSP Android 17 / API 37，固定 tag `android-17.0.0_r1`；复核日期：2026-09-10。
 
 ## 目录
 
-1. [概述](#1-概述)
-2. [Linux 进程调度 (CFS)](#2-linux-进程调度-cfs)
-3. [Android 线程优先级](#3-android-线程优先级)
-4. [Binder 线程池](#4-binder-线程池)
-5. [Looper/MessageQueue 原理](#5-loopermessagequeue-原理)
-6. [HandlerThread/IntentService](#6-handlerthreadintentservice)
-7. [线程池最佳实践](#7-线程池最佳实践)
-8. [源码路径](#8-源码路径)
-9. [面试常见问题](#9-面试常见问题)
+- [1. 概述](#1-概述)
+  - [1.1 核心概念](#11-核心概念)
+  - [1.2 Android 线程模型](#12-android-线程模型)
+- [2. Linux 进程调度 (CFS)](#2-linux-进程调度-cfs)
+  - [2.1 CFS (Completely Fair Scheduler)](#21-cfs-completely-fair-scheduler)
+  - [2.2 nice 值与优先级](#22-nice-值与优先级)
+- [3. Android 线程优先级](#3-android-线程优先级)
+  - [3.1 Android 线程优先级常量](#31-android-线程优先级常量)
+  - [3.2 线程优先级使用场景](#32-线程优先级使用场景)
+- [4. Binder 线程池](#4-binder-线程池)
+  - [4.1 Binder 线程池架构](#41-binder-线程池架构)
+  - [4.2 Binder 线程池配置](#42-binder-线程池配置)
+- [5. Looper/MessageQueue 原理](#5-loopermessagequeue-原理)
+  - [5.1 Looper 架构](#51-looper-架构)
+  - [5.2 Looper 源码](#52-looper-源码)
+  - [5.3 MessageQueue 源码](#53-messagequeue-源码)
+- [6. HandlerThread/IntentService](#6-handlerthreadintentservice)
+  - [6.1 HandlerThread](#61-handlerthread)
+  - [6.2 IntentService (已废弃)](#62-intentservice-已废弃)
+- [7. 线程池最佳实践](#7-线程池最佳实践)
+  - [7.1 ThreadPoolExecutor](#71-threadpoolexecutor)
+  - [7.2 AsyncTask (已废弃)](#72-asynctask-已废弃)
+  - [7.3 Kotlin Coroutines (推荐)](#73-kotlin-coroutines-推荐)
+- [8. 源码路径](#8-源码路径)
+  - [8.1 线程调度源码](#81-线程调度源码)
+  - [8.2 Native 层源码](#82-native-层源码)
+- [9. 面试常见问题](#9-面试常见问题)
+  - [9.1 基础问题](#91-基础问题)
+  - [9.2 进阶问题](#92-进阶问题)
+- [总结](#总结)
 
 ---
 
@@ -23,21 +44,21 @@ Android 的进程和线程调度是系统性能的关键，理解其原理对于
 
 ### 1.1 核心概念
 
-```
+```text
 进程 (Process):
 • 独立的内存空间
 • 由 Linux 内核调度
-• 通过 oom_adj 决定优先级
+• oom_score_adj 影响内存回收保护，不决定 CPU 调度顺序
 
 线程 (Thread):
 • 共享进程内存空间
 • 由 Linux 内核调度
-• 通过 nice 值决定优先级
+• nice、调度策略、cgroup/task profile、uclamp 与内核选择共同影响 CPU 获得机会
 ```
 
 ### 1.2 Android 线程模型
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                        Android 线程模型                                      │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -67,33 +88,23 @@ Android 的进程和线程调度是系统性能的关键，理解其原理对于
 
 ### 2.1 CFS (Completely Fair Scheduler)
 
+CFS 是理解 Linux fair scheduling 的历史基础，但 Android 17 平台 tag 不能唯一指定设备内核调度器。较新内核的 fair class 可使用 EEVDF，不能把“永远选择 vruntime 最小的红黑树节点”当作全部 Android 17 设备实现。
+
+传统 CFS 用权重将实际运行时间折算为 vruntime，nice 改变权重；分组调度还考虑 cgroup 的资源份额。EEVDF 则在公平资格与虚拟截止期上选择实体。两者都不是按 Android Activity 的 oom_score_adj 排 CPU 队列。
+
+```text
+SCHED_NORMAL / OTHER：普通公平调度
+SCHED_BATCH：批处理偏好
+SCHED_IDLE：极低优先级普通任务
+SCHED_FIFO / SCHED_RR：实时策略，需相应权限
+SCHED_DEADLINE：内核支持及权限约束下的 deadline 类
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                        CFS 调度器                                           │
-└─────────────────────────────────────────────────────────────────────────────┘
 
-CFS 特点：
-• 完全公平调度器
-• 红黑树实现
-• 按虚拟运行时间 (vruntime) 排序
-• 优先选择 vruntime 最小的进程
-
-调度策略：
-• SCHED_NORMAL (0): 普通进程
-• SCHED_FIFO (1): 实时 FIFO
-• SCHED_RR (2): 实时轮转
-• SCHED_BATCH (3): 批处理
-• SCHED_IDLE (5): 空闲进程
-
-优先级：
-• 实时优先级: 0-99 (数值越大优先级越高)
-• 普通优先级: 100-139 (数值越小优先级越高)
-• nice 值: -20 到 +19 (映射到 100-139)
-```
+用户空间实时 sched_priority 通常为 1..99，越大越高；内核内部实时优先级编号方向不同。普通 nice -20..19 对应内部静态优先级 100..139，不能将这两套数字混成统一比较表。设备级实时行为应按实际内核源码和 trace 验证。
 
 ### 2.2 nice 值与优先级
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                        nice 值与优先级对应                                   │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -122,7 +133,7 @@ adb shell ps -p [pid] -o pid,comm,nice
 adb shell renice -n 10 -p [pid]
 
 # 查看线程优先级
-adb shell getprop | grep nice
+adb shell ps -T -p 12345 -o PID,TID,NI,COMM # 替换为真实 PID；字段支持依设备 ps
 ```
 
 ---
@@ -131,44 +142,38 @@ adb shell getprop | grep nice
 
 ### 3.1 Android 线程优先级常量
 
+Process 的 nice 常量为：DEFAULT=0、LOWEST=19、BACKGROUND=10、FOREGROUND=-2、DISPLAY=-4、URGENT_DISPLAY=-8、AUDIO=-16、URGENT_AUDIO=-19。MORE_FAVORABLE=-1、LESS_FAVORABLE=1 是相对调整量而非独立调度策略。
+
+本 tag 的真实两参数 setter 不是 `Thread.myTid()` 或 `nativeSetThreadPriority()`：
+
 ```java
-/**
- * Android 线程优先级
- * 位置：frameworks/base/core/java/android/os/Process.java
- */
-class Process {
-    // 线程优先级常量
-    public static final int THREAD_PRIORITY_DEFAULT = 0;           // 默认
-    public static final int THREAD_PRIORITY_LOWEST = 19;           // 最低
-    public static final int THREAD_PRIORITY_BACKGROUND = 10;       // 后台
-    public static final int THREAD_PRIORITY_FOREGROUND = -2;       // 前台
-    public static final int THREAD_PRIORITY_DISPLAY = -4;          // 显示
-    public static final int THREAD_PRIORITY_URGENT_DISPLAY = -8;   // 紧急显示
-    public static final int THREAD_PRIORITY_AUDIO = -16;           // 音频
-    public static final int THREAD_PRIORITY_URGENT_AUDIO = -19;    // 紧急音频
-    public static final int THREAD_PRIORITY_MORE_FAVORABLE = -1;   // 更高优先级
-    public static final int THREAD_PRIORITY_LESS_FAVORABLE = +1;   // 更低优先级
-    
-    // 设置线程优先级
-    public static final void setThreadPriority(int priority) {
-        setThreadPriority(Thread.myTid(), priority);
-    }
-    
-    public static final void setThreadPriority(int tid, int priority) {
-        // 调用 native 方法
-        nativeSetThreadPriority(tid, priority);
-    }
-    
-    // 获取线程优先级
-    public static final int getThreadPriority(int tid) {
-        return nativeGetThreadPriority(tid);
+@RavenwoodRedirect
+public static final void setThreadPriority(int tid,
+        @IntRange(from = -20, to = THREAD_PRIORITY_LOWEST) int priority)
+        throws IllegalArgumentException, SecurityException {
+    if (com.android.libcore.Flags.nicenessApis() && Process.myTid() == tid) {
+        // Prefer the same thread version that informs ART of the priority change.
+        setThreadPriority(priority);
+    } else {
+        if (priority < -20 || priority > THREAD_PRIORITY_LOWEST) {
+            throw new IllegalArgumentException("Priority/niceness " + priority + " is invalid");
+        }
+        setThreadPriorityNative(tid, priority);
     }
 }
+
+@FastNative
+private static native void setThreadPriorityNative(int tid,
+        @IntRange(from = -20, to = THREAD_PRIORITY_LOWEST) int priority)
 ```
+
+开启 libcore nicenessApis 时，同线程路径转向 VMRuntime.setThreadNiceness，使 ART 缓存的线程优先级与内核修改保持一致；不支持时按 native 路径回退。无权限提升或越界会抛异常，设置 AUDIO 不等于切换到实时 FIFO。
+
+源码：[Process.java:1217](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/os/Process.java#1217)。
 
 ### 3.2 线程优先级使用场景
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                        线程优先级使用场景                                   │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -206,7 +211,7 @@ new Thread(() -> {
 
 ### 4.1 Binder 线程池架构
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                        Binder 线程池架构                                    │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -221,7 +226,7 @@ new Thread(() -> {
 │   │   │                                                               │ │ │
 │   │   │   ┌──────────────┐  ┌──────────────┐  ┌──────────────┐     │ │ │
 │   │   │   │ Binder 线程 1│  │ Binder 线程 2│  │ Binder 线程 N│     │ │ │
-│   │   │   │              │  │              │  │  (最大 16 个) │     │ │ │
+│   │   │   │              │  │              │  │  （数量由配置及参与线程决定） │     │ │ │
 │   │   │   └──────┬───────┘  └──────┬───────┘  └──────┬───────┘     │ │ │
 │   │   │          │                 │                 │              │ │ │
 │   │   │          └─────────────────┼─────────────────┘              │ │ │
@@ -241,55 +246,37 @@ new Thread(() -> {
 
 ### 4.2 Binder 线程池配置
 
-```java
-/**
- * Binder 线程池配置
- * 位置：frameworks/native/libs/binder/ProcessState.cpp
- */
-class ProcessState {
-    // 最大 Binder 线程数
-    static constexpr int kMaxThreadPoolSize = 16;  // 最大 16 个线程
-    
-    // 启动线程池
-    void ProcessState::startThreadPool() {
-        // 启动 Binder 线程池
+libbinder 默认 `DEFAULT_MAX_BINDER_THREADS` 为 15，它约束驱动按需请求的线程数；startThreadPool 主动加入的线程，以及显式 joinThreadPool 的其他线程，还需另行计数，不能总结为“进程最多只能 16 个 Binder 线程”。服务也可在允许条件下配置最大值。
+
+真实 startThreadPool 实现：
+
+```cpp
+
+void ProcessState::startThreadPool()
+{
+    std::unique_lock<std::mutex> _l(mLock);
+    if (!mThreadPoolStarted) {
+        if (mMaxThreads == 0) {
+            // see also getThreadPoolMaxTotalThreadCount
+            ALOGW("Extra binder thread started, but 0 threads requested. Do not use "
+                  "*startThreadPool when zero threads are requested.");
+        }
         mThreadPoolStarted = true;
         spawnPooledThread(true);
     }
-    
-    // 生成 Binder 线程
-    void ProcessState::spawnPooledThread(bool isMain) {
-        if (mThreadPoolStarted) {
-            String8 name = isMain ? String8("Binder:main") 
-                                  : String8("Binder:%1$d");
-            sp<Thread> t = new PoolThread(isMain);
-            t->run(name.string());
-        }
-    }
-}
-
-/**
- * Binder 线程池特点
- * 
- * 1. 默认启动时创建主 Binder 线程
- * 2. 根据需要动态创建线程 (最多 16 个)
- * 3. 空闲线程会被回收
- * 4. 所有 Binder 调用在 Binder 线程中执行
- * 
- * 注意：
- * • 不要在 Binder 调用中执行耗时操作
- * • 耗时操作应该放到工作线程
- * • Binder 线程阻塞会导致 IPC 性能下降
- */
 ```
 
----
+首次调用受锁与 mThreadPoolStarted 保护，主动 spawn 一个主池线程；池中线程进入 IPCThreadState 的驱动循环，驱动按需求请求补充线程。并非普通 Java Executor 的固定队列模型；线程退出策略还区分主池线程和非主线程，不能承诺统一空闲即回收。
+
+同进程 Binder 接口调用可直接运行在调用线程；同步嵌套事务还可能复用参与等待的线程。oneway 并非工作自动转任意后台线程，服务端耗时处理仍可耗尽派发资源。不要因“有 Binder 线程池”就无限阻塞等待主线程。
+
+源码：[ProcessState.cpp:49](https://android.googlesource.com/platform/frameworks/native/+/refs/tags/android-17.0.0_r1/libs/binder/ProcessState.cpp#49)；[ProcessState.cpp:220](https://android.googlesource.com/platform/frameworks/native/+/refs/tags/android-17.0.0_r1/libs/binder/ProcessState.cpp#220)。
 
 ## 5. Looper/MessageQueue 原理
 
 ### 5.1 Looper 架构
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                        Looper 架构                                          │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -312,7 +299,7 @@ class ProcessState {
 │   │   │   │  (when=100)  │  │  (when=200)  │  │  (when=300)  │     │ │ │
 │   │   │   └──────────────┘  └──────────────┘  └──────────────┘     │ │ │
 │   │   │                                                               │ │ │
-│   │   │   (按时间排序的链表)                                          │ │ │
+│   │   │   （按消息时间与同步/异步语义选择；内部结构依实现）                                          │ │ │
 │   │   │                                                               │ │ │
 │   │   └──────────────────────────────────────────────────────────────┘ │ │
 │   │                                                                      │ │
@@ -333,276 +320,99 @@ class ProcessState {
 
 ### 5.2 Looper 源码
 
-```java
-/**
- * Looper - 消息循环
- * 位置：frameworks/base/core/java/android/os/Looper.java
- */
-class Looper {
-    // ThreadLocal 存储
-    static final ThreadLocal<Looper> sThreadLocal = new ThreadLocal<>();
-    
-    // 主线程 Looper
-    private static Looper sMainLooper;
-    
-    // 消息队列
-    final MessageQueue mQueue;
-    
-    // 线程
-    final Thread mThread;
-    
-    /**
-     * 准备 Looper
-     */
-    public static void prepare() {
-        prepare(true);
-    }
-    
-    private static void prepare(boolean quitAllowed) {
-        if (sThreadLocal.get() != null) {
-            throw new RuntimeException(
-                    "Only one Looper may be created per thread");
-        }
-        sThreadLocal.set(new Looper(quitAllowed));
-    }
-    
-    /**
-     * 准备主线程 Looper
-     */
-    public static void prepareMainLooper() {
-        prepare(false);
-        synchronized (Looper.class) {
-            if (sMainLooper != null) {
-                throw new IllegalStateException(
-                        "The main Looper has already been prepared.");
-            }
-            sMainLooper = myLooper();
-        }
-    }
-    
-    /**
-     * 消息循环
-     */
-    public static void loop() {
-        final Looper me = myLooper();
-        final MessageQueue queue = me.mQueue;
-        
-        for (;;) {
-            // 1. 从队列取消息 (可能阻塞)
-            Message msg = queue.next();
-            
-            if (msg == null) {
-                // 没有消息，退出循环
-                return;
-            }
-            
-            // 2. 分发消息
-            msg.target.dispatchMessage(msg);
-            
-            // 3. 回收消息
-            msg.recycleUnchecked();
-        }
-    }
-}
+Looper 用 ThreadLocal 约束每个线程最多一个 Looper，主 Looper 不允许普通 quit。loop 的现代实现将单轮工作放在 loopOnce 中，而不是只有 queue.next→dispatch 两行：
+
+```text
+Looper.loop -> 循环 loopOnce
+ -> queue.next（等待到期消息/退出）
+ -> 观察/trace/慢日志等处理
+ -> msg.target.dispatchMessage(msg)
+ -> 恢复线程工作身份并回收消息
 ```
+
+next 返回 null 表示队列退出，不是临时“没有消息”；空队列正常情况下会 poll 等待。分发发生异常不是自动忽略后永远继续，是否终止线程由异常传播及外部机制决定。
+
+源码：[Looper.java:230](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/os/Looper.java#230)；[Looper.java:373](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/os/Looper.java#373)。
 
 ### 5.3 MessageQueue 源码
 
+本 tag 将 MessageQueue 源码放在 `core/java/android/os/LegacyMessageQueue/`、`CombinedMessageQueue/`、`CombinedDeliMessageQueue/` 等实现目录；不能把不存在的根目录 MessageQueue.java 与单一链表实现作为唯一基线。
+
+CombinedMessageQueue 的真实选择点：
+
 ```java
-/**
- * MessageQueue - 消息队列
- * 位置：frameworks/base/core/java/android/os/MessageQueue.java
- */
-class MessageQueue {
-    // Native 指针
-    private long mPtr;
-    
-    // 消息链表头
-    Message mMessages;
-    
-    /**
-     * 取下一个消息
-     */
-    Message next() {
-        int pendingIdleHandlerCount = -1;
-        int nextPollTimeoutMillis = 0;
-        
-        for (;;) {
-            if (nextPollTimeoutMillis != 0) {
-                Binder.flushPendingCommands();
-            }
-            
-            // Native 层阻塞等待
-            nativePollOnce(mPtr, nextPollTimeoutMillis);
-            
-            synchronized (this) {
-                // 获取当前时间
-                final long now = SystemClock.uptimeMillis();
-                Message prevMsg = null;
-                Message msg = mMessages;
-                
-                // 遍历消息链表
-                if (msg != null && msg.target == null) {
-                    // 同步屏障，找第一个异步消息
-                    do {
-                        prevMsg = msg;
-                        msg = msg.next;
-                    } while (msg != null && !msg.isAsynchronous());
-                }
-                
-                if (msg != null) {
-                    if (now < msg.when) {
-                        // 消息未到，计算等待时间
-                        nextPollTimeoutMillis = (int) Math.min(
-                                msg.when - now, Integer.MAX_VALUE);
-                    } else {
-                        // 消息已到，取出消息
-                        if (prevMsg != null) {
-                            prevMsg.next = msg.next;
-                        } else {
-                            mMessages = msg.next;
-                        }
-                        msg.next = null;
-                        msg.markInUse();
-                        return msg;
-                    }
-                } else {
-                    // 没有消息，无限等待
-                    nextPollTimeoutMillis = -1;
-                }
-                
-                // 处理 IdleHandler
-                if (pendingIdleHandlerCount < 0
-                        && (mMessages == null || now < mMessages.when)) {
-                    pendingIdleHandlerCount = mIdleHandlers.size();
-                }
-                
-                if (pendingIdleHandlerCount <= 0) {
-                    // 没有 IdleHandler，继续循环
-                    mBlocked = true;
-                    continue;
-                }
-                
-                // 执行 IdleHandler
-                // ...
-            }
-        }
-    }
-    
-    /**
-     * 入队消息
-     */
-    boolean enqueueMessage(Message msg, long when) {
-        synchronized (this) {
-            msg.when = when;
-            Message p = mMessages;
-            
-            if (p == null || when == 0 || when < p.when) {
-                // 插入队头
-                msg.next = p;
-                mMessages = msg;
-            } else {
-                // 插入链表中间
-                Message prev;
-                for (;;) {
-                    prev = p;
-                    p = p.next;
-                    if (p == null || when < p.when) {
-                        break;
-                    }
-                }
-                msg.next = p;
-                prev.next = msg;
-            }
-            
-            // 唤醒 Native 层
-            if (needWake) {
-                nativeWake(mPtr);
-            }
-        }
-        return true;
+Message next() {
+    if (sUseConcurrent) {
+        return nextConcurrent();
+    } else {
+        return nextLegacy();
     }
 }
 ```
 
----
+[CombinedMessageQueue/MessageQueue.java:1080](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/os/CombinedMessageQueue/MessageQueue.java#1080)
+
+**Legacy 分支算法。** 消息按 when 插入链表；普通到期头结点可取出。如果头是 target==null 的同步屏障，则搜索之后的异步消息；尚未到期时计算下次 poll 超时，完全无消息时可无限等待。入队只有当新消息改变唤醒条件时才 nativeWake，不应给出未定义 needWake 的源码假例子。退出要遵守 quitAllowed 并处理剩余消息。
+
+**Concurrent 分支。** 生产者入队与消费者调度结构分离，使用并发发布状态与消息顺序维护，不再是所有操作都对单一链表 synchronized。nextConcurrent 根据 nextMessage 与 park/timed park 状态决定等待，屏障、异步消息和退出语义仍需保持兼容。CombinedDeli 的分派名称/内部结构又不同，不能将其 nextDeliQueue 当成 Combined 的函数。
+
+**IdleHandler。** 只有符合空闲条件才执行，不是“每取一个消息执行一次”；回调期间可能有新消息进入，之后重新计算等待状态。IdleHandler 本身仍运行在 Looper 线程，重任务会阻塞后续输入/帧。
+
+```text
+多线程 enqueue -> 更新待处理状态 -> 必要时 nativeWake
+Looper 单消费者 -> 选到期可执行消息 -> Handler.dispatchMessage
+同步屏障 -> 暂缓同步消息，允许符合条件的异步消息越过
+退出 -> next 返回 null -> loop 终止
+```
+
+具体产品选用哪种实现及开关状态要结合该构建配置，不能仅凭平台版本推断。
 
 ## 6. HandlerThread/IntentService
 
 ### 6.1 HandlerThread
 
+真实 run 包含线程 tid、优先级和 onLooperPrepared hook：
+
 ```java
-/**
- * HandlerThread - 带 Looper 的线程
- * 位置：frameworks/base/core/java/android/os/HandlerThread.java
- */
-class HandlerThread extends Thread {
-    Looper mLooper;
-    
-    public HandlerThread(String name) {
-        super(name);
+@Override
+public void run() {
+    mTid = Process.myTid();
+    Looper.prepare();
+    synchronized (this) {
+        mLooper = Looper.myLooper();
+        notifyAll();
     }
-    
-    @Override
-    public void run() {
-        // 1. 创建 Looper
-        Looper.prepare();
-        
-        synchronized (this) {
-            mLooper = Looper.myLooper();
-            notifyAll(); // 通知 getLooper()
-        }
-        
-        // 2. 进入消息循环
-        Looper.loop();
-    }
-    
-    public Looper getLooper() {
-        synchronized (this) {
-            while (mLooper == null) {
-                try {
-                    wait();
-                } catch (InterruptedException e) {
-                }
-            }
-        }
-        return mLooper;
-    }
-    
-    public boolean quit() {
-        Looper looper = getLooper();
-        if (looper != null) {
-            looper.quit();
-            return true;
-        }
-        return false;
-    }
+    Process.setThreadPriority(mPriority);
+    onLooperPrepared();
+    Looper.loop();
+    mTid = -1;
 }
-
-// 使用示例
-HandlerThread handlerThread = new HandlerThread("WorkerThread");
-handlerThread.start();
-
-Handler handler = new Handler(handlerThread.getLooper()) {
-    @Override
-    public void handleMessage(Message msg) {
-        // 在工作线程执行
-    }
-};
-
-// 发送消息
-handler.sendMessage(Message.obtain());
-
-// 退出
-handlerThread.quit();
 ```
+
+getLooper 在未启动或已经退出时返回 null；线程存活但 Looper 尚未初始化时才 wait，且等待被中断后恢复中断标记。删除 isAlive 条件会让未启动线程上的调用永远等待，不能当作可安全复制的教学简化。
+
+```java
+HandlerThread worker = new HandlerThread("Worker", Process.THREAD_PRIORITY_BACKGROUND);
+worker.start();
+Handler handler = new Handler(worker.getLooper());
+handler.post(() -> {
+    // 在 worker Looper 执行短任务，避免一个任务堵住所有后续请求。
+});
+// 所有者销毁时停止提交，并清理自己持有的待处理回调。
+handler.removeCallbacksAndMessages(null);
+worker.quitSafely();
+```
+
+quitSafely 会处理符合条件的已到期消息，未来定时消息不会一直保留；quit/quitSafely 都不会强行中断当前执行中的 Runnable。退出/新请求竞态需由所有者控制，不能返回销毁后的 Handler 继续使用。
+
+源码：[HandlerThread.java:149](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/os/HandlerThread.java#149)。
 
 ### 6.2 IntentService (已废弃)
 
 ```java
 /**
  * IntentService - 一次性任务服务 (Android 11 已废弃)
- * 推荐使用: JobIntentService / WorkManager
+ * 可延迟任务使用 JobScheduler/WorkManager；JobIntentService 也已废弃，不作为迁移终点
  * 
  * 位置：frameworks/base/core/java/android/app/IntentService.java
  */
@@ -680,7 +490,7 @@ ThreadPoolExecutor executor = new ThreadPoolExecutor(
     TimeUnit.SECONDS,               // 时间单位
     new LinkedBlockingQueue<>(128), // 任务队列
     Executors.defaultThreadFactory(), // 线程工厂
-    new ThreadPoolExecutor.CallerRunsPolicy() // 拒绝策略
+    new ThreadPoolExecutor.AbortPolicy() // 饱和时抛拒绝异常；调用方应处理，避免退回 UI 执行
 );
 
 // 提交任务
@@ -696,6 +506,8 @@ Future<String> future = executor.submit(() -> {
 // 关闭线程池
 executor.shutdown();
 ```
+
+该有界队列满后才扩展到 maximumPoolSize，继续饱和会拒绝。调用方必须处理 RejectedExecutionException 并根据业务重试/丢弃；不能默认 CallerRunsPolicy，因为 UI 提交线程可能因此执行耗时任务。shutdown 后不再接受新任务，但不会立即终止已提交工作。
 
 ### 7.2 AsyncTask (已废弃)
 
@@ -762,7 +574,8 @@ new AsyncTask<String, Integer, String>() {
  */
 
 // 创建协程作用域
-val scope = CoroutineScope(Dispatchers.Main)
+val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+// 所有者销毁时调用 scope.cancel()，或使用生命周期绑定作用域。
 
 // 启动协程
 scope.launch {
@@ -770,14 +583,21 @@ scope.launch {
     showLoading()
     
     // 切换到 IO 线程
-    val result = withContext(Dispatchers.IO) {
-        // 执行网络请求
-        apiService.getData()
-    }
+    try {
+        val result = withContext(Dispatchers.IO) {
+            // 执行网络请求
+            apiService.getData()
+        }
     
     // 自动回到主线程
-    hideLoading()
-    showResult(result)
+        showResult(result)
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (error: Exception) {
+        showError(error) // 应用自己的错误 UI
+    } finally {
+        hideLoading()
+    }
 }
 
 // 协程调度器
@@ -787,9 +607,9 @@ Dispatchers.Default // 计算线程池 (CPU 密集)
 Dispatchers.Unconfined // 不指定线程
 
 // 协程构建器
-launch { }      // 启动协程，不返回结果
-async { }       // 启动协程，返回 Deferred<T>
-withContext()   // 切换调度器
+scope.launch { } // 返回 Job，不直接返回业务结果
+scope.async { } // 返回 Deferred<T>
+// withContext(Dispatchers.IO) { ... }：挂起至完成并返回结果
 ```
 
 ---
@@ -798,17 +618,17 @@ withContext()   // 切换调度器
 
 ### 8.1 线程调度源码
 
-```
+```text
 frameworks/base/core/java/android/os/
 ├── Process.java                       # 进程/线程优先级
 ├── Looper.java                        # 消息循环
-├── MessageQueue.java                  # 消息队列
+├── CombinedMessageQueue/MessageQueue.java # 消息队列实现之一
 ├── Message.java                       # 消息
 ├── Handler.java                       # 消息处理器
 ├── HandlerThread.java                 # 带 Looper 的线程
 └── AsyncTask.java                     # 异步任务 (已废弃)
 
-kernel/sched/
+kernel/common/kernel/sched/（需另行固定设备内核分支，不由平台 tag 唯一决定）
 ├── core.c                             # 核心调度器
 ├── fair.c                             # CFS 调度器
 └── rt.c                               # 实时调度器
@@ -816,13 +636,13 @@ kernel/sched/
 
 ### 8.2 Native 层源码
 
-```
+```text
 frameworks/native/libs/binder/
 ├── ProcessState.cpp                   # Binder 进程状态
 ├── IPCThreadState.cpp                 # Binder 线程状态
-└── ThreadPool.cpp                     # 线程池
+└── ProcessState.cpp 内 PoolThread     # Binder 线程
 
-system/core/libutils/
+system/core/libutils/（基础工具；具体构建路径以对应源码树为准）
 ├── Looper.cpp                         # Native Looper
 └── Thread.cpp                         # Native 线程
 ```
@@ -835,7 +655,7 @@ system/core/libutils/
 
 **Q1: Looper/Handler/MessageQueue 的关系？**
 
-```
+```text
 Looper:
 • 消息循环，每个线程一个
 • 内部持有 MessageQueue
@@ -849,17 +669,17 @@ MessageQueue:
 Handler:
 • 发送消息到 MessageQueue
 • 处理消息 (handleMessage)
-• 关联到创建它的线程的 Looper
+• 关联构造时明确指定或默认取得的 Looper，不必是 Handler 创建者线程
 ```
 
 **Q2: 为什么主线程的 Looper 不会卡死？**
 
-```
+```text
 原因：
 1. Looper.loop() 内部使用 epoll 阻塞
 2. 没有消息时，线程进入休眠状态
 3. 有消息时，epoll_wait() 返回，处理消息
-4. 这是事件驱动模型，不是死循环
+4. 这是等待事件的持续循环，不是占用 CPU 的忙循环；回调阻塞仍会 ANR
 
 Native 层实现：
 • epoll 监听多个文件描述符
@@ -869,7 +689,7 @@ Native 层实现：
 
 **Q3: ThreadLocal 的作用？**
 
-```
+```text
 作用：
 • 线程局部变量
 • 每个线程独立存储
@@ -896,22 +716,22 @@ THREAD_PRIORITY_FOREGROUND = -2;  // 前台
 THREAD_PRIORITY_AUDIO = -16;      // 音频
 
 // 使用场景
-• 后台线程: THREAD_PRIORITY_BACKGROUND (10)
-• 音频线程: THREAD_PRIORITY_AUDIO (-16)
-• UI 线程: 默认 (0)
+// 后台线程: THREAD_PRIORITY_BACKGROUND (10)
+// 音频线程: THREAD_PRIORITY_AUDIO (-16)
+// UI 线程: 默认 (0)
 ```
 
 **Q5: Binder 线程池的大小和作用？**
 
-```
+```text
 大小：
-• 最大 16 个线程
+• 默认驱动按需线程上限 15，主动加入线程另计；不是全进程硬上限 16
 • 默认启动主 Binder 线程
 • 根据需要动态创建
 
 作用：
 • 处理 IPC 调用
-• 所有 Binder 事务在 Binder 线程执行
+• 远程事务通常由 Binder 池处理；本地直接调用/同步嵌套另有执行路径
 
 注意事项：
 • 不要在 Binder 调用中执行耗时操作
@@ -921,7 +741,7 @@ THREAD_PRIORITY_AUDIO = -16;      // 音频
 
 **Q6: 线程池的参数含义？**
 
-```java
+```text
 ThreadPoolExecutor(
     int corePoolSize,        // 核心线程数 (一直存在)
     int maximumPoolSize,     // 最大线程数 (任务多时创建)
@@ -956,4 +776,4 @@ ThreadPoolExecutor(
 
 ---
 
-*文档更新时间: 2026-03-12*
+*文档更新时间: 2026-09-10*

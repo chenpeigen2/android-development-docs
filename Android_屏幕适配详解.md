@@ -5,7 +5,7 @@
 
 > 作者：OpenClaw | 初稿日期：2026-03-09
 
-> AOSP 17 源码基线：`android-17.0.0_r1` 的 `frameworks/base/core/java/android/view/Window.java`，用于说明 Window 参数、Insets 与 ViewRootImpl 之间的边界。
+> 源码基线：AOSP `android-17.0.0_r1`；Window、TypedValue、WindowInsets 与配置策略分别在对应章节定位，屏幕密度、应用窗口 bounds 和安全内容区分开处理。
 
 ---
 
@@ -20,6 +20,7 @@
   - [3.1 dp 转换原理](#31-dp-转换原理)
   - [3.2 sp 与字体缩放](#32-sp-与字体缩放)
   - [3.3 dp 适配的局限性](#33-dp-适配的局限性)
+  - [3.4 TypedValue：dp/sp 转换的实际分支](#34-typedvaluedpsp-转换的实际分支)
 - [4. Android 屏幕适配机制](#4-android-屏幕适配机制)
   - [4.1 资源限定符](#41-资源限定符)
   - [4.2 屏幕密度匹配规则](#42-屏幕密度匹配规则)
@@ -28,22 +29,28 @@
   - [5.2 多 layout 文件](#52-多-layout-文件)
   - [5.3 ConstraintLayout 百分比布局](#53-constraintlayout-百分比布局)
 - [6. 头条方案（今日头条）](#6-头条方案今日头条)
-  - [6.1 原理](#61-原理)
-  - [6.2 实现](#62-实现)
-  - [6.3 头条方案的问题](#63-头条方案的问题)
-  - [6.4 优化版本](#64-优化版本)
-  - [6.5 AutoDensity 库](#65-autodensity-库)
-  - [6.6 头条方案 vs AutoDensity](#66-头条方案-vs-autodensity)
+  - [6.1 数学模型：改变 density 等价于改变逻辑视口](#61-数学模型改变-density-等价于改变逻辑视口)
+  - [6.2 旧实现修改的状态及相互影响](#62-旧实现修改的状态及相互影响)
+  - [6.3 窗口变化为何打破一次性初始化](#63-窗口变化为何打破一次性初始化)
+  - [6.4 迁移为局部设计坐标：只缩放自绘内容](#64-迁移为局部设计坐标只缩放自绘内容)
+  - [6.5 AutoDensity 类方案的技术定位](#65-autodensity-类方案的技术定位)
+  - [6.6 方案取舍](#66-方案取舍)
 - [7. smallestWidth 方案](#7-smallestwidth-方案)
   - [7.1 原理](#71-原理)
   - [7.2 使用方法](#72-使用方法)
   - [7.3 自动生成工具](#73-自动生成工具)
 - [8. 适配方案对比](#8-适配方案对比)
-  - [8.1 Android 17 大屏行为边界](#81-android-17-大屏行为边界)
+  - [8.1 Android 17 大屏行为：系统版本与 target 条件](#81-android-17-大屏行为系统版本与-target-条件)
+  - [8.2 源码门槛：兼容变更、大屏与退出属性](#82-源码门槛兼容变更大屏与退出属性)
+  - [8.3 布局应按当前可用空间选择，而非按设备标签](#83-布局应按当前可用空间选择而非按设备标签)
 - [9. 状态栏与导航栏适配](#9-状态栏与导航栏适配)
   - [9.1 沉浸式状态栏](#91-沉浸式状态栏)
   - [9.2 全面屏适配](#92-全面屏适配)
   - [9.3 导航栏适配](#93-导航栏适配)
+  - [9.4 WindowInsets 的数据模型：类型集合取最大值](#94-windowinsets-的数据模型类型集合取最大值)
+  - [9.5 分发链：ViewRootImpl → View → ViewGroup](#95-分发链viewrootimpl--view--viewgroup)
+  - [9.6 edge-to-edge 的源码判定](#96-edge-to-edge-的源码判定)
+  - [9.7 IME 动画为什么有独立帧阶段](#97-ime-动画为什么有独立帧阶段)
 - [10. 常见问题](#10-常见问题)
   - [10.1 为什么设置 dp 后在不同手机上大小不一样？](#101-为什么设置-dp-后在不同手机上大小不一样)
   - [10.2 1px 边框在某些设备上消失？](#102-1px-边框在某些设备上消失)
@@ -994,6 +1001,8 @@ class MainActivity : AppCompatActivity() {
     }
 }
 ```
+
+`Window.setDecorFitsSystemWindows(false)` 控制内容布局与 Decor 的系统窗口适配策略，并不替业务控件添加安全区域 padding，也不等价于隐藏状态栏。`WindowInsets.getInsets(mask)` 对所选类型逐边取最大值；因此同时避让 navigationBars 和 IME 时通常使用联合 mask，而不是把二者 bottom 直接相加。固定 tag 源码入口：[Window.java](https://cs.android.com/android/platform/superproject/+/android-17.0.0_r1:frameworks/base/core/java/android/view/Window.java)、[WindowInsets.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/view/WindowInsets.java)。
 
 保存初始 padding，不能在每次回调中基于上次 padding 累加。此示例为整个内容区避让；如果列表要滚动到系统栏下，需按控件拆分 padding/clipToPadding 策略，而不是重复给所有层加 Insets。IME 动画需另配 WindowInsetsAnimation，不能认为静态 padding 已保证动画平滑。
 

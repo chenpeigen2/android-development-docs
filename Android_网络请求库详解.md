@@ -166,7 +166,7 @@
 │  高性能       │      │  拦截器       │      │  连接管理     │
 │               │      │               │      │               │
 │ - HTTP/2      │      │ - 应用拦截器  │      │ - 连接池      │
-│ - SPDY        │      │ - 网络拦截器  │      │ - 连接复用    │
+│ - HTTP/1.1        │      │ - 网络拦截器  │      │ - 连接复用    │
 │ - GZIP        │      │ - 自定义拦截器│      │ - 超时控制    │
 │ - 缓存        │      │               │      │               │
 └───────────────┘      └───────────────┘      └───────────────┘
@@ -192,12 +192,12 @@
 │       优势        │                          说明                            │
 ├──────────────────┼──────────────────────────────────────────────────────────┤
 │ 连接池复用        │ 多个请求共享同一个连接，减少握手时间                      │
-│ GZIP 压缩        │ 自动压缩请求和响应，节省流量                              │
+│ GZIP 压缩        │ 透明协商并解压 gzip 响应；不自动压缩请求体                              │
 │ 响应缓存        │ 避免重复请求网络，提升响应速度                            │
 │ 拦截器机制        │ 灵活扩展功能（日志、缓存、认证等）                        │
 │ HTTP/2 支持      │ 多路复用，提升并发性能                                    │
 │ WebSocket        │ 支持 WebSocket 长连接                                     │
-│ 自动重试        │ 网络异常自动重试                                          │
+│ 自动重试        │ 仅对可恢复且可重放的失败重试                                          │
 │ HTTPS 支持       │ 内置 TLS，支持证书绑定                                    │
 └──────────────────┴──────────────────────────────────────────────────────────┘
 ```
@@ -297,7 +297,8 @@ public void asyncRequest() {
 
         @Override
         public void onResponse(Call call, Response response) throws IOException {
-            // 请求成功（在子线程）
+            // 收到 HTTP 响应（在子线程），非 2xx 也会到此
+            try (Response owned = response) {
             if (response.isSuccessful()) {
                 String responseData = response.body().string();
 
@@ -305,6 +306,7 @@ public void asyncRequest() {
                 runOnUiThread(() -> {
                     textView.setText(responseData);
                 });
+            }
             }
         }
     });
@@ -453,7 +455,7 @@ public void uploadWithProgress() {
                     uploaded += read;
 
                     // 更新进度
-                    int progress = (int) (uploaded * 100 / total);
+                    int progress = total > 0 ? (int) Math.min(100, uploaded * 100 / total) : 0;
                     runOnUiThread(() -> {
                         progressBar.setProgress(progress);
                     });
@@ -478,82 +480,55 @@ public void uploadWithProgress() {
 ### 2.7 文件下载
 
 ```java
-// 1. 基础文件下载
-public void downloadFile() {
-    Request request = new Request.Builder()
-        .url("https://example.com/file.zip")
-        .build();
-
-    client.newCall(request).enqueue(new Callback() {
-        @Override
-        public void onFailure(Call call, IOException e) {
-            e.printStackTrace();
+// Context.getFilesDir() 下的应用私有目录，避免 Android 17 直接写 /sdcard 根目录。
+// 所有 onResponse 路径（包括非 2xx、打开文件失败、读写失败）均关闭 Response。
+public Call downloadFile(File destination) {
+    Request request = new Request.Builder().url("https://example.com/file.zip").build();
+    Call call = client.newCall(request);
+    call.enqueue(new Callback() {
+        @Override public void onFailure(Call call, IOException error) {
+            if (!call.isCanceled()) reportDownloadError(error);
         }
-
-        @Override
-        public void onResponse(Call call, Response response) throws IOException {
-            if (response.isSuccessful()) {
-                InputStream inputStream = response.body().byteStream();
-                FileOutputStream fos = new FileOutputStream("/sdcard/file.zip");
-
-                byte[] buffer = new byte[2048];
-                int len;
-                while ((len = inputStream.read(buffer)) != -1) {
-                    fos.write(buffer, 0, len);
+        @Override public void onResponse(Call call, Response response) {
+            File partial = null;
+            try (Response owned = response) {
+                if (!owned.isSuccessful() || owned.body() == null) {
+                    throw new IOException("HTTP " + owned.code());
                 }
-
-                fos.flush();
-                fos.close();
-                inputStream.close();
-            }
-        }
-    });
-}
-
-// 2. 带进度的文件下载
-public void downloadWithProgress() {
-    Request request = new Request.Builder()
-        .url("https://example.com/file.zip")
-        .build();
-
-    client.newCall(request).enqueue(new Callback() {
-        @Override
-        public void onResponse(Call call, Response response) throws IOException {
-            if (response.isSuccessful()) {
-                long contentLength = response.body().contentLength();
-                InputStream inputStream = response.body().byteStream();
-                FileOutputStream fos = new FileOutputStream("/sdcard/file.zip");
-
-                byte[] buffer = new byte[2048];
-                int len;
+                partial = File.createTempFile("download-", ".part", destination.getParentFile());
+                long total = owned.body().contentLength(); // gzip/chunked 时可能是 -1
                 long downloaded = 0;
-
-                while ((len = inputStream.read(buffer)) != -1) {
-                    fos.write(buffer, 0, len);
-                    downloaded += len;
-
-                    // 更新进度
-                    int progress = (int) (downloaded * 100 / contentLength);
-                    runOnUiThread(() -> {
-                        progressBar.setProgress(progress);
-                    });
+                long limit = 100L * 1024 * 1024;
+                try (InputStream input = owned.body().byteStream();
+                     FileOutputStream output = new FileOutputStream(partial)) {
+                    byte[] buffer = new byte[8192];
+                    for (int count; (count = input.read(buffer)) != -1;) {
+                        if (call.isCanceled()) throw new IOException("Canceled");
+                        if (count > limit - downloaded) throw new IOException("Download too large");
+                        output.write(buffer, 0, count);
+                        downloaded += count;
+                        // 回调先节流再切主线程；total<=0 使用不确定进度。
+                        reportProgress(downloaded, total);
+                    }
                 }
-
-                fos.flush();
-                fos.close();
-                inputStream.close();
+                if (call.isCanceled()) throw new IOException("Canceled");
+                // 同目录同文件系统 rename；失败不报告成功，生产方案可用 AtomicFile。
+                if (!partial.renameTo(destination)) throw new IOException("Rename failed");
+                reportDownloadSuccess(destination); // UI 层还须校验请求标识和生命周期
+            } catch (IOException error) {
+                if (!call.isCanceled()) reportDownloadError(error);
+            } finally {
+                if (partial != null && partial.exists() && !partial.delete()) {
+                    reportCleanupFailure(partial); // 安排下次清理，不掩盖原始错误
+                }
             }
         }
-
-        @Override
-        public void onFailure(Call call, IOException e) {
-            e.printStackTrace();
-        }
     });
+    return call; // 页面不再需要时调用 cancel()
 }
 ```
 
----
+`reportProgress/reportDownloadError/reportDownloadSuccess/reportCleanupFailure` 为业务回调，需自行实现；进度不确定不是零字节。上例在 OkHttp 工作线程读写，最终成功结果也可能与取消竞争，UI 不能仅凭网络层已经检查过取消就直接更新旧页面。
 
 ## 第 3 章 OkHttp 拦截器
 
@@ -583,7 +558,7 @@ public void downloadWithProgress() {
                                     ▼
   ┌───────────────────────────────────────────────────────────────────────┐
   │                        网络拦截器 (Network Interceptors)               │
-  │  - 可以访问中间响应（如缓存响应、重定向响应）                          │
+  │  - 可以访问网络上的中间响应（重定向等）；纯缓存命中不运行                          │
   │  - 可以观察网络请求的完整过程                                          │
   │  - 可以访问 Connection                                                │
   └───────────────────────────────────────────────────────────────────────┘
@@ -606,15 +581,14 @@ public class LoggingInterceptor implements Interceptor {
         Request request = chain.request();
 
         long startTime = System.nanoTime();
-        Log.d("OkHttp", String.format("Sending request %s on %s%n%s",
-            request.url(), chain.connection(), request.headers()));
+        if (BuildConfig.DEBUG) Log.d("OkHttp", "Request " + request.method());
 
         // 2. 执行请求
         Response response = chain.proceed(request);
 
         long endTime = System.nanoTime();
-        Log.d("OkHttp", String.format("Received response for %s in %.1fms%n%s",
-            response.request().url(), (endTime - startTime) / 1e6d, response.headers()));
+        if (BuildConfig.DEBUG) Log.d("OkHttp", "Response " + response.code()
+            + " in " + (endTime - startTime) / 1e6d + " ms");
 
         return response;
     }
@@ -641,7 +615,7 @@ public class NetworkInterceptor implements Interceptor {
         // 执行请求
         Response response = chain.proceed(request);
 
-        // 可以看到缓存响应头
+        // 只能观察这次网络交换；cacheResponse/networkResponse 是外层 CacheInterceptor 合成的元数据
         Log.d("OkHttp", "Cache response: " + response.cacheResponse());
         Log.d("OkHttp", "Network response: " + response.networkResponse());
 
@@ -696,42 +670,25 @@ OkHttpClient client = new OkHttpClient.Builder()
 
 ### 3.5 缓存拦截器
 
+请求端决定是否接受旧缓存，服务端响应头决定能否存储。应用拦截器在 `proceed()` 返回后随意添加 `public,max-age` 不会追溯改变已经执行的 CacheInterceptor 存储决策，还可能把私有数据错误共享。
+
 ```java
-public class CacheInterceptor implements Interceptor {
-
-    @Override
-    public Response intercept(Chain chain) throws IOException {
+public final class OfflinePolicyInterceptor implements Interceptor {
+    private final java.util.function.BooleanSupplier offline;
+    public OfflinePolicyInterceptor(java.util.function.BooleanSupplier offline) {
+        this.offline = offline;
+    }
+    @Override public Response intercept(Chain chain) throws IOException {
         Request request = chain.request();
-
-        // 无网络时，强制使用缓存
-        if (!isNetworkAvailable()) {
-            request = request.newBuilder()
-                .cacheControl(CacheControl.FORCE_CACHE)
-                .build();
+        if (offline.getAsBoolean() && "GET".equals(request.method())) {
+            request = request.newBuilder().cacheControl(CacheControl.FORCE_CACHE).build();
         }
-
-        Response response = chain.proceed(request);
-
-        if (isNetworkAvailable()) {
-            // 有网络时，缓存有效期为 1 小时
-            int maxAge = 60 * 60;
-            response.newBuilder()
-                .removeHeader("Pragma")
-                .header("Cache-Control", "public, max-age=" + maxAge)
-                .build();
-        } else {
-            // 无网络时，缓存有效期为 1 周
-            int maxStale = 60 * 60 * 24 * 7;
-            response.newBuilder()
-                .removeHeader("Pragma")
-                .header("Cache-Control", "public, only-if-cached, max-stale=" + maxStale)
-                .build();
-        }
-
-        return response;
+        return chain.proceed(request); // 无可用缓存返回 504，仍须由调用者关闭
     }
 }
 ```
+
+联网状态只是提示，不能证明业务服务可达。尊重 `no-store/private/Vary/Authorization`；确需修改响应缓存策略时，只对自己控制且明确可缓存的端点使用网络拦截器，并保持账号隔离。
 
 ### 3.6 头部拦截器
 
@@ -741,13 +698,17 @@ public class HeaderInterceptor implements Interceptor {
     @Override
     public Response intercept(Chain chain) throws IOException {
         Request originalRequest = chain.request();
+        if (!"https".equals(originalRequest.url().scheme()) ||
+                !"api.example.com".equals(originalRequest.url().host())) {
+            return chain.proceed(originalRequest); // 动态 @Url 不携带本站凭证
+        }
 
         // 添加通用请求头
         Request request = originalRequest.newBuilder()
             .addHeader("Content-Type", "application/json")
             .addHeader("Accept", "application/json")
             .addHeader("User-Agent", "Android App")
-            .addHeader("Authorization", "Bearer " + getToken())
+            .header("Authorization", "Bearer " + getToken())
             .build();
 
         return chain.proceed(request);
@@ -795,7 +756,7 @@ OkHttpClient client = new OkHttpClient.Builder()
 Request request = new Request.Builder()
     .url("https://api.example.com/data")
     .cacheControl(new CacheControl.Builder()
-        .maxAge(5, TimeUnit.MINUTES)  // 缓存 5 分钟
+        .maxAge(5, TimeUnit.MINUTES)  // 仅接受年龄不超过 5 分钟的缓存；不是强制服务端缓存
         .build())
     .build();
 ```
@@ -911,10 +872,10 @@ public class CustomDns implements Dns {
     @Override
     public List<InetAddress> lookup(String hostname) throws UnknownHostException {
         try {
-            // 优先使用自定义 DNS
+            // 此处就是系统 DNS；真正 HTTPDNS 必须独立实现，保留原 hostname 做 SNI/TLS 校验
             return Arrays.asList(InetAddress.getAllByName(hostname));
         } catch (UnknownHostException e) {
-            // 失败时使用系统 DNS
+            // 此 fallback 与上面通常走同一解析器，不能当成独立容灾路径
             return Dns.SYSTEM.lookup(hostname);
         }
     }
@@ -1020,25 +981,31 @@ OkHttpClient client = new OkHttpClient.Builder()
 
 ```java
 // 1. 创建 CookieJar
-public class PersistentCookieJar implements CookieJar {
-
-    private Map<String, List<Cookie>> cookieStore = new HashMap<>();
-
-    @Override
-    public void saveFromResponse(HttpUrl url, List<Cookie> cookies) {
-        cookieStore.put(url.host(), cookies);
+public class MemoryCookieJar implements CookieJar {
+    private final List<Cookie> store = new ArrayList<>();
+    @Override public synchronized void saveFromResponse(HttpUrl url, List<Cookie> cookies) {
+        long now = System.currentTimeMillis();
+        for (Cookie incoming : cookies) {
+            store.removeIf(old -> old.name().equals(incoming.name())
+                    && old.domain().equals(incoming.domain())
+                    && old.path().equals(incoming.path()));
+            if (incoming.expiresAt() > now) store.add(incoming);
+        }
     }
-
-    @Override
-    public List<Cookie> loadForRequest(HttpUrl url) {
-        List<Cookie> cookies = cookieStore.get(url.host());
-        return cookies != null ? cookies : new ArrayList<>();
+    @Override public synchronized List<Cookie> loadForRequest(HttpUrl url) {
+        long now = System.currentTimeMillis();
+        store.removeIf(cookie -> cookie.expiresAt() <= now);
+        List<Cookie> result = new ArrayList<>();
+        for (Cookie cookie : store) if (cookie.matches(url)) result.add(cookie);
+        return result;
     }
 }
+// 内存示例，不是持久化实现；API < 24 的 removeIf 需 core library desugaring。
+// matches 检查 domain/path/secure，注销还应清理 Cookie；不把 HTTPS Cookie 发给 HTTP。
 
 // 2. 使用 CookieJar
 OkHttpClient client = new OkHttpClient.Builder()
-    .cookieJar(new PersistentCookieJar())
+    .cookieJar(new MemoryCookieJar())
     .build();
 ```
 
@@ -1290,6 +1257,7 @@ try (Response response = client.newCall(request).execute()) {
 }
 
 // 3. 限制响应体大小
+// 仅按已知头做预检；contentLength=-1 或 gzip 后未知时，必须在读取中累计并限制字节数。
 public Response limitResponseSize(Response response, long maxSize) throws IOException {
     ResponseBody body = response.body();
     if (body.contentLength() > maxSize) {
@@ -1357,7 +1325,7 @@ OkHttp 支持 HTTP 缓存：
 
 1. **缓存控制**：
    - `Cache-Control: max-age=<seconds>` 缓存有效期
-   - `Cache-Control: no-cache` 不使用缓存
+   - `Cache-Control: no-cache` 可存储但使用前必须重新验证
    - `Cache-Control: only-if-cached` 只使用缓存
 
 2. **缓存流程**：
@@ -1476,7 +1444,7 @@ WebSocket 基于 HTTP 协议升级：
 | 对比项 | OkHttp | HttpURLConnection |
 |--------|--------|-------------------|
 | API 设计 | 现代、易用 | 古老、难用 |
-| 连接池 | ✅ 自动管理 | ❌ 需手动管理 |
+| 连接池 | ✅ 自动管理 | ✅ 平台实现可自动复用 |
 | 拦截器 | ✅ 强大 | ❌ 无 |
 | 缓存 | ✅ 自动 | ⚠️ 需配置 |
 | HTTP/2 | ✅ 支持 | ⚠️ 部分支持 |
@@ -1565,7 +1533,7 @@ WebSocket 基于 HTTP 协议升级：
 ┌───────────────┐      ┌───────────────┐      ┌───────────────┐
 │  注解驱动     │      │  类型安全     │      │  扩展性强     │
 │               │      │               │      │               │
-│ - @GET/@POST  │      │ - 编译时检查  │      │ - Converter   │
+│ - @GET/@POST  │      │ - 类型化接口  │      │ - Converter   │
 │ - @Body/@Field│      │ - 自动序列化  │      │ - CallAdapter │
 │ - @Path/@Query│      │ - 泛型支持    │      │ - 拦截器      │
 └───────────────┘      └───────────────┘      └───────────────┘
@@ -1591,7 +1559,7 @@ WebSocket 基于 HTTP 协议升级：
 │       优势        │                          说明                            │
 ├──────────────────┼──────────────────────────────────────────────────────────┤
 │ 简洁的 API        │ 通过注解定义接口，代码简洁易读                          │
-│ 类型安全          │ 编译时检查参数类型，减少运行时错误                      │
+│ 类型安全          │ Java/Kotlin 检查方法参数类型；注解合法性与转换器匹配在运行时解析                      │
 │ 自动序列化        │ 支持 JSON/XML/ProtoBuf 等多种格式                      │
 │ 灵活的适配器      │ 支持 Call/RxJava/Coroutines 等多种返回类型             │
 │ 与 OkHttp 无缝集成│ 共享 OkHttp 的所有特性（缓存、拦截器等）                │
@@ -1767,7 +1735,7 @@ call.enqueue(new Callback<List<User>>() {
 // 4. 同步请求（在子线程）
 new Thread(() -> {
     try {
-        Response<List<User>> response = call.execute();
+        Response<List<User>> response = call.clone().execute(); // 已 enqueue 的 Call 不能复用
         if (response.isSuccessful()) {
             List<User> users = response.body();
         }
@@ -2272,6 +2240,10 @@ public class ProgressRequestBody extends RequestBody {
     }
 
     @Override
+    public long contentLength() throws IOException { return requestBody.contentLength(); }
+    @Override public boolean isOneShot() { return requestBody.isOneShot(); }
+    @Override public boolean isDuplex() { return requestBody.isDuplex(); }
+    @Override
     public void writeTo(BufferedSink sink) throws IOException {
         BufferedSink bufferedSink = Okio.buffer(new ForwardingSink(sink) {
             long bytesWritten = 0L;
@@ -2281,7 +2253,7 @@ public class ProgressRequestBody extends RequestBody {
             public void write(Buffer source, long byteCount) throws IOException {
                 super.write(source, byteCount);
                 if (contentLength == 0) {
-                    contentLength = contentLength();
+                    contentLength = requestBody.contentLength();
                 }
                 bytesWritten += byteCount;
                 callback.onProgress(bytesWritten, contentLength);
@@ -2295,63 +2267,48 @@ public class ProgressRequestBody extends RequestBody {
 
 ### 14.4 文件下载
 
-```java
-// 1. 基础下载
-@GET("download/{filename}")
-Call<ResponseBody> downloadFile(@Path("filename") String filename);
-
-// 调用
-Call<ResponseBody> call = apiService.downloadFile("test.zip");
-call.enqueue(new Callback<ResponseBody>() {
-    @Override
-    public void onResponse(Call<ResponseBody> call, Response<ResponseBody> response) {
-        if (response.isSuccessful()) {
-            writeResponseBodyToDisk(response.body());
-        }
-    }
-
-    @Override
-    public void onFailure(Call<ResponseBody> call, Throwable t) {
-    }
-});
-
-// 写入文件
-private void writeResponseBodyToDisk(ResponseBody body) {
-    try {
-        InputStream inputStream = body.byteStream();
-        FileOutputStream fos = new FileOutputStream("/sdcard/test.zip");
-
-        byte[] buffer = new byte[4096];
-        int bytesRead;
-        while ((bytesRead = inputStream.read(buffer)) != -1) {
-            fos.write(buffer, 0, bytesRead);
-        }
-
-        fos.flush();
-        fos.close();
-        inputStream.close();
-    } catch (IOException e) {
-        e.printStackTrace();
-    }
+```kotlin
+interface DownloadApi {
+    @Streaming
+    @GET("download/{filename}")
+    suspend fun downloadFile(@Path("filename") filename: String): ResponseBody
 }
 
-// 2. 大文件下载（流式）
-@Streaming
-@GET("download/{filename}")
-Call<ResponseBody> downloadLargeFile(@Path("filename") String filename);
-
-// 3. 断点续传
-@Streaming
-@GET("download/{filename}")
-Call<ResponseBody> downloadFile(
-    @Path("filename") String filename,
-    @Header("Range") String range
-);
-
-// 调用
-String range = "bytes=" + downloadedBytes + "-";
-apiService.downloadFile("test.zip", range);
+// 让 Call 和流的所有权保持在同一个 IO 上下文，避免将未关闭 body 跨调度器交接。
+suspend fun saveDownload(api: DownloadApi, name: String, context: Context) =
+    withContext(Dispatchers.IO) {
+        val destination = File(context.filesDir, "download.bin")
+        val atomic = android.util.AtomicFile(destination)
+        api.downloadFile(name).use { body ->
+            val output = atomic.startWrite()
+            try {
+                body.byteStream().use { input ->
+                    val buffer = ByteArray(8192)
+                    var bytes = 0L
+                    val limit = 100L * 1024 * 1024
+                    while (true) {
+                        currentCoroutineContext().ensureActive()
+                        val count = input.read(buffer) // 阻塞读取还受 OkHttp readTimeout 限制
+                        if (count == -1) break
+                        if (count > limit - bytes) throw IOException("Download too large")
+                        output.write(buffer, 0, count)
+                        bytes += count
+                    }
+                }
+                currentCoroutineContext().ensureActive()
+                atomic.finishWrite(output)
+            } catch (error: Throwable) {
+                atomic.failWrite(output)
+                throw error // 包括 CancellationException，不能吞掉
+            }
+        }
+        destination
+    }
 ```
+
+同一目标文件要串行写。Retrofit 2.9.0 的 suspend 取消可取消等待响应头的 Call，但交付 `@Streaming` body 后，后续阻塞 read 不再是那个挂起等待；上例用 readTimeout 限制等待并在每个块之间协作取消，不能声称取消必定立即打断正在读的 Socket。要求立即取消时，应持有原始 OkHttp Call，关联 Job 取消执行 `Call.cancel()`，并确保交付/取消竞争时 body 被关闭。
+
+断点续传发送 `Range: bytes=N-` 并配合 `If-Range`（ETag/Last-Modified）。仅在响应为 206 且 Content-Range 起点匹配时追加；200 代表完整内容，须重写；416 需重新核验本地长度与远端资源。不能只添加 Range 头就视为实现了续传。
 
 ### 14.5 动态 URL
 
@@ -2606,17 +2563,43 @@ Retrofit 缓存方法解析结果以减少重复反射；这不是 HTTP 响应�
 
 ### 19.4 Android 17 本地网络权限
 
-本地网络访问是否受 `ACCESS_LOCAL_NETWORK` 保护，应根据 Android 17 SDK 的权限定义、设备版本、targetSdk 和具体访问路径判断；不能仅凭 targetSdk 37 一句话推导所有设备行为。直接访问局域网设备的功能应在确认权限存在且需要时声明并申请；系统提供的设备选择器可能走平台中介访问路径。拒绝时显示功能不可用和重新授权入口，不循环请求权限。普通远端 HTTPS 仍使用 `INTERNET`，不能把两类权限混为一谈。
+Android 17 上，**targetSdk ≥ 37** 的应用直接访问本地网络前，必须声明并运行时获得危险权限 `ACCESS_LOCAL_NETWORK`；它归入用户界面的 Nearby devices 权限组。**targetSdk ≤ 36** 且已有 `INTERNET` 的应用走 split permission 隐式授权，不要为低 target 添加或请求该新权限。Android 16 是通过 `RESTRICT_LOCAL_NETWORK` 显式 opt-in 的测试阶段，临时使用 `NEARBY_WIFI_DEVICES`，不能把这套测试授权方式当成 Android 17 的正式流程。
+
+保护覆盖 Wi-Fi/Ethernet 等广播能力接口上的本地网络流量：TCP 主动连接和接受连接、UDP 单播/组播/广播的发送和接收，以及 `.local` 解析。Socket、OkHttp、Cronet、NsdManager 等上层 API 都不能绕过；WebView 继承宿主权限。蜂窝网络、公网访问不因此需要 LAN 权限；本地网络定义排除 VPN 接口，不能仅凭目标是私网 IP 就认定触发。 IPv4 范围含 `169.254.0.0/16`、`100.64.0.0/10`、`10.0.0.0/8`、`172.16.0.0/12`、`192.168.0.0/16`；IPv6 包括 link-local、直连路由、Thread 等 stub networks 和多子网场景，另含组播 `224.0.0.0/4`、`ff00::/8` 与广播 `255.255.255.255`。地址范围仍须结合上述接口定义。
+
+例外是访问配置的本地 DNS 服务器的 53 端口，以及系统中介选择路径：Google Cast output switcher；mDNS 使用 `DiscoveryRequest.FLAG_SHOW_PICKER` 配合 `NsdManager.registerServiceInfoCallback()`，连接用户选择服务返回的地址无需广泛 LAN 授权。**普通 NsdManager 扫描并非一律豁免**，也不能把一个选中设备的授权扩展为整网扫描。
+
+权限所属组之前已获授权时可能无需再次弹窗，但调用前仍检查权限；拒绝或撤销应停用相关功能、解释用途并提供用户主动重试入口，而不是循环弹窗。TCP 可能表现为超时，UDP 可能是 `EPERM`，不能把所有失败都归为权限错误。
 
 ```xml
+<!-- 以下用于 targetSdk >= 37 且需要直接广泛 LAN 访问的应用 -->
 <uses-permission android:name="android.permission.INTERNET" />
-<!-- 仅在 SDK/设备行为要求且功能确实访问局域网时声明；运行时申请以权限定义为准。 -->
 <uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK" />
 ```
 
-网络库不会代替 Activity 完成授权。连接失败时先区分权限、DNS、TLS、HTTP 和业务错误，不以“更新 OkHttp”替代平台权限处理。
+```kotlin
+// compileSdk 37；Activity 中使用 Activity Result API。
+private val requestLan = registerForActivityResult(
+    ActivityResultContracts.RequestPermission()
+) { granted -> if (granted) connectSelectedDevice() else showLanPermissionDenied() }
 
-参考：[Android 17 target 行为变化](https://developer.android.com/about/versions/17/behavior-changes-17)、[EventListener](https://github.com/square/okhttp/blob/parent-4.12.0/okhttp/src/main/kotlin/okhttp3/EventListener.kt)。
+fun onConnectClicked() {
+    val needsLan = Build.VERSION.SDK_INT >= 37 && applicationInfo.targetSdkVersion >= 37
+    val permission = Manifest.permission.ACCESS_LOCAL_NETWORK
+    if (!needsLan || ContextCompat.checkSelfPermission(this, permission) ==
+        PackageManager.PERMISSION_GRANTED) {
+        connectSelectedDevice() // 网络工作不得同步阻塞主线程
+    } else {
+        requestLan.launch(permission)
+    }
+}
+```
+
+官方范围：[Local network permission](https://developer.android.com/privacy-and-security/local-network-permission)、[Local network definition](https://developer.android.com/privacy-and-security/local-network-definition)。固定 tag 证据：[AndroidManifest.xml](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/res/AndroidManifest.xml) 的危险权限声明；[platform.xml](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/data/etc/platform.xml) 的 `INTERNET` → `ACCESS_LOCAL_NETWORK`、`targetSdk="37"` split；自编 ROM 还须核对 `access_local_network_permission_enabled`，不能将定制开关当作正式 Android 17 适用范围的替代描述。
+
+AOSP `android-17.0.0_r1` 的真实路径是 **`external/conscrypt/nsc/src/android/security/net/config/RootTrustManager.java`**，包名仍是 `android.security.net.config`，不是旧 `frameworks/base` 路径，也不是 `com.android.org.conscrypt`。`checkServerTrusted(..., Socket/SSLEngine/hostname)` 从握手取得 host，调用 `ApplicationConfig.getConfigForHostname(host)`，再委托 `NetworkSecurityTrustManager` 完成链校验和配置 pin 检查。路径是固定版本源码证据，不是建议应用调用隐藏 API。见 [RootTrustManager.java](https://android.googlesource.com/platform/external/conscrypt/+/refs/tags/android-17.0.0_r1/nsc/src/android/security/net/config/RootTrustManager.java)。OkHttp 仍执行主机名验证；按域选择信任配置不等于自动替代所有客户端的主机名校验。
+
+网络库不代替 Activity 完成授权；按权限、DNS、TLS、HTTP、业务错误分别处理。
 
 ## 第 20 章 常见问题
 

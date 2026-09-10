@@ -1,60 +1,68 @@
 # Android 虚拟机详解
 
-_作者：OpenClaw_  
+_作者：OpenClaw_
 _日期：2026-03-08_
 
 ---
 
 ## 目录
 
-1. [概述](#1-概述)
-2. [JVM vs Dalvik vs ART](#2-jvm-vs-dalvik-vs-art)
-   - 2.1 [架构对比](#21-架构对比)
-   - 2.2 [基于栈 vs 基于寄存器](#22-基于栈-vs-基于寄存器)
-   - 2.3 [对比示例](#23-对比示例)
-3. [Dalvik 虚拟机](#3-dalvik-虚拟机)
-   - 3.1 [Dalvik 特点](#31-dalvik-特点)
-   - 3.2 [Dalvik 启动流程](#32-dalvik-启动流程)
-   - 3.3 [Dalvik JIT 编译](#33-dalvik-jit-编译)
-4. [ART 虚拟机](#4-art-虚拟机)
-   - 4.1 [ART 特点](#41-art-特点)
-   - 4.2 [ART 编译策略](#42-art-编译策略)
-   - 4.3 [dex2oat 编译](#43-dex2oat-编译)
-   - 4.4 [ART 运行时](#44-art-运行时)
-5. [DEX 文件格式](#5-dex-文件格式)
-   - 5.1 [DEX 文件结构](#51-dex-文件结构)
-   - 5.2 [DEX vs CLASS](#52-dex-vs-class)
-6. [ODEX 与 OAT 文件](#6-odex-与-oat-文件)
-   - 6.1 [ODEX 文件 (Dalvik)](#61-odex-文件-dalvik)
-   - 6.2 [OAT 文件 (ART)](#62-oat-文件-art)
-   - 6.3 [编译流程对比](#63-编译流程对比)
-7. [内存管理](#7-内存管理)
-   - 7.1 [Dalvik 内存管理](#71-dalvik-内存管理)
-   - 7.2 [ART 内存管理](#72-art-内存管理)
-   - 7.3 [GC 类型](#73-gc-类型)
-8. [ART GC 算法深度解析](#8-art-gc-算法深度解析)
-   - 8.1 [CMS (Concurrent Mark Sweep)](#81-cms-concurrent-mark-sweep---android-5-7)
-   - 8.2 [CC (Concurrent Copying)](#82-cc-concurrent-copying---android-8)
-   - 8.3 [HSC (Homogeneous Space Compact)](#83-hsc-homogeneous-space-compact---后台压缩)
-   - 8.4 [GC 触发策略](#84-gc-触发策略)
-9. [GC 日志解读](#9-gc-日志解读)
-   - 9.1 [ART GC 日志格式详解](#91-art-gc-日志格式详解)
-   - 9.2 [实战：通过GC日志定位问题](#92-实战通过gc日志定位问题)
-   - 9.3 [logcat GC 相关命令](#93-logcat-gc-相关命令)
-10. [JIT 编译与 Profile-Guided Compilation](#10-jit-编译与-profile-guided-compilation)
-    - 10.1 [ART JIT 编译器详解](#101-art-jit-编译器详解)
-    - 10.2 [Profile-Guided Compilation (PGC)](#102-profile-guided-compilation-pgc)
-    - 10.3 [编译层级](#103-编译层级)
-    - 10.4 [deoptimization（逆优化）](#104-deoptimization逆优化)
-11. [ART 对象模型与内存布局](#11-art-对象模型与内存布局)
-    - 11.1 [ART 对象内存布局](#111-art-对象内存布局)
-    - 11.2 [ClassLinker 类加载](#112-classlinker-类加载)
-    - 11.3 [ART Method 模型](#113-art-method-模型)
-12. [ART 线程模型](#12-art-线程模型)
-    - 12.1 [ART 线程结构](#121-art-线程结构artthread)
-    - 12.2 [线程状态转换](#122-线程状态转换)
-    - 12.3 [synchronized 在 ART 中的实现](#123-synchronized-在-art-中的实现)
-13. [总结](#13-总结)
+- [1. 概述](#1-概述)
+- [2. JVM vs Dalvik vs ART](#2-jvm-vs-dalvik-vs-art)
+  - [2.1 架构对比](#21-架构对比)
+  - [2.2 基于栈 vs 基于寄存器](#22-基于栈-vs-基于寄存器)
+  - [2.3 对比示例](#23-对比示例)
+- [3. Dalvik 虚拟机](#3-dalvik-虚拟机)
+  - [3.1 Dalvik 特点](#31-dalvik-特点)
+  - [3.2 Dalvik 启动流程](#32-dalvik-启动流程)
+  - [3.3 Dalvik JIT 编译](#33-dalvik-jit-编译)
+- [4. ART 虚拟机](#4-art-虚拟机)
+  - [4.1 ART 特点](#41-art-特点)
+  - [4.2 ART 编译策略](#42-art-编译策略)
+  - [4.3 dex2oat 编译](#43-dex2oat-编译)
+  - [4.4 ART 运行时](#44-art-运行时)
+    - [4.4.1 Runtime 创建、启动和 Zygote fork 的生命周期](#441-runtime-创建启动和-zygote-fork-的生命周期)
+    - [4.4.2 解释、JIT 与 AOT 的方法入口协作](#442-解释jit-与-aot-的方法入口协作)
+- [5. DEX 文件格式](#5-dex-文件格式)
+  - [5.1 DEX 文件结构](#51-dex-文件结构)
+  - [5.2 DEX vs CLASS](#52-dex-vs-class)
+- [6. ODEX 与 OAT 文件](#6-odex-与-oat-文件)
+  - [6.1 ODEX 文件 (Dalvik)](#61-odex-文件-dalvik)
+  - [6.2 OAT 文件 (ART)](#62-oat-文件-art)
+  - [6.3 编译流程对比](#63-编译流程对比)
+- [7. 内存管理](#7-内存管理)
+  - [7.1 Dalvik 内存管理](#71-dalvik-内存管理)
+  - [7.2 ART 内存管理](#72-art-内存管理)
+  - [7.3 GC 类型](#73-gc-类型)
+- [8. ART GC 算法深度解析](#8-art-gc-算法深度解析)
+  - [8.1 CMS (Concurrent Mark Sweep) - Android 5-7](#81-cms-concurrent-mark-sweep---android-5-7)
+  - [8.2 CC (Concurrent Copying) - Android 8+](#82-cc-concurrent-copying---android-8)
+    - [8.2.1 CC RunPhases：真实顺序和配置分支](#821-cc-runphases真实顺序和配置分支)
+    - [8.2.2 CMC RunPhases：标记和压缩不是同一暂停](#822-cmc-runphases标记和压缩不是同一暂停)
+    - [8.2.3 CMC 的 MarkingPause：为什么必须处理新分配和弱引用](#823-cmc-的-markingpause为什么必须处理新分配和弱引用)
+  - [8.3 HSC (Homogeneous Space Compact) - 后台压缩](#83-hsc-homogeneous-space-compact---后台压缩)
+    - [8.3.1 HSC 的拒绝条件和真正的 STW](#831-hsc-的拒绝条件和真正的-stw)
+  - [8.4 GC 触发策略](#84-gc-触发策略)
+    - [8.4.1 分配失败不立刻等于 OOM](#841-分配失败不立刻等于-oom)
+- [9. GC 日志解读](#9-gc-日志解读)
+  - [9.1 ART GC 日志格式详解](#91-art-gc-日志格式详解)
+  - [9.2 实战：通过 GC 日志定位问题](#92-实战通过-gc-日志定位问题)
+  - [9.3 logcat GC 相关命令](#93-logcat-gc-相关命令)
+- [10. JIT 编译与 Profile-Guided Compilation](#10-jit-编译与-profile-guided-compilation)
+  - [10.1 ART JIT 编译器详解](#101-art-jit-编译器详解)
+  - [10.2 Profile-Guided Compilation (PGC)](#102-profile-guided-compilation-pgc)
+  - [10.3 编译层级](#103-编译层级)
+  - [10.4 Deoptimization（逆优化）](#104-deoptimization逆优化)
+- [11. ART 对象模型与内存布局](#11-art-对象模型与内存布局)
+  - [11.1 ART 对象内存布局](#111-art-对象内存布局)
+  - [11.2 ClassLinker 类加载](#112-classlinker-类加载)
+  - [11.3 ART Method 模型](#113-art-method-模型)
+- [12. ART 线程模型](#12-art-线程模型)
+  - [12.1 ART 线程结构 (ArtThread)](#121-art-线程结构-artthread)
+  - [12.2 线程状态转换](#122-线程状态转换)
+  - [12.3 synchronized 在 ART 中的实现](#123-synchronized-在-art-中的实现)
+- [13. 总结](#13-总结)
+- [固定版本源码索引](#固定版本源码索引)
 
 ---
 
@@ -62,7 +70,7 @@ _日期：2026-03-08_
 
 Android 虚拟机是 Android 系统的核心组件，负责运行应用程序代码。从 Dalvik 到 ART，Android 虚拟机经历了重大演进。
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         Android 虚拟机演进                                   │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -81,7 +89,7 @@ Android 1.0 - 4.4          Android 5.0+
 
 ### 2.1 架构对比
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         虚拟机架构对比                                       │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -103,7 +111,7 @@ Android 1.0 - 4.4          Android 5.0+
 
 ### 2.2 基于栈 vs 基于寄存器
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    基于栈 vs 基于寄存器                                      │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -125,7 +133,7 @@ Android 1.0 - 4.4          Android 5.0+
 │  - 指令数量多（需要 push/pop 操作）                                         │
 │  - 代码紧凑（指令短）                                                       │
 │  - 移植性好                                                                  │
-│  - 执行效率较低                                                              │
+│  - 描述字节码解释模型，不直接决定 JIT/AOT 后机器码性能                                                              │
 └─────────────────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -142,7 +150,7 @@ Android 1.0 - 4.4          Android 5.0+
 │  特点：                                                                      │
 │  - 指令数量少（直接操作寄存器）                                             │
 │  - 代码较长（指令包含寄存器编号）                                           │
-│  - 执行效率高                                                                │
+│  - 通常减少解释器分派次数，不保证所有程序更快                                                                │
 │  - 适合移动设备（减少内存访问）                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -157,7 +165,7 @@ int sum(int a, int b) {
 ```
 
 **JVM 字节码 (基于栈):**
-```
+```text
 iload_1    // 将局部变量1压入栈
 iload_2    // 将局部变量2压入栈
 iadd       // 弹出两个值，相加，压入结果
@@ -165,7 +173,7 @@ ireturn    // 返回栈顶值
 ```
 
 **Dalvik 字节码 (基于寄存器):**
-```
+```text
 add-int v0, v1, v2   // v0 = v1 + v2
 return v0            // 返回 v0
 ```
@@ -176,7 +184,7 @@ return v0            // 返回 v0
 
 ### 3.1 Dalvik 特点
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         Dalvik 虚拟机特点                                   │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -200,7 +208,7 @@ return v0            // 返回 v0
 
 ### 3.2 Dalvik 启动流程
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         Dalvik 启动流程                                     │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -210,7 +218,7 @@ Zygote 进程
      ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │  1. ZygoteInit.main()                                                      │
-│     - 启动 Dalvik 虚拟机                                                    │
+│     - 此时 VM 已由 native AndroidRuntime 启动，再进入 Java main                                                    │
 │     - 预加载系统类和资源                                                    │
 └──────────────────────────────────────────────────────────────────────────────┘
      │
@@ -244,7 +252,7 @@ Zygote 进程
 
 ### 3.3 Dalvik JIT 编译
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         Dalvik JIT 编译                                     │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -261,7 +269,7 @@ Zygote 进程
 │                        ▼                                                  │
 │  2. 热点检测                                                              │
 │     ┌─────────────────────────────────────────────────────────────────┐   │
-│     │ 方法执行次数超过阈值 → 标记为热点                               │   │
+│     │ 热 trace/回边达到阈值后触发编译（历史 Dalvik 模型）                               │   │
 │     └─────────────────────────────────────────────────────────────────┘   │
 │                        │                                                  │
 │                        ▼                                                  │
@@ -286,18 +294,18 @@ Zygote 进程
 
 ### 4.1 ART 特点
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         ART 虚拟机特点                                      │
 └─────────────────────────────────────────────────────────────────────────────┘
 
 1. AOT (Ahead-of-Time) 编译
-   - 安装时编译 DEX → OAT
+   - 按编译过滤器和 profile 在安装/后台阶段编译选定 DEX 方法
    - 运行时直接执行机器码
    - 启动速度快
 
 2. JIT + AOT 混合 (Android 7.0+)
-   - 首次运行 JIT 编译
+   - 未有可用 AOT 代码时解释执行并按热点触发 JIT
    - 后台 AOT 编译热点代码
    - 平衡安装速度和运行效率
 
@@ -313,7 +321,7 @@ Zygote 进程
 
 ### 4.2 ART 编译策略
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         ART 编译策略演进                                    │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -347,7 +355,7 @@ Android 7.0+: JIT + AOT 混合
 ```kotlin
 /**
  * dex2oat 编译过程
- * 
+ *
  * 1. 读取 DEX 文件
  * 2. 解析类、方法、字段
  * 3. 编译为本地机器码
@@ -364,14 +372,14 @@ Android 7.0+: JIT + AOT 混合
  * ├── executable_offset
  * ├── key_value_store
  * └── oat_dex_files[]
- * 
+ *
  * OAT Dex File
  * ├── dex_file_location
  * ├── dex_file_checksum
  * ├── dex_file_pointer
  * ├── class_offsets[]
  * └── lookup_table
- * 
+ *
  * OAT Class
  * ├── status (kNotReady, kVerified, kInitialized)
  * ├── method_count
@@ -381,7 +389,7 @@ Android 7.0+: JIT + AOT 混合
 
 ### 4.4 ART 运行时
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         ART 运行时架构                                      │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -403,8 +411,8 @@ Android 7.0+: JIT + AOT 混合
 │  │                                                                      │  │
 │  │  ┌─────────────────────────────────────────────────────────────────┐│  │
 │  │  │                    Garbage Collector                           ││  │
-│  │  │  - CMS (Concurrent Mark Sweep)                                ││  │
-│  │  │  - CC (Concurrent Copying)                                    ││  │
+│  │  │  - CMC (Concurrent Mark Compact) / CC 等配置分支                                ││  │
+│  │  │  - CC 使用 RegionSpace 与读屏障，不是固定二等分堆                                    ││  │
 │  │  └─────────────────────────────────────────────────────────────────┘│  │
 │  └───────────────────────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -412,11 +420,54 @@ Android 7.0+: JIT + AOT 混合
 
 ---
 
+#### 4.4.1 Runtime 创建、启动和 Zygote fork 的生命周期
+
+`Runtime::Create()`/`Init()` 建立运行时，`Runtime::Start()` 才进入启动阶段。GC heap、ClassLinker、intern table、JNI、线程列表与 boot image 的初始化有依赖顺序，不能在 Java ZygoteInit.main 内“再创建 VM”：Java main 已依赖这些组件才能执行。
+
+```text
+app_process / AndroidRuntime
+  -> JNI_CreateJavaVM
+     -> Runtime::Create / Runtime::Init
+        -> 当前 native 主线程 Attach 到 ART
+        -> 建立 Heap、boot class path、ClassLinker、JNI 等
+     -> Runtime::Start
+        -> core native 注册、运行时线程与 JIT 等启动策略
+  -> Java ZygoteInit.main
+     -> 类/资源预加载
+     -> fork 前停止或协调不允许跨 fork 遗留的线程状态
+     -> fork
+        父：继续接受启动请求
+        子：修复 TID、线程/锁、GC/JIT、运行参数与安全身份
+             -> ActivityThread.main
+```
+
+这是生命周期概览，不是每个产品调用点完全相同的函数逐行拷贝。特别要区分“共享同一个虚拟机实例”与 fork 的地址空间快照：父子有独立的 Runtime 状态和线程，未修改的物理页可以共享，写入触发 COW。
+
+`Runtime::PreZygoteFork()` 会协调 JIT、线程与 Heap；`PostZygoteFork()` 处理子进程阶段的 JIT 等恢复。不能把 fork 前所有线程原样复制成一组可运行子线程。预加载有利于启动和共享，但把带 native 线程/文件状态的业务单例随意预加载可能带来 fork 后不一致。
+
+#### 4.4.2 解释、JIT 与 AOT 的方法入口协作
+
+一次方法调用通常先由解析和 dispatch 确定 ArtMethod。已有匹配的 AOT/JIT entry point 时跳转机器码；没有可用代码时可经过解释桥，热点累计再排队 JIT。编译完成后更新后续入口，OSR 另负责正在运行的循环切换。
+
+| 阶段 | 需要维护的状态 | 常见误判 |
+|------|----------------|----------|
+| 安装/后台编译 | dex checksum、class loader context、过滤器、profile | 只要磁盘有 odex 就一定能执行 |
+| 类加载/链接 | defining loader、DEX 索引、类状态、解析缓存 | loadClass 一定会运行 clinit |
+| JIT 排队/完成 | 编译类别、代码缓存、入口发布 | JIT 线程一创建，所有方法都是机器码 |
+| 逆优化 | 编译帧映射、解释帧和恢复 PC | 换 DEX 文件就能无条件替换正在执行的类 |
+| 进程终止 | shutdown 协调（若有序退出） | Android 杀进程也必定执行所有 Java finally |
+
+调试器插桩或 ART 检查可改变入口和执行方式，性能结论需说明是否启用这些机制。下文的 GC 与锁也依赖线程是否正在 managed 状态，而不只依赖 Linux 是否把线程调度上 CPU。
+
+---
+
 ## 5. DEX 文件格式
 
 ### 5.1 DEX 文件结构
 
-```
+下图为传统 standard DEX 035–040 的 header 形态（035 只是示例 magic）。固定 tag 的 `DexFile::HeaderV41` 增加 `container_size_` 与 `header_offset_`，不能把 112 字节及 035 当作 Android 17 唯一格式。
+
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         DEX 文件结构                                        │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -490,7 +541,7 @@ Android 7.0+: JIT + AOT 混合
 
 ### 5.2 DEX vs CLASS
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         DEX vs CLASS 文件对比                               │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -533,67 +584,26 @@ Android 7.0+: JIT + AOT 混合
 
 ### 6.1 ODEX 文件 (Dalvik)
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         ODEX 文件 (Dalvik 优化后)                           │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-ODEX = Optimized DEX
-
-优化内容:
-1. 内联方法
-2. 消除空指针检查
-3. 消除边界检查
-4. 常量折叠
-
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  ODEX 文件位置:                                                             │
-│  - 系统应用: /system/app/*/oat/arm64/*.odex                                │
-│  - 用户应用: /data/dalvik-cache/arm64/*.odex                               │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
+Dalvik 的 ODEX 是 dexopt 产生的优化 DEX，主要保存验证/链接相关信息和 quickening 后的字节码；不能把它说成 ART 的机器码产物。历史系统包可以带同目录 `.odex`，dalvik-cache 保存优化缓存；`oat/arm64/base.odex` 是 ART 命名方式，不属于 Dalvik。
 
 ### 6.2 OAT 文件 (ART)
 
+ART 的 OAT 容纳代码元数据及经过编译的机器码；应用产物虽常以 `.odex` 为扩展名，但不能因此当作 Dalvik ODEX。现代产物要区分：
+
+```text
+APK / DEX             原始程序输入
+OAT / .odex           编译代码、OatHeader、方法/DEX 关联元数据
+.vdex                 验证依赖等，是否携带 DEX 与编译配置有关
+.art                  boot/app image 中预初始化的运行时对象
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         OAT 文件 (ART 编译后)                               │
-└─────────────────────────────────────────────────────────────────────────────┘
 
-OAT = Ahead-Of-Time compiled code
+不是所有方法都必须有机器码；`verify`、`speed-profile` 等过滤器决定编译范围，找不到可用代码时仍可解释/JIT。不能假定原始 DEX 总内嵌在 OAT，也不能把 `.art` 说成首次运行 JIT 自动写出的缓存。产物位置受 ART Service、架构、安装布局和模块配置影响。
 
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  OAT 文件结构:                                                              │
-│                                                                             │
-│  ┌───────────────────────────────────────────────────────────────────────┐│
-│  │ OAT Header                                                            ││
-│  │ - oat_version                                                         ││
-│  │ - instruction_set (arm, arm64, x86, x86_64)                          ││
-│  │ - executable_offset                                                   ││
-│  └───────────────────────────────────────────────────────────────────────┘│
-│  ┌───────────────────────────────────────────────────────────────────────┐│
-│  │ DEX File 数据 (原始 DEX)                                              ││
-│  └───────────────────────────────────────────────────────────────────────┘│
-│  ┌───────────────────────────────────────────────────────────────────────┐│
-│  │ OAT Class 数据                                                        ││
-│  │ - 类状态 (verified, initialized)                                      ││
-│  │ - 方法偏移表                                                          ││
-│  └───────────────────────────────────────────────────────────────────────┘│
-│  ┌───────────────────────────────────────────────────────────────────────┐│
-│  │ 机器码 (Native Code)                                                  ││
-│  │ - 编译后的本地指令                                                    ││
-│  │ - 可直接执行                                                          ││
-│  └───────────────────────────────────────────────────────────────────────┘│
-└─────────────────────────────────────────────────────────────────────────────┘
-
-OAT 文件位置:
-- 系统应用: /system/app/*/oat/arm64/base.odex
-- 用户应用: /data/app/~~xxx==/com.example-yyy==/oat/arm64/base.odex
-```
+---
 
 ### 6.3 编译流程对比
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         编译流程对比                                        │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -628,7 +638,7 @@ ART (Android 7+):
 
 ### 7.1 Dalvik 内存管理
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         Dalvik 堆内存                                       │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -647,8 +657,8 @@ ART (Android 7+):
 │  │ - 进程间共享 (Copy-on-Write)                                          ││
 │  └───────────────────────────────────────────────────────────────────────┘│
 │  ┌───────────────────────────────────────────────────────────────────────┐│
-│  │ Large Object 堆││
-│  │ - 大对象 (> 3 页)                                                     ││
+│  │ 大对象分配（历史 Dalvik，不套用 ART 独立 LOS）││
+│  │ - 不能据此推导 Dalvik 有 ART 的 LargeObjectSpace                                                     ││
 │  └───────────────────────────────────────────────────────────────────────┘│
 └─────────────────────────────────────────────────────────────────────────────┘
 
@@ -660,7 +670,7 @@ GC 算法: Mark-Sweep
 
 ### 7.2 ART 内存管理
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         ART 堆内存                                          │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -671,7 +681,7 @@ GC 算法: Mark-Sweep
 │  ┌───────────────────────────────────────────────────────────────────────┐│
 │  │ Image Space││
 │  │ - 预加载的类对象                                                       ││
-│  │ - 只读，进程间共享                                                     ││
+│  │ - 可映射共享；含可写运行时状态，不保证整个空间只读                                                     ││
 │  └───────────────────────────────────────────────────────────────────────┘│
 │  ┌───────────────────────────────────────────────────────────────────────┐│
 │  │ Zygote Space││
@@ -685,37 +695,32 @@ GC 算法: Mark-Sweep
 │  └───────────────────────────────────────────────────────────────────────┘│
 │  ┌───────────────────────────────────────────────────────────────────────┐│
 │  │ Large Object Space││
-│  │ - 大对象 (> 12KB)                                                      ││
+│  │ - 大型 primitive array 等，阈值/分配资格由 Heap 配置决定                                                      ││
 │  │ - 独立管理                                                             ││
 │  └───────────────────────────────────────────────────────────────────────┘│
 └─────────────────────────────────────────────────────────────────────────────┘
 
 GC 算法:
-1. CMS (Concurrent Mark Sweep) - Android 5-7
-2. CC (Concurrent Copying) - Android 8+
+1. CMS：保留为历史/配置路径，不能概括所有 Android 5–7 设备
+2. CC 与 CMC：当前按构建和 Runtime 配置选择，见第 8 章
    - 压缩内存，消除碎片
    - 并发执行，减少暂停
 ```
 
 ### 7.3 GC 类型
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         ART GC 类型                                         │
-└─────────────────────────────────────────────────────────────────────────────┘
+`GcCause` 是**触发原因**，不等于收集器算法或“是否 STW”：
 
-┌───────────────────┬───────────────────┬───────────────────────────────────┐
-│     GC 类型       │      触发条件      │              说明                │
-├───────────────────┼───────────────────┼───────────────────────────────────┤
-│ kGcCauseForAlloc  │ 分配内存不足       │ 同步 GC，会暂停线程              │
-├───────────────────┼───────────────────┼───────────────────────────────────┤
-│ kGcCauseBackground│ 后台定期执行       │ 异步 GC，不暂停线程              │
-├───────────────────┼───────────────────┼───────────────────────────────────┤
-│ kGcCauseExplicit  │ System.gc()        │ 显式调用                         │
-├───────────────────┼───────────────────┼───────────────────────────────────┤
-│ kGcCauseOOM       │ 内存不足           │ 最后尝试，清理所有可回收对象     │
-└───────────────────┴───────────────────┴───────────────────────────────────┘
-```
+| 原因 | 语义 |
+|------|------|
+| `kGcCauseForAlloc` | 分配失败的线程等待 GC 后重试；不意味着所有 GC 阶段都暂停所有线程 |
+| `kGcCauseBackground` | 为后续分配提前准备空间；并发 GC 仍有暂停/握手阶段 |
+| `kGcCauseExplicit` | 显式请求，如 System.gc() |
+| `kGcCauseForNativeAlloc` | native 分配水位触发 |
+| `kGcCauseCollectorTransition` | 收集器转换 |
+| `kGcCauseHomogeneousSpaceCompact` | 适用 CMS 配置的同类空间压缩 |
+
+固定 tag 的枚举没有 `kGcCauseOOM`。分配重试、软引用清理等仍使用具体 cause；最后无法满足分配才抛 OOM。
 
 ---
 
@@ -723,229 +728,337 @@ GC 算法:
 
 ### 8.1 CMS (Concurrent Mark Sweep) - Android 5-7
 
-CMS 是 ART 5.0-7.0 使用的垃圾回收器，采用标记-清除算法，支持并发执行。
+CMS 保留为历史原理比较：从根标记，处理并发期间引用变化，再清扫未标记对象；其非移动空间可能碎片化。重新标记主要补齐并发修改造成的可达性遗漏，不是“清理浮动垃圾”。本文不把某个桌面 JVM 的 10ms/100ms 暂停数字当作 ART 保证。
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         CMS GC 完整流程                                    │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  Phase 1: GC 开始 (Pause)                                                   │
-│  • 设置 GC 标志位                                                           │
-│  • 记录暂停时间点                                                          │
-└─────────────────────────────────────────────────────────────────────────────┘
-         │
-         ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  Phase 2: 初始标记 (Initial Mark) - Pause                                   │
-│  • 从 GC Root 标记直接引用的对象                                            │
-│  • GC Root: 栈变量、静态变量、JNI 引用                                      │
-│  • 暂停时间短 (~10ms)                                                       │
-└─────────────────────────────────────────────────────────────────────────────┘
-         │
-         ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  Phase 3: 并发标记 (Concurrent Mark) - 运行中                              │
-│  • 从初始标记的对象出发，遍历整个对象图                                       │
-│  • 与应用线程并发执行                                                       │
-│  • 可能被应用线程打断                                                      │
-└─────────────────────────────────────────────────────────────────────────────┘
-         │
-         ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  Phase 4: 重新标记 (Remark) - Pause                                        │
-│  • 修正在并发标记期间产生的浮动垃圾                                          │
-│  • 暂停时间较长 (~100ms)                                                    │
-└─────────────────────────────────────────────────────────────────────────────┘
-         │
-         ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  Phase 5: 并发清除 (Concurrent Sweep) - 运行中                             │
-│  • 回收所有未被标记的对象                                                   │
-│  • 与应用线程并发执行                                                       │
-└─────────────────────────────────────────────────────────────────────────────┘
-         │
-         ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  Phase 6: 并发重置 (Concurrent Reset - 运行中                              │
-│  • 重置 GC 数据结构，为下次 GC 准备                                          │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-CMS 问题：
-1. 内存碎片 - 标记清除会产生碎片，大对象分配失败
-2. 浮动垃圾 - 并发阶段产生的垃圾要等下次 GC 才能回收
-3. 暂停时间长 - Remark 和 Initial Mark 仍有暂停
-```
+Android 17 的 `Heap` 同时包含 CC、CMC 和相关兼容路径。`gUseUserfaultfd` 对应的配置要求前台 `kCollectorTypeCMC`、后台 `kCollectorTypeCMCBackground`；使用读屏障的 CC 配置则使用 RegionSpace。要以 Runtime 参数与设备配置判定当前算法，不能只凭 API 版本指定 CC。
 
 ### 8.2 CC (Concurrent Copying) - Android 8+
 
-Android 8.0 引入的新的 GC 算法，使用并发复制策略，解决 CMS 的内存碎片问题。
+`ConcurrentCopying::RunPhases()` 的实际主序列：
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         CC GC 核心原理                                      │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-CC 使用 semispace（半空间）复制策略：
-
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  From Space (From)          │        To Space (To)                         │
-│  ┌───────────────────────┐ │ ┌───────────────────────┐                     │
-│  │ [存活对象 A]          │ │ │                       │  ← 空白空间       │
-│  │ [存活对象 B]          │ │ │                       │                     │
-│  │ [死亡对象 X]          │ │ │                       │                     │
-│  │ [死亡对象 Y]          │ │ │                       │                     │
-│  └───────────────────────┘ │ └───────────────────────┘                     │
-└─────────────────────────────────────────────────────────────────────────────┘
-         │
-         │  复制
-         ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  From Space (From)          │        To Space (To)                         │
-│  ┌───────────────────────┐ │ ┌───────────────────────┐                     │
-│  │ [已移动标记]          │ │ │ [对象 A 副本]        │                     │
-│  │ [已移动标记]          │ │ │ [对象 B 副本]        │                     │
-│  │                       │ │ │                       │                     │
-│  │                       │ │ │                       │                     │
-│  └───────────────────────┘ │ └───────────────────────┘                     │
-└─────────────────────────────────────────────────────────────────────────────┘
-         │
-         │  交换
-         ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  From 和 To 角色互换                                                        │
-│  原来的 From Space 变成新的 To Space                                        │
-└─────────────────────────────────────────────────────────────────────────────┘
+```text
+InitializePhase()
+  -> 可选 MarkingPhase()（generational 配置且非 young collection）
+  -> FlipThreadRoots()
+  -> CopyingPhase()
+  -> ReclaimPhase()
+  -> FinishPhase()
 ```
 
+CC 把 RegionSpace 的 region 标成 from-space / to-space / unevac-from-space。需要疏散的 region 中，存活对象被复制到目的 region，转发信息和读屏障让 mutator 取得新地址；未疏散 region 可原位保留，young/full 路径也不同。它不是把整个 Java 堆切成两个等大的半空间、每次完整交换，因此“固定浪费一半堆”和“所有存活对象每次都复制”均不成立。
+
+`FlipThreadRoots()` 协调线程根和入口，复制阶段使用读屏障及标记队列追踪并发可达性。回收阶段释放可回收的 from-space regions，并处理其他空间的对象；non-moving/LOS 等空间不会因此彻底消除碎片。低暂停也不意味着整个周期零 STW。
+
+**CMC 对照。** `gc/collector/mark_compact.cc` 的 `MarkCompact` 不是 CC 别名。它先标记并计算活对象压缩位置，更新根/引用，利用 userfaultfd 等配置路径协调页级并发压缩和 mutator 缺页访问，最后回收空页；其主要移动空间是 bump-pointer space，而不是 CC 的 region 疏散复制模型。后台 CMC 压缩选择也不能写成统一的 HSC。
+
+#### 8.2.1 CC RunPhases：真实顺序和配置分支
+
+下面直接节选 `ConcurrentCopying::RunPhases()` 的控制骨架。保留验证分支很重要：debug 验证会额外暂停，不能把调试结果当作发布配置暂停上限。
+
+```cpp
+void ConcurrentCopying::RunPhases() {
+  CHECK(kUseBakerReadBarrier || kUseTableLookupReadBarrier);
+  CHECK(!is_active_);
+  is_active_ = true;
+  Thread* self = Thread::Current();
+  thread_running_gc_ = self;
+  Locks::mutator_lock_->AssertNotHeld(self);
+  {
+    ReaderMutexLock mu(self, *Locks::mutator_lock_);
+    InitializePhase();
+    // In case of forced evacuation, all regions are evacuated and hence no
+    // need to compute live_bytes.
+    if (use_generational_cc_ && !young_gen_ && !force_evacuate_all_) {
+      MarkingPhase();
+    }
+  }
+  ScopedPriorityChange spc(self);
+  if (kUseBakerReadBarrier && kGrayDirtyImmuneObjects) {
+    // Switch to read barrier mark entrypoints before we gray the objects. This is required in case
+    // a mutator sees a gray bit and dispatches on the entrypoint. (b/37876887).
+    ActivateReadBarrierEntrypoints();
+    // Gray dirty immune objects concurrently to reduce GC pause times. We re-process gray cards in
+    // the pause.
+    ReaderMutexLock mu(self, *Locks::mutator_lock_);
+    GrayAllDirtyImmuneObjects();
+    spc.SetToNormalOrBetter();
+  }
+  FlipThreadRoots();
+  {
+    ReaderMutexLock mu(self, *Locks::mutator_lock_);
+    spc.Reset();
+    CopyingPhase();
+  }
+  // Verify no from space refs. This causes a pause.
+  if (kEnableNoFromSpaceRefsVerification) {
+    TimingLogger::ScopedTiming split("(Paused)VerifyNoFromSpaceReferences", GetTimings());
+    ScopedPause pause(this, false);
+    CheckEmptyMarkStack();
+    if (kVerboseMode) {
+      LOG(INFO) << "Verifying no from-space refs";
+    }
+    VerifyNoFromSpaceReferences();
+    if (kVerboseMode) {
+      LOG(INFO) << "Done verifying no from-space refs";
+    }
+    CheckEmptyMarkStack();
+  }
+  {
+    ReaderMutexLock mu(self, *Locks::mutator_lock_);
+    ReclaimPhase();
+  }
+  FinishPhase();
+  CHECK(is_active_);
+  is_active_ = false;
+  thread_running_gc_ = nullptr;
+}
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         CC GC 完整流程                                      │
-└─────────────────────────────────────────────────────────────────────────────┘
 
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  Phase 1: 暂停 (Stop World)                                                │
-│  • 所有线程暂停                                                            │
-│  • 执行 stop all threads                                                   │
-│  • 记录暂停时间                                                            │
-└─────────────────────────────────────────────────────────────────────────────┘
-         │
-         ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  Phase 2: GC Root 扫描 (Root Scanning) - Pause                             │
-│  • 扫描线程栈上的局部变量                                                   │
-│  • 扫描静态变量                                                            │
-│  • 扫描 JNI 引用                                                          │
-└─────────────────────────────────────────────────────────────────────────────┘
-         │
-         ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  Phase 3: 并发复制 (Concurrent Copying) - 运行中                           │
-│  • 从 GC Root 出发，复制存活对象到 To Space                                  │
-│  • 转发指针 (Forwarding Pointer)                                          │
-│  • 与应用线程并发执行                                                       │
-└─────────────────────────────────────────────────────────────────────────────┘
-         │
-         ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  Phase 4: 弱引用处理 (Reference Processing) - 并发/暂停                     │
-│  • 处理 WeakRef、SoftRef、PhantomRef                                        │
-│  • 决定是否回收                                                            │
-└─────────────────────────────────────────────────────────────────────────────┘
-         │
-         ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  Phase 5: 线程扫描 (Thread Scanning) - Pause                               │
-│  • 扫描所有线程的栈                                                        │
-│  • 找出遗漏的 GC Root                                                     │
-│  • 回收未使用的空间                                                        │
-└─────────────────────────────────────────────────────────────────────────────┘
-         │
-         ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  Phase 6: 空间切换 (Space Flip)                                            │
-│  • From Space 和 To Space 互换                                             │
-│  • 原来的 From Space 被清空                                                │
-└─────────────────────────────────────────────────────────────────────────────┘
+- InitializePhase 建立这一轮 region/标记相关状态；GC 线程只在需要访问 managed 对象的区段获取 mutator lock 共享访问。
+- generational 且非 young 且非强制全疏散时才先 MarkingPhase，计算存活信息指导哪些 region 值得疏散。young 与 full 不应套用同一“每次先扫描所有对象”描述。
+- ActivateReadBarrierEntrypoints 必须先于把对象变 gray，否则 mutator 看到 gray 后可能进入错误的读屏障入口。
+- FlipThreadRoots 协调所有线程根和访问入口；CopyingPhase 并发复制/扫描，处理 mark stacks 与引用。转发信息使并发遇到同一对象的线程收敛到同一目的对象，而不是复制出多个可见实例。
+- ReclaimPhase 不只是交换两个指针：要依据 region 类型及对象存活状态回收，处理非移动空间/引用相关工作，最后 FinishPhase 清理本轮状态。
 
-CC 优势：
-• 无内存碎片 - 复制过程自动压缩
-• 低暂停时间 - 大部分并发执行
-• 吞吐量高 - 增量式复制
+**例子：对象 A 指向 B，mutator 与 GC 同时读 B。** 读屏障不能直接返回旧 from-space 地址；需要检查标记/转发状态并取得可用的新引用。若 A 所在 region 本轮不疏散，它可以留原位，但 A->B 的引用仍须通过屏障/扫描保持正确。这个例子解释了为什么“不是每个 region 都复制”与“应用不读失效旧地址”可以同时成立。
 
-CC 劣势：
-• 内存开销 - 需要两个相等的空间
-• 复制成本 - 存活对象需要复制
-• 不适合存活对象多的场景
+#### 8.2.2 CMC RunPhases：标记和压缩不是同一暂停
+
+固定 tag 的 MarkCompact 按是否需要压缩分支处理，完整主函数节选如下：
+
+```cpp
+void MarkCompact::RunPhases() {
+  Thread* self = Thread::Current();
+  thread_running_gc_ = self;
+  Runtime* runtime = Runtime::Current();
+  GetHeap()->PreGcVerification(this);
+  InitializePhase();
+  ScopedPriorityChange spc(self);
+  {
+    ReaderMutexLock mu(self, *Locks::mutator_lock_);
+    TraceFaults();
+    MarkingPhase();
+    // From here, until we re-enable full weak-reference access, we are potentially blocking high
+    // priority threads.
+    spc.SetToNormalOrBetter();
+  }
+  MarkingPause();
+  TraceFaults();
+  bool perform_compaction;
+  {
+    ReaderMutexLock mu(self, *Locks::mutator_lock_);
+    ReclaimPhase(&spc);  // Resets priority.
+    // It may be better to remain at the higher priority, and raise it only once. But given
+    // that both PrepareForCompaction() and Sweep() may take some time and do not block other
+    // threads, we start out with the conservative option.
+    perform_compaction = PrepareForCompaction();
+    if (perform_compaction) {
+      spc.SetToNormalOrBetter();  // With mutator_lock_ still held.
+    }
+  }
+  if (perform_compaction) {
+    // Compaction pause
+    ThreadFlipVisitor visitor(this);
+    FlipCallback callback(this);
+    runtime->GetThreadList()->FlipThreadRoots(
+        &visitor, &callback, this, GetHeap()->GetGcPauseListener());
+
+    {
+      ReaderMutexLock mu(self, *Locks::mutator_lock_);
+      spc.Reset();
+      if (IsValidFd(uffd_)) {
+        CompactionPhase();
+      }
+    }
+  } else {
+    if (use_generational_) {
+      DCHECK_IMPLIES(post_compact_end_ != nullptr, post_compact_end_ == black_allocations_begin_);
+    }
+    post_compact_end_ = black_allocations_begin_;
+  }
+  FinishPhase(perform_compaction);
+  GetHeap()->PostGcVerification(this);
+  thread_running_gc_ = nullptr;
+}
 ```
+
+`perform_compaction` 不是恒为 true；例如 generational 或策略判定可以只完成本轮相关标记/回收，保留黑分配边界。执行压缩时先 `FlipThreadRoots` 建立根与页映射的新视图，再在允许的 userfaultfd 路径执行 CompactionPhase。不能用“开头暂停一次，结束交换空间”概括它。
+
+CMC 与 CC 的根本区别：CC 使用读屏障配合 region evacuation；CMC 计算压缩地址和页级元数据，更新引用并协调页访问。两者都有并发阶段、根处理与回收，但数据结构、转发路径及暂停分解不同。
+
+#### 8.2.3 CMC 的 MarkingPause：为什么必须处理新分配和弱引用
+
+`MarkingPause()` 中的关键语句节选（行 1603–1644）：
+
+```cpp
+      runtime->GetThreadList()->ForEach(visit_stacks_callback, this);
+    }
+    ProcessMarkStack();
+    // Fetch only the accumulated objects-allocated count as it is guaranteed to
+    // be up-to-date after the TLAB revocation above.
+    freed_objects_ += bump_pointer_space_->GetAccumulatedObjectsAllocated();
+    // Capture 'end' of moving-space at this point. Every allocation beyond this
+    // point will be considered as black.
+    // Align-up to page boundary so that black allocations happen from next page
+    // onwards. Also, it ensures that 'end' is aligned for card-table's
+    // ClearCardRange().
+    black_allocations_begin_ = bump_pointer_space_->AlignEnd(thread_running_gc_, gPageSize, heap_);
+    DCHECK_ALIGNED_PARAM(black_allocations_begin_, gPageSize);
+
+    // Re-mark root set. Doesn't include thread-roots as they are already marked
+    // above.
+    ReMarkRoots(runtime);
+    // Scan dirty objects.
+    RecursiveMarkDirtyObjects(/*paused*/ true, accounting::CardTable::kCardDirty);
+
+    heap_->SwapStacks();
+    live_stack_freeze_size_ = heap_->GetLiveStack()->Size();
+  }
+  // TODO: For PreSweepingGcVerification(), find correct strategy to visit/walk
+  // objects in bump-pointer space when we have a mark-bitmap to indicate live
+  // objects. At the same time we also need to be able to visit black allocations,
+  // even though they are not marked in the bitmap. Without both of these we fail
+  // pre-sweeping verification. As well as we leave windows open wherein a
+  // VisitObjects/Walk on the space would either miss some objects or visit
+  // unreachable ones. These windows are when we are switching from shared
+  // mutator-lock to exclusive and vice-versa starting from here till compaction pause.
+  // heap_->PreSweepingGcVerification(this);
+
+  // Disallow new system weaks to prevent a race which occurs when someone adds
+  // a new system weak before we sweep them. Since this new system weak may not
+  // be marked, the GC may incorrectly sweep it. This also fixes a race where
+  // interning may attempt to return a strong reference to a string that is
+  // about to be swept.
+  runtime->DisallowNewSystemWeaks();
+  // Enable the reference processing slow path, needs to be done with mutators
+  // paused since there is no lock in the GetReferent fast path.
+  heap_->GetReferenceProcessor()->EnableSlowPath();
+```
+
+1. 暂停期间收回线程本地 allocation stack/TLAB，防止线程继续往即将交换为 live stack 的结构写入。
+2. 将 moving space 当前末端按页对齐，记录 `black_allocations_begin_`；之后的新分配按本轮黑分配规则处理，不因没有出现在旧 bitmap 就被误回收。
+3. 再标记根和 dirty cards，补齐并发标记期间新建/改写的引用，再交换 allocation/live stacks。
+4. 暂时限制新的 system weak 以及引用 fast path，避免弱表在清扫边界返回即将死亡的对象。这不是“WeakReference 一律立即变 null”，引用处理有协议与时序。
+
+这个边界也说明暂停不能简单定义成“仅扫描线程栈”：它还同步分配边界、cards、系统弱引用以及后续压缩所需的不变量。
 
 ### 8.3 HSC (Homogeneous Space Compact) - 后台压缩
 
-HSC 用于在后台进行内存压缩，解决 CC 无法处理大量存活对象的场景。
+HSC 面向相同类型的 malloc spaces（main/backup）的压缩和交换，见 `Heap::PerformHomogeneousSpaceCompact()`。`Heap` 在 CC/CMC 前台收集器下关闭用于 OOM 的 homogeneous-space compaction。它不是“CC 遇到存活对象过多时的补救算法”。
 
+```text
+进程状态变化 / 允许的 OOM 压缩路径
+  -> 检查 moving GC 是否允许、main/backup space 是否可用
+  -> 在适用配置下将存活对象转移并更新引用
+  -> 交换空间、恢复分配、记录压缩结果
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         HSC 后台压缩                                        │
-└─────────────────────────────────────────────────────────────────────────────┘
 
-HSC 特点：
-• 后台执行，不影响前台应用
-• Homogeneous（均匀）：将对象移动到连续的空间
-• 通常在设备空闲时执行
+后台表示调度时机，不保证“不影响前台”或“永不暂停”。是否触发还受收集器类型、后台转换策略和压缩条件控制。
 
-执行时机：
-• 设备空闲时
-• 内存压力低时
-• 用户未主动使用设备时
+---
 
-流程：
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  1. 遍历 From Space 中的所有对象                                            │
-│  2. 将存活对象复制到 To Space（连续排列）                                   │
-│  3. 更新所有引用                                                            │
-│  4. 释放 From Space                                                        │
-└─────────────────────────────────────────────────────────────────────────────┘
+#### 8.3.1 HSC 的拒绝条件和真正的 STW
+
+`PerformHomogeneousSpaceCompact()` 要串行化 GC 并检查 moving GC 条件。下面是返回分支与空间切换的节选，不是“后台执行所以完全不暂停”：
+
+```cpp
+HomogeneousSpaceCompactResult Heap::PerformHomogeneousSpaceCompact() {
+  Thread* self = Thread::Current();
+  // Inc requested homogeneous space compaction.
+  count_requested_homogeneous_space_compaction_++;
+  // Store performed homogeneous space compaction at a new request arrival.
+  ScopedThreadStateChange tsc(self, ThreadState::kWaitingPerformingGc);
+  Locks::mutator_lock_->AssertNotHeld(self);
+  {
+    ScopedThreadStateChange tsc2(self, ThreadState::kWaitingForGcToComplete);
+    MutexLock mu(self, *gc_complete_lock_);
+    // Ensure there is only one GC at a time.
+    WaitForGcToCompleteLocked(kGcCauseHomogeneousSpaceCompact, self);
+    // Homogeneous space compaction is a copying transition, can't run it if the moving GC disable
+    // count is non zero.
+    // If the collector type changed to something which doesn't benefit from homogeneous space
+    // compaction, exit.
+    if (disable_moving_gc_count_ != 0 || IsMovingGc(collector_type_) ||
+        !main_space_->CanMoveObjects()) {
+      return kErrorReject;
+    }
+    if (!SupportHomogeneousSpaceCompactAndCollectorTransitions()) {
+      return kErrorUnsupported;
+    }
+    collector_type_running_ = kCollectorTypeHomogeneousSpaceCompact;
+  }
+  if (Runtime::Current()->IsShuttingDown(self)) {
+    // Don't allow heap transitions to happen if the runtime is shutting down since these can
+    // cause objects to get finalized.
+    FinishGC(self, collector::kGcTypeNone);
+    return HomogeneousSpaceCompactResult::kErrorVMShuttingDown;
+  }
+  collector::GarbageCollector* collector;
+  {
+    ScopedSuspendAll ssa(__FUNCTION__);
+    uint64_t start_time = NanoTime();
+    // Launch compaction.
+    space::MallocSpace* to_space = main_space_backup_.release();
+    space::MallocSpace* from_space = main_space_;
+    to_space->GetMemMap()->Protect(PROT_READ | PROT_WRITE);
+    const uint64_t space_size_before_compaction = from_space->Size();
+    AddSpace(to_space);
+    // Make sure that we will have enough room to copy.
+    CHECK_GE(to_space->GetFootprintLimit(), from_space->GetFootprintLimit());
+    collector = Compact(to_space, from_space, kGcCauseHomogeneousSpaceCompact);
+    const uint64_t space_size_after_compaction = to_space->Size();
+    main_space_ = to_space;
+    main_space_backup_.reset(from_space);
+    RemoveSpace(from_space);
+    SetSpaceAsDefault(main_space_);  // Set as default to reset the proper dlmalloc space.
+    // Update performed homogeneous space compaction count.
+    count_performed_homogeneous_space_compaction_++;
 ```
+
+`kErrorReject`、`kErrorUnsupported`、`kErrorVMShuttingDown` 有不同含义：分别是本轮不允许移动/当前收集器不适合，或运行时不支持，或已进入关闭阶段。空间切换在 ScopedSuspendAll 保护下，调用者不能忽略结果后宣称压缩一定成功。
+
 
 ### 8.4 GC 触发策略
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         GC 触发策略                                         │
-└─────────────────────────────────────────────────────────────────────────────┘
+```text
+分配快路径失败
+  -> 分配慢路径 / 等待或请求 GC
+  -> 重试分配、按策略增长堆或清理软引用
+  -> 仍不能满足才 OOM
 
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  触发条件                                                                    │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│  1. 分配失败 (Alloc)                                                        │
-│     • 对象分配请求找不到足够大的空闲空间                                      │
-│     • 触发同步 GC                                                          │
-│     • 最常见的高频触发原因                                                   │
-│                                                                             │
-│  2. 堆内存阈值                                                              │
-│     • 堆使用率达到阈值 (默认 75%)                                            │
-│     • 触发后台 GC                                                          │
-│                                                                             │
-│  3. 低内存通知                                                              │
-│     • 系统内存不足                                                          │
-│     • 触发 trim/compact                                                    │
-│                                                                             │
-│  4. 显式调用                                                                │
-│     • System.gc()                                                          │
-│     • Runtime.getRuntime().gc()                                           │
-│                                                                             │
-│  5. HSpace 压力 (Dalvik)                                                   │
-│     • 当 HSpace 空间不足时                                                  │
-│     • 触发针对 Zygote 堆的 GC                                              │
-│                                                                             │
-│  6. 进程状态变化                                                            │
-│     • 应用进入后台                                                          │
-│     • 触发 final GC                                                       │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
+分配量达到动态 concurrent_start_bytes_ 水位
+  -> RequestConcurrentGC()
+  -> 提前并发回收，为后续分配留余量
+
+native 分配压力 / 显式请求 / 进程前后台转换
+  -> 对应 GcCause 与策略处理，不是统一 final GC
 ```
+
+`GrowForUtilization()` 根据本轮存活量、target utilization、min/max free、增长上限及分配速率等调整目标堆和并发触发水位。不能写成固定“75% 使用率触发”。Zygote space 共享/COW 策略也不是一个叫“HSpace 压力”的 Dalvik 触发枚举。
+
+---
+
+#### 8.4.1 分配失败不立刻等于 OOM
+
+`Heap::AllocateInternalWithGc()` 的慢路径会等待在途 GC、根据允许的 collector/allocator 重试，必要时增长堆并尝试更充分回收。它需要在发生 GC 的位置保护传入类等对象引用，因为 moving GC 可能改变其地址。
+
+```text
+一次申请失败
+  -> 检查/等待当前 GC（不能持有会阻止其完成的锁）
+  -> 重新尝试同一分配
+  -> 按 gc_plan 和堆增长/软引用策略继续尝试
+  -> 若 allocator 在转换中发生变化，按新条件重试
+  -> 所有有效恢复路径失败后 ThrowOutOfMemoryError
+```
+
+| 失败类型 | 为什么 GC 不一定解决 | 分析材料 |
+|----------|----------------------|----------|
+| 活对象占用接近 growth limit | 强引用仍在，回收不了业务存活对象 | heap dump、持有链、每轮回收后存活量 |
+| 连续空间/特定 allocator 不足 | 总空闲大于请求也可能无法满足该类分配 | allocator、LOS/非移动空间、碎片信息 |
+| native 压力 | Java 存活图不能代表全部进程内存 | native allocation、RSS/PSS、位图等 native 资源 |
+| 暂时性分配峰值 | GC 来不及在突发前提供足够余量 | 分配速率、concurrent-start 水位、任务并行度 |
+
+不能只看 free 百分比判断“系统明明还有内存为什么 OOM”；进程堆上限、地址空间、分配器资格和 native 内存分别约束请求。
 
 ---
 
@@ -953,113 +1066,26 @@ HSC 特点：
 
 ### 9.1 ART GC 日志格式详解
 
+`Heap::CollectGarbageInternal()` 的日志把 cause、collector name、普通/LOS 回收量、空闲百分比、已分配量/目标量、暂停列表及总周期拼接在一起。示例数字仅用于解释格式：
+
+```text
+Background concurrent copying GC freed 10000(1024KB) AllocSpace objects,
+4(512KB) LOS objects, 25% free, 12MB/16MB, paused 1ms total 20ms
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         GC 日志格式                                         │
-└─────────────────────────────────────────────────────────────────────────────┘
 
-基本格式：
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  <PID>: <GC name> <GC cause> <space* balance> <live> <pause>                │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-各字段含义：
-• PID: 进程 ID
-• GC name: GC 类型名称
-• GC cause: 触发原因
-• space* balance: 各 space 的内存变化
-• live: GC 开始时的存活数据大小
-• pause: 暂停时间
-
-示例日志：
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  28551: Concurrent mark sweep GC freed 10423(1428KB) allocators             │
-│         and 144(5168KB) LOS objects, 21% (16MB -> 15MB) avail, 12MBLOS,    │
-│         pause: 5.2ms + 3.1ms total 9.3ms                                    │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-解析：
-• freed 10423 allocators: 回收了 10423 个普通分配器对象
-• freed 144 LOS objects: 回收了 144 个 Large Object Space 对象
-• 21%: 堆使用率从 21% 变为更低
-• 16MB -> 15MB: 堆总大小变化
-• pause: 5.2ms + 3.1ms: Initial Mark + Remark 暂停时间
-```
+- `freed` 后是本次回收的对象数与字节数，不是“分配器数量”，也不是回收后剩余占用。
+- `25% free` 是空闲比例，不是使用率；`12MB/16MB` 是已分配量/当前目标堆量，不是“16MB 缩到 12MB”的前后对比。
+- `paused` 是 mutator 暂停记录；`total` 是整个 GC 耗时（包括并发阶段）。总时长 20ms 不意味着主线程暂停 20ms。
 
 ### 9.2 实战：通过 GC 日志定位问题
 
-**场景1: 频繁 GC 导致卡顿**
+**频繁 GC：** 联合观察单位时间次数、分配速率、`freed` 与回收后的已分配量。空闲比例高但频繁回收可能是临时对象 churn，不是单凭一个百分比就能判定泄漏。
 
-```
-问题日志：
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  12345: Concurrent mark sweep GC freed 50(4KB) allocators                  │
-│          and 10(200KB) LOS objects, 82% (50MB -> 48MB) avail,              │
-│          pause: 120ms total 130ms                                           │
-└─────────────────────────────────────────────────────────────────────────────┘
+**LOS 回收量大：** `freed ... LOS objects` 表示本次释放量大，不能反推当前 LOS 占用仍大。结合 heap dump 和分配栈检查 primitive arrays；现代 Bitmap 像素常位于 native 内存，不能都归入 Java LOS。
 
-分析：
-• 82% 堆使用率 - 非常高的内存压力
-• pause: 120ms - 暂停时间异常长（正常应 <10ms）
-• 频繁触发 - 如果每秒出现多次，说明分配速率过高
+**暂停过长：** 对照 paused 列表、线程暂停等待与 Perfetto 调度切片，区分等待线程到达安全点和 GC 实际工作。减少不必要的存活引用和分配，使用 heap dump 定位持有链；不要靠无条件 System.gc() 或任意弱引用替换业务所有权来“治疗”暂停。
 
-原因：
-• 分配速率 > 回收速率
-• 可能存在内存泄漏
-• 或者创建了大量临时对象
-
-解决方案：
-1. 使用 LeakCanary 检测内存泄漏
-2. 使用 Android Studio Profiler 分析内存分配
-3. 优化代码：减少对象创建、对象池复用
-```
-
-**场景2: Large Object Space 过大**
-
-```
-问题日志：
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  12345: Concurrent mark sweep GC freed 100(10MB) allocators                │
-│          and 5000(250MB) LOS objects, 15% (1GB -> 800MB) avail,            │
-│          pause: 3ms total 5ms                                               │
-└─────────────────────────────────────────────────────────────────────────────┐
-
-分析：
-• LOS objects: 250MB - Large Object Space 使用过大
-• 通常由 Bitmap、数组等大对象引起
-
-解决方案：
-1. 检查 Bitmap 使用：使用 Glide/Coil 等库管理
-2. 避免创建过大的 byte[]/int[]
-3. 使用对象池管理大型缓存
-```
-
-**场景3: GC 暂停时间过长**
-
-```
-问题日志：
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  12345: Concurrent mark sweep GC freed 5000(50MB) allocators               │
-│          and 200(800MB) LOS objects, 30% (2GB -> 1.8GB) avail,             │
-│          pause: 250ms + 180ms total 450ms                                   │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-分析：
-• pause: 250ms + 180ms - 暂停时间远超正常值
-• 很可能处于 ART GC 的 "stop world" 阶段
-• 450ms 的暂停用户可以明显感知到卡顿
-
-原因：
-• 存活对象过多，复制/标记时间长
-• 内存碎片严重
-• 多线程竞争
-
-解决方案：
-1. 减少长生命周期对象持有短生命周期对象的引用
-2. 使用 WeakReference 打破引用链
-3. 主动调用 System.gc() 在合适的时机
-4. 监控 Hprof 文件分析对象持有情况
-```
+---
 
 ### 9.3 logcat GC 相关命令
 
@@ -1068,25 +1094,24 @@ HSC 特点：
 adb logcat | grep -E "GC|clamp"
 
 # 查看特定进程的 GC
-adb logcat | grep "^12345:"  # 12345 是 PID
+adb logcat --pid=12345 | grep "GC"  # PID 由本次进程确定
 
 # 查看完整的 GC 追踪
 adb logcat -v threadtime *:V | grep "GC"
 
-# 设置 GC 日志详细程度
-adb shell setprop log.tag.GC VERBOSE
+# GC 日志输出受 ART 阈值/运行配置控制；log.tag.GC 不是统一开关
 
 # 查看内存信息
 adb shell dumpsys meminfo <package_name>
 
-# 查看 ART 堆信息
+# 查看可达性工具输出（不是完整 Java heap dump）
 adb shell dumpsys meminfo --unreachable <package_name>
 
 # 查看 OOM 信息
 adb logcat | grep -E "OOM|FATAL|OutOfMemory"
 
 # 分析 Hprof 文件
-jhat /path/to/hprof.hprof
+# 使用 Android Studio Memory Profiler 或 MAT 打开 HPROF（jhat 已非现代 JDK 工具）
 ```
 
 ---
@@ -1095,7 +1120,7 @@ jhat /path/to/hprof.hprof
 
 ### 10.1 ART JIT 编译器详解
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         ART JIT 编译器架构                                  │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1125,128 +1150,30 @@ JIT 编译流程：
 
 ### 10.2 Profile-Guided Compilation (PGC)
 
+```text
+构建/分发时 Baseline Profile 或云端 profile（若提供）
+  -> 安装阶段可以基于 profile AOT，而非一律不编译
+运行时解释/JIT
+  -> ProfileSaver 收集类/方法使用信息
+后台 dexopt
+  -> 合并/选择 profile -> dex2oat 按过滤器编译
+后续进程启动
+  -> 加载可用产物；未覆盖的新热点仍可 JIT
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                    Profile-Guided Compilation (PGC)                          │
-└─────────────────────────────────────────────────────────────────────────────┘
 
-PGC 是 Android 7.0+ 引入的编译优化策略，利用运行时的 Profile 数据指导编译。
-
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  第一阶段: 安装时                                                           │
-│  • DEX 快速验证                                                            │
-│  • 生成 baseline profile                                                   │
-│  • 不做 AOT 编译，安装速度快                                                │
-└─────────────────────────────────────────────────────────────────────────────┘
-         │
-         ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  第二阶段: 首次运行                                                        │
-│  • JIT 编译热点代码                                                         │
-│  • 记录执行 profile                                                        │
-│  • 生成 app image (art 文件)                                               │
-└─────────────────────────────────────────────────────────────────────────────┘
-         │
-         ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  第三阶段: 后台编译                                                         │
-│  • 根据 profile 数据                                                        │
-│  • 使用 dex2oat 编译热点代码                                               │
-│  • 优化编译参数                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
-         │
-         ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  第四阶段: 后续运行                                                         │
-│  • 直接使用预编译的机器码                                                   │
-│  • JIT 继续处理新热点                                                       │
-│  • profile 持续更新                                                         │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-Profile 文件：
-• 位置: /data/data/<package>/files/profiles/primary.prof
-• 内容: 热点方法列表、热点类列表
-• 更新: 每次运行时更新
-
-profile 文件格式：
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  "classes"                                                                   │
-│  [Lcom/example/MainActivity;                                                │
-│  [Lcom/example/HomeFragment;                                                │
-│                                                                             │
-│  "methods"                                                                   │
-│  Lcom/example/MainActivity;.onCreate:()V  # 热方法                        │
-│  Lcom/example/HomeFragment;.onResume:()V   # 热方法                       │
-│  Lcom/example/Utils;.formatDate:(JJ)LString;  # 冷方法（不编译）           │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
+Baseline Profile 通常来自应用构建/分发，并非安装器从零生成。运行时 profile 的典型系统路径是 `/data/misc/profiles/cur/<userId>/<package>/primary.prof` 与 `/data/misc/profiles/ref/<package>/primary.prof`（split 有各自 profile），不是应用私有 `files/profiles`。profile 是二进制格式；人类可读规则需经工具转换，不能把 `classes`/`methods` 文本列表当文件布局。
 
 ### 10.3 编译层级
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         编译层级 (Compilation Level)                         │
-└─────────────────────────────────────────────────────────────────────────────┘
+ART 没有通用“Level 0–3 = 解释、Quick JIT、Regular JIT、AOT”的 API/状态枚举。固定 tag 的 JIT 使用 `CompilationKind` 区分 baseline、optimized、OSR 任务；解释器只是尚未使用机器码的执行方式，AOT 是另一个编译时机，不是必须从 JIT 晋级才能达到的 Level 3。
 
-ART 定义了多个编译层级，从 0 到 3：
-
-┌───────────┬───────────────────────────────────────────────────────────────┐
-│  Level 0  │  Interpreted (解释执行)                                        │
-│           │  • DEX 字节码直接解释执行                                        │
-│           │  • 无任何优化                                                   │
-│           │  • 启动最快，执行最慢                                           │
-├───────────┼───────────────────────────────────────────────────────────────┤
-│  Level 1  │  Quick JIT (快速 JIT)                                          │
-│           │  • 生成未优化的本地代码                                          │
-│           │  • 单次编译，无优化 passes                                       │
-│           │  • 编译速度快                                                   │
-├───────────┼───────────────────────────────────────────────────────────────┤
-│  Level 2  │  Regular JIT (常规 JIT)                                        │
-│           │  • 生成优化的本地代码                                            │
-│           │  • 包含内联、死代码消除等优化                                    │
-│           │  • 编译速度中等                                                 │
-├───────────┼───────────────────────────────────────────────────────────────┤
-│  Level 3  │  AOT Compilation (预编译)                                      │
-│           │  • 安装时编译                                                   │
-│           │  • 深度优化                                                     │
-│           │  • 启动最快，执行最快                                           │
-└───────────┴───────────────────────────────────────────────────────────────┘
-
-升级条件：
-• Level 0 → Level 1: 方法执行超过阈值 (默认 1000 次)
-• Level 1 → Level 2: 方法再次成为热点
-• Level 0/1/2 → Level 3: Profile-Guided 后台编译
-```
+热点采样、优先级与阈值受 JitOptions、profile、设备配置和启动阶段影响，不能写死“1000 次升级”。OSR 用于在运行中的热点循环切入已编译代码，不是等待方法下一次调用才生效。
 
 ### 10.4 Deoptimization（逆优化）
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         Deoptimization (逆优化)                             │
-└─────────────────────────────────────────────────────────────────────────────┘
+逆优化把编译帧的执行状态重建为解释器可继续的状态。常见原因是调试/插桩需要解释执行、编译优化依赖的假设失效等；ART 根据 stack map/deoptimization metadata 恢复局部变量、寄存器和解释帧，再继续执行。
 
-Deoptimization 发生在 JIT 编译的代码需要被回退时。
-
-触发场景：
-1. 类结构变化 - DEX 更新后类结构发生变化
-2. 方法被替换 - 热更新/补丁
-3. 编译器 bug - JIT 生成的代码有错误
-4. 依赖项消失 - 依赖的类被卸载
-
-流程：
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  1. 检测到需要 deopt                                                        │
-│  2. 将方法标记为 "needs deopt"                                             │
-│  3. 在安全点 (safe point) 暂停线程                                          │
-│  4. 撤销 JIT 代码                                                          │
-│  5. 回退到解释执行或重新 JIT                                               │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-常见的 Deoptimization 类型：
-• kTrap: 跳转到异常处理
-• kThrow: 抛出异常
-• kReturn: 返回到调用者重新解释
-```
+它不是自动修复编译器 bug 的通用机制，也不意味着替换磁盘 DEX 就能改写已经加载的类。JVMTI 类重定义有专门的限制和流程；普通应用的 ClassLoader 热加载不能直接等同于重定义。旧文中的 `kTrap/kThrow/kReturn` 不是本 tag 的统一逆优化类型枚举。
 
 ---
 
@@ -1254,69 +1181,23 @@ Deoptimization 发生在 JIT 编译的代码需要被回退时。
 
 ### 11.1 ART 对象内存布局
 
+固定 tag 的 `mirror::Object` 中核心头字段是：
+
+```text
+HeapReference<Class> klass_   4 字节压缩堆引用
+uint32_t monitor_            4 字节 LockWord
+实例字段与必要对齐填充
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         ART 对象内存布局                                    │
-└─────────────────────────────────────────────────────────────────────────────┘
 
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  普通对象 (Object)                                                          │
-├─────────────────────────────────────────────────────────────────────────────┤
-│  ┌──────────────────────────────┐                                          │
-│  │  Object Header (对象头)     │                                          │
-│  │  • monitor (4/8 bytes)     │  ← 锁信息                                 │
-│  │  • klass (4/8 bytes)        │  ← 指向类对象的指针                        │
-│  │  • identity_hashcode (4B)   │  ← 对象唯一标识                           │
-│  └──────────────────────────────┘                                          │
-│  ┌──────────────────────────────┐                                          │
-│  │  Instance Fields (实例字段)  │                                          │
-│  │  • reference (4 bytes)       │  ← 引用类型字段                          │
-│  │  • int/long (4/8 bytes)     │  ← 基本类型字段                           │
-│  │  • ...                      │                                          │
-│  └──────────────────────────────┘                                          │
-│                                                                             │
-│  对象对齐: 8 字节对齐                                                        │
-└─────────────────────────────────────────────────────────────────────────────┘
+普通对象按 `kObjectAlignment`（8 字节）对齐，不是 64 位进程就把所有 Java 堆引用变为 8 字节。identity hash 不是额外固定 4 字节头字段：它可能编码在 LockWord 的 hash 状态中；锁膨胀后相关状态由 Monitor 保存。
 
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  数组对象 (Array)                                                           │
-├─────────────────────────────────────────────────────────────────────────────┤
-│  ┌──────────────────────────────┐                                          │
-│  │  Array Header                │                                          │
-│  │  • monitor (4/8 bytes)      │                                          │
-│  │  • klass (4/8 bytes)        │                                          │
-│  │  • length (4 bytes)         │  ← 数组长度                               │
-│  └──────────────────────────────┘                                          │
-│  ┌──────────────────────────────┐                                          │
-│  │  Array Data                 │                                          │
-│  │  • int[]: 4 bytes * length                                            │
-│  │  • byte[]: 1 byte * length                                            │
-│  │  • Object[]: 4/8 bytes * length (引用)                                  │
-│  └──────────────────────────────┘                                          │
-│                                                                             │
-│  对象对齐: 8 字节对齐                                                        │
-└─────────────────────────────────────────────────────────────────────────────┘
+数组在 Object 头后增加 `int32_t length_`，元素区按元素类型对齐，`Object[]` 使用压缩堆引用。`mirror::Class` 本身也是 Java 堆对象，包含 class loader、dex cache、字段/方法数组、vtable/iftable 等元数据；不能把普通 C++ `Class* this_class` 结构图当作其真实内存布局。
 
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  Class 对象 (Java.lang.Class)                                               │
-├─────────────────────────────────────────────────────────────────────────────┤
-│  ┌──────────────────────────────┐                                          │
-│  │  Class Flags (4 bytes)       │  ← 类标志 (abstract/final/interface)     │
-│  │  Class* this_class (4/8B)   │  ← 指向自身的指针                          │
-│  │  Class* component_type      │  ← 数组元素类型（数组类专有）              │
-│  │  Int class_size             │  ← 类的 vtable + ifable 大小              │
-│  │  Reference* class_loader    │  ← 类加载器                               │
-│  │  Object* dex_cache          │  ← DEX 缓存                              │
-│  │  Int* vtable                │  ← 虚方法表                               │
-│  │  Int* iftable              │  ← 接口表                                 │
-│  └──────────────────────────────┘                                          │
-│  ... 更多元数据...                                                         │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
+---
 
 ### 11.2 ClassLinker 类加载
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         ClassLinker 类加载                                  │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1348,73 +1229,41 @@ ClassLinker 负责 ART 中的类加载和链接。
          │
          ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│  4. Initialization (初始化)                                                │
+│  4. Initialization (按需初始化，不是每次 loadClass 都执行)                                                │
 │     • 执行 <clinit> 静态初始化器                                            │
 │     • 初始化静态字段为指定值                                                │
 └─────────────────────────────────────────────────────────────────────────────┘
 
 Class 状态机：
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│  NotReady → Loading → Loaded → Linked → Initialized                        │
+│  NotReady → Loaded → Resolving → Resolved → Verifying → Verified → Initializing → Initialized（主线示意）                        │
 │                                                                             │
 │  • NotReady: 初始状态                                                      │
-│  • Loading: 正在加载                                                        │
+│  • Resolving: 正在链接/解析                                                        │
 │  • Loaded: 加载完成                                                        │
-│  • Linked: 验证/准备/解析完成                                               │
+│  • Resolved / Verified: 已解析 / 已验证；还有错误、重试等分支                                               │
 │  • Initialized: 已初始化                                                   │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ### 11.3 ART Method 模型
 
+`ArtMethod` 的字段而非旧版 Portable 编译器结构：
+
+```cpp
+// art/runtime/art_method.h 字段摘要（非完整声明）
+GcRoot<mirror::Class> declaring_class_;
+std::atomic<uint32_t> access_flags_;
+uint32_t dex_method_index_;
+uint16_t method_index_;
+// union 中包含 uint16_t hotness_count_ 等复用状态
+struct PtrSizedFields {
+    void* data_;
+    void* entry_point_from_quick_compiled_code_;
+};
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         ART Method 模型                                     │
-└─────────────────────────────────────────────────────────────────────────────┘
 
-Method 在 ART 中包含以下关键信息：
-
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  ArtMethod 结构 (64位系统)                                                  │
-├─────────────────────────────────────────────────────────────────────────────┤
-│  ┌────────────────────────────┐                                           │
-│  │  AccessFlags (4B)          │  ← 访问标志 (public/private...)            │
-│  │  DeclaringClass (4B)      │  ← 所属类                                   │
-│  │  DexMethodIndex (4B)      │  ← DEX 中的方法索引                        │
-│  │  ArtMethod* hotness-counter│  ← 热点计数                                │
-│  └────────────────────────────┘                                           │
-│  ┌────────────────────────────┐                                           │
-│  │  Portable: CompiledMethod* │  ← Portable 编译器生成的代码               │
-│  │  Quick: uint32_t code_*    │  ← Quick 编译器生成的代码 (相对偏移)        │
-│  │  64bit: size + code_offset│                                           │
-│  └────────────────────────────┘                                           │
-│  ┌────────────────────────────┐                                           │
-│  │  RuntimeInfo*              │  ← 运行时信息                              │
-│  │  (access_flags/ptr_size)  │                                           │
-│  └────────────────────────────┘                                           │
-│  ┌────────────────────────────┐                                           │
-│  │  Data (方法数据)            │  ← 异常表、行号表等                        │
-│  └────────────────────────────┘                                           │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-调用流程：
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  1. 查 vtable (虚方法)                                                      │
-│     ArtMethod* resolved = klass->GetVirtualMethod(method_idx)             │
-│                                                                             │
-│  2. 检查是否已编译                                                          │
-│     if (method->IsCompiled()) {                                            │
-│         // 直接跳转到编译后的代码                                            │
-│         goto compiled_code;                                                │
-│     }                                                                       │
-│                                                                             │
-│  3. 解释执行                                                                │
-│     interpreter::Execute();                                                 │
-│                                                                             │
-│  4. JIT 编译 (热点方法)                                                     │
-│     JIT::Compile(method);                                                  │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
+热点计数是 16 位字段，不是 ArtMethod 指针。指针大小字段按运行时 pointer size 布局；`data_` 随方法类别用于 JNI/运行时相关数据，不是直接内嵌异常表和行号表。调用解析后由 entry point 进入已有代码或运行时桥，解释/JIT/AOT 共享方法元数据；不能以伪造 `method->IsCompiled()` 分支替代真实入口和解析/解释桥。
 
 ---
 
@@ -1422,360 +1271,82 @@ Method 在 ART 中包含以下关键信息：
 
 ### 12.1 ART 线程结构 (ArtThread)
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         ART 线程结构                                         │
-└─────────────────────────────────────────────────────────────────────────────┘
+当前 C++ 类名是 `art::Thread`，不是 `ArtThread`。其 TLS 分区保存状态/标志、栈边界、JNIEnvExt、managed peer、异常、suspend/checkpoint 等信息；不要用不存在的 `current_abi`/`ThrowingThrowable` 伪字段冒充声明。
 
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  ArtThread                                                                  │
-├─────────────────────────────────────────────────────────────────────────────┤
-│  Thread* self;              ← 线程自身指针                                  │
-│  pid_t tid;                 ← Linux 线程 ID                                │
-│  int managed_thread_id;     ← Android 管理的线程 ID                         │
-│                                                                             │
-│  // 栈相关                                                                 │
-│  uint8_t* stack_begin;      ← 栈起始地址                                   │
-│  uint8_t* stack_end;        ← 栈结束地址                                   │
-│  size_t stack_size;         ← 栈大小                                        │
-│                                                                             │
-│  // 运行时状态                                                              │
-│  ArtMethod* current_method;  ← 当前执行的方法                               │
-│  uint32_t current_abi;      ← 当前 ABI                                     │
-│  JValue* cur_value;         ← 当前返回值                                    │
-│                                                                             │
-│  // 异常处理                                                                │
-│  ThrowingThrowable*          ← 当前抛出的异常                               │
-│      throwing_Throwable;                                                    │
-│                                                                             │
-│  // 同步                                                                   │
-│  mirror::Object*             ← monitoreenter 对象                          │
-│      wait_monitor;                                                           │
-│                                                                             │
-│  // 锁                                                                     │
-│  uint32_t thin_lock_count;  ← 轻量级锁计数                                  │
-│                                                                             │
-│  // 暂停                                                                    │
-│  bool debugger_suspend;     ← 调试器挂起标志                               │
-│  bool suspend_count;        ← 挂起计数                                      │
-│                                                                             │
-│  // JNI                                                                     │
-│  JNIEnvExt* jni_env;        ← JNI 环境                                     │
-│                                                                             │
-│  // 内部链表                                                                │
-│  Thread* next;              ← 指向下一个线程                                │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-线程创建流程：
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  1. pthread_create() 创建原生线程                                           │
-│  2. 调用 ArtThread::Create() 创建 ART 线程对象                              │
-│  3. 分配栈空间                                                              │
-│  4. 注册到 Runtime 的线程链表                                                │
-│  5. 启动线程入口函数                                                        │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
+Java 启动链：`Thread.start()` -> native `Thread_nativeCreate()` -> `Thread::CreateNativeThread()`。ART 先准备 native Thread 及 Java peer 引用，再通过 pthread 创建 OS 线程；线程入口完成 Init/注册、设置优先级，最后调用 Java peer 的 `run()`。JNI AttachCurrentThread 则把一个既存 native 线程接入 ART，是另一条路径。
 
 ### 12.2 线程状态转换
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         ART 线程状态                                        │
-└─────────────────────────────────────────────────────────────────────────────┘
+Java `Thread.State` 与 `art::ThreadState`、Linux 调度状态是三套模型。ART `kRunnable` 表示正在访问 managed heap（持有 mutator lock 的共享语义），不能只解释成“在运行队列等 CPU”。JNI native 执行通常是 `kNative`；进入 monitor、wait/sleep、GC 等有各自状态。
 
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                                                                             │
-│    ┌─────────┐  start()   ┌─────────┐  suspend     ┌──────────┐            │
-│    │  NEW    │ ─────────► │  RUNNING│ ──────────► │ SUSPENDED│            │
-│    └─────────┘            └────┬────┘             └────┬─────┘            │
-│         │                      │                       │                   │
-│         │                      │ wait() / sleep()      │ resume()          │
-│         │                      ▼                       ▼                   │
-│         │               ┌──────────┐             ┌──────────┐             │
-│         │               │ WAITING  │             │  timed   │             │
-│         │               │ (无限期) │             │  waiting │             │
-│         │               └──────────┘             └──────────┘             │
-│         │                      ▲                       ▲                   │
-│         │                      │ notify() / timeout     │                  │
-│         │                      └───────────────────────┘                   │
-│         │                                                                   │
-│         │                ┌──────────┐                                       │
-│         └───────────────►│TERMINATED│                                       │
-│                          └──────────┘                                       │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  线程状态详解                                                                │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│  kNew:                                                                      │
-│  • 线程已创建但未启动                                                        │
-│                                                                             │
-│  kRunnable:                                                                 │
-│  • 可运行状态，等待 CPU 调度                                                │
-│  • ArtThread.Run() 中                                                      │
-│                                                                             │
-│  kSuspended:                                                                │
-│  • 被挂起，等待 GC 或调试器                                                 │
-│  • suspend_count > 0                                                       │
-│                                                                             │
-│  kBlocked:                                                                  │
-│  • 等待监视器锁 (synchronized)                                             │
-│                                                                             │
-│  kWaiting / kTimedWaiting:                                                 │
-│  • Object.wait() / Thread.sleep() / LockSupport.park()                    │
-│                                                                             │
-│  kTerminated:                                                               │
-│  • 线程执行完毕，已退出                                                     │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
+```text
+managed 执行 kRunnable
+  -> monitor 竞争 kBlocked -> 获锁后恢复
+  -> Object.wait kWaiting / kTimedWaiting -> 重新取得 monitor
+  -> Thread.sleep kSleeping -> 超时/中断
+  -> JNI kNative -> 回 managed 时检查 suspend/checkpoint
 ```
+
+`suspend_count`、挂起标志与安全点协调暂停；Linux 线程没有被调度不代表 ART 状态必然为 kSuspended。
+
+---
 
 ### 12.3 synchronized 在 ART 中的实现
 
+`LockWord` 区分 unlocked、thin-locked、fat-locked、hash/forwarding 等状态；ART 没有旧 HotSpot 的 biased-lock 升级链。
+
+```text
+MonitorEnter(obj)
+  unlocked -> CAS 写入 thin owner / recursion count
+  thin 且当前线程持有 -> 增加递归计数
+  thin 且他线程持有 -> 重试/等待策略，必要时 Inflate
+  hash / 递归溢出 / wait 等需要 Monitor 的情况 -> Inflate
+  fat -> Monitor::Lock，竞争时在 mutex/condition 路径等待
+MonitorExit(obj)
+  thin -> 减递归计数，最后一次释放为 unlocked
+  fat -> Monitor::Unlock，释放拥有者并通知等待者
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                    synchronized 在 ART 中的实现                              │
-└─────────────────────────────────────────────────────────────────────────────┘
 
-synchronized 使用两种锁机制：
-
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  1. 轻量级锁 (Thin Lock)                                                    │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│  当对象未被锁定时使用：                                                      │
-│                                                                             │
-│  • 使用对象头部的 thin_lock 字段存储线程 ID                                 │
-│  • CAS 操作获取锁                                                          │
-│  • 无需进入内核                                                            │
-│                                                                             │
-│  锁获取:                                                                    │
-│  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │  compare_and_swap(obj->thin_lock, 0, thread_id)                     │   │
-│  │  成功 → 获取锁                                                        │   │
-│  │  失败 → 升级为重量级锁                                               │   │
-│  └─────────────────────────────────────────────────────────────────────┘   │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  2. 重量级锁 (Fat Lock)                                                     │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│  当轻量级锁竞争激烈时升级：                                                  │
-│                                                                             │
-│  • 分配 Monitor 对象                                                       │
-│  • 对象头指向 Monitor                                                      │
-│  • 进入内核等待 (futex)                                                    │
-│                                                                             │
-│  锁获取:                                                                    │
-│  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │  轻量级锁升级:                                                        │   │
-│  │  1. 分配 MonitorObject                                               │   │
-│  │  2. CAS 设置 obj->monitor = monitor                                 │   │
-│  │  3. monitor->lock_count++                                           │   │
-│  │  4. 调用 futex(WAIT) 进入内核等待                                    │   │
-│  └─────────────────────────────────────────────────────────────────────┘   │
-│                                                                             │
-│  锁释放:                                                                    │
-│  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │  1. 调用 futex(WAKE) 唤醒等待线程                                    │   │
-│  │  2. 重置对象头                                                       │   │
-│  └─────────────────────────────────────────────────────────────────────┘   │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  锁升级流程 (Biased → Thin → Fat)                                          │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-对象创建
-     │
-     ▼
-┌─────────────────────────┐
-│  Unlocked (无锁)        │
-│  thin_lock = 0         │
-└─────────────────────────┘
-     │
-     │ 第一次被锁定
-     ▼
-┌─────────────────────────┐
-│  Thin Lock (轻量级)    │
-│  thin_lock = thread_id │
-│  (CAS 操作)             │
-└─────────────────────────┘
-     │
-     │ 多个线程竞争
-     ▼
-┌─────────────────────────┐
-│  Fat Lock (重量级)     │
-│  monitor 指向 Monitor   │
-│  (futex 等待)          │
-└─────────────────────────┘
-```
+第一次 CAS 失败不一定立即膨胀；fat lock 解锁也不会每次把对象头重置成 thin/unlocked，空闲 Monitor 的 deflation 是单独受安全条件约束的动作。`Object.wait()` 释放当前对象 monitor 后等待，返回前重新获取；其他已持有锁不会一并释放。
 
 ---
 
 ## 13. 总结
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         Android 虚拟机总结                                  │
-└─────────────────────────────────────────────────────────────────────────────┘
+| 主题 | 正确的实现边界 |
+|------|----------------|
+| Dalvik / ART | 寄存器是 DEX 抽象，不等于物理寄存器；ART 5–6 主要 AOT，7+ 恢复 JIT 混合策略 |
+| DEX / OAT / VDEX / image | 输入字节码、编译代码与元数据、验证依赖、预初始化对象分别管理 |
+| GC | 当前实现同时含 CC、CMC 和兼容路径；cause 不等于算法，更不等于暂停时长 |
+| 对象头 | 压缩 klass 引用 + 32 位 LockWord；hash 不是独立固定头字段 |
+| 锁 | thin/fat、递归计数、膨胀/deflation；没有 ART biased lock |
+| 编译 | baseline/optimized/OSR JIT 与 profile-guided AOT，不存在通用 Level 0–3 |
+| 类加载 | defining loader 决定类身份，加载、验证、初始化不是同一个事件 |
+| 线程 | art::Thread、Java Thread.State 和 Linux 线程调度状态需要分开分析 |
 
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  一、演进历程                                                                │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│  Dalvik (Android 1.0-4.4)                                                   │
-│  • 基于寄存器 + JIT 解释执行                                                │
-│  • DEX 合并多 class，共享常量池                                             │
-│  • 内存占用大，执行效率低                                                   │
-│                                                                             │
-│  ART (Android 5.0-7.0)                                                      │
-│  • AOT 预编译，安装时编译                                                   │
-│  • 运行时直接执行机器码，启动快                                            │
-│  • 安装慢，占用存储大                                                       │
-│                                                                             │
-│  ART + JIT (Android 7.0+)                                                   │
-│  • JIT + AOT 混合编译                                                      │
-│  • Profile-Guided 优化                                                     │
-│  • 平衡安装速度和运行效率                                                   │
-│                                                                             │
-│  ART + Profile-Guided (Android 8.0+)                                       │
-│  • CC 替代 CMS GC，无内存碎片                                              │
-│  • 编译层级 0-3 渐进优化                                                    │
-│  • Art Infrastructure 模块化                                               │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
+面试和性能排查应先锁定设备 ART 配置，再画调用链：GC 先看 cause/collector/paused/total，内存看存活图与 Java/native 分配，JIT 看 profile 覆盖和入口切换。减少无用分配与错误持有关系优先于无条件对象池、Bitmap.recycle() 或 System.gc()；这些操作都有生命周期与性能代价。
 
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  二、核心机制对比                                                            │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│  ┌──────────────┬──────────────┬──────────────┬──────────────┐             │
-│  │              │    Dalvik   │   ART 5-7   │   ART 8+    │             │
-│  ├──────────────┼──────────────┼──────────────┼──────────────┤             │
-│  │   编译策略   │    JIT       │    AOT      │  JIT+AOT    │             │
-│  │   GC 算法    │ Mark-Sweep  │    CMS      │     CC      │             │
-│  │   内存布局   │  Zygote堆   │ Image+Zygote │ 空间分离   │             │
-│  │   安装速度   │     快       │     慢      │     快      │             │
-│  │   运行速度   │     慢       │     快      │     快      │             │
-│  │   存储占用   │     小       │     大      │     中      │             │
-│  └──────────────┴──────────────┴──────────────┴──────────────┘             │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  三、内存管理                                                                │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│  堆空间划分:                                                                 │
-│  • Image Space: 预加载类对象，只读共享                                      │
-│  • Zygote Space: Zygote 进程对象                                            │
-│  • Alloc Space: 应用进程分配新对象                                          │
-│  • Large Object Space: 大对象 (>12KB)                                       │
-│                                                                             │
-│  GC 触发:                                                                    │
-│  • 分配失败 → 同步 GC                                                       │
-│  • 堆阈值达 75% → 后台 GC                                                   │
-│  • System.gc() → Full GC                                                   │
-│                                                                             │
-│  GC 优化:                                                                    │
-│  • 减少对象创建，特别是临时对象                                              │
-│  • 使用对象池复用                                                           │
-│  • 注意长生命周期对象持有短生命周期引用                                      │
-│  • Bitmap 使用后及时 recycle()                                              │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  四、编译与优化                                                              │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│  Profile-Guided 编译:                                                       │
-│  1. 首次运行收集 profile                                                    │
-│  2. 后台根据 profile 编译热点代码                                           │
-│  3. 渐进式优化                                                               │
-│                                                                             │
-│  编译层级:                                                                   │
-│  • Level 0: 纯解释                                                          │
-│  • Level 1: Quick JIT                                                      │
-│  • Level 2: Regular JIT                                                    │
-│  • Level 3: AOT 预编译                                                      │
-│                                                                             │
-│  优化技术:                                                                   │
-│  • 内联、死代码消除、常量折叠                                               │
-│  • 方法去虚拟化                                                             │
-│  • 寄存器分配优化                                                           │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  五、面试高频问题                                                            │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│  Q1: Dalvik 和 ART 的区别？                                                 │
-│  A: Dalvik基于寄存器 JIT，ART基于寄存器 AOT+JIT                             │
-│                                                                             │
-│  Q2: DEX 文件比 CLASS 文件的优势？                                          │
-│  A: 共享常量池，多 class 合并，文件体积小                                    │
-│                                                                             │
-│  Q3: AOT 和 JIT 的区别？                                                    │
-│  A: AOT 提前编译安装时，JIT 运行时编译                                      │
-│                                                                             │
-│  Q4: ART GC 为什么比 Dalvik 更高效？                                        │
-│  A: 并发 GC减少暂停，CC算法无碎片，预分配空间优化                            │
-│                                                                             │
-│  Q5: 对象头包含哪些内容？                                                    │
-│  A: monitor(锁)、klass(类指针)、identity_hashcode                          │
-│                                                                             │
-│  Q6: synchronized 的锁升级流程？                                            │
-│  A: 无锁 → 轻量级锁(CAS) → 重量级锁(futex)                                  │
-│                                                                             │
-│  Q7: 如何避免 GC 导致卡顿？                                                  │
-│  A: 减少对象分配、对象池、Bitmap管理、避免内存泄漏                          │
-│                                                                             │
-│  Q8: Profile-Guided 编译的优势？                                            │
-│  A: 安装快+运行时根据热点深度优化，平衡安装速度和性能                        │
-│                                                                             │
-│  Q9: ArtMethod 的数据结构？                                                 │
-│  A: 包含访问标志、所属类、DEX索引、热点计数、编译后代码指针                   │
-│                                                                             │
-│  Q10: CC 算法为什么能避免内存碎片？                                         │
-│  A: 复制算法将存活对象连续排列到 To Space，自动压缩                          │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  六、源码路径                                                                │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│  ART 运行时:                                                                 │
-│  art/runtime/                                                               │
-│  ├── art_method.h/cc          # ArtMethod 实现                             │
-│  ├── thread.h/cc               # 线程实现                                   │
-│  ├── gc/                       # GC 实现                                    │
-│  │   ├── cms/                  # CMS GC                                   │
-│  │   ├── cc/                   # CC GC                                    │
-│  │   └── heap.h/cc             # 堆管理                                    │
-│  ├── interpreter/              # 解释器                                    │
-│  ├── jit/                      # JIT 编译器                                │
-│  ├── class_linker.h/cc        # 类加载器                                   │
-│  └── monitor.h/cc             # 监视器锁                                   │
-│                                                                             │
-│  dex2oat:                                                                     │
-│  art/dex2oat/                   # DEX 编译为 OAT                          │
-│                                                                             │
-│  参考资料:                                                                   │
-│  • https://source.android.com/docs                                   │
-│  • AOSP/art/runtime/gc/                                           │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
+主要目录：`art/runtime/gc/collector/`（concurrent_copying、mark_compact、mark_sweep）、`gc/heap.cc`、`mirror/object.h`、`monitor.cc`、`jit/`、`class_linker.cc`、`thread.cc` 和 `art/dex2oat/`。
 
 ---
 
-*文档更新时间: 2026-04-17*
+*文档更新时间: 2026-09-10*
 *本文档由 OpenClaw 生成*
+
+
+## 固定版本源码索引
+
+本文平台实现基线为 `android-17.0.0_r1`。下列函数用于定位正文分析；代码标为“节选”时省略无关监控，标为“示意”时不是源码逐字复制。
+
+- [Heap](https://android.googlesource.com/platform/art/+/refs/tags/android-17.0.0_r1/runtime/gc/heap.cc)：`Heap; CollectGarbageInternal; GrowForUtilization; PerformHomogeneousSpaceCompact`。
+- [CC](https://android.googlesource.com/platform/art/+/refs/tags/android-17.0.0_r1/runtime/gc/collector/concurrent_copying.cc)：`RunPhases; FlipThreadRoots; CopyingPhase`。
+- [CMC](https://android.googlesource.com/platform/art/+/refs/tags/android-17.0.0_r1/runtime/gc/collector/mark_compact.cc)：`RunPhases; ConcurrentCompaction`。
+- [GC cause](https://android.googlesource.com/platform/art/+/refs/tags/android-17.0.0_r1/runtime/gc/gc_cause.h)：`GcCause`。
+- [对象](https://android.googlesource.com/platform/art/+/refs/tags/android-17.0.0_r1/runtime/mirror/object.h)：`Object.klass_; Object.monitor_`。
+- [锁](https://android.googlesource.com/platform/art/+/refs/tags/android-17.0.0_r1/runtime/monitor.cc)：`MonitorEnter; MonitorExit; Inflate; Deflate`。
+- [方法](https://android.googlesource.com/platform/art/+/refs/tags/android-17.0.0_r1/runtime/art_method.h)：`ArtMethod; PtrSizedFields`。
+- [线程](https://android.googlesource.com/platform/art/+/refs/tags/android-17.0.0_r1/runtime/thread.cc)：`CreateNativeThread`。
+- [JIT](https://android.googlesource.com/platform/art/+/refs/tags/android-17.0.0_r1/runtime/jit/jit.cc)：`CompileMethod; AddSamples`。
+- [DEX](https://android.googlesource.com/platform/art/+/refs/tags/android-17.0.0_r1/libdexfile/dex/dex_file.h)：`Header; HeaderV41`。
+
+- [Runtime 生命周期](https://android.googlesource.com/platform/art/+/refs/tags/android-17.0.0_r1/runtime/runtime.cc)：`Runtime::Init; Start; PreZygoteFork; PostZygoteFork`。

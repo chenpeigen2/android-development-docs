@@ -1,84 +1,90 @@
 # Android View 绘制流程完全指南
 
 > 作者：OpenClaw | 日期：2026-03-08
+> 源码版本：AOSP `android-17.0.0_r1`。标为源码节选的代码对应固定 tag；ASCII 图用于说明对象关系，不代表完整方法签名。60 Hz/16.67 ms 是示例刷新率，不是设备固定帧预算。
 
 ---
 
 ## 目录
 
 - [1. 概述](#1-概述)
-    - [1.1 核心三阶段](#11-核心三阶段)
-    - [1.2 整体架构图](#12-整体架构图)
+  - [1.1 核心三阶段](#11-核心三阶段)
+  - [1.2 整体架构图](#12-整体架构图)
 - [2. ViewRootImpl 核心机制](#2-viewrootimpl-核心机制)
-    - [2.1 ViewRootImpl 概述](#21-viewrootimpl-概述)
-    - [2.2 ViewRootImpl 创建流程](#22-viewrootimpl-创建流程)
-    - [2.3 setView 完整流程](#23-setview-完整流程)
-    - [2.4 requestLayout 流程](#24-requestlayout-流程)
-    - [2.5 scheduleTraversals 流程](#25-scheduletraversals-流程)
-    - [2.6 performTraversals 完整流程](#26-performtraversals-完整流程)
-    - [2.7 完整帧绘制流程](#27-完整帧绘制流程)
-    - [2.8 Choreographer 详解](#28-choreographer-详解)
-        - [2.8.1 Choreographer 架构总览](#281-choreographer-架构总览)
-        - [2.8.2 VSync 信号产生与传递](#282-vsync-信号产生与传递)
-        - [2.8.3 FrameDisplayEventReceiver 底层实现](#283-framedisplayeventreceiver-底层实现)
-        - [2.8.4 Choreographer.doFrame() 源码详解](#284-choreographerdoframe-源码详解)
-        - [2.8.5 postCallback() 流程](#285-postcallback-流程)
-        - [2.8.6 CallbackQueue 详解](#286-callbackqueue-详解)
-        - [2.8.7 同步屏障与异步消息](#287-同步屏障与异步消息)
-        - [2.8.8 掉帧检测与分析](#288-掉帧检测与分析)
-        - [2.8.9 Choreographer 与 SurfaceFlinger 关系](#289-choreographer-与-surfaceflinger-关系)
-    - [2.9 BufferQueue 与双缓冲机制](#29-bufferqueue-与双缓冲机制)
-    - [2.10 渲染合成流程](#210-渲染合成流程)
-    - [2.11 Canvas 到 Surface 调用详解](#211-canvas-到-surface-调用详解)
-        - [2.11.1 Canvas 与 Surface 关系](#2111-canvas-与-surface-关系)
-        - [2.11.2 View 绘制到 Canvas 流程](#2112-view-绘制到-canvas-流程)
-        - [2.11.3 软件绘制流程 (drawSoftware)](#2113-软件绘制流程-drawsoftware)
-        - [2.11.4 Canvas 如何绑定到 Surface](#2114-canvas-如何绑定到-surface)
-        - [2.11.5 硬件加速绘制流程 (ThreadedRenderer)](#2115-硬件加速绘制流程-threadedrenderer)
-    - [2.12 Surface 到 SurfaceFlinger 调用详解](#212-surface-到-surfaceflinger-调用详解)
-        - [2.12.1 Surface 创建流程：useClientSurface 决定协议](#2121-surface-创建流程useclientsurface-决定协议)
-        - [2.12.2 BufferQueue 创建与组件：BLAST 建立生产端](#2122-bufferqueue-创建与组件blast-建立生产端)
-        - [2.12.3 应用绘制到 SurfaceFlinger 完整流程](#2123-应用绘制到-surfaceflinger-完整流程)
-        - [2.12.4 跨进程通信方式与职责边界](#2124-跨进程通信方式与职责边界)
-    - [2.13 View 绘制多层级架构](#213-view-绘制多层级架构)
-    - [2.14 层级调用完整流程](#214-层级调用完整流程)
-        - [2.14.1 软件绘制完整流程](#2141-软件绘制完整流程)
-        - [2.14.2 硬件加速绘制完整流程](#2142-硬件加速绘制完整流程)
-        - [2.14.3 两种模式对比流程图](#2143-两种模式对比流程图)
-    - [2.15 层级总结表](#215-层级总结表)
-        - [2.15.1 软件绘制 vs 硬件加速 层级差异](#2151-软件绘制-vs-硬件加速-层级差异)
-        - [2.15.2 关键类差异](#2152-关键类差异)
-        - [2.15.3 跨层通信方式](#2153-跨层通信方式)
+  - [2.1 ViewRootImpl 概述](#21-viewrootimpl-概述)
+  - [2.2 ViewRootImpl 创建流程](#22-viewrootimpl-创建流程)
+  - [2.3 setView 完整流程](#23-setview-完整流程)
+  - [2.4 requestLayout 流程](#24-requestlayout-流程)
+  - [2.5 scheduleTraversals 流程](#25-scheduletraversals-流程)
+  - [2.6 performTraversals 完整流程](#26-performtraversals-完整流程)
+  - [2.7 完整帧绘制流程](#27-完整帧绘制流程)
+  - [2.8 Choreographer 详解](#28-choreographer-详解)
+    - [2.8.1 Choreographer 架构总览](#281-choreographer-架构总览)
+    - [2.8.2 VSync 信号产生与传递](#282-vsync-信号产生与传递)
+    - [2.8.3 FrameDisplayEventReceiver 底层实现](#283-framedisplayeventreceiver-底层实现)
+    - [2.8.4 Choreographer.doFrame() 源码详解](#284-choreographerdoframe-源码详解)
+    - [2.8.5 postCallback 与 postVsyncCallback 的共同调度](#285-postcallback-与-postvsynccallback-的共同调度)
+    - [2.8.6 CallbackQueue 详解](#286-callbackqueue-详解)
+    - [2.8.7 同步屏障与异步消息](#287-同步屏障与异步消息)
+    - [2.8.8 掉帧检测与分析](#288-掉帧检测与分析)
+    - [2.8.9 Choreographer 与 SurfaceFlinger 关系](#289-choreographer-与-surfaceflinger-关系)
+  - [2.9 BufferQueue 与双缓冲机制](#29-bufferqueue-与双缓冲机制)
+  - [2.10 渲染合成流程](#210-渲染合成流程)
+  - [2.11 Canvas 到 Surface 调用详解](#211-canvas-到-surface-调用详解)
+    - [2.11.1 Canvas 与 Surface 关系](#2111-canvas-与-surface-关系)
+    - [2.11.2 View 绘制到 Canvas 流程](#2112-view-绘制到-canvas-流程)
+    - [2.11.3 软件绘制流程 (drawSoftware)](#2113-软件绘制流程-drawsoftware)
+    - [2.11.4 Canvas 如何绑定到 Surface](#2114-canvas-如何绑定到-surface)
+    - [2.11.5 硬件加速绘制流程 (ThreadedRenderer)](#2115-硬件加速绘制流程-threadedrenderer)
+  - [2.12 Surface 到 SurfaceFlinger 调用详解](#212-surface-到-surfaceflinger-调用详解)
+    - [2.12.1 Surface 创建流程：useClientSurface 决定协议](#2121-surface-创建流程useclientsurface-决定协议)
+    - [2.12.2 BufferQueue 创建与组件：BLAST 建立生产端](#2122-bufferqueue-创建与组件blast-建立生产端)
+    - [2.12.3 应用绘制到 SurfaceFlinger 完整流程](#2123-应用绘制到-surfaceflinger-完整流程)
+    - [2.12.4 跨进程通信方式与职责边界](#2124-跨进程通信方式与职责边界)
+  - [2.13 View 绘制多层级架构](#213-view-绘制多层级架构)
+  - [2.14 层级调用完整流程](#214-层级调用完整流程)
+    - [2.14.1 软件绘制完整流程](#2141-软件绘制完整流程)
+    - [2.14.2 硬件加速绘制完整流程](#2142-硬件加速绘制完整流程)
+    - [2.14.3 两种模式对比流程图](#2143-两种模式对比流程图)
+  - [2.15 层级总结表](#215-层级总结表)
+    - [2.15.1 软件绘制 vs 硬件加速 层级差异](#2151-软件绘制-vs-硬件加速-层级差异)
+    - [2.15.2 关键类差异](#2152-关键类差异)
+    - [2.15.3 跨层通信方式](#2153-跨层通信方式)
 - [3. WindowManager 架构](#3-windowmanager-架构)
 - [4. Measure 测量流程](#4-measure-测量流程)
-    - [4.1 Measure 流程图](#41-measure-流程图)
-    - [4.2 MeasureSpec 详解](#42-measurespec-详解)
-    - [4.3 onMeasure 标准实现](#43-onmeasure-标准实现)
+  - [4.1 Measure 流程图](#41-measure-流程图)
+  - [4.2 MeasureSpec 详解](#42-measurespec-详解)
+  - [4.3 onMeasure 标准实现](#43-onmeasure-标准实现)
+  - [4.4 View.measure()：缓存、强制布局与测量状态](#44-viewmeasure缓存强制布局与测量状态)
+  - [4.5 默认尺寸与 resolveSizeAndState](#45-默认尺寸与-resolvesizeandstate)
 - [5. Layout 布局流程](#5-layout-布局流程)
-    - [5.1 Layout 流程图](#51-layout-流程图)
-    - [5.2 onLayout 标准实现](#52-onlayout-标准实现)
+  - [5.1 Layout 流程图](#51-layout-流程图)
+  - [5.2 onLayout 标准实现](#52-onlayout-标准实现)
+  - [5.3 View.layout()：边界变化不等于测量尺寸变化](#53-viewlayout边界变化不等于测量尺寸变化)
+  - [5.4 父子坐标与布局案例](#54-父子坐标与布局案例)
 - [6. Draw 绘制流程](#6-draw-绘制流程)
-    - [6.1 Draw 流程图](#61-draw-流程图)
-    - [6.2 onDraw 实现](#62-ondraw-实现)
+  - [6.1 View.draw() 顺序](#61-viewdraw-顺序)
+  - [6.2 ViewGroup.drawChild() 与硬件显示列表](#62-viewgroupdrawchild-与硬件显示列表)
+  - [6.3 属性失效与内容重录的区别](#63-属性失效与内容重录的区别)
 - [7. 常见问题](#7-常见问题)
-    - [7.1 为什么子线程不能更新 UI？](#71-为什么子线程不能更新-ui)
-    - [7.2 invalidate() vs requestLayout()](#72-invalidate-vs-requestlayout)
-    - [7.3 View.post() 为什么可以获取宽高？](#73-viewpost-为什么可以获取宽高)
+  - [7.1 为什么子线程不能更新 UI？](#71-为什么子线程不能更新-ui)
+  - [7.2 invalidate() vs requestLayout()](#72-invalidate-vs-requestlayout)
+  - [7.3 View.post 与布局完成的条件](#73-viewpost-与布局完成的条件)
 - [8. 软件渲染 vs 硬件渲染 全面对比](#8-软件渲染-vs-硬件渲染-全面对比)
-    - [8.1 阶段 1: 触发更新 (相同)](#81-阶段-1-触发更新-相同)
-    - [8.2 阶段 2: VSync 处理 (相同)](#82-阶段-2-vsync-处理-相同)
-    - [8.3 阶段 3: 测量与布局 (相同)](#83-阶段-3-测量与布局-相同)
-    - [8.4 阶段 4: 绘制入口 (分叉点)](#84-阶段-4-绘制入口-分叉点)
-    - [8.5 阶段 5: Canvas 获取 (重大差异)](#85-阶段-5-canvas-获取-重大差异)
-    - [8.6 阶段 6: 执行绘制 (重大差异)](#86-阶段-6-执行绘制-重大差异)
-    - [8.7 阶段 7: 提交结果 (重大差异)](#87-阶段-7-提交结果-重大差异)
-    - [8.8 阶段 8: SurfaceFlinger 合成 (相同)](#88-阶段-8-surfaceflinger-合成-相同)
-    - [8.9 完整对比总结图](#89-完整对比总结图)
-    - [8.10 关键类对比表](#810-关键类对比表)
-    - [8.11 性能对比](#811-性能对比)
+  - [8.1 阶段 1: 触发更新 (相同)](#81-阶段-1-触发更新-相同)
+  - [8.2 阶段 2: VSync 处理 (相同)](#82-阶段-2-vsync-处理-相同)
+  - [8.3 阶段 3: 测量与布局 (相同)](#83-阶段-3-测量与布局-相同)
+  - [8.4 阶段 4: 绘制入口 (分叉点)](#84-阶段-4-绘制入口-分叉点)
+  - [8.5 阶段 5: Canvas 获取 (重大差异)](#85-阶段-5-canvas-获取-重大差异)
+  - [8.6 阶段 6: 执行绘制 (重大差异)](#86-阶段-6-执行绘制-重大差异)
+  - [8.7 阶段 7: 提交结果 (重大差异)](#87-阶段-7-提交结果-重大差异)
+  - [8.8 阶段 8: SurfaceFlinger 合成 (共同下游)](#88-阶段-8-surfaceflinger-合成-共同下游)
+  - [8.9 完整对比总结图](#89-完整对比总结图)
+  - [8.10 关键类对比表](#810-关键类对比表)
+  - [8.11 性能对比](#811-性能对比)
 - [9. 总结](#9-总结)
-    - [9.1 核心流程图](#91-核心流程图)
-    - [9.2 关键类总结](#92-关键类总结)
+  - [9.1 核心流程图](#91-核心流程图)
+  - [9.2 关键类总结](#92-关键类总结)
 
 ---
 
@@ -88,7 +94,7 @@ View 绘制流程是 Android UI 的核心机制，理解它对于性能优化和
 
 ### 1.1 核心三阶段
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         View 绘制三阶段                                      │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -105,7 +111,7 @@ View 绘制流程是 Android UI 的核心机制，理解它对于性能优化和
 
 ### 1.2 整体架构图
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         View 绘制整体架构                                    │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -115,7 +121,7 @@ View 绘制流程是 Android UI 的核心机制，理解它对于性能优化和
 ├─────────────────────────────────────────────────────────────────────────────┤
 │  Activity ──► PhoneWindow ──► DecorView ──► ViewRootImpl                   │
 │                                                       │                      │
-│                    performTraversals() ───────────────┘                      │
+│                    performTraversals(frameTimeNanos) ───────────────┘                      │
 │                           │                                                  │
 │              ┌────────────┼────────────┐                                    │
 │              ▼            ▼            ▼                                    │
@@ -145,7 +151,7 @@ View 绘制流程是 Android UI 的核心机制，理解它对于性能优化和
 
 ### 2.1 ViewRootImpl 概述
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         ViewRootImpl 职责                                   │
 │  源码位置: frameworks/base/core/java/android/view/ViewRootImpl.java        │
@@ -163,95 +169,49 @@ ViewRootImpl 是 View 树的根，是连接 WindowManager 和 DecorView 的桥�
 
 ### 2.2 ViewRootImpl 创建流程
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         ViewRootImpl 创建流程                               │
-└─────────────────────────────────────────────────────────────────────────────┘
+Activity 的窗口根并不是在 `setContentView()` 中就注册到 WMS。前者主要构造 DecorView/内容视图；ActivityThread 在恢复 Activity、满足可见性条件时通过 WindowManager 将 DecorView 加入窗口系统。`Activity.makeVisible()` 也有尚未加入时的兜底路径，不能把它画成所有首次添加都必经的唯一入口。
 
-ActivityThread.handleResumeActivity()
-              │
-              ▼
-Activity.makeVisible()
-              │
-              │  void makeVisible() {
-              │      if (!mWindowAdded) {
-              │          mWindowManager.addView(mDecor, mWindowAttributes);
-              │          mWindowAdded = true;
-              │      }
-              │      mDecor.setVisibility(View.VISIBLE);
-              │  }
-              │
-              ▼
-WindowManagerImpl.addView()
-              │
-              │  public void addView(View view, ViewGroup.LayoutParams params) {
-              │      mGlobal.addView(view, params, mContext.getDisplay(), mParentWindow);
-              │  }
-              │
-              ▼
-WindowManagerGlobal.addView()
-              │
-              │  public void addView(View view, LayoutParams params, 
-              │          Display display, Window parentWindow) {
-              │      
-              │      // ★★★ 创建 ViewRootImpl ★★★
-              │      ViewRootImpl root = new ViewRootImpl(view.getContext(), display);
-              │      
-              │      mViews.add(view);
-              │      mRoots.add(root);
-              │      mParams.add(params);
-              │      
-              │      // ★★★ 调用 setView ★★★
-              │      root.setView(view, params, panelParentView);
-              │  }
-              │
-              ▼
-ViewRootImpl.setView()
+```text
+ActivityThread.handleResumeActivity / Activity.makeVisible 的条件分支
+  -> WindowManagerImpl.addView
+  -> WindowManagerGlobal.addView
+       检查 LayoutParams、父窗口 token、重复添加
+       创建 ViewRootImpl（显示对象以及 window context 等决定构造分支）
+       mViews / mRoots / mParams 保存对应条目
+       root.setView(view, wparams, panelParentView, userId)
 ```
+
+这是一条方法级调用图，不是可直接编译的实现；真实签名、异常回滚与 windowless 分支见 [WindowManagerGlobal.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/view/WindowManagerGlobal.java)。一个普通窗口通常对应一个 ViewRootImpl，但 SurfaceView 的独立图形层不因此增加另一个窗口根。
 
 ### 2.3 setView 完整流程
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         ViewRootImpl.setView() 完整流程                     │
-│  源码位置: frameworks/base/core/java/android/view/ViewRootImpl.java        │
-└─────────────────────────────────────────────────────────────────────────────┘
+Android 17 的关键顺序是**先调度第一次遍历，再向 WMS 注册窗口**。这里的 `requestLayout()` 只排队，不会在 Binder 注册前同步把内容画出来。这样能在接收后续系统事件前建立首次遍历的调度顺序。
 
-public void setView(View view, LayoutParams attrs, View panelParentView) {
-    synchronized (this) {
-        if (mView == null) {
-            
-            // 1. 保存 View 引用
-            mView = view;
-            mView.setLayoutParams(attrs);
-            
-            // 2. 创建 InputChannel
-            mInputChannel = new InputChannel();
-            
-            // 3. 通过 Binder 调用 WMS 添加窗口
-            res = mWindowSession.addToDisplay(
-                    mWindow, mSeq, mWindowAttributes,
-                    getHostVisibility(), mDisplay.getDisplayId(),
-                    mTmpFrame, mAttachInfo.mContentInsets,
-                    mInputChannel);
-            
-            // 4. 设置 View 的 parent
-            view.assignParent(this);
-            
-            // 5. ★★★ 请求首次布局 ★★★
-            requestLayout();
-            
-            // 6. 设置输入事件接收器
-            mInputEventReceiver = new WindowInputEventReceiver(
-                    mInputChannel, Looper.myLooper());
-        }
-    }
-}
+```text
+ViewRootImpl.setView(view, attrs, panelParentView, userId)
+  -> 保存 mView、窗口属性、缩放与 Insets 状态
+  -> requestLayout()：标记布局请求，设置遍历屏障和帧回调
+  -> 按 INPUT_FEATURE_NO_INPUT_CHANNEL 决定是否创建 InputChannel
+  -> 创建 WindowRelayoutResult addResult
+  -> IWindowSession.addToDisplayAsUser(..., inputChannel, addResult)
+  -> 检查返回码；失败时 unscheduleTraversals 并撤销根引用
+  -> 安装窗口输入接收器等客户端对象
+  -> view.assignParent(this)
 ```
+
+固定 tag 中的真实 Binder 调用节选：
+
+```java
+res = mWindowSession.addToDisplayAsUser(mWindow, mWindowAttributes,
+        getHostVisibility(), mDisplay.getDisplayId(), userId,
+        mInsetsController.getRequestedVisibleTypes(), inputChannel, addResult);
+```
+
+`addResult` 承载窗口 frames、配置、Insets 控制信息等注册结果；内容 Surface 的建立和更新还要结合 relayout，不能把窗口注册等同于 WMS 无条件创建绘图 Surface。输入通道也不是所有窗口都必须申请。依据：[ViewRootImpl.setView](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/view/ViewRootImpl.java)。
 
 ### 2.4 requestLayout 流程
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         ViewRootImpl.requestLayout() 流程                   │
 │  源码位置: frameworks/base/core/java/android/view/ViewRootImpl.java        │
@@ -260,7 +220,7 @@ public void setView(View view, LayoutParams attrs, View panelParentView) {
 @Override
 public void requestLayout() {
     if (!mHandlingLayoutInLayoutRequest) {
-        // ★★★ 检查线程 - 必须在主线程调用 ★★★
+        // 检查是否在创建此 ViewRootImpl 的线程调用
         checkThread();
         mLayoutRequested = true;
         // ★★★ 调度遍历 ★★★
@@ -279,109 +239,76 @@ void checkThread() {
 
 ### 2.5 scheduleTraversals 流程
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         ViewRootImpl.scheduleTraversals() 流程              │
-│  源码位置: frameworks/base/core/java/android/view/ViewRootImpl.java        │
-└─────────────────────────────────────────────────────────────────────────────┘
+`mTraversalScheduled` 合并同一轮的重复请求。Android 17 注册的是 `Choreographer.VsyncCallback`；不是旧版 `mTraversalRunnable`。以下为 [ViewRootImpl.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/view/ViewRootImpl.java) 节选，省略注释：
 
+```java
 void scheduleTraversals() {
-    if (!mTraversalScheduled) {
-        mTraversalScheduled = true;
-        
-        // 1. 添加同步屏障 (确保 VSync 回调优先执行)
-        mTraversalBarrier = mHandler.getLooper().getQueue().postSyncBarrier();
-        
-        // 2. ★★★ 通过 Choreographer 注册 VSync 回调 ★★★
-        mChoreographer.postCallback(
-                Choreographer.CALLBACK_TRAVERSAL,
-                mTraversalRunnable,  // → doTraversal() → performTraversals()
-                null);
+        checkThreadCompat();
+        if (!mTraversalScheduled) {
+            mTraversalScheduled = true;
+            postTraversalBarrier();
+            mChoreographer.postVsyncCallback(
+                    Choreographer.CALLBACK_TRAVERSAL, mTraversalCallback);
+            notifyRendererOfFramePending();
+            pokeDrawLockIfNeeded();
+        }
     }
-}
 
-// TraversalRunnable
-final class TraversalRunnable implements Runnable {
+    void unscheduleTraversals() {
+        checkThreadCompat();
+        if (mTraversalScheduled) {
+            mTraversalScheduled = false;
+            removeTraversalBarrier();
+            mChoreographer.removeVsyncCallback(
+                    Choreographer.CALLBACK_TRAVERSAL, mTraversalCallback);
+        }
+    }
+
+    void doTraversal(long frameTimeNanos) {
+        if (mTraversalScheduled) {
+            mTraversalScheduled = false;
+            removeTraversalBarrier();
+            performTraversals(frameTimeNanos);
+        }
+    }
+```
+
+```java
+final class TraversalCallback implements Choreographer.VsyncCallback {
     @Override
-    public void run() {
-        doTraversal();
-    }
-}
-
-void doTraversal() {
-    if (mTraversalScheduled) {
-        mTraversalScheduled = false;
-        // 移除同步屏障
-        mHandler.getLooper().getQueue().removeSyncBarrier(mTraversalBarrier);
-        // ★★★ 执行遍历 ★★★
-        performTraversals();
+    public void onVsync(Choreographer.FrameData frameData) {
+        doTraversal(frameData.getFrameTimeNanos());
     }
 }
 ```
+
+`postTraversalBarrier()` 和 `removeTraversalBarrier()` 封装屏障生命周期，并处理原子屏障开关。屏障阻止它之后的同步消息越过已调度遍历，异步消息仍可通过；它既不会中断正在执行的消息，也不会消除输入、动画回调本身的耗时。`doTraversal(long)` 先撤销屏障再进入遍历，避免遍历后留下阻塞普通消息的屏障。
 
 ### 2.6 performTraversals 完整流程
 
+当前签名是 `private void performTraversals(long frameTimeNanos)`。该方法不是“每帧按同样顺序无条件调用三次函数”：窗口首次出现、尺寸变化、Insets 更新、布局请求、可见性和 Surface 同步状态会选择不同分支。
+
+```text
+performTraversals(frameTimeNanos)
+  -> 获取根 View、窗口属性与当前/期望窗口 frames
+  -> 首次 attach 通知、配置与 Insets 分发
+  -> 必要时 measureHierarchy：得到根 View 的期望测量结果
+  -> 必要时 relayoutWindow：协调窗口 frames、Surface 与同步状态
+  -> 根据实际窗口约束按需重新测量
+  -> 若 didLayout，performLayout：根节点 layout + 全局布局回调
+  -> pre-draw 回调与可见性条件决定是否取消本帧 draw
+  -> performDraw(mActiveSurfaceSyncGroup)
+       -> draw 路径：软件 Canvas 或 ThreadedRenderer
+       -> 协调绘制完成、SurfaceSyncGroup 与后续回调
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         ViewRootImpl.performTraversals() 完整流程           │
-│  源码位置: frameworks/base/core/java/android/view/ViewRootImpl.java        │
-│  这是 View 绘制的核心方法！约 800+ 行代码                                   │
-└─────────────────────────────────────────────────────────────────────────────┘
 
-private void performTraversals() {
-    
-    // ========== 阶段 1: 获取窗口尺寸 ==========
-    int desiredWindowWidth = mWinFrame.width();
-    int desiredWindowHeight = mWinFrame.height();
-    
-    // ========== 阶段 2: 询问 WMS 是否需要重新布局 ==========
-    if (mFirst || mWidth != host.getMeasuredWidth() 
-            || mHeight != host.getMeasuredHeight()) {
-        relayoutWindow(params, viewVisibility, insetsPending);
-    }
-    
-    // ========== 阶段 3: 测量 (performMeasure) ==========
-    if (!mStopped) {
-        int childWidthMeasureSpec = getRootMeasureSpec(mWidth, lp.width);
-        int childHeightMeasureSpec = getRootMeasureSpec(mHeight, lp.height);
-        
-        // ★★★ 执行测量 ★★★
-        performMeasure(childWidthMeasureSpec, childHeightMeasureSpec);
-    }
-    
-    // ========== 阶段 4: 布局 (performLayout) ==========
-    if (didLayout) {
-        // ★★★ 执行布局 ★★★
-        performLayout(lp, mWidth, mHeight);
-    }
-    
-    // ========== 阶段 5: 绘制 (performDraw) ==========
-    if (!cancelDraw) {
-        // ★★★ 执行绘制 ★★★
-        performDraw();
-    }
-}
+上图是控制流程归纳，省略具体分支，不是伪造的方法定义。测量可能发生在 relayout 前后，因此不能将“先 relayout，再唯一一次 measure”当作算法。`performDraw` 当前返回 boolean，接收可空 SurfaceSyncGroup；它也不是只有一句无参 `draw()` 的方法。
 
-
-// ========== performMeasure ==========
-private void performMeasure(int childWidthMeasureSpec, int childHeightMeasureSpec) {
-    mView.measure(childWidthMeasureSpec, childHeightMeasureSpec);
-}
-
-// ========== performLayout ==========
-private void performLayout(LayoutParams lp, int desiredWindowWidth, int desiredWindowHeight) {
-    host.layout(0, 0, host.getMeasuredWidth(), host.getMeasuredHeight());
-}
-
-// ========== performDraw ==========
-private void performDraw() {
-    draw(fullRedrawNeeded);
-}
-```
+发生 `requestLayout()` 不意味着整棵树一定重测；相同 MeasureSpec、缓存和强制布局状态决定节点是否执行 `onMeasure()`。在 layout 内再次请求布局还有收集请求、第二次布局或延后处理的路径，写自定义 ViewGroup 时应避免无条件循环请求。具体实现见 [performTraversals / performLayout](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/view/ViewRootImpl.java)。
 
 ### 2.7 完整帧绘制流程
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         完整帧绘制流程 (invalidate/requestLayout → 上屏)    │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -415,20 +342,21 @@ private void performDraw() {
   │     - 按优先级执行回调:                                                 │
   │       1) CALLBACK_INPUT      - 输入事件处理                            │
   │       2) CALLBACK_ANIMATION  - 动画更新                                │
-  │       3) CALLBACK_TRAVERSAL  - View 绘制 ★★★                          │
-  │       4) CALLBACK_COMMIT     - 提交                                    │
+  │       3) CALLBACK_INSETS_ANIMATION - Insets 动画                         │
+  │       4) CALLBACK_TRAVERSAL  - View 绘制 ★★★                          │
+  │       5) CALLBACK_COMMIT     - 帧内末阶段                                    │
   └─────────────────────────────────────────────────────────────────────────┘
                                       │
                                       ▼
   ┌─────────────────────────────────────────────────────────────────────────┐
-  │  5. doTraversal()                                                       │
+  │  5. doTraversal(frameTimeNanos)                                                       │
   │     - 移除同步屏障                                                      │
-  │     - 调用 performTraversals()                                         │
+  │     - 调用 performTraversals(frameTimeNanos)                                         │
   └─────────────────────────────────────────────────────────────────────────┘
                                       │
                                       ▼
   ┌─────────────────────────────────────────────────────────────────────────┐
-  │  6. performTraversals()                                                 │
+  │  6. performTraversals(frameTimeNanos)                                                 │
   │     - performMeasure() → measure() → onMeasure()                       │
   │     - performLayout()  → layout()  → onLayout()                        │
   │     - performDraw()    → draw()    → onDraw()                          │
@@ -474,7 +402,7 @@ private void performDraw() {
 
 ### 2.8 Choreographer 详解
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         Choreographer 详解                                  │
 │  源码位置: frameworks/base/core/java/android/view/Choreographer.java       │
@@ -488,7 +416,7 @@ Choreographer 是 Android 帧调度的核心，负责:
 
 #### 2.8.1 Choreographer 架构总览
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         Choreographer 完整架构                              │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -510,11 +438,12 @@ Choreographer 是 Android 帧调度的核心，负责:
   │  │  │    - 触发 onVsync() → doFrame()                            ││   │
   │  │  └─────────────────────────────────────────────────────────────┘│   │
   │  │  ┌─────────────────────────────────────────────────────────────┐│   │
-  │  │  │ 2. CallbackQueue[] (4个回调队列)                            ││   │
+  │  │  │ 2. CallbackQueue[] (5个回调队列)                            ││   │
   │  │  │    - CALLBACK_INPUT      (0) - 输入事件                    ││   │
   │  │  │    - CALLBACK_ANIMATION  (1) - 动画                        ││   │
-  │  │  │    - CALLBACK_TRAVERSAL  (2) - View 遍历 ★★★              ││   │
-  │  │  │    - CALLBACK_COMMIT     (3) - 提交                        ││   │
+  │  │  │    - CALLBACK_INSETS_ANIMATION (2) - Insets 动画               ││   │
+  │  │  │    - CALLBACK_TRAVERSAL  (3) - View 遍历 ★★★              ││   │
+  │  │  │    - CALLBACK_COMMIT     (4) - 提交                        ││   │
   │  │  └─────────────────────────────────────────────────────────────┘│   │
   │  │  ┌─────────────────────────────────────────────────────────────┐│   │
   │  │  │ 3. FrameHandler                                             ││   │
@@ -601,7 +530,7 @@ Choreographer 是 Android 帧调度的核心，负责:
 
 #### 2.8.2 VSync 信号产生与传递
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         VSync 信号产生与传递流程                             │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -698,474 +627,101 @@ Choreographer 是 Android 帧调度的核心，负责:
    │显示1│    │显示2│    │显示3│    │显示4│    │显示5│
    └─────┘    └─────┘    └─────┘    └─────┘    └─────┘
 
-  理想情况: 每帧在 16.67ms 内完成 INPUT → ANIM → TRAVERSAL → COMMIT
+  理想情况: 每帧在 16.67ms 内完成 INPUT → ANIM → INSETS_ANIMATION → TRAVERSAL → COMMIT
   掉帧情况: 某帧超过 16.67ms，跳过后续帧
 ```
 
 #### 2.8.3 FrameDisplayEventReceiver 底层实现
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         FrameDisplayEventReceiver 完整流程                  │
-│  源码: frameworks/base/core/java/android/view/Choreographer.java           │
-└─────────────────────────────────────────────────────────────────────────────┘
+Choreographer 的 FrameDisplayEventReceiver 继承 DisplayEventReceiver，将 native 显示事件接入当前 Looper。它接收的并不只有“发生了一次脉冲”：VsyncEventData 还携带 frame interval、候选 frame timelines 等信息，调度和性能分析需保留这些时间含义。
 
-  ┌─────────────────────────────────────────────────────────────────────────┐
-  │  Java 层: FrameDisplayEventReceiver                                     │
-  │  ─────────────────────────────────────────────────────────────────────── │
-  │                                                                         │
-  │  private final class FrameDisplayEventReceiver                          │
-  │          extends DisplayEventReceiver                                   │
-  │          implements Runnable {                                          │
-  │                                                                         │
-  │      private boolean mHavePendingVsync;                                 │
-  │      private long mTimestampNanos;                                      │
-  │                                                                         │
-  │      // ★★★ VSync 信号到达时调用 ★★★                                    │
-  │      @Override                                                          │
-  │      public void onVsync(long timestampNanos, int frame,                │
-  │              int vsyncSource) {                                         │
-  │          // 1. 保存时间戳                                               │
-  │          mTimestampNanos = timestampNanos;                              │
-  │          mHavePendingVsync = true;                                      │
-  │                                                                         │
-  │          // 2. 将自己作为 Runnable post 到主线程                        │
-  │          Message msg = Message.obtain(mHandler, this);                  │
-  │          msg.setAsynchronous(true);  // 异步消息，不受同步屏障影响      │
-  │          mHandler.sendMessageAtFrontOfQueue(msg);                       │
-  │      }                                                                  │
-  │                                                                         │
-  │      // ★★★ Runnable.run() 在主线程执行 ★★★                            │
-  │      @Override                                                          │
-  │      public void run() {                                                │
-  │          mHavePendingVsync = false;                                     │
-  │          // 执行帧处理                                                  │
-  │          doFrame(mTimestampNanos, mFrame);                              │
-  │      }                                                                  │
-  │  }                                                                      │
-  │                                                                         │
-  └─────────────────────────────────────────────────────────────────────────┘
-                                      │
-                                      │ JNI 调用
-                                      ▼
-  ┌─────────────────────────────────────────────────────────────────────────┐
-  │  Native 层: android_view_DisplayEventReceiver.cpp                       │
-  │  ─────────────────────────────────────────────────────────────────────── │
-  │                                                                         │
-  │  class NativeDisplayEventReceiver : public DisplayEventReceiver {       │
-  │                                                                         │
-  │      // 请求 VSync 信号                                                 │
-  │      status_t NativeDisplayEventReceiver::scheduleVsync() {             │
-  │          // 调用 DisplayEventReceiver::scheduleVsync()                  │
-  │          return DisplayEventReceiver::scheduleVsync();                  │
-  │      }                                                                  │
-  │                                                                         │
-  │      // VSync 信号到达时的回调                                          │
-  │      void NativeDisplayEventReceiver::onVsync(                          │
-  │              nsecs_t timestamp, int32_t id, uint32_t count) {           │
-  │          // 通过 JNI 回调 Java 层的 onVsync 方法                        │
-  │          JNIEnv* env = AndroidRuntime::getJNIEnv();                     │
-  │          env->CallVoidMethod(mReceiverObjGlobal,                        │
-  │                  gDisplayEventReceiverClassInfo.onVsync,                │
-  │                  timestamp, id, count);                                 │
-  │      }                                                                  │
-  │  }                                                                      │
-  │                                                                         │
-  └─────────────────────────────────────────────────────────────────────────┘
-                                      │
-                                      ▼
-  ┌─────────────────────────────────────────────────────────────────────────┐
-  │  Native 层: DisplayEventReceiver (libs/gui)                             │
-  │  源码: frameworks/native/libs/gui/DisplayEventReceiver.cpp              │
-  │  ─────────────────────────────────────────────────────────────────────── │
-  │                                                                         │
-  │  status_t DisplayEventReceiver::scheduleVsync() {                       │
-  │      if (mConnection == NULL) {                                         │
-  │          // 创建与 SurfaceFlinger 的连接                                │
-  │          mConnection = SurfaceFlinger::createConnection();              │
-  │      }                                                                  │
-  │      // 发送请求到 SurfaceFlinger                                       │
-  │      return mConnection->requestNextVsync();                            │
-  │  }                                                                      │
-  │                                                                         │
-  └─────────────────────────────────────────────────────────────────────────┘
+```text
+DisplayEventReceiver native 接入显示事件通道
+  -> FrameDisplayEventReceiver.onVsync(timestampNanos, ..., vsyncEventData)
+  -> 保存时间戳、frame、VsyncEventData
+  -> 将自身作为 Runnable 放入 Handler 的异步 Message
+  -> FrameDisplayEventReceiver.run()
+  -> Choreographer.doFrame(frameTimeNanos, frame, vsyncEventData)
 ```
+
+异步 Message 能穿过遍历同步屏障，但仍在同一个 Looper 上顺序执行，不会把当前耗时消息抢占出去。timestampNanos 表示事件时间基准，Handler 队列开始运行的时刻可能已经晚于它；两者之差是调度延误的线索，而不是动画天然多执行了一帧。
 
 #### 2.8.4 Choreographer.doFrame() 源码详解
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         Choreographer.doFrame() 源码详解                    │
-│  源码: frameworks/base/core/java/android/view/Choreographer.java           │
-└─────────────────────────────────────────────────────────────────────────────┘
+`doFrame` 先校验是否仍有待处理帧，再计算调度滞后和帧时间、处理 frame timeline 选择，最后按阶段运行到期回调。以下是 AOSP 17 实际阶段调用节选：
 
-  void doFrame(long frameTimeNanos, int frame) {
-      final long startNanos;
-      synchronized (mLock) {
-          if (!mFrameScheduled) {
-              return;  // 没有调度的帧，直接返回
-          }
-          
-          startNanos = System.nanoTime();
-          
-          // ★★★ 计算帧延迟 (jitter) ★★★
-          final long jitterNanos = startNanos - frameTimeNanos;
-          
-          // ★★★ 掉帧检测 ★★★
-          if (jitterNanos >= mFrameIntervalNanos) {
-              // 计算跳过了多少帧
-              final long skippedFrames = jitterNanos / mFrameIntervalNanos;
-              if (skippedFrames >= SKIPPED_FRAME_WARNING_LIMIT) {
-                  // 默认 SKIPPED_FRAME_WARNING_LIMIT = 30
-                  // 打印掉帧警告
-                  Log.i(TAG, "Skipped " + skippedFrames + " frames!  "
-                          + "The application may be doing too much work on its main thread.");
-              }
-              
-              // 计算帧偏移，用于校正后续帧的时间
-              final long lastFrameOffset = jitterNanos % mFrameIntervalNanos;
-              frameTimeNanos = startNanos - lastFrameOffset;
-          }
-          
-          mFrameScheduled = false;
-      }
-      
-      try {
-          Trace.traceBegin(Trace.TRACE_TAG_VIEW, "Choreographer#doFrame");
-          AnimationUtils.lockAnimationClock(frameTimeNanos / TimeUtils.NANOS_PER_MS);
-          
-          // ★★★ 阶段 1: 处理输入事件 ★★★
-          mFrameInfo.markInputHandlingStart();
-          doCallbacks(Choreographer.CALLBACK_INPUT, frameTimeNanos);
-          
-          // ★★★ 阶段 2: 处理动画 ★★★
-          mFrameInfo.markAnimationsStart();
-          doCallbacks(Choreographer.CALLBACK_ANIMATION, frameTimeNanos);
-          
-          // ★★★ 阶段 3: 处理 View 遍历 (measure/layout/draw) ★★★
-          mFrameInfo.markPerformTraversalsStart();
-          doCallbacks(Choreographer.CALLBACK_TRAVERSAL, frameTimeNanos);
-          
-          // ★★★ 阶段 4: 提交 ★★★
-          doCallbacks(Choreographer.CALLBACK_COMMIT, frameTimeNanos);
-          
-      } finally {
-          AnimationUtils.unlockAnimationClock();
-          Trace.traceEnd(Trace.TRACE_TAG_VIEW);
-      }
-  }
+```java
+mFrameInfo.markInputHandlingStart();
+doCallbacks(Choreographer.CALLBACK_INPUT);
 
+mFrameInfo.markAnimationsStart();
+doCallbacks(Choreographer.CALLBACK_ANIMATION);
+doCallbacks(Choreographer.CALLBACK_INSETS_ANIMATION);
 
-  // doCallbacks() - 执行指定类型的回调
-  void doCallbacks(int callbackType, long frameTimeNanos) {
-      CallbackRecord callbacks;
-      synchronized (mLock) {
-          // 1. 从队列中取出到期的回调
-          final long now = System.nanoTime();
-          callbacks = mCallbackQueues[callbackType].extractDueCallbacksLocked(now);
-          if (callbacks == null) {
-              return;
-          }
-          mCallbacksRunning = true;
-          
-          // 2. 检查是否需要延迟
-          // ...
-      }
-      
-      try {
-          // 3. 执行所有回调
-          CallbackRecord nextCallback;
-          while (callbacks != null) {
-              nextCallback = callbacks.next;
-              callbacks.next = null;
-              
-              // 执行回调
-              callbacks.run(frameTimeNanos);
-              
-              callbacks = nextCallback;
-          }
-      } finally {
-          synchronized (mLock) {
-              mCallbacksRunning = false;
-          }
-      }
-  }
+mFrameInfo.markPerformTraversalsStart();
+doCallbacks(Choreographer.CALLBACK_TRAVERSAL);
+
+doCallbacks(Choreographer.CALLBACK_COMMIT);
 ```
 
-#### 2.8.5 postCallback() 流程
+该版本的私有 `doCallbacks` 只接收 callbackType，帧信息由 Choreographer 内部状态提供；不要复制旧版两参数调用作为当前源码。FrameData 让 VsyncCallback 使用框架本帧选择的时间，动画 clock 也围绕这些阶段锁定/解锁，避免同一帧每个动画各取一份漂移的墙钟。
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         Choreographer.postCallback() 流程                   │
-└─────────────────────────────────────────────────────────────────────────────┘
+`CALLBACK_COMMIT` 是 Choreographer 的最后一个回调阶段，不是 SurfaceFlinger 上屏、GPU 完成或 release fence signal 的通知。应用的 `postOnAnimation` 归动画阶段，不应画入 COMMIT。固定实现：[Choreographer.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/view/Choreographer.java)。
 
-  ViewRootImpl.scheduleTraversals()
-              │
-              │  mChoreographer.postCallback(CALLBACK_TRAVERSAL, runnable, null)
-              ▼
-  ┌─────────────────────────────────────────────────────────────────────────┐
-  │  Choreographer.postCallback()                                           │
-  │  ─────────────────────────────────────────────────────────────────────── │
-  │                                                                         │
-  │  public void postCallback(int callbackType, Runnable action,           │
-  │          Object token) {                                                │
-  │      postCallbackDelayed(callbackType, action, token, 0);              │
-  │  }                                                                      │
-  │                                                                         │
-  │  public void postCallbackDelayed(int callbackType, Runnable action,    │
-  │          Object token, long delayMillis) {                              │
-  │      // 1. 参数校验                                                    │
-  │      if (action == null) {                                              │
-  │          throw new IllegalArgumentException("action must not be null");│
-  │      }                                                                  │
-  │      if (callbackType < 0 || callbackType > CALLBACK_LAST) {           │
-  │          throw new IllegalArgumentException("callbackType is invalid");│
-  │      }                                                                  │
-  │                                                                         │
-  │      // 2. 加入回调队列                                                │
-  │      synchronized (mLock) {                                             │
-  │          final long now = SystemClock.uptimeMillis();                   │
-  │          final long dueTime = now + delayMillis;                        │
-  │          mCallbackQueues[callbackType].addCallbackLocked(              │
-  │                  dueTime, action, token);                               │
-  │                                                                         │
-  │          // 3. 如果是立即执行，请求 VSync                              │
-  │          if (dueTime <= now) {                                          │
-  │              scheduleFrameLocked(now);                                  │
-  │          }                                                              │
-  │      }                                                                  │
-  │  }                                                                      │
-  │                                                                         │
-  │  // 请求 VSync 信号                                                     │
-  │  private void scheduleFrameLocked(long now) {                           │
-  │      if (!mFrameScheduled) {                                            │
-  │          mFrameScheduled = true;                                        │
-  │          if (USE_VSYNC) {                                               │
-  │              // 使用 VSync                                              │
-  │              if (isRunningOnLooperThreadLocked()) {                     │
-  │                  // 在主线程，直接请求                                  │
-  │                  scheduleVsyncLocked();                                 │
-  │              } else {                                                   │
-  │                  // 不在主线程，发送消息到主线程                        │
-  │                  Message msg = mHandler.obtainMessage(MSG_DO_SCHEDULE_VSYNC);│
-  │                  msg.setAsynchronous(true);                             │
-  │                  mHandler.sendMessageAtFrontOfQueue(msg);               │
-  │              }                                                          │
-  │          } else {                                                       │
-  │              // 不使用 VSync，直接延迟 16ms 执行                        │
-  │              final long nextFrameTime = Math.max(                       │
-  │                      mLastFrameTimeNanos / TimeUtils.NANOS_PER_MS +     │
-  │                              mFrameIntervalMillis, now);                │
-  │              Message msg = mHandler.obtainMessage(MSG_DO_FRAME);        │
-  │              msg.setAsynchronous(true);                                 │
-  │              mHandler.sendMessageAtTime(msg, nextFrameTime);            │
-  │          }                                                              │
-  │      }                                                                  │
-  │  }                                                                      │
-  │                                                                         │
-  │  // 请求 VSync                                                          │
-  │  private void scheduleVsyncLocked() {                                   │
-  │      mDisplayEventReceiver.scheduleVsync();                             │
-  │  }                                                                      │
-  │                                                                         │
-  └─────────────────────────────────────────────────────────────────────────┘
-              │
-              ▼
-         FrameDisplayEventReceiver.scheduleVsync()
-              │
-              │  JNI
-              ▼
-         NativeDisplayEventReceiver.scheduleVsync()
-              │
-              │  通过 BitTube 请求 SurfaceFlinger
-              ▼
-         SurfaceFlinger 分发 VSync 信号
+#### 2.8.5 postCallback 与 postVsyncCallback 的共同调度
+
+Android 17 仍有 Runnable 形式的 postCallback，但 ViewRootImpl 的 traversal 使用带类型参数的内部 `postVsyncCallback` 重载：
+
+```text
+ViewRootImpl.scheduleTraversals
+  -> postVsyncCallback(CALLBACK_TRAVERSAL, mTraversalCallback)
+  -> postCallbackDelayedInternal(callbackType, callback, VSYNC_CALLBACK_TOKEN, 0)
+  -> 对应 CallbackQueue.addCallbackLocked
+  -> 到期则 scheduleFrameLocked；未到期则安排唤醒消息
+  -> FrameDisplayEventReceiver 收到 VSync，排入异步帧消息
+  -> doFrame 按五阶段执行到期回调
+  -> CallbackRecord 根据 token 选择 VsyncCallback / FrameCallback / Runnable
 ```
+
+普通应用的 `postFrameCallback` 在动画阶段执行；`postVsyncCallback(VsyncCallback)` 的公开重载同样面向动画阶段，不能拿内部的 callbackType 重载当作应用公开 API。`VSYNC_CALLBACK_TOKEN` 让框架把 FrameData 传给 VsyncCallback。源码：[Choreographer.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/view/Choreographer.java)。
 
 #### 2.8.6 CallbackQueue 详解
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         CallbackQueue 数据结构                              │
-└─────────────────────────────────────────────────────────────────────────────┘
+Choreographer 为五种 callbackType 各持有一个 CallbackQueue。每个队列根据到期时间保存 CallbackRecord；开始执行某阶段时抽取到期集合，避免把尚未到期的回调误当成本帧工作。
 
-  // 回调记录
-  private static final class CallbackRecord {
-      public CallbackRecord next;       // 下一个回调
-      public long dueTime;              // 到期时间
-      public Object action;             // Runnable 或 FrameCallback
-      public Object token;              // 用于取消回调
-  }
+| 序号 | 类型 | 作用与例子 |
+|---:|---|---|
+| 0 | CALLBACK_INPUT | 合批输入消费等输入相关工作 |
+| 1 | CALLBACK_ANIMATION | 动画时钟、postFrameCallback、postOnAnimation |
+| 2 | CALLBACK_INSETS_ANIMATION | 汇总/应用本帧 Insets 动画更新 |
+| 3 | CALLBACK_TRAVERSAL | ViewRootImpl 布局、显示列表录制/软件绘制 |
+| 4 | CALLBACK_COMMIT | 本次 Choreographer 帧内末阶段回调 |
 
-  // 回调队列
-  private final class CallbackQueue {
-      private CallbackRecord mHead;     // 队列头
-      
-      // 添加回调 (按到期时间排序)
-      public void addCallbackLocked(long dueTime, Object action, Object token) {
-          CallbackRecord callback = obtainCallbackLocked(dueTime, action, token);
-          CallbackRecord entry = mHead;
-          if (entry == null) {
-              mHead = callback;
-              return;
-          }
-          if (dueTime < entry.dueTime) {
-              callback.next = entry;
-              mHead = callback;
-              return;
-          }
-          while (entry.next != null) {
-              if (dueTime < entry.next.dueTime) {
-                  callback.next = entry.next;
-                  entry.next = callback;
-                  return;
-              }
-              entry = entry.next;
-          }
-          entry.next = callback;
-      }
-      
-      // 提取到期的回调
-      public CallbackRecord extractDueCallbacksLocked(long now) {
-          CallbackRecord callbacks = mHead;
-          if (callbacks == null || callbacks.dueTime > now) {
-              return null;
-          }
-          CallbackRecord last = callbacks;
-          CallbackRecord next = last.next;
-          while (next != null) {
-              if (next.dueTime > now) {
-                  last.next = null;
-                  break;
-              }
-              last = next;
-              next = next.next;
-          }
-          mHead = next;
-          return callbacks;
-      }
-  }
+同一帧中先更新普通动画，再更新 Insets，再进行 traversal，使布局与绘制有机会看到一致的本帧状态。到期队列抽取和回调执行分开，不能把“在回调里再次 post”简单等同于无限递归调用自己。CallbackRecord 通过 token 区分 Runnable、FrameCallback 和 VsyncCallback，其参数约定也不同。
 
-
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         四种回调队列执行顺序                                │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-  ┌─────────────────────────────────────────────────────────────────────────┐
-  │                                                                         │
-  │  CallbackQueue[0]: CALLBACK_INPUT                                       │
-  │  ┌─────────────────────────────────────────────────────────────────┐   │
-  │  │  InputEvent → InputEventReceiver → onInputEvent                 │   │
-  │  │  优先级最高，确保用户交互响应                                    │   │
-  │  └─────────────────────────────────────────────────────────────────┘   │
-  │                                    │                                    │
-  │                                    ▼                                    │
-  │  CallbackQueue[1]: CALLBACK_ANIMATION                                   │
-  │  ┌─────────────────────────────────────────────────────────────────┐   │
-  │  │  ValueAnimator → AnimationHandler → Choreographer               │   │
-  │  │  动画更新，计算下一帧的属性值                                    │   │
-  │  └─────────────────────────────────────────────────────────────────┘   │
-  │                                    │                                    │
-  │                                    ▼                                    │
-  │  CallbackQueue[2]: CALLBACK_TRAVERSAL                                   │
-  │  ┌─────────────────────────────────────────────────────────────────┐   │
-  │  │  ViewRootImpl → scheduleTraversals → performTraversals          │   │
-  │  │  View 的 measure、layout、draw                                   │   │
-  │  └─────────────────────────────────────────────────────────────────┘   │
-  │                                    │                                    │
-  │                                    ▼                                    │
-  │  CallbackQueue[3]: CALLBACK_COMMIT                                      │
-  │  ┌─────────────────────────────────────────────────────────────────┐   │
-  │  │  帧提交后的回调                                                  │   │
-  │  │  用于延迟操作 (如 postOnAnimation)                               │   │
-  │  └─────────────────────────────────────────────────────────────────┘   │
-  │                                                                         │
-  └─────────────────────────────────────────────────────────────────────────┘
-
-  执行顺序保证:
-  1. INPUT 先执行 - 确保触摸事件及时响应
-  2. ANIMATION 其次 - 计算动画属性
-  3. TRAVERSAL 再次 - 根据动画结果布局绘制
-  4. COMMIT 最后 - 帧提交完成后的操作
-```
+依据：[CallbackQueue / CallbackRecord](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/view/Choreographer.java)。
 
 #### 2.8.7 同步屏障与异步消息
 
+```text
+普通同步消息 A（屏障之前，可执行）
+遍历屏障
+普通同步消息 B（屏障之后，等待）
+VSync 异步消息（可通过屏障）
+  -> 五阶段帧回调
+  -> TraversalCallback -> doTraversal(frameTimeNanos)
+       -> removeTraversalBarrier()
+       -> performTraversals(frameTimeNanos)
+普通同步消息 B（之后可被 Looper 取出）
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         同步屏障 (Sync Barrier) 机制                        │
-└─────────────────────────────────────────────────────────────────────────────┘
 
-  在 scheduleTraversals() 中会插入同步屏障:
+屏障是队列级调度工具，不是线程锁，也不是“异步消息另开线程”。`mTraversalScheduled` 避免为每次 invalidate 都重复排一帧；取消遍历时也须撤销屏障，异常路径不应让它永久留在队列里。Android 17 用 postTraversalBarrier/removeTraversalBarrier 封装屏障 token 状态，实际字段可能按开关使用原子形式。
 
-  void scheduleTraversals() {
-      if (!mTraversalScheduled) {
-          mTraversalScheduled = true;
-          
-          // ★★★ 插入同步屏障 ★★★
-          mTraversalBarrier = mHandler.getLooper().getQueue().postSyncBarrier();
-          
-          // 注册 VSync 回调
-          mChoreographer.postCallback(...);
-      }
-  }
-
-  同步屏障的作用:
-  ┌─────────────────────────────────────────────────────────────────────────┐
-  │                                                                         │
-  │  MessageQueue (主线程)                                                  │
-  │  ┌─────────────────────────────────────────────────────────────────┐   │
-  │  │  Message 1 (同步)                                                │   │
-  │  │  Message 2 (同步)                                                │   │
-  │  │  ══════════════════════════════════════════════════════════════  │   │
-  │  │  ★ 同步屏障 (SyncBarrier) ★                                      │   │
-  │  │  ══════════════════════════════════════════════════════════════  │   │
-  │  │  Message 3 (同步) ← 被屏障阻挡，不会执行                         │   │
-  │  │  Message 4 (同步) ← 被屏障阻挡，不会执行                         │   │
-  │  │  Message 5 (异步) ← 可以执行，绕过屏障 ★★★                       │   │
-  │  └─────────────────────────────────────────────────────────────────┘   │
-  │                                                                         │
-  │  同步屏障确保:                                                          │
-  │  - VSync 相关的异步消息优先执行                                        │
-  │  - 普通同步消息等待 VSync 处理完成                                    │
-  │  - 防止普通消息阻塞绘制                                                │
-  │                                                                         │
-  └─────────────────────────────────────────────────────────────────────────┘
-
-
-  VSync 消息是异步消息:
-  ┌─────────────────────────────────────────────────────────────────────────┐
-  │                                                                         │
-  │  // FrameDisplayEventReceiver.onVsync()                                │
-  │  Message msg = Message.obtain(mHandler, this);                          │
-  │  msg.setAsynchronous(true);  // ★★★ 设置为异步消息 ★★★               │
-  │  mHandler.sendMessageAtFrontOfQueue(msg);                               │
-  │                                                                         │
-  │  异步消息可以绕过同步屏障，优先执行                                     │
-  │                                                                         │
-  └─────────────────────────────────────────────────────────────────────────┘
-
-
-  移除同步屏障:
-  ┌─────────────────────────────────────────────────────────────────────────┐
-  │                                                                         │
-  │  void doTraversal() {                                                   │
-  │      if (mTraversalScheduled) {                                         │
-  │          mTraversalScheduled = false;                                   │
-  │          // ★★★ 移除同步屏障 ★★★                                      │
-  │          mHandler.getLooper().getQueue().removeSyncBarrier(            │
-  │                  mTraversalBarrier);                                    │
-  │          // 执行遍历                                                    │
-  │          performTraversals();                                           │
-  │      }                                                                  │
-  │  }                                                                      │
-  │                                                                         │
-  └─────────────────────────────────────────────────────────────────────────┘
-```
+屏障不能解决本帧的动画耗时、输入耗时和 RenderThread/GPU 等待。排查卡顿时应区分“同步消息被正常延后”和“主线程执行其他代码导致根本轮不到异步帧消息”。见 [ViewRootImpl.scheduleTraversals / unscheduleTraversals / doTraversal](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/view/ViewRootImpl.java)。
 
 #### 2.8.8 掉帧检测与分析
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         掉帧检测与分析                                      │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1245,7 +801,7 @@ Choreographer 是 Android 帧调度的核心，负责:
 
 #### 2.8.9 Choreographer 与 SurfaceFlinger 关系
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         Choreographer 与 SurfaceFlinger 关系                │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1317,7 +873,7 @@ Choreographer 是 Android 帧调度的核心，负责:
 
 ### 2.9 BufferQueue 与双缓冲机制
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         BufferQueue 架构                                    │
 │  源码位置: frameworks/native/libs/gui/BufferQueue.cpp                      │
@@ -1442,7 +998,7 @@ Android 图形系统采用 生产者-消费者 模型:
   │       │  acquireBuffer() → 消费者获取                                   │
   │       │  releaseBuffer() → 消费者释放                                   │
   │       ▼                                                                 │
-  │  SurfaceFlinger (消费者)                                                │
+  │  BLAST（BufferQueue 消费者）                                                │
   │       │                                                                 │
   │       │  合成所有 Layer                                                 │
   │       │  提交到 Display                                                 │
@@ -1454,7 +1010,10 @@ Android 图形系统采用 生产者-消费者 模型:
 
 ### 2.10 渲染合成流程
 
-```
+生产者完成 CPU 提交，不等于 GPU 已经完成像素写入。GLES 的 `eglSwapBuffers` 可以把带有未 signal fence 的 buffer 提交出去；消费者必须遵守该 fence 的依赖，而非要求应用先 `glFinish()`。dequeue、GPU 队列或背压都可能造成等待，不能因为采用硬件渲染就推导 UI 线程“始终流畅”。现代窗口路径中 BLAST 在应用进程消费 BufferQueue，再以 SurfaceControl.Transaction 提交 buffer；下文泛称“交给 SurfaceFlinger”指最终合成，不表示 SF 直接持有该 BufferQueue 的消费端。详见 2.12 的 BLAST 链路与 [Surface.cpp](https://android.googlesource.com/platform/frameworks/native/+/refs/tags/android-17.0.0_r1/libs/gui/Surface.cpp)。
+
+
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         渲染合成完整流程                                     │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1522,7 +1081,7 @@ Android 图形系统采用 生产者-消费者 模型:
 
 ### 2.11 Canvas 到 Surface 调用详解
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         Canvas 到 Surface 调用详解                          │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1530,7 +1089,7 @@ Android 图形系统采用 生产者-消费者 模型:
 
 #### 2.11.1 Canvas 与 Surface 关系
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         Canvas 与 Surface 关系                              │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1576,7 +1135,7 @@ Android 图形系统采用 生产者-消费者 模型:
 
 #### 2.11.2 View 绘制到 Canvas 流程
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         View 绘制到 Canvas 流程                             │
 │  源码: frameworks/base/core/java/android/view/ViewRootImpl.java            │
@@ -1620,7 +1179,7 @@ Android 图形系统采用 生产者-消费者 模型:
 
 #### 2.11.3 软件绘制流程 (drawSoftware)
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         软件绘制流程 (drawSoftware)                         │
 │  源码: frameworks/base/core/java/android/view/ViewRootImpl.java            │
@@ -1670,7 +1229,7 @@ Android 图形系统采用 生产者-消费者 模型:
 
 #### 2.11.4 Canvas 如何绑定到 Surface
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         Canvas 如何绑定到 Surface                           │
 │  核心原理: Canvas 的底层内存指向 Surface 中的 GraphicBuffer               │
@@ -1739,7 +1298,7 @@ Android 图形系统采用 生产者-消费者 模型:
   Native: surface->unlockAndPost()
          │
          ▼
-  queueBuffer() → 提交给 BufferQueue → SurfaceFlinger 可消费
+  queueBuffer() → BLAST 消费 → Transaction 提交给 SurfaceFlinger
 
 
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -1818,7 +1377,7 @@ Android 图形系统采用 生产者-消费者 模型:
 
 #### 2.11.5 硬件加速绘制流程 (ThreadedRenderer)
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         硬件加速绘制流程 (ThreadedRenderer)                 │
 │  源码: frameworks/base/core/java/android/view/ThreadedRenderer.java        │
@@ -1827,7 +1386,7 @@ Android 图形系统采用 生产者-消费者 模型:
 
 ##### 2.11.5.1 ThreadedRenderer 架构
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         ThreadedRenderer 架构                               │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1868,7 +1427,7 @@ Android 图形系统采用 生产者-消费者 模型:
 
 ##### 2.11.5.2 ThreadedRenderer.draw() 完整流程
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         ThreadedRenderer.draw() 完整流程                    │
 │  源码: frameworks/base/core/java/android/view/ThreadedRenderer.java        │
@@ -1918,7 +1477,7 @@ Android 图形系统采用 生产者-消费者 模型:
 
 ##### 2.11.5.3 View.updateDisplayListIfDirty() 详解
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         View.updateDisplayListIfDirty() 详解                │
 │  源码: frameworks/base/core/java/android/view/View.java                    │
@@ -1983,7 +1542,7 @@ Android 图形系统采用 生产者-消费者 模型:
 
 ##### 2.11.5.4 硬件加速 Canvas 获取详解
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         硬件加速 Canvas 获取详解                            │
 │  RecordingCanvas 与 SkiaCanvas 的区别                                      │
@@ -1992,7 +1551,7 @@ Android 图形系统采用 生产者-消费者 模型:
 
 ###### 2.11.5.4.1 硬件加速模式不调用 Surface.lockCanvas()
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                 硬件加速模式 vs 软件绘制模式 Canvas 获取对比                 │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -2045,206 +1604,60 @@ Android 图形系统采用 生产者-消费者 模型:
 
 ###### 2.11.5.4.2 RenderNode.beginRecording() 源码分析
 
+`beginRecording(width, height)` 取得用于记录节点显示列表的 RecordingCanvas；`endRecording()` 结束录制并归还 Canvas。RecordingCanvas 属于一次录制会话，不应保存在 View 字段里跨帧使用。框架禁止同一节点未结束录制又重新 beginRecording。
+
+```text
+RenderNode.beginRecording(width, height)
+  -> RecordingCanvas.obtain(node, width, height)
+       池中无对象：构造 RecordingCanvas -> nCreateDisplayListCanvas
+       有对象：nResetDisplayListCanvas(nativeCanvas, nativeNode, width, height)
+  -> 使用 Canvas 记录绘图、子 RenderNode 等
+RenderNode.endRecording()
+  -> RecordingCanvas.finishRecording(node) -> nFinishRecording
+  -> recycle Canvas，清理本次录制引用
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         RenderNode.beginRecording() 源码分析                │
-│  源码: frameworks/base/core/java/android/view/RenderNode.java              │
-│  Native: frameworks/base/libs/hwui/RenderNode.cpp                          │
-└─────────────────────────────────────────────────────────────────────────────┘
 
-  Java 层:
-  ─────────────────────────────────────────────────────────────────────────────
+应用直接使用 RenderNode 时的配对方式（API 29+）：
 
-  // RenderNode.java
-  public RecordingCanvas beginRecording(int width, int height) {
-      // 调用 Native 方法获取 RecordingCanvas
-      return RecordingCanvas.obtain(this, width, height);
-  }
-
-
-  // RecordingCanvas.java
-  public final class RecordingCanvas extends BaseRecordingCanvas {
-      
-      // 从对象池获取 RecordingCanvas
-      static RecordingCanvas obtain(@NonNull RenderNode node, int width, int height) {
-          // 1. 从对象池获取或创建
-          RecordingCanvas canvas = sPool.acquire();
-          if (canvas == null) {
-              canvas = new RecordingCanvas();
-          }
-          
-          // 2. 初始化
-          canvas.mNode = node;
-          canvas.setWidth(width);
-          canvas.setHeight(height);
-          
-          // 3. 调用 Native 初始化
-          nInitializeDisplayListCanvas(canvas.mNativeCanvasWrapper, 
-                  node.mNativeRenderNode, width, height);
-          
-          return canvas;
-      }
-  }
-
-
-  Native 层:
-  ─────────────────────────────────────────────────────────────────────────────
-
-  // android_graphics_DisplayListCanvas.cpp
-  static void nInitializeDisplayListCanvas(JNIEnv* env, jobject clazz,
-          jlong canvasPtr, jlong nodePtr, jint width, jint height) {
-      
-      // 1. 获取 RenderNode
-      RenderNode* renderNode = reinterpret_cast<RenderNode*>(nodePtr);
-      
-      // 2. 获取或创建 DisplayList
-      DisplayList* displayList = renderNode->getDisplayList();
-      if (displayList == nullptr) {
-          displayList = new DisplayList();
-      }
-      
-      // 3. 创建 RecordingCanvas (C++ 层)
-      // 这个 Canvas 不绑定内存，只记录命令到 DisplayList
-      RecordingCanvas* canvas = new RecordingCanvas(displayList);
-      
-      // 4. 设置画布大小
-      canvas->setBounds(width, height);
-  }
-
-
-  RecordingCanvas (C++) 的实现:
-  ─────────────────────────────────────────────────────────────────────────────
-
-  // frameworks/base/libs/hwui/RecordingCanvas.cpp
-  
-  class RecordingCanvas : public Canvas {
-  private:
-      DisplayList* mDisplayList;  // 存储绘制命令的列表
-      
-  public:
-      // 绘制矩形 - 记录命令，不实际绘制
-      void drawRect(float left, float top, float right, float bottom, 
-              const SkPaint& paint) override {
-          
-          // 创建绘制命令
-          DrawRectOp* op = new DrawRectOp(left, top, right, bottom, paint);
-          
-          // ★★★ 只记录命令，不执行 ★★★
-          mDisplayList->addDrawOp(op);
-      }
-      
-      // 绘制圆形 - 记录命令
-      void drawCircle(float cx, float cy, float radius, const SkPaint& paint) {
-          DrawCircleOp* op = new DrawCircleOp(cx, cy, radius, paint);
-          mDisplayList->addDrawOp(op);
-      }
-      
-      // 绘制文字 - 记录命令
-      void drawText(const char* text, float x, float y, const SkPaint& paint) {
-          DrawTextOp* op = new DrawTextOp(text, x, y, paint);
-          mDisplayList->addDrawOp(op);
-      }
-  };
+```kotlin
+val node = RenderNode("preview")
+node.setPosition(0, 0, 200, 100)
+val recording = node.beginRecording(200, 100)
+try {
+    recording.drawColor(Color.WHITE)
+    recording.drawRect(0f, 0f, 100f, 50f, Paint().apply { color = Color.BLUE })
+} finally {
+    node.endRecording()
+}
+// 之后在硬件 Canvas 中 drawRenderNode(node)，不缓存 recording 本身。
 ```
+
+这是应用示例，不是 View 树默认录制的替代。默认 View.updateDisplayListIfDirty 还处理脏标记、子项和绘制状态。源码：[RenderNode.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/graphics/java/android/graphics/RenderNode.java)、[RecordingCanvas.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/graphics/java/android/graphics/RecordingCanvas.java)。
 
 ###### 2.11.5.4.3 RecordingCanvas 与 SkiaCanvas 内部结构对比
 
+Android 17 的 native SkiaRecordingCanvas 使用 SkiaDisplayList 与 recorder，不是旧版伪代码中的 `new DrawRectOp` 和通用 `DisplayList::add` 列表。初始化的关键关系是：
+
+```text
+SkiaRecordingCanvas::initDisplayList
+  -> 从 RenderNode.detachAvailableList 取得可复用列表
+  -> 没有可复用对象才创建 SkiaDisplayList
+  -> mDisplayList->attachRecorder(&mRecorder, bounds)
+  -> SkiaCanvas::reset(&mRecorder)
+finishRecording(destination)
+  -> 结束 Z/restore 状态
+  -> destination->setStagingDisplayList(...)
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         RecordingCanvas vs SkiaCanvas 内部结构              │
-└─────────────────────────────────────────────────────────────────────────────┘
 
-  SkiaCanvas (软件绘制):
-  ─────────────────────────────────────────────────────────────────────────────
+软件 Canvas 的 Skia 栅格目标是像素缓冲；硬件录制 Canvas 的目标是 recorder。两条路径都可能经过 Skia，不能把“软件=Skia、硬件=不使用Skia”当成分界。绘图命令还包含 matrix、clip、paint、图片和子节点等语义，不存在每一个 drawRect 都固定变成一次 glDrawArrays 的一对一映射。
 
-  ┌─────────────────────────────────────────────────────────────────────────┐
-  │  SkiaCanvas                                                             │
-  │  ─────────────────────────────────────────────────────────────────────── │
-  │                                                                         │
-  │  成员变量:                                                              │
-  │  - SkBitmap mBitmap;        // 位图，存储像素数据                      │
-  │  - SkCanvas* mCanvas;       // Skia 画布                               │
-  │  - void* mPixels;           // ★★★ 指向 GraphicBuffer 内存 ★★★        │
-  │                                                                         │
-  │  drawRect() 执行:                                                       │
-  │  ┌─────────────────────────────────────────────────────────────────┐   │
-  │  │ void drawRect(left, top, right, bottom, paint) {                │   │
-  │  │     // 直接写入内存                                             │   │
-  │  │     for (y = top; y < bottom; y++) {                            │   │
-  │  │         for (x = left; x < right; x++) {                        │   │
-  │  │             mPixels[x + y * stride] = paint.getColor();         │   │
-  │  │         }                                                       │   │
-  │  │     }                                                           │   │
-  │  │ }                                                               │   │
-  │  └─────────────────────────────────────────────────────────────────┘   │
-  │                                                                         │
-  └─────────────────────────────────────────────────────────────────────────┘
+staging 表示 UI 侧更新还要经过 RenderThread 同步；改变 RenderNode 属性不一定需要重录内容，内容失效则可能需要重录。Canvas 池复用和显示列表复用是两层不同资源复用。
 
-
-  RecordingCanvas (硬件加速):
-  ─────────────────────────────────────────────────────────────────────────────
-
-  ┌─────────────────────────────────────────────────────────────────────────┐
-  │  RecordingCanvas                                                        │
-  │  ─────────────────────────────────────────────────────────────────────── │
-  │                                                                         │
-  │  成员变量:                                                              │
-  │  - DisplayList* mDisplayList;    // 存储绘制命令的列表                 │
-  │  - RenderNode* mNode;           // 所属的 RenderNode                   │
-  │  - int mWidth, mHeight;         // 画布大小                            │
-  │  // ★★★ 没有 mPixels，不绑定内存 ★★★                                  │
-  │                                                                         │
-  │  drawRect() 执行:                                                       │
-  │  ┌─────────────────────────────────────────────────────────────────┐   │
-  │  │ void drawRect(left, top, right, bottom, paint) {                │   │
-  │  │     // 创建命令对象                                             │   │
-  │  │     DrawRectOp* op = new DrawRectOp();                          │   │
-  │  │     op->left = left;                                            │   │
-  │  │     op->top = top;                                              │   │
-  │  │     op->right = right;                                          │   │
-  │  │     op->bottom = bottom;                                        │   │
-  │  │     op->paint = paint;                                          │   │
-  │  │                                                                 │   │
-  │  │     // ★★★ 只添加到列表，不执行 ★★★                             │   │
-  │  │     mDisplayList->addDrawOp(op);                                │   │
-  │  │ }                                                               │   │
-  │  └─────────────────────────────────────────────────────────────────┘   │
-  │                                                                         │
-  └─────────────────────────────────────────────────────────────────────────┘
-
-
-  DisplayList 结构:
-  ─────────────────────────────────────────────────────────────────────────────
-
-  ┌─────────────────────────────────────────────────────────────────────────┐
-  │  DisplayList                                                            │
-  │  ─────────────────────────────────────────────────────────────────────── │
-  │                                                                         │
-  │  class DisplayList {                                                    │
-  │      std::vector<DrawOp*> mDrawOps;    // 绘制命令列表                 │
-  │                                                                         │
-  │      void addDrawOp(DrawOp* op) {                                       │
-  │          mDrawOps.push_back(op);                                        │
-  │      }                                                                  │
-  │  };                                                                     │
-  │                                                                         │
-  │  // 命令类型 (DrawOp 子类):                                             │
-  │  - DrawRectOp        // 矩形                                           │
-  │  - DrawCircleOp      // 圆形                                           │
-  │  - DrawPathOp        // 路径                                           │
-  │  - DrawTextOp        // 文字                                           │
-  │  - DrawBitmapOp      // 位图                                           │
-  │  - SaveOp            // 保存状态                                       │
-  │  - RestoreOp         // 恢复状态                                       │
-  │  - ClipRectOp        // 裁剪矩形                                       │
-  │  - ConcatMatrixOp    // 矩阵变换                                       │
-  │                                                                         │
-  └─────────────────────────────────────────────────────────────────────────┘
-```
+源码：[SkiaRecordingCanvas.cpp](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/libs/hwui/pipeline/skia/SkiaRecordingCanvas.cpp)。
 
 ###### 2.11.5.4.4 硬件加速绘制完整流程图
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         硬件加速绘制完整流程图                               │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -2333,168 +1746,43 @@ Android 图形系统采用 生产者-消费者 模型:
 
 ##### 2.11.5.5 RenderThread 渲染流程
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         RenderThread 渲染流程                               │
-│  源码: frameworks/base/libs/hwui/renderthread/RenderThread.cpp              │
-└─────────────────────────────────────────────────────────────────────────────┘
+UI 线程录制后，通过 HardwareRenderer/RenderProxy 提交到 DrawFrameTask。该边界具有同步阶段，不是“post 完立即返回”。AOSP 17 `DrawFrameTask::drawFrame()` 调用 `postAndWait()`：任务排入 RenderThread 后，调用线程等待条件信号。
 
-  ┌─────────────────────────────────────────────────────────────────────────┐
-  │                                                                         │
-  │  RenderThread 是独立的渲染线程:                                         │
-  │                                                                         │
-  │  ┌───────────────────────────────────────────────────────────────────┐ │
-  │  │                    RenderThread                                    │ │
-  │  │  源码: frameworks/base/libs/hwui/renderthread/RenderThread.cpp     │ │
-  │  ├───────────────────────────────────────────────────────────────────┤ │
-  │  │                                                                   │ │
-  │  │  核心职责:                                                        │ │
-  │  │  1. 从 UI 线程接收 DisplayList                                   │ │
-  │  │  2. 优化 DisplayList (合并、剔除)                                 │ │
-  │  │  3. 执行 OpenGL ES / Vulkan 渲染命令                              │ │
-  │  │  4. 交换缓冲区 (swapBuffers)                                      │ │
-  │  │  5. 提交给 SurfaceFlinger                                         │ │
-  │  │                                                                   │ │
-  │  └───────────────────────────────────────────────────────────────────┘ │
-  │                                                                         │
-  └─────────────────────────────────────────────────────────────────────────┘
-
-
-  RenderThread 渲染流程:
-  ─────────────────────────────────────────────────────────────────────────────
-
-  UI 线程                              RenderThread
-  ──────────                           ────────────
-       │                                     │
-       │  syncAndDrawFrame()                 │
-       │  ─────────────────────────────────► │
-       │  (同步 DisplayList)                 │
-       │                                     │
-       │                                     ▼
-       │                          ┌─────────────────────┐
-       │                          │ 1. 处理同步消息     │
-       │                          │ 2. 优化 DisplayList │
-       │                          │    - 合并相同操作   │
-       │                          │    - 剔除不可见项   │
-       │                          │    - 重排序         │
-       │                          └──────────┬──────────┘
-       │                                     │
-       │  (UI 线程可以继续)                  ▼
-       │  处理其他消息             ┌─────────────────────┐
-       │                          │ 3. 执行 GPU 渲染    │
-       │                          │    OpenGL ES /      │
-       │                          │    Vulkan           │
-       │                          │                     │
-       │                          │  glDrawArrays()     │
-       │                          │  glDrawElements()   │
-       │                          └──────────┬──────────┘
-       │                                     │
-       │                                     ▼
-       │                          ┌─────────────────────┐
-       │                          │ 4. 交换缓冲区       │
-       │                          │    eglSwapBuffers() │
-       │                          │                     │
-       │                          │  提交给 Surface     │
-       │                          │  → BufferQueue      │
-       │                          └─────────────────────┘
-       │                                     │
-       │                                     ▼
-       │                          SurfaceFlinger 合成
-       │
-
-
-  CanvasContext::draw() 源码:
-  ─────────────────────────────────────────────────────────────────────────────
-
-  // frameworks/base/libs/hwui/renderthread/CanvasContext.cpp
-  void CanvasContext::draw() {
-      // 1. 获取 Surface 缓冲区
-      status_t err = mRenderPipeline->setSurface(mSurface);
-      
-      // 2. 开始帧
-      mRenderPipeline->onStartFrame();
-      
-      // 3. 执行渲染
-      mRenderPipeline->draw(...);
-      
-      // 4. 交换缓冲区
-      mRenderPipeline->swapBuffers(frameInfo);
-  }
+```text
+UI: DrawFrameTask::drawFrame -> postAndWait
+      mRenderThread->queue().post(run)
+      mSignal.wait(mLock)
+RT: DrawFrameTask::run
+      syncFrameState(TreeInfo)
+      得到 canUnblockUiThread、是否跳帧等状态
+      可以提前释放时 unblockUiThread
+      完成 CanvasContext / render pipeline 工作
+      不能提前释放时在后续路径释放 UI 等待
 ```
 
-##### 2.11.5.6 OpenGL ES 渲染流程
+同步阶段让渲染线程取得安全可用的节点与资源状态。可提前释放后，UI 与后续 GPU 工作可以并行；资源准备等条件也会延长 UI 等待。Perfetto 中 UI 卡在 syncAndDrawFrame 不等于 Java onDraw 太慢，应继续观察 RenderThread、资源上传和 GPU/fence 依赖。
 
+源码：[DrawFrameTask.cpp](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/libs/hwui/renderthread/DrawFrameTask.cpp)。
+
+##### 2.11.5.6 GPU 后端、提交与 fence
+
+HWUI render pipeline 把 Skia 记录的绘图语义执行到输出 surface；GPU 后端不应固定为 GLES。GLES present 可涉及 eglSwapBuffers，Vulkan 使用自己的提交/呈现路径，不能在整个硬件流程每条分支都写 eglSwapBuffers。
+
+buffer 可以携带尚未 signal 的 GPU 完成 fence；消费者按依赖等待，应用不需要固定先 glFinish。另一方面，dequeue 获取可用 buffer、录制资源同步或 GPU 排队会产生实际等待，fence 不意味着整个调用链永不阻塞。
+
+```text
+UI 录制 -> RT 同步 -> Skia/GPU backend 栅格化
+                           -> buffer + fence 入队
+                           -> BLAST 事务
+                           -> SurfaceFlinger / HWC 呈现
+                           -> release 同步 -> 后续复用
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         OpenGL ES 渲染流程                                  │
-│  源码: frameworks/base/libs/hwui/                                           │
-└─────────────────────────────────────────────────────────────────────────────┘
 
-  ┌─────────────────────────────────────────────────────────────────────────┐
-  │                                                                         │
-  │  HWUI 使用 OpenGL ES 执行渲染:                                          │
-  │                                                                         │
-  │  1. DisplayList → OpenGL 命令转换                                       │
-  │  ─────────────────────────────────────────────────────────────────────── │
-  │                                                                         │
-  │     DisplayList 命令              OpenGL ES 命令                        │
-  │     ┌─────────────────┐          ┌─────────────────┐                   │
-  │     │ drawRect()      │    →     │ glDrawArrays()  │                   │
-  │     │ drawCircle()    │    →     │ glDrawArrays()  │                   │
-  │     │ drawPath()      │    →     │ 多边形三角化    │                   │
-  │     │ drawBitmap()    │    →     │ 纹理绑定 + 绘制 │                   │
-  │     │ drawText()      │    →     │ 文字纹理缓存    │                   │
-  │     └─────────────────┘          └─────────────────┘                   │
-  │                                                                         │
-  │  2. GPU 渲染到 FBO (FrameBuffer Object)                                │
-  │  ─────────────────────────────────────────────────────────────────────── │
-  │                                                                         │
-  │     FBO 绑定到 GraphicBuffer:                                          │
-  │                                                                         │
-  │     ┌─────────────────────────────────────────────────────────────┐    │
-  │     │                      GPU                                     │    │
-  │     │  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐    │    │
-  │     │  │ Vertex      │    │ Fragment    │    │ FBO         │    │    │
-  │     │  │ Shader      │ ─► │ Shader      │ ─► │ (帧缓冲)    │    │    │
-  │     │  │ (顶点处理)  │    │ (像素处理)  │    │             │    │    │
-  │     │  └─────────────┘    └─────────────┘    └──────┬──────┘    │    │
-  │     │                                               │           │    │
-  │     └───────────────────────────────────────────────┼───────────┘    │
-  │                                                     │                 │
-  │                                                     ▼                 │
-  │                                         ┌─────────────────┐          │
-  │                                         │ GraphicBuffer   │          │
-  │                                         │ (共享内存)      │          │
-  │                                         └─────────────────┘          │
-  │                                                                         │
-  └─────────────────────────────────────────────────────────────────────────┘
-
-
-  eglSwapBuffers() 流程:
-  ─────────────────────────────────────────────────────────────────────────────
-
-  ┌─────────────────────────────────────────────────────────────────────────┐
-  │                                                                         │
-  │  eglSwapBuffers()                                                       │
-  │       │                                                                 │
-  │       ▼                                                                 │
-  │  1. 等待 GPU 渲染完成 (glFinish 或 fence)                              │
-  │       │                                                                 │
-  │       ▼                                                                 │
-  │  2. queueBuffer() - 将缓冲区提交到 BufferQueue                         │
-  │       │                                                                 │
-  │       ▼                                                                 │
-  │  3. dequeueBuffer() - 获取新的缓冲区用于下一帧                         │
-  │       │                                                                 │
-  │       ▼                                                                 │
-  │  4. 通知 SurfaceFlinger 有新帧可用                                     │
-  │                                                                         │
-  └─────────────────────────────────────────────────────────────────────────┘
-```
+frame submitted、frame presented 和 buffer released 是不同语义；测量输入到显示延迟时应选择对应时间点，不要只计算 Java 动画回调之间的间隔。
 
 ##### 2.11.5.7 RenderNode 与 DisplayList 详解
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         RenderNode 与 DisplayList 详解                      │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -2553,7 +1841,7 @@ Android 图形系统采用 生产者-消费者 模型:
 
 ##### 2.11.5.8 软件绘制 vs 硬件加速对比
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         软件绘制 vs 硬件加速对比                            │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -3050,11 +2338,11 @@ BLAST 的 buffer 事务可直接提交，也可以交给同步回调与其他窗
 | JNI | Java Surface / BLASTBufferQueue 与 native 对象互调 | Java→native 不意味着跨进程 |
 | BufferQueue 协议 | dequeue/queue/acquire/release 与同步 | BufferQueueCore 对象不是跨进程共享内存 |
 
-完整窗口策略和其他窗口类型的差异见 [Window 与 Surface 详解](Android_Window与Surface详解.md#7-android-17-的-surface-建立与-relayout)。
+完整窗口策略和其他窗口类型的差异见 [Window 与 Surface 详解](Android_Window与Surface详解.md#7-源码分析)。
 
 ### 2.13 View 绘制多层级架构
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         View 绘制多层级架构                                 │
 │  从应用层到硬件层的完整调用链                                               │
@@ -3315,7 +2603,7 @@ BLAST 的 buffer 事务可直接提交，也可以交给同步回调与其他窗
 
 ### 2.14 层级调用完整流程
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         层级调用完整流程                                     │
 │  软件绘制 vs 硬件加速 两条路径                                              │
@@ -3324,7 +2612,7 @@ BLAST 的 buffer 事务可直接提交，也可以交给同步回调与其他窗
 
 #### 2.14.1 软件绘制完整流程
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         软件绘制完整流程                                     │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -3338,7 +2626,7 @@ BLAST 的 buffer 事务可直接提交，也可以交给同步回调与其他窗
   ┌─────────────────────────────────────────────────────────────────────────┐
   │  2. 请求 VSync                                                          │
   │     ViewRootImpl.scheduleTraversals()                                   │
-  │         → Choreographer.postCallback()                                  │
+  │         → Choreographer.postVsyncCallback()                                  │
   │         → 等待 VSync 信号                                               │
   └─────────────────────────────────────────────────────────────────────────┘
                                       │
@@ -3346,8 +2634,8 @@ BLAST 的 buffer 事务可直接提交，也可以交给同步回调与其他窗
   ┌─────────────────────────────────────────────────────────────────────────┐
   │  3. VSync 到来，执行遍历                                                │
   │     Choreographer.doFrame()                                             │
-  │         → ViewRootImpl.doTraversal()                                    │
-  │         → performTraversals()                                           │
+  │         → ViewRootImpl.doTraversal(frameTimeNanos)                                    │
+  │         → performTraversals(frameTimeNanos)                                           │
   └─────────────────────────────────────────────────────────────────────────┘
                                       │
                                       ▼
@@ -3377,16 +2665,16 @@ BLAST 的 buffer 事务可直接提交，也可以交给同步回调与其他窗
   │     Surface.unlockCanvasAndPost(canvas)                                 │
   │         → Native: Surface::unlockAndPost()                              │
   │         → BufferQueueProducer::queueBuffer()                            │
-  │         → 通知 SurfaceFlinger 有新帧                                   │
+  │         → BLAST 接收 buffer 并提交事务                                   │
   └─────────────────────────────────────────────────────────────────────────┘
                                       │
                                       ▼
   ┌─────────────────────────────────────────────────────────────────────────┐
   │  6. SurfaceFlinger 合成                                                 │
   │     VSync 到来时:                                                       │
-  │     BufferQueueConsumer::acquireBuffer()                                │
-  │         → SurfaceFlinger 合成所有 Layer                                 │
-  │         → BufferQueueConsumer::releaseBuffer()                          │
+  │     应用 BLAST 消费 BufferQueue，取得 buffer/fence                                │
+  │         → Transaction 提交给 SurfaceFlinger 合成                                 │
+  │         → release 回调/同步使 buffer 可复用                          │
   └─────────────────────────────────────────────────────────────────────────┘
                                       │
                                       ▼
@@ -3398,7 +2686,7 @@ BLAST 的 buffer 事务可直接提交，也可以交给同步回调与其他窗
 
 #### 2.14.2 硬件加速绘制完整流程
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         硬件加速绘制完整流程                                 │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -3412,7 +2700,7 @@ BLAST 的 buffer 事务可直接提交，也可以交给同步回调与其他窗
   ┌─────────────────────────────────────────────────────────────────────────┐
   │  2. 请求 VSync                                                          │
   │     ViewRootImpl.scheduleTraversals()                                   │
-  │         → Choreographer.postCallback()                                  │
+  │         → Choreographer.postVsyncCallback()                                  │
   │         → 等待 VSync 信号                                               │
   └─────────────────────────────────────────────────────────────────────────┘
                                       │
@@ -3420,8 +2708,8 @@ BLAST 的 buffer 事务可直接提交，也可以交给同步回调与其他窗
   ┌─────────────────────────────────────────────────────────────────────────┐
   │  3. VSync 到来，执行遍历                                                │
   │     Choreographer.doFrame()                                             │
-  │         → ViewRootImpl.doTraversal()                                    │
-  │         → performTraversals()                                           │
+  │         → ViewRootImpl.doTraversal(frameTimeNanos)                                    │
+  │         → performTraversals(frameTimeNanos)                                           │
   └─────────────────────────────────────────────────────────────────────────┘
                                       │
                                       ▼
@@ -3455,16 +2743,16 @@ BLAST 的 buffer 事务可直接提交，也可以交给同步回调与其他窗
   │         → 遍历 DisplayList，执行 OpenGL ES 命令                         │
   │         → GPU 渲染到 FBO → GraphicBuffer                                │
   │         → eglSwapBuffers() → queueBuffer()                              │
-  │         → 通知 SurfaceFlinger 有新帧                                   │
+  │         → BLAST 接收 buffer 并提交事务                                   │
   └─────────────────────────────────────────────────────────────────────────┘
                                       │
                                       ▼
   ┌─────────────────────────────────────────────────────────────────────────┐
   │  6. SurfaceFlinger 合成 (与软件绘制相同)                                 │
   │     VSync 到来时:                                                       │
-  │     BufferQueueConsumer::acquireBuffer()                                │
-  │         → SurfaceFlinger 合成所有 Layer                                 │
-  │         → BufferQueueConsumer::releaseBuffer()                          │
+  │     应用 BLAST 消费 BufferQueue，取得 buffer/fence                                │
+  │         → Transaction 提交给 SurfaceFlinger 合成                                 │
+  │         → release 回调/同步使 buffer 可复用                          │
   └─────────────────────────────────────────────────────────────────────────┘
                                       │
                                       ▼
@@ -3476,7 +2764,7 @@ BLAST 的 buffer 事务可直接提交，也可以交给同步回调与其他窗
 
 #### 2.14.3 两种模式对比流程图
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         软件绘制 vs 硬件加速 流程对比                        │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -3503,7 +2791,7 @@ BLAST 的 buffer 事务可直接提交，也可以交给同步回调与其他窗
     │ Surface.lockCanvas()      │  │ renderNode.beginRecording()│
     │ (从 Surface 获取 Canvas)  │  │ (从 RenderNode 获取 Canvas)│
     │                           │  │                           │
-    │ Canvas 绑定到内存         │  │ Canvas 不绑定内存          │
+    │ Canvas 绑定到内存         │  │ Canvas 不直接写输出像素          │
     │ (GraphicBuffer)           │  │ 只是命令记录器             │
     └───────────┬───────────────┘  └───────────┬───────────────┘
                 │                              │
@@ -3547,7 +2835,7 @@ BLAST 的 buffer 事务可直接提交，也可以交给同步回调与其他窗
 
 ### 2.15 层级总结表
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         View 绘制层级总结                                   │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -3583,7 +2871,7 @@ BLAST 的 buffer 事务可直接提交，也可以交给同步回调与其他窗
 
 #### 2.15.1 软件绘制 vs 硬件加速 层级差异
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         软件绘制 vs 硬件加速 层级差异                        │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -3595,14 +2883,14 @@ BLAST 的 buffer 事务可直接提交，也可以交给同步回调与其他窗
 │                 │  (从 Surface 获取)          │  (从 RenderNode 获取)       │
 ├─────────────────┼─────────────────────────────┼─────────────────────────────┤
 │  Canvas 类型     │  SkiaCanvas                 │  RecordingCanvas            │
-│                 │  (绑定内存)                 │  (不绑定内存)               │
+│                 │  (绑定内存)                 │  (不直接写输出像素)               │
 ├─────────────────┼─────────────────────────────┼─────────────────────────────┤
 │  渲染引擎        │  Skia (CPU)                 │  OpenGL ES / Vulkan (GPU)   │
 ├─────────────────┼─────────────────────────────┼─────────────────────────────┤
 │  绘制线程        │  UI 线程 (同步)             │  RenderThread (异步)        │
 ├─────────────────┼─────────────────────────────┼─────────────────────────────┤
 │  绘制时机        │  draw() 立即写入内存        │  draw() 只记录命令          │
-│                 │  UI 线程阻塞                │  UI 线程快速返回            │
+│                 │  UI 线程阻塞                │  UI 线程仍有录制与同步成本            │
 ├─────────────────┼─────────────────────────────┼─────────────────────────────┤
 │  缓冲区获取      │  lockCanvas 时 dequeue      │  RenderThread 中 dequeue    │
 ├─────────────────┼─────────────────────────────┼─────────────────────────────┤
@@ -3625,7 +2913,7 @@ BLAST 的 buffer 事务可直接提交，也可以交给同步回调与其他窗
 
 #### 2.15.2 关键类差异
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         软件绘制 vs 硬件加速 关键类差异                      │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -3657,7 +2945,7 @@ BLAST 的 buffer 事务可直接提交，也可以交给同步回调与其他窗
 
 #### 2.15.3 跨层通信方式
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         跨层通信方式                                        │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -3691,7 +2979,7 @@ BLAST 的 buffer 事务可直接提交，也可以交给同步回调与其他窗
 
 ## 3. WindowManager 架构
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         WindowManager 架构                                  │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -3742,7 +3030,7 @@ BLAST 的 buffer 事务可直接提交，也可以交给同步回调与其他窗
 
 ### 4.1 Measure 流程图
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         Measure 测量流程                                    │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -3773,7 +3061,7 @@ ViewGroup (如果是 ViewGroup)
 
 ### 4.2 MeasureSpec 详解
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         MeasureSpec 详解                                    │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -3809,51 +3097,25 @@ MeasureSpec = Mode (高2位) + Size (低30位)
 
 ### 4.3 onMeasure 标准实现
 
-```java
-// View.onMeasure() 默认实现
-protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
-    setMeasuredDimension(
-            getDefaultSize(getSuggestedMinimumWidth(), widthMeasureSpec),
-            getDefaultSize(getSuggestedMinimumHeight(), heightMeasureSpec));
-}
+自定义 View 先计算内容与 padding 的期望像素尺寸，再用 resolveSizeAndState 与父约束合并，不把“设计宽 200”当作所有密度设备的固定像素值。
 
-// 自定义 View 的标准写法
+```java
+// 自定义 View 内的应用代码，内容设计尺寸 100dp。
 @Override
 protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
-    int widthMode = MeasureSpec.getMode(widthMeasureSpec);
-    int widthSize = MeasureSpec.getSize(widthMeasureSpec);
-    int heightMode = MeasureSpec.getMode(heightMeasureSpec);
-    int heightSize = MeasureSpec.getSize(heightMeasureSpec);
-    
-    int desiredWidth = 200;  // 期望宽度
-    int desiredHeight = 200; // 期望高度
-    
-    int width, height;
-    
-    // 处理宽度
-    if (widthMode == MeasureSpec.EXACTLY) {
-        width = widthSize;
-    } else if (widthMode == MeasureSpec.AT_MOST) {
-        width = Math.min(desiredWidth, widthSize);
-    } else {
-        width = desiredWidth;
-    }
-    
-    // 处理高度
-    if (heightMode == MeasureSpec.EXACTLY) {
-        height = heightSize;
-    } else if (heightMode == MeasureSpec.AT_MOST) {
-        height = Math.min(desiredHeight, heightSize);
-    } else {
-        height = desiredHeight;
-    }
-    
-    // ★★★ 必须调用 ★★★
-    setMeasuredDimension(width, height);
+    int content = Math.round(TypedValue.applyDimension(
+            TypedValue.COMPLEX_UNIT_DIP, 100f, getResources().getDisplayMetrics()));
+    int desiredWidth = Math.max(getSuggestedMinimumWidth(),
+            content + getPaddingLeft() + getPaddingRight());
+    int desiredHeight = Math.max(getSuggestedMinimumHeight(),
+            content + getPaddingTop() + getPaddingBottom());
+    setMeasuredDimension(
+            resolveSizeAndState(desiredWidth, widthMeasureSpec, 0),
+            resolveSizeAndState(desiredHeight, heightMeasureSpec, 0));
 }
 ```
 
----
+此处不调用 super.onMeasure，因为已经完整给出自己的测量逻辑。setMeasuredDimension 接收带测量状态的结果，而 onLayout 中读取 measuredWidth/Height 获得尺寸；绘制阶段按最终 layout 宽高安置内容。默认 View 的 getDefaultSize 行为与这个“期望内容尺寸”例子不同，见 4.5。
 
 ### 4.4 View.measure()：缓存、强制布局与测量状态
 
@@ -3998,7 +3260,7 @@ public static int resolveSizeAndState(int size, int measureSpec, int childMeasur
 
 ### 5.1 Layout 流程图
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         Layout 布局流程                                     │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -4220,78 +3482,34 @@ var preferredRadiusPx: Float = 60f
 
 ### 7.1 为什么子线程不能更新 UI？
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         为什么子线程不能更新 UI？                            │
-└─────────────────────────────────────────────────────────────────────────────┘
+View 树具有线程归属。ViewRootImpl 的 `mThread` 记录创建根时的线程，通常是 Activity 的主线程；检查的是该线程身份，不是所有进程里名叫“main”的线程。控件内部状态也没有为任意并发修改设计锁保护，不能用“这次没抛异常”判断线程访问合法。
 
-原因: ViewRootImpl.checkThread() 检查线程
-
-void checkThread() {
-    if (mThread != Thread.currentThread()) {
-        throw new CalledFromWrongThreadException(
-            "Only the original thread that created a view hierarchy "
-            + "can touch its views.");
-    }
-}
-
-mThread 是创建 ViewRootImpl 的线程 (主线程)
-
-解决方案:
-1. Activity.runOnUiThread()
-2. View.post()
-3. Handler.post()
-4. 使用 LiveData / RxJava / Flow
-```
+普通 Activity 页面应在主线程更新；Handler 必须绑定相应 Looper，Flow/RxJava 也需要在正确上下文消费。仅使用协程或响应式库并不会自动把任意工作切回 UI 线程。
 
 ### 7.2 invalidate() vs requestLayout()
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                invalidate() vs requestLayout()                              │
-└─────────────────────────────────────────────────────────────────────────────┘
+| 方法 | 标记的失效 | 后续行为 |
+|---|---|---|
+| invalidate | 绘制内容/脏区域 | 调度重绘，硬件路径可能重录显示列表，不是立即调用 onDraw |
+| requestLayout | 测量/布局约束 | 请求遍历；是否实际重测、重新布局及绘制由状态和缓存决定 |
 
-┌─────────────────┬───────────────────────────────────────────────────────────┐
-│  方法           │  作用                                                     │
-├─────────────────┼───────────────────────────────────────────────────────────┤
-│  invalidate()   │  只触发 onDraw()，重绘 View                               │
-│                 │  不改变尺寸和位置                                         │
-│                 │  用于: 改变颜色、文字等                                   │
-├─────────────────┼───────────────────────────────────────────────────────────┤
-│  requestLayout()│  触发 onMeasure() → onLayout() → onDraw()                │
-│                 │  重新测量、布局、绘制                                     │
-│                 │  用于: 改变尺寸、位置                                     │
-└─────────────────┴───────────────────────────────────────────────────────────┘
-```
+更改颜色通常只需 invalidate；期望尺寸变化应 requestLayout；同时影响内容和尺寸可两者都调用。不要把它们写成“只调用 onDraw”和“必定 measure→layout→draw”的同步 API。
 
-### 7.3 View.post() 为什么可以获取宽高？
+### 7.3 View.post 与布局完成的条件
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│          View.post() 为什么可以获取宽高？                                    │
-└─────────────────────────────────────────────────────────────────────────────┘
+`View.post()` 在已 attach 时使用 AttachInfo 的 Handler；尚未 attach 时暂存到 HandlerActionQueue，之后附加时转交执行。它本身没有注册“等待所有未来布局完成”的监听器。
 
-View.post() 将 Runnable 放入队列，在 View 的测量完成后执行:
+不过 AOSP 17 的 `scheduleTraversals()` 明确保留一个重要的**有条件顺序保证**：先触发布局/绘制请求、已经调度 traversal，再发往同一队列的普通同步消息，应在该次 traversal 之后执行。源码注释用 `textView.setText()` 后通过该 View 的 Handler post 读取新宽度作例子；保证由遍历屏障实现，异步消息不在此列。
 
-public boolean post(Runnable action) {
-    final AttachInfo attachInfo = mAttachInfo;
-    if (attachInfo != null) {
-        return attachInfo.mHandler.post(action);
-    }
-    // 保存到队列，attach 后执行
-    getRunQueue().post(action);
-    return true;
-}
+因此不能把 post 一概说成无序，也不能把它说成无条件获得最终宽高：未触发布局、尚未 attach、重新排队的后续布局、已经隐藏或被移除的 View 都需要另外处理。业务需要“下一次布局后的尺寸”时可使用 AndroidX `doOnLayout`/`doOnNextLayout`，或 `OnLayoutChangeListener`；读取 width 表示布局宽度，measuredWidth 是最近一次测量结果，两者阶段不同。
 
-执行时机: ViewRootImpl.performTraversals() 后
-         此时 View 已经完成测量，可以获取宽高
-```
+依据：[View.post](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/view/View.java)、[scheduleTraversals 的屏障契约](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/view/ViewRootImpl.java)。
 
 ---
 
 ## 8. 软件渲染 vs 硬件渲染 全面对比
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │             软件渲染 vs 硬件渲染 - 各阶段详细差异                            │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -4299,7 +3517,7 @@ public boolean post(Runnable action) {
 
 ### 8.1 阶段 1: 触发更新 (相同)
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         阶段 1: 触发更新                                    │
 │  软件渲染和硬件渲染在此阶段完全相同                                          │
@@ -4324,7 +3542,7 @@ public boolean post(Runnable action) {
 
 ### 8.2 阶段 2: VSync 处理 (相同)
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         阶段 2: VSync 处理                                  │
 │  软件渲染和硬件渲染在此阶段完全相同                                          │
@@ -4341,23 +3559,23 @@ public boolean post(Runnable action) {
         └──► doCallbacks(CALLBACK_COMMIT)
         │
         ▼
-  ViewRootImpl.doTraversal()
+  ViewRootImpl.doTraversal(frameTimeNanos)
         │
         ▼
-  performTraversals()
+  performTraversals(frameTimeNanos)
 
   ★ 两者完全相同，无差异 ★
 ```
 
 ### 8.3 阶段 3: 测量与布局 (相同)
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         阶段 3: 测量与布局                                  │
 │  软件渲染和硬件渲染在此阶段完全相同                                          │
 └─────────────────────────────────────────────────────────────────────────────┘
 
-  performTraversals()
+  performTraversals(frameTimeNanos)
         │
         ├──► performMeasure()
         │        │
@@ -4382,7 +3600,7 @@ public boolean post(Runnable action) {
 
 ### 8.4 阶段 4: 绘制入口 (分叉点)
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         阶段 4: 绘制入口 (分叉点)                           │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -4414,7 +3632,7 @@ public boolean post(Runnable action) {
 
 ### 8.5 阶段 5: Canvas 获取 (重大差异)
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         阶段 5: Canvas 获取 (重大差异)                      │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -4467,157 +3685,48 @@ public boolean post(Runnable action) {
 
 ### 8.6 阶段 6: 执行绘制 (重大差异)
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         阶段 6: 执行绘制 (重大差异)                         │
-└─────────────────────────────────────────────────────────────────────────────┘
+| 比较项 | 软件 Canvas | 硬件录制 Canvas |
+|---|---|---|
+| 绘图目的地 | 当前可写像素缓冲 | RenderNode 显示列表 recorder |
+| Canvas 调用 | Skia CPU 栅格化并写像素 | 记录/更新本帧绘图语义 |
+| 子树复用 | 受脏区域等策略影响 | 未失效 RenderNode 可引用旧显示列表 |
+| 像素执行 | 主要由发起绘制的 CPU 线程完成 | 后续由 RT/Skia GPU 后端执行 |
+| 成本 | 栅格化、内存访问、buffer 获取 | UI 录制、资源准备、同步、GPU 工作 |
 
-  ┌─────────────────────────────────────┐    ┌─────────────────────────────────────┐
-  │          软件渲染                    │    │          硬件渲染                    │
-  ├─────────────────────────────────────┤    ├─────────────────────────────────────┤
-  │                                     │    │                                     │
-  │  mView.draw(canvas)                 │    │  view.draw(canvas)                  │
-  │        │                            │    │        │                            │
-  │        ▼                            │    │        ▼                            │
-  │  onDraw(canvas)                     │    │  onDraw(canvas)                     │
-  │        │                            │    │        │                            │
-  │        ▼                            │    │        ▼                            │
-  │  canvas.drawRect()                  │    │  canvas.drawRect()                  │
-  │  canvas.drawCircle()                │    │  canvas.drawCircle()                │
-  │  canvas.drawText()                  │    │  canvas.drawText()                  │
-  │        │                            │    │        │                            │
-  │        ▼                            │    │        ▼                            │
-  │  ★★★ SkiaCanvas 执行 ★★★          │    │  ★★★ RecordingCanvas 执行 ★★★    │
-  │                                     │    │                                     │
-  │  SkiaCanvas::drawRect() {           │    │  RecordingCanvas::drawRect() {      │
-  │      // 直接写入内存                │    │      // 创建命令对象                │
-  │      for (y = top; y < bottom; y++)│    │      DrawRectOp* op =               │
-  │          for (x = left; x < right; │    │          new DrawRectOp(...);      │
-  │              x++)                   │    │                                     │
-  │              pixels[x+y*stride] =   │    │      // 添加到命令列表              │
-  │                  color;             │    │      displayList->add(op);          │
-  │  }                                  │    │  }                                  │
-  │                                     │    │                                     │
-  │  ★★★ CPU 逐像素写入 ★★★           │    │  ★★★ 只记录命令，不执行 ★★★     │
-  │  ★★★ UI 线程阻塞 ★★★              │    │  ★★★ UI 线程快速返回 ★★★        │
-  │                                     │    │                                     │
-  └─────────────────────────────────────┘    └─────────────────────────────────────┘
-
-  性能差异:
-  ┌─────────────────┬─────────────────────────┬───────────────────────────────┐
-  │                 │  软件渲染               │  硬件渲染                     │
-  ├─────────────────┼─────────────────────────┼───────────────────────────────┤
-  │  执行方式       │  立即执行               │  记录命令，稍后执行           │
-  │  执行线程       │  UI 线程                │  RenderThread                 │
-  │  CPU 使用       │  高 (逐像素计算)        │  低 (只记录命令)              │
-  │  GPU 使用       │  无                     │  高 (并行渲染)                │
-  │  UI 线程阻塞    │  是                     │  否                           │
-  │  复杂界面性能   │  差                     │  好                           │
-  └─────────────────┴─────────────────────────┴───────────────────────────────┘
-```
+不能把 Skia 复杂绘制写成 `for(x) for(y) pixels=color` 的真实源码，也不能把硬件录制画成每次 `new DrawRectOp`。裁剪、抗锯齿、混合和图片处理决定实际代价；两边都有 CPU 成本。
 
 ### 8.7 阶段 7: 提交结果 (重大差异)
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         阶段 7: 提交结果 (重大差异)                         │
-└─────────────────────────────────────────────────────────────────────────────┘
+软件 unlockCanvasAndPost 交付 buffer；硬件 syncAndDrawFrame 先与 RenderThread 同步，再由后端执行和提交。在可释放 UI 的条件满足前，DrawFrameTask.postAndWait 使 UI 等待。硬件加速允许流水线并行，不等于 UI 一定不阻塞。
 
-  ┌─────────────────────────────────────┐    ┌─────────────────────────────────────┐
-  │          软件渲染                    │    │          硬件渲染                    │
-  ├─────────────────────────────────────┤    ├─────────────────────────────────────┤
-  │                                     │    │                                     │
-  │  // 绘制完成后立即提交               │    │  // 录制完成后同步到 RenderThread   │
-  │  surface.unlockCanvasAndPost(       │    │  syncAndDrawFrame(frameInfo);       │
-  │          canvas);                   │    │        │                            │
-  │        │                            │    │        │                            │
-  │        ▼                            │    │        ▼                            │
-  │  Native:                            │    │  // UI 线程可以继续了!             │
-  │  surface->unlockAndPost()           │    │  // RenderThread 异步执行          │
-  │        │                            │    │        │                            │
-  │        ▼                            │    │        │ (跨线程)                   │
-  │  BufferQueueProducer::              │    │        ▼                            │
-  │      queueBuffer()                  │    │  RenderThread::draw()               │
-  │        │                            │    │        │                            │
-  │        ▼                            │    │        ▼                            │
-  │  状态变化:                          │    │  // ★★★ 独立线程执行 ★★★        │
-  │  DEQUEUED → QUEUED                  │    │                                     │
-  │                                     │    │  // 1. 获取缓冲区                  │
-  │  通知 SurfaceFlinger 有新帧         │    │  dequeueBuffer()                    │
-  │                                     │    │        │                            │
-  │                                     │    │        ▼                            │
-  │                                     │    │  // 2. 执行 OpenGL ES 命令         │
-  │                                     │    │  遍历 DisplayList                   │
-  │                                     │    │      → glDrawArrays()               │
-  │                                     │    │      → GPU 渲染到 FBO               │
-  │                                     │    │        │                            │
-  │                                     │    │        ▼                            │
-  │                                     │    │  // 3. 交换缓冲区                  │
-  │                                     │    │  eglSwapBuffers()                   │
-  │                                     │    │        │                            │
-  │                                     │    │        ▼                            │
-  │                                     │    │  queueBuffer()                      │
-  │                                     │    │        │                            │
-  │                                     │    │        ▼                            │
-  │                                     │    │  通知 SurfaceFlinger 有新帧        │
-  │                                     │    │                                     │
-  └─────────────────────────────────────┘    └─────────────────────────────────────┘
+两者之后通过当前窗口 BLAST/事务协议进入合成。软件 View layer 也可能先生成位图再作为硬件树的一部分上传，并不意味着全窗口转成 drawSoftware；比较时要区分窗口渲染模式与单个 View 的 layer 类型。
 
-  线程模型差异:
-  ┌─────────────────┬─────────────────────────┬───────────────────────────────┐
-  │                 │  软件渲染               │  硬件渲染                     │
-  ├─────────────────┼─────────────────────────┼───────────────────────────────┤
-  │  执行线程       │  UI 线程 (同步)         │  UI 线程 + RenderThread       │
-  │  UI 线程工作    │  全部绘制工作           │  只录制命令                   │
-  │  RenderThread   │  不存在                 │  执行 GPU 渲染                │
-  │  UI 线程阻塞    │  是 (整个绘制过程)      │  否 (快速返回)                │
-  │  并行能力       │  无                     │  UI 线程和渲染并行            │
-  └─────────────────┴─────────────────────────┴───────────────────────────────┘
+### 8.8 阶段 8: SurfaceFlinger 合成 (共同下游)
+
+```text
+软件：CPU 栅格化 -> Surface.unlockCanvasAndPost
+硬件：RenderThread/HWUI -> GPU 后端 present + fence
+                      |
+             应用侧 BufferQueue
+                      |
+            BLASTBufferQueue 消费
+                      |
+     SurfaceControl.Transaction（buffer、fence、层状态）
+                      |
+           SurfaceFlinger 事务与合成调度
+                      |
+              HWC / GPU 合成与呈现
+                      |
+             释放同步，缓冲可被重用
 ```
 
-### 8.8 阶段 8: SurfaceFlinger 合成 (相同)
+共同的是 GraphicBuffer 与 fence 的合成协议，不是两种生产模式有相同的时序或成本。旧图的 `SurfaceFlinger::handleMessageRefresh -> Layer::latchBuffer -> BufferQueueConsumer` 并非当前 BLAST 窗口的消费链；应用侧消费者和合成器必须分开画。buffer 入队、事务接收、GPU 完成、显示呈现和缓冲释放是不同事件，不能用其中一个回调代替其他事件。
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         阶段 8: SurfaceFlinger 合成                         │
-│  软件渲染和硬件渲染在此阶段完全相同                                          │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-  VSync 到来时:
-        │
-        ▼
-  SurfaceFlinger::handleMessageRefresh()
-        │
-        ▼
-  Layer::latchBuffer()
-        │
-        ▼
-  BufferQueueConsumer::acquireBuffer()
-        │
-        │  状态: QUEUED → ACQUIRED
-        │
-        ▼
-  合成所有 Layer (GLES 或 HWC)
-        │
-        ▼
-  提交到 FrameBuffer
-        │
-        ▼
-  BufferQueueConsumer::releaseBuffer()
-        │
-        │  状态: ACQUIRED → FREE
-        │
-        ▼
-  显示到屏幕
-
-  ★ 两者完全相同，无差异 ★
-  ★ 无论是 CPU 写入还是 GPU 渲染，最终都是 GraphicBuffer ★
-  ★ SurfaceFlinger 不关心缓冲区内容是如何产生的 ★
-```
+源码：[BLASTBufferQueue.cpp](https://android.googlesource.com/platform/frameworks/native/+/refs/tags/android-17.0.0_r1/libs/gui/BLASTBufferQueue.cpp) 的 onFrameAvailable、buffer 获取、Transaction.setBuffer 和释放回调路径。
 
 ### 8.9 完整对比总结图
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         软件渲染 vs 硬件渲染 完整对比                        │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -4639,12 +3748,12 @@ public boolean post(Runnable action) {
 
   5. Canvas 获取                Surface              RenderNode
      ★★★ 重大差异 ★★★         .lockCanvas()        .beginRecording()
-                                绑定内存              不绑定内存
+                                绑定内存              不直接写输出像素
                                 SkiaCanvas           RecordingCanvas
 
   6. 执行绘制                   CPU 立即执行         只记录命令
      ★★★ 重大差异 ★★★         逐像素写入           DisplayList
-                                UI 线程阻塞          UI 线程快速返回
+                                UI 线程阻塞          UI 线程仍有录制与同步成本
 
   7. 提交结果                   unlockCanvasAndPost  syncAndDrawFrame
      ★★★ 重大差异 ★★★         同步提交             → RenderThread 异步执行
@@ -4667,13 +3776,13 @@ public boolean post(Runnable action) {
   1. Canvas 来源不同 (Surface vs RenderNode)
   2. Canvas 类型不同 (SkiaCanvas vs RecordingCanvas)
   3. 执行方式不同 (CPU 立即执行 vs 记录命令)
-  4. 渲染引擎不同 (Skia vs OpenGL ES/Vulkan)
+  4. 栅格化后端不同 (Skia CPU vs Skia GPU 后端)
   5. 线程模型不同 (UI 线程同步 vs RenderThread 异步)
 ```
 
 ### 8.10 关键类对比表
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         关键类对比表                                        │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -4710,7 +3819,7 @@ public boolean post(Runnable action) {
 
 ### 8.11 性能对比
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         性能对比                                            │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -4726,11 +3835,11 @@ public boolean post(Runnable action) {
 ├─────────────────────┼─────────────────────────┼─────────────────────────────┤
 │  渐变/阴影           │  CPU 计算慢             │  GPU 并行快                 │
 ├─────────────────────┼─────────────────────────┼─────────────────────────────┤
-│  UI 响应性           │  绘制时阻塞             │  始终流畅                   │
+│  UI 响应性           │  绘制时阻塞             │  仍可能阻塞                   │
 ├─────────────────────┼─────────────────────────┼─────────────────────────────┤
 │  内存占用            │  少                     │  多 (DisplayList 缓存)      │
 ├─────────────────────┼─────────────────────────┼─────────────────────────────┤
-│  电量消耗            │  CPU 高负载耗电         │  GPU 高效省电               │
+│  电量消耗            │  取决于负载         │  取决于负载               │
 ├─────────────────────┼─────────────────────────┼─────────────────────────────┤
 │  兼容性              │  最好                   │  好 (少数设备可能有问题)    │
 └─────────────────────┴─────────────────────────┴─────────────────────────────┘
@@ -4761,7 +3870,7 @@ public boolean post(Runnable action) {
 
 ### 9.1 核心流程图
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         View 绘制完整流程                                   │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -4790,7 +3899,7 @@ scheduleTraversals()
         │
         │  等待 VSync 信号
         ▼
-performTraversals()
+performTraversals(frameTimeNanos)
         │
         ├──► performMeasure() → measure() → onMeasure()
         │

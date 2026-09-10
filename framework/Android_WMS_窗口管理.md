@@ -1,20 +1,54 @@
 # Android WMS 窗口管理深度解析
 
 > 作者：OpenClaw | 日期：2026-03-12  
-> 基于源码：Android 16 (API 36) AOSP
+> 基于源码：AOSP Android 17 / API 37，固定 tag `android-17.0.0_r1`；复核日期：2026-09-10。
 
 ## 目录
 
-1. [概述](#1-概述)
-2. [WMS 架构总览](#2-wms-架构总览)
-3. [WindowToken 与 WindowState](#3-windowtoken-与-windowstate)
-4. [Surface 与 SurfaceFlinger](#4-surface-与-surfaceflinger)
-5. [ViewRootImpl 绘制调度](#5-viewrootimpl-绘制调度)
-6. [Choreographer 编舞者](#6-choreographer-编舞者)
-7. [VSync 信号机制](#7-vsync-信号机制)
-8. [窗口动画系统](#8-窗口动画系统)
-9. [源码路径](#9-源码路径)
-10. [面试常见问题](#10-面试常见问题)
+- [1. 概述](#1-概述)
+  - [1.1 WMS 的核心职责](#11-wms-的核心职责)
+  - [1.2 WMS 在系统中的位置](#12-wms-在系统中的位置)
+- [2. WMS 架构总览](#2-wms-架构总览)
+  - [2.1 WMS 内部架构](#21-wms-内部架构)
+  - [2.2 窗口层级结构](#22-窗口层级结构)
+  - [2.3 Z-order 详细计算逻辑](#23-z-order-详细计算逻辑)
+  - [2.4 DisplayContent 多显示器架构](#24-displaycontent-多显示器架构)
+  - [2.5 DisplayPolicy 显示策略](#25-displaypolicy-显示策略)
+- [3. WindowToken 与 WindowState](#3-windowtoken-与-windowstate)
+  - [3.1 WindowToken](#31-windowtoken)
+  - [3.2 WindowState](#32-windowstate)
+- [4. Surface 与 SurfaceFlinger](#4-surface-与-surfaceflinger)
+  - [4.1 Surface 架构](#41-surface-架构)
+  - [4.2 Surface 创建流程](#42-surface-创建流程)
+  - [4.3 SurfaceFlinger 合成](#43-surfaceflinger-合成)
+  - [4.4 HWC 硬件合成详解](#44-hwc-硬件合成详解)
+  - [4.5 Layer 创建与管理](#45-layer-创建与管理)
+  - [4.6 BufferQueue 缓冲队列](#46-bufferqueue-缓冲队列)
+- [5. ViewRootImpl 绘制调度](#5-viewrootimpl-绘制调度)
+  - [5.1 ViewRootImpl 概述](#51-viewrootimpl-概述)
+  - [5.2 performTraversals() 流程](#52-performtraversals-流程)
+- [6. Choreographer 编舞者](#6-choreographer-编舞者)
+  - [6.1 Choreographer 概述](#61-choreographer-概述)
+  - [6.2 Choreographer 工作流程](#62-choreographer-工作流程)
+- [7. VSync 信号机制](#7-vsync-信号机制)
+  - [7.1 VSync 概述](#71-vsync-概述)
+  - [7.2 三缓冲机制](#72-三缓冲机制)
+- [8. 窗口动画系统](#8-窗口动画系统)
+  - [8.1 窗口动画类型](#81-窗口动画类型)
+  - [8.2 动画执行流程](#82-动画执行流程)
+  - [8.3 多窗口模式](#83-多窗口模式)
+    - [8.3.1 分屏模式 (Split Screen)](#831-分屏模式-split-screen)
+    - [8.3.2 自由窗口模式 (Freeform)](#832-自由窗口模式-freeform)
+    - [8.3.3 画中画模式 (Picture-in-Picture, PiP)](#833-画中画模式-picture-in-picture-pip)
+    - [8.3.4 多窗口模式切换流程](#834-多窗口模式切换流程)
+- [9. 源码路径](#9-源码路径)
+  - [9.1 WMS 源码](#91-wms-源码)
+  - [9.2 客户端源码](#92-客户端源码)
+- [10. 面试常见问题](#10-面试常见问题)
+  - [10.1 基础问题](#101-基础问题)
+  - [10.2 进阶问题](#102-进阶问题)
+  - [10.3 高级问题](#103-高级问题)
+- [总结](#总结)
 
 ---
 
@@ -24,7 +58,7 @@
 
 ### 1.1 WMS 的核心职责
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────┐
 │                    WMS 核心职责                                  │
 ├─────────────────────────────────────────────────────────────────┤
@@ -53,8 +87,8 @@
 │                                                                 │
 │  ┌─────────────────────────────────────────────────────────┐  │
 │  │  4. 输入事件分发 (Input Event Dispatch)                  │  │
-│  │     • 触摸事件分发                                       │  │
-│  │     • 按键事件分发                                       │  │
+│  │     • 提供输入窗口/触摸区域                                       │  │
+│  │     • 协调焦点；实际派发由 InputDispatcher 执行                                       │  │
 │  │     • 与 IMS 协作                                        │  │
 │  └─────────────────────────────────────────────────────────┘  │
 │                                                                 │
@@ -70,7 +104,7 @@
 
 ### 1.2 WMS 在系统中的位置
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                          Android 图形系统架构                                │
 ├─────────────────────────────────────────────────────────────────────────────┤
@@ -88,7 +122,7 @@
 │   │                            ▼                                        │ │
 │   │   ┌──────────────────────────────────────────────────────────────┐ │ │
 │   │   │                    WindowManager                              │ │ │
-│   │   │                    (PhoneWindow)                              │ │ │
+│   │   │                    (WindowManagerImpl)                              │ │ │
 │   │   └──────────────────────────┬───────────────────────────────────┘ │ │
 │   │                               │                                     │ │
 │   └───────────────────────────────┼─────────────────────────────────────┘ │
@@ -142,7 +176,7 @@
 
 ### 2.1 WMS 内部架构
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                          WMS 内部架构                                        │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -171,12 +205,12 @@
 │   │   │                  辅助组件                                     │ │ │
 │   │   │                                                               │ │ │
 │   │   │   ┌──────────────┐  ┌──────────────┐  ┌──────────────┐     │ │ │
-│   │   │   │SurfaceControl│  │InputMonitor  │  │WindowPlacer  │     │ │ │
+│   │   │   │SurfaceControl│  │InputMonitor  │  │WindowSurfacePlacer  │     │ │ │
 │   │   │   │ (Surface控制)│  │ (输入监控)   │  │ (窗口布局)   │     │ │ │
 │   │   │   └──────────────┘  └──────────────┘  └──────────────┘     │ │ │
 │   │   │                                                               │ │ │
 │   │   │   ┌──────────────┐  ┌──────────────┐  ┌──────────────┐     │ │ │
-│   │   │   │WindowAnimator│  │TaskStackContainers│DisplayPolicy│    │ │ │
+│   │   │   │WindowAnimator│  │TaskDisplayArea│DisplayPolicy│    │ │ │
 │   │   │   │ (动画管理)   │  │ (任务栈容器) │  │ (显示策略)   │     │ │ │
 │   │   │   └──────────────┘  └──────────────┘  └──────────────┘     │ │ │
 │   │   │                                                               │ │ │
@@ -189,335 +223,137 @@
 
 ### 2.2 窗口层级结构
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                          窗口层级结构                                        │
-└─────────────────────────────────────────────────────────────────────────────┘
+窗口按照显示区域与容器树组织，而不是全局固定 Layer 0..10：壁纸区域、应用任务区域、IME 容器、系统栏/overlay 等由 DisplayArea policy 和窗口策略放置。
 
-窗口层级 (Z-order) 从下到上：
+同一 display 中窗口的 type、token 和父子关系只是部分输入；动画过程中还可能 reparent 到 leash。层级分析应从 WindowContainer 树和实际 SurfaceControl transaction 入手，不使用历史静态十层表。
 
-Layer 0: Wallpaper Layer (壁纸层)
-Layer 1-2: Application Layer (应用层)
-Layer 3-4: System Error Layer (系统错误层)
-Layer 5: System Alert Layer (系统警告层)
-Layer 6-7: Input Method Layer (输入法层)
-Layer 8: Status Bar Layer (状态栏层)
-Layer 9: Toast Layer (Toast 层)
-Layer 10: Cursor Layer (光标层)
-
-层级越高，窗口越在上层显示。
-```
+源码：[WindowManagerPolicy.java:502](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/services/core/java/com/android/server/policy/WindowManagerPolicy.java#502)。
 
 ### 2.3 Z-order 详细计算逻辑
 
-窗口的层级由 `mBaseLayer` 和 `mSubLayer` 决定，计算公式如下：
+窗口 type 的整数值不是最终 Z-order，不能用 `Z = mBaseLayer * 10000 + mSubLayer` 排序所有窗口。WindowState 构造时通过 WindowManagerPolicy 将窗口类型映射到策略层，乘 TYPE_LAYER_MULTIPLIER 并加 TYPE_LAYER_OFFSET；子窗口还由 getSubWindowLayerFromTypeLw 得到相对子层。
 
-```java
-// 位于 WindowState.java
-int getBaseLayer() {
-    // mBaseLayer 由窗口类型决定
-    // WindowManager.LayoutParams.Type 决定了基础层级
-    // 类型值越大，层级越高
-
-    // 应用窗口: TYPE_APPLICATION (2) → mBaseLayer = 2000
-    // 子窗口:   TYPE_SUB_WAY (1000) → mBaseLayer = 1000_0000
-    // 系统窗口: TYPE_SYSTEM_ALERT (3000) → mBaseLayer = 3000_0000
-
-    return mBaseLayer;
-}
-
-int getSubLayer() {
-    // mSubLayer 决定同一窗口容器内的相对顺序
-    // 正数: 在容器之上
-    // 负数: 在容器之下
-    // 例如 PopupWindow 的 mSubLayer 控制其在父窗口的上方还是下方
-
-    return mSubLayer;
-}
+```text
+LayoutParams.type -> WindowManagerPolicy.getWindowLayerLw
+ -> WindowState.mBaseLayer（策略分区基准）
+子窗口类型 -> getSubWindowLayerFromTypeLw -> mSubLayer
+WindowContainer 树序 / DisplayArea policy / task / token / transition leash
+ -> assignChildLayers / assignLayer / assignRelativeLayer
+ -> SurfaceControl.Transaction 的层级关系 -> SurfaceFlinger 合成顺序
 ```
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                      Z-order 计算公式                                        │
-└─────────────────────────────────────────────────────────────────────────────┘
+Dialog、PopupWindow、IME、系统栏的相对顺序还受所属 token、父子关系、IME target、相对层和转场 leash 影响，没有固定“Dialog 总在 Popup 之上”的数值公式。`TYPE_SUB_WAY` 不存在，TYPE_SYSTEM_ALERT 也不是 3000。
 
-Z = mBaseLayer * 10000 + mSubLayer
-
-示例：
-• 主 Activity Window: Z = 2 * 10000 + 0 = 20000
-• PopupWindow:          Z = 2 * 10000 + 1 = 20001 (在 Activity 之上)
-• Dialog:               Z = 2 * 10000 + 2 = 20002 (在 Popup 之上)
-• 系统 Alert:           Z = 3 * 10000 + 0 = 30000 (在所有应用窗口之上)
-• 输入法:               Z = 6 * 10000 + 0 = 60000 (在 Alert 之上)
-
-比较规则（WindowState.compareTo()）：
-1. 先比较 mBaseLayer（窗口类型决定）
-2. 再比较 mSubLayer（同一容器内相对位置）
-3. 最后比较 mSeq（序列号，处理同一类型的多个窗口）
-```
+源码：[WindowState.java:1108](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/services/core/java/com/android/server/wm/WindowState.java#1108)；[WindowManagerPolicy.java:659](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/services/core/java/com/android/server/policy/WindowManagerPolicy.java#659)；[WindowContainer.java:2687](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/services/core/java/com/android/server/wm/WindowContainer.java#2687)。
 
 ### 2.4 DisplayContent 多显示器架构
 
-```java
-/**
- * DisplayContent - 显示内容
- * 位置：frameworks/base/services/core/java/com/android/server/wm/DisplayContent.java
- *
- * 作用：
- * 1. 管理特定显示器上的所有窗口
- * 2. 维护显示器的配置信息
- * 3. 管理多显示器场景下的窗口分发
- */
-class DisplayContent {
-    final int mDisplayId;                           // 显示器 ID
-    final Display mDisplay;                          // Display 对象
-    final WindowList<WindowState> mWindows;          // 该显示器上的所有窗口
-    final RootWindowContainer mRoot;                 // 根窗口容器
-
-    // 层级根节点
-    final TaskStackContainers mStackContainers;     // 任务栈容器
-    final WindowToken mWallpaper;                    // 壁纸窗口
-    final WindowToken mSplashscreen;                 // 启动窗口
-
-    // 显示信息
-    int mBaseDisplayWidth;                           // 基础宽度
-    int mBaseDisplayHeight;                          // 基础高度
-    int mRotation;                                  // 旋转角度
-    int mDensity;                                    // 密度
-
-    // 挖孔屏/刘海屏
-    DisplayCutout getDisplayCutout();                // 获取挖孔区域
-}
-```
-
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                      DisplayContent 层级树                                   │
-└─────────────────────────────────────────────────────────────────────────────┘
-
+```text
 RootWindowContainer
-    │
-    └── DisplayContent 0 (内置显示器)
-    │       │
-    │       ├── Wallpaper (壁纸)
-    │       │
-    │       ├── TaskStackContainers
-    │       │       ├── TaskStack (Home Stack)
-    │       │       ├── TaskStack (Fullscreen Stack)
-    │       │       └── TaskStack (Pinned Stack / 画中画)
-    │       │
-    │       ├── System Alert (系统警告)
-    │       ├── Input Method (输入法)
-    │       ├── Status Bar (状态栏)
-    │       ├── Navigation Bar (导航栏)
-    │       └── Toast (Toast)
-    │
-    └── DisplayContent 1..N (外接显示器)
-            └── (类似结构)
-
-显示器类型：
-• 0: 内置显示器 (手机/平板)
-• 1+: 外接显示器 (HDMI/USB-C/投屏)
-
-DisplayCutout (挖孔屏)：
-• left:     左侧刘海宽度
-• top:      顶部刘海高度
-• right:    右侧刘海宽度
-• bottom:   底部刘海高度
-• safeInset: 安全区域边距
+  DisplayContent（一个逻辑显示）
+    DisplayArea policy 构造的显示区域
+      TaskDisplayArea -> root Task -> Task/TaskFragment -> ActivityRecord -> WindowState
+      其他 Tokens 区域 -> WindowToken -> WindowState
+      IME container -> 输入法 token / windows
 ```
+
+DisplayContent 维护 DisplayInfo、显示策略、旋转、输入监控和容器布局等；不存在简单 `mWindows` 总列表加 TaskStackContainers 的现代结构。Task 的全屏/自由窗口/画中画模式与显示区域关系独立，不能把所有窗口硬塞到同一种线性树中。
+
+`displayId=0` 是默认显示，非零显示也可能是虚拟显示或其他内置显示；ID 不编码“HDMI/外接”类型。DisplayCutout 包含 safe insets 与 bounding rects，边上的 safeInset 不等同于刘海矩形宽度。
+
+源码：[DisplayContent.java:299](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/services/core/java/com/android/server/wm/DisplayContent.java#299)；[DisplayArea.java:73](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/services/core/java/com/android/server/wm/DisplayArea.java#73)。
 
 ### 2.5 DisplayPolicy 显示策略
 
-```java
-/**
- * DisplayPolicy - 显示策略
- * 位置：frameworks/base/services/core/java/com/android/server/wm/DisplayPolicy.java
- *
- * 职责：
- * 1. 窗口类型判断 - 决定窗口是否系统窗口
- * 2. 窗口动画 - 系统窗口的特殊动画
- * 3. 状态栏/导航栏 - 显示/隐藏策略
- * 4. 卷轴/分屏 - 系统 UI 的显示控制
- */
-class DisplayPolicy {
-    // 导航栏
-    boolean isNavBarAllowedForWindow(WindowState win);
-    int getNavBarPosition(int displayHeight);
+DisplayPolicy 负责某个显示的系统栏、Insets 和窗口策略协作，例如窗口加入校验/参数调整、系统栏外观与控制目标等。它不是由 `isExpandedWindow`、`isFloatingWindow`、`isSystemWindow` 组成的通用 API 集合。
 
-    // 系统窗口
-    boolean isSystemWindow(int type);
-    boolean canAddInternalWindow();
+层级映射入口属于 WindowManagerPolicy；实际显示布局由 DisplayContent、WindowLayout/Insets 与容器协调。多窗口/桌面行为另有 Task、Shell 和组织器参与，不能将厂商“卷轴模式”虚构为本 tag 的 DisplayPolicy 方法。
 
-    // 卷轴模式
-    boolean isExpandedWindow(WindowState win);
-    boolean isFloatingWindow(WindowState win);
-}
-```
-
----
+源码：[DisplayPolicy.java:183](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/services/core/java/com/android/server/wm/DisplayPolicy.java#183)；[WindowManagerPolicy.java:502](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/services/core/java/com/android/server/policy/WindowManagerPolicy.java#502)。
 
 ## 3. WindowToken 与 WindowState
 
 ### 3.1 WindowToken
 
-```java
-/**
- * WindowToken - 窗口令牌
- * 位置：frameworks/base/services/core/java/com/android/server/wm/WindowToken.java
- * 
- * 作用：
- * 1. 权限验证 - 确保有权限的客户端才能操作窗口
- * 2. 归属标识 - 标识窗口属于哪个应用或系统组件
- * 3. 窗口分组 - 相同 Token 的窗口可以一起管理
- * 4. 生命周期 - Token 销毁时关联窗口也会销毁
- */
-class WindowToken {
-    // Token 标识
-    final IBinder token;              // 唯一标识
-    final int windowType;             // 窗口类型
-    final boolean ownerCanManageAppTokens; // 是否可以管理应用 Token
-    
-    // 关联的窗口
-    final WindowList<WindowState> windows; // WindowState 列表
-    
-    // 状态
-    boolean paused;                   // 是否暂停
-    boolean hidden;                   // 是否隐藏
-    boolean waitingToShow;            // 等待显示
-    boolean clientHidden;             // 客户端隐藏
-}
+WindowToken 是服务端 WindowContainer，持有 token 身份与窗口类型，组织其窗口。WMS 在 addWindow 时结合 session/caller 权限、窗口类型、token 的存在/归属/状态进行校验；知道一个 token 不等于拥有任意窗口管理权限。
 
-/**
- * AppWindowToken - 应用窗口令牌
- * 位置：frameworks/base/services/core/java/com/android/server/wm/AppWindowToken.java
- */
-class AppWindowToken extends WindowToken {
-    // 关联的 Activity
-    final ActivityRecord activity;    // Activity 记录
-    
-    // 状态
-    boolean lastAllWindowsHidden;     // 上次所有窗口隐藏
-    boolean allDrawn;                 // 所有窗口已绘制
-    boolean startingDisplayed;        // 启动窗口已显示
-    
-    // 动画
-    boolean hasAnimation;             // 是否有动画
-    boolean animating;                // 是否在动画中
-}
+```text
+WindowToken extends WindowContainer<WindowState>
+ActivityRecord extends WindowToken
 ```
+
+`AppWindowToken.java` 是历史类，不是本 tag 独立当前实现。Activity 的窗口状态和绘制完成信息并入 ActivityRecord 等对象，不能保留一个虚构 AppWindowToken.activity 再与 ActivityRecord 双向解释。移除 token 涉及窗口移除和动画/同步清理，不应理解为释放一个 Java 对象就自动销毁所有 SF layer。
+
+源码：[WindowToken.java:63](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/services/core/java/com/android/server/wm/WindowToken.java#63)；[ActivityRecord.java:372](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/services/core/java/com/android/server/wm/ActivityRecord.java#372)。
 
 ### 3.2 WindowState
 
-```java
-/**
- * WindowState - 窗口状态
- * 位置：frameworks/base/services/core/java/com/android/server/wm/WindowState.java
- */
-class WindowState {
-    // 基本信息
-    final Session mSession;                    // 会话
-    final IWindow mClient;                     // 客户端接口
-    final WindowManager.LayoutParams mAttrs;   // 窗口参数
-    
-    // 窗口尺寸
-    int mFrameLeft, mFrameTop, mFrameRight, mFrameBottom;
-    
-    // 窗口状态
-    boolean mHasSurface;                       // 是否有 Surface
-    boolean mVisible;                          // 是否可见
-    boolean mDrawPending;                      // 绘制等待中
-    boolean mHasDrawn;                         // 已绘制
-    
-    // 动画
-    WindowStateAnimator mWinAnimator;          // 窗口动画器
-    
-    // 层级
-    int mBaseLayer;                            // 基础层级
-    int mSubLayer;                             // 子层级
-    
-    // Surface
-    SurfaceControl mSurfaceControl;            // Surface 控制
-    
-    // 关联
-    WindowToken mToken;                        // 所属 Token
-    AppWindowToken mAppToken;                  // 所属 AppToken
-}
+```text
+WindowState
+  mSession / mClient / mAttrs：调用会话、IWindow 回调与布局参数
+  mWindowFrames 等：frame、父区域和布局状态
+  mToken / mActivityRecord：窗口 token 与 Activity 归属
+  mWinAnimator：服务端 surface / 绘制状态协作
+  mBaseLayer / mSubLayer：策略层级信息
+  WindowContainer 的 SurfaceControl：容器层控制
+  client surface：客户端提交的内容层，受 useClientSurface 分支控制
 ```
 
----
+WindowState 是系统侧窗口记录，Surface 是生产者绘图端点，SurfaceControl 是 layer 控制句柄。一个容器可以管理多个内容/效果层，三者与 compositor Layer 不形成固定一一对应。
+
+源码：[WindowState.java:277](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/services/core/java/com/android/server/wm/WindowState.java#277)；[WindowState.java:3412](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/services/core/java/com/android/server/wm/WindowState.java#3412)。
 
 ## 4. Surface 与 SurfaceFlinger
 
 ### 4.1 Surface 架构
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                        Surface 架构                                         │
-└─────────────────────────────────────────────────────────────────────────────┘
+```text
+应用渲染器 -> Surface（native ANativeWindow / producer 端点）
+  -> 本地 BufferQueue -> BLASTBufferQueue（consumer）
+  -> SurfaceControl.Transaction.setBuffer + fence / frame 信息
+  -> SurfaceFlinger buffer layer -> HWC / GPU -> Display
 
-应用层 (Java)
-    │
-    ▼
-Surface (Java API)
-    │
-    │ JNI
-    ▼
-android::Surface (Native C++)
-    │
-    ▼
-SurfaceControl (Native)
-    │
-    ▼
-BufferQueue (图形缓冲队列)
-    │
-    │ Binder IPC
-    ▼
-SurfaceFlinger
-    │
-    ├─► Layer (图层)
-    ├─► Texture (纹理)
-    └─► Display (显示设备)
+WMS / Shell / 应用 SurfaceControl.Transaction
+  -> 控制 layer 的 parent、可见性、裁剪、位置、alpha、Z-order 等
 ```
+
+SurfaceControl 不是 Surface 绘制路径中固定夹在 native Surface 与 BufferQueue 之间的生产者；它承载 layer 控制身份。这里描述 BLAST 窗口路径，其他生产者/消费者场景可采用不同队列连接。源码：[ViewRootImpl.java:3065](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/view/ViewRootImpl.java#3065)；[BLASTBufferQueue.cpp:779](https://android.googlesource.com/platform/frameworks/native/+/refs/tags/android-17.0.0_r1/libs/gui/BLASTBufferQueue.cpp#779)。
 
 ### 4.2 Surface 创建流程
 
+窗口注册与内容 surface 建立分开，并显式区分 client/server 两条路径：
+
+```text
+WindowManagerGlobal.addView -> ViewRootImpl.setView
+ -> IWindowSession.addToDisplay* -> WMS.addWindow -> WindowState / input channel
+
+WindowManager.useClientSurface() == true（普通非 locally-managed 窗口）
+ ViewRootImpl.relayoutWindow -> updateSurfaceControl -> createSurfaceControl
+ -> 客户端创建/复用内容 SurfaceControl，更新本地 BLAST/Surface
+ -> Session.relayout2 / relayoutAsync2 携带客户端 SurfaceControl
+ -> WMS.relayoutWindow -> WindowState.setClientSurface
+ -> 服务端 reparent、维护绘制状态与窗口容器关系
+
+useClientSurface() == false（保留的服务端路径）
+ ViewRootImpl.relayoutWindow -> Session.relayout / relayoutAsync
+ -> WMS.relayoutWindow -> createSurfaceControl
+ -> WindowStateAnimator.createSurfaceLocked -> 返回 SurfaceControl
+ -> 客户端依据控制句柄建立/更新 BLASTBufferQueue 与 Surface
 ```
-1. 应用调用 addView()
-   └─► WindowManager.addView()
-       └─► ViewRootImpl.setView()
 
-2. ViewRootImpl 请求 WMS
-   └─► Session.addToDisplay()
-       └─► WMS.addWindow()
+同步/异步 relayout 的选择另由 canRelayoutAsync 等条件决定；不能写成所有窗口固定经过两个方法。client-surface 分支不是 WMS.createSurfaceLocked 的同义名称，WMS 仍负责窗口容器、token、布局与权限，不等于“客户端任意摆放系统窗口”。隐藏/销毁时还要释放/缓存内容层、移除 layer 或等待动画/同步清理。
 
-3. WMS 创建 WindowState
-   └─► 创建 WindowToken (如果需要)
-   └─► 分配窗口层级
-
-4. WMS 创建 Surface
-   └─► relayoutWindow()
-       └─► WindowStateAnimator.createSurfaceLocked()
-           └─► SurfaceControl.Builder.build()
-
-5. SurfaceControl 与 SurfaceFlinger 通信
-   └─► SurfaceFlinger.createLayer()
-       └─► 创建 Layer 和 BufferQueue
-
-6. 返回 Surface 给应用
-   └─► 应用获得 Surface
-       └─► 可以通过 Canvas 绘制
-```
+源码：[ViewRootImpl.java:10083](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/view/ViewRootImpl.java#10083)；[ViewRootImpl.java:10108](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/view/ViewRootImpl.java#10108)；[ViewRootImpl.java:10191](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/view/ViewRootImpl.java#10191)；[WindowManagerService.java:2768](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/services/core/java/com/android/server/wm/WindowManagerService.java#2768)；[WindowState.java:3412](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/services/core/java/com/android/server/wm/WindowState.java#3412)；[WindowStateAnimator.java:287](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/services/core/java/com/android/server/wm/WindowStateAnimator.java#287)。
 
 ### 4.3 SurfaceFlinger 合成
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                        SurfaceFlinger 合成流程                              │
 └─────────────────────────────────────────────────────────────────────────────┘
 
 SurfaceFlinger 职责：
-1. 接收各应用的 Surface (Layer)
+1. 接收 layer 的 buffer 与 transaction
 2. 按层级顺序合成
 3. 交给 HWC (Hardware Composer) 或 GPU 合成
 4. 输出到 Display
@@ -534,12 +370,12 @@ Layer 3 (Status) ─┘
 
 ### 4.4 HWC 硬件合成详解
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                      HWC (Hardware Composer) 硬件合成                        │
 └─────────────────────────────────────────────────────────────────────────────┘
 
-HWC 是显示硬件的抽象层，由硬件厂商实现（通常是 GPU/DSP/显示控制器）
+HWC 是厂商提供的显示合成 HAL；device composition 的能力取决于显示管线实现
 
 工作流程：
 ┌──────────────┐      ┌──────────────┐      ┌──────────────┐
@@ -559,8 +395,8 @@ HWC 是显示硬件的抽象层，由硬件厂商实现（通常是 GPU/DSP/显�
 │  │              HWC Composer                              │ │
 │  │                                                        │ │
 │  │  Client Layers (GPU 合成):                             │ │
-│  │  • 需要旋转/缩放的 Layer                               │ │
-│  │  • 有透明度的 Layer                                     │ │
+│  │  • 当前硬件/组合不支持的变换或资源超限的 Layer                               │ │
+│  │  • 当前硬件不支持的混合组合                                     │ │
 │  │  • HWC 不支持的格式                                     │ │
 │  │    ↓ GPU 合成到临时 Buffer                              │ │
 │  │                                                        │ │
@@ -587,19 +423,19 @@ HWC 是显示硬件的抽象层，由硬件厂商实现（通常是 GPU/DSP/显�
 ```
 
 **HWC 优势：**
-- 节省 GPU 资源（GPU 不参与合成）
+- 节省 GPU 资源（device 部分不要求 SF 客户端 GPU 合成；应用绘制仍可能使用 GPU）
 - 省电（专用硬件）
 - 低延迟
 
 **Client Composition 场景：**
-- Layer 需要旋转/镜像
-- Layer 有透明度混合
+- 当前设备对相关旋转/镜像组合不支持
+- 当前设备对相关透明混合组合不支持
 - Layer 跨显示器
 - YUV 格式不支持
 - PixelFormat 不支持
 
 **合成策略选择：**
-```
+```text
 HWC 优先策略：
 1. SurfaceFlinger 调用 HWC.validate()
 2. HWC 分析所有 Layer，计算最优合成方式
@@ -609,174 +445,59 @@ HWC 优先策略：
 
 ### 4.5 Layer 创建与管理
 
-```java
-/**
- * Layer - SurfaceFlinger 中的图层
- * 位置：frameworks/native/services/surfaceflinger/Layer.h
- */
-class Layer {
-    // 缓冲区
-    sp<GraphicBuffer> mBuffer;
-    sp<BufferQueue> mBufferQueue;
+Layer 管理应区分容器层、带 buffer 的内容层和动画 leash；不是一个包含 `mBufferQueue`、0..255 整数 alpha 与宽高字段的固定 Java 类。SurfaceControl alpha API 使用 0..1 浮点值，父子变换和 crop 决定实际显示范围。
 
-    // 属性
-    float mXPos, mYPos;           // 位置
-    float mWidth, mHeight;         // 尺寸
-    uint32_t mAlpha;              // 透明度 (0-255)
-    uint32_t mFlags;              // 标志
+创建窗口内容层时，VRI 或 WMS（按 4.2 分支）经 SurfaceControl.Builder 建立控制句柄。BLAST 使用本地 BufferQueue 接收渲染结果，再通过事务提交 buffer；因此“SurfaceFlinger 为每个窗口分配 BufferQueue 后把 IGraphicBufferProducer 返回应用”的旧图不能解释本 tag 普通窗口路径。
 
-    // 混合模式
-    uint32_t mPremultipliedAlpha;  // 是否预乘 Alpha
-    BlendMode mBlendMode;         // 混合模式
+layer 身份的建立不等于有内容可显示：还要有有效 buffer、满足 acquire fence、可见 parent、正确 crop 和提交时序。排查黑屏应逐一检查这些边界。
 
-    // 变换
-    uint32_t mTransform;          // 旋转/镜像
-    uint32_t mCrop;               // 裁剪区域
-}
-```
-
-```
-Layer 创建流程：
-1. WMS.relayoutWindow()
-   └─► SurfaceControl.Builder.build()
-       └─► SurfaceFlinger.createLayer()
-
-2. SurfaceFlinger 分配 Layer
-   └─► GraphicBufferProducer (GBP) 分配 BufferQueue
-   └─► 创建 BufferLayer
-
-3. 应用端获取 IGraphicBufferProducer
-   └─► 通过 Binder 传递到应用进程
-   └─► 应用通过 dequeueBuffer/queueBuffer 交换数据
-```
+源码：[ViewRootImpl.java:10083](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/view/ViewRootImpl.java#10083)；[BLASTBufferQueue.cpp:779](https://android.googlesource.com/platform/frameworks/native/+/refs/tags/android-17.0.0_r1/libs/gui/BLASTBufferQueue.cpp#779)。
 
 ### 4.6 BufferQueue 缓冲队列
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                      BufferQueue 工作流程                                   │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-┌─────────────┐                    ┌─────────────────┐                  ┌─────────────┐
-│   应用      │                    │   BufferQueue   │                  │ SurfaceFlinger│
-│  (Producer) │                    │   (共享队列)    │                  │ (Consumer)   │
-└──────┬──────┘                    └────────┬────────┘                  └──────┬──────┘
-       │                                  │                                  │
-       │ dequeueBuffer()                  │                                  │
-       │ ───────────────────────────────► │                                  │
-       │                                  │  分配 GraphicBuffer               │
-       │ ◄─────────────────────────────── │                                  │
-       │                                  │                                  │
-       │ lockCanvas() / draw()            │                                  │
-       │ ◄─────────────────────────────── │                                  │
-       │                                  │                                  │
-       │ queueBuffer()                    │                                  │
-       │ ───────────────────────────────► │                                  │
-       │                                  │  Buffer 可用                      │
-       │                                  │ ────────────────────────────────►│
-       │                                  │                                  │
-       │                                  │  acquireBuffer()                  │
-       │                                  │ ◄────────────────────────────────│
-       │                                  │                                  │
-       │                                  │  releaseBuffer()                  │
-       │                                  │ ◄────────────────────────────────│
-       │                                  │  (Buffer 归还队列)                │
-       │                                  │                                  │
-       │                                  │  dequeueBuffer()                  │
-       │                                  │ ◄────────────────────────────────│
-       └──────────────────────────────────┘                                  │
-
-默认 Buffer 数量：2 (双缓冲) / 3 (三缓冲)
+```text
+Producer（应用渲染）           BLASTBufferQueue（本地 consumer）          SF
+ dequeueBuffer -> 获取可写 buffer
+ 渲染 -> queueBuffer --------> onFrameAvailable / acquireBuffer
+                              Transaction.setBuffer -----------------> 接收 buffer/fence
+                              <------- release callback/fence -------- 使用结束
+                              releaseBuffer -> 后续可再次 dequeue
 ```
 
----
+buffer 的可复用性受 producer/consumer 状态、fence 和最大在途数量约束；不能只按“显示完立即返回”理解。普通窗口 BLAST 路径中消费者是 BLAST，不是 SF 直接调用该本地队列的 acquireBuffer。队列数量由协商与管线决定，不保证全设备固定 2 或 3。
+
+源码：[BLASTBufferQueue.cpp:779](https://android.googlesource.com/platform/frameworks/native/+/refs/tags/android-17.0.0_r1/libs/gui/BLASTBufferQueue.cpp#779)。
 
 ## 5. ViewRootImpl 绘制调度
 
 ### 5.1 ViewRootImpl 概述
 
-```java
-/**
- * ViewRootImpl - View 树的根
- * 位置：frameworks/base/core/java/android/view/ViewRootImpl.java
- * 
- * 职责：
- * 1. 管理 DecorView
- * 2. 与 WMS 通信
- * 3. 调度 measure/layout/draw
- * 4. 处理输入事件
- * 5. 管理窗口尺寸
- */
-class ViewRootImpl {
-    // View 树
-    final View mRoot;                         // DecorView
-    
-    // 窗口
-    final IWindow mWindow;                    // 窗口接口
-    final Surface mSurface;                   // Surface
-    
-    // 布局参数
-    WindowManager.LayoutParams mWindowAttributes;
-    
-    // 尺寸
-    int mWidth, mHeight;                      // 窗口尺寸
-    
-    // 状态
-    boolean mFirst;                           // 第一次
-    boolean mLayoutRequested;                 // 请求布局
-    boolean mFullRedrawNeeded;                // 需要完全重绘
-    
-    // Handler
-    final Choreographer mChoreographer;       // 编舞者
-    
-    // 关键方法
-    void setView(View view, WindowManager.LayoutParams attrs);
-    void performTraversals();                 // 核心：执行遍历
-}
+ViewRootImpl 是连接一棵应用 View 树、窗口 session、Surface 与输入通道的客户端对象，不是 View 子类。其顶层 View 字段是 mView，窗口回调由内部 W 实现；setView 真实签名包含 panelParentView 等参数，不能将两参数示意签名作为源码。
+
+```text
+mView / mWindowAttributes：顶层 View 与窗口参数
+mWindow / mWindowSession：IWindow 回调与 IWindowSession 请求
+mSurface / mSurfaceControl / BLASTBufferQueue：渲染端点与图层
+mChoreographer / mHandler：帧回调与线程消息
+输入 receiver / stage 链：事件派发与完成确认
 ```
+
+每个独立添加的普通窗口通常有自己的 VRI；Activity 中 SurfaceView 不等于新增一个 VRI。源码：[ViewRootImpl.java:1642](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/view/ViewRootImpl.java#1642)。
 
 ### 5.2 performTraversals() 流程
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                        performTraversals() 流程                             │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-performTraversals() {
-    
-    1. 预测量 (Predictive Measurement)
-       └─► getRootMeasureSpec()
-           └─► 根据 WindowManager.LayoutParams 计算MeasureSpec
-    
-    2. 测量 (Measure)
-       └─► measureHierarchy()
-           ├─► performMeasure() → onMeasure()
-           └─► 可能多次测量以优化
-    
-    3. 布局 (Layout)
-       └─► performLayout()
-           └─► layout() → onLayout()
-    
-    4. 绘制 (Draw)
-       └─► performDraw()
-           └─► draw() → onDraw()
-               ├─► 绘制背景
-               ├─► 绘制内容
-               ├─► 绘制子 View
-               └─► 绘制装饰
-    
-    5. 与 WMS 通信
-       └─► relayoutWindow()
-           └─► 更新 Surface
-}
-
-触发时机：
-• requestLayout() → 调度 performTraversals()
-• invalidate() → 调度 performDraw()
-• requestFocus() → 调度 performTraversals()
+```text
+requestLayout / invalidate 等 -> scheduleTraversals（同一轮合并）
+ -> Choreographer CALLBACK_TRAVERSAL -> doTraversal -> performTraversals
+ -> 按需预测量 / measureHierarchy
+ -> 按需 relayoutWindow，与 WMS 协调 frame、Insets、配置及 Surface
+ -> 按最终窗口尺寸再测量（需要时）-> performLayout
+ -> pre-draw 检查 / 同步协调 -> performDraw
 ```
 
----
+relayout 不是必然放在 draw 之后；没有有效 Surface 就不能完成正常绘制。invalidate 标记脏区域并调度 traversal，不是直接安排一个绕过 traversal 的 performDraw 调用。并非每次 traversal 都重新 measure/layout/draw，取决于 dirty、layoutRequested、可见性和同步状态。
+
+源码：[ViewRootImpl.java:3924](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/view/ViewRootImpl.java#3924)。
 
 ## 6. Choreographer 编舞者
 
@@ -791,7 +512,7 @@ performTraversals() {
  * 1. 协调动画、输入、绘制的时序
  * 2. 接收 VSync 信号
  * 3. 调度回调执行
- * 4. 保证流畅的 60fps 显示
+ * 4. 按选定帧时间线调度，不保证固定 60fps
  */
 class Choreographer {
     // VSync 接收器
@@ -803,8 +524,9 @@ class Choreographer {
     // 回调类型
     static final int CALLBACK_INPUT = 0;      // 输入
     static final int CALLBACK_ANIMATION = 1;  // 动画
-    static final int CALLBACK_TRAVERSAL = 2;  // 绘制
-    static final int CALLBACK_COMMIT = 3;     // 提交
+    static final int CALLBACK_INSETS_ANIMATION = 2; // Insets 动画
+    static final int CALLBACK_TRAVERSAL = 3;  // 绘制
+    static final int CALLBACK_COMMIT = 4;     // 提交
     
     // 关键方法
     public static Choreographer getInstance();
@@ -815,7 +537,7 @@ class Choreographer {
 
 ### 6.2 Choreographer 工作流程
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                        Choreographer 工作流程                               │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -842,12 +564,13 @@ class Choreographer {
 执行顺序：
 1. CALLBACK_INPUT - 处理输入事件
 2. CALLBACK_ANIMATION - 执行动画
-3. CALLBACK_TRAVERSAL - 执行绘制
-4. CALLBACK_COMMIT - 提交帧
+3. CALLBACK_INSETS_ANIMATION - 执行 Insets 动画
+4. CALLBACK_TRAVERSAL - 执行遍历
+5. CALLBACK_COMMIT - 提交阶段回调，不等于 SF 已显示
 
 时间控制：
-• 每 16.6ms 一个 VSync 信号
-• 所有回调必须在 16.6ms 内完成
+• 16.6ms 是 60Hz 示例；实际由刷新率和所选 frame timeline 决定
+• 主线程、RenderThread、GPU 与合成共享帧预算，不能把整个刷新周期都当作主线程预算
 • 超时 = 掉帧 = 卡顿
 ```
 
@@ -857,7 +580,7 @@ class Choreographer {
 
 ### 7.1 VSync 概述
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                        VSync 信号机制                                       │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -905,7 +628,7 @@ Choreographer
 
 ### 7.2 三缓冲机制
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                        三缓冲机制                                           │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -927,7 +650,7 @@ Frame 3: App 绘制到 Buffer C → Display 显示 Buffer C
 
 劣势：
 1. 增加内存占用
-2. 增加延迟 (最多 2 帧)
+2. 可能增加排队延迟；总延迟并非无条件最多 2 帧
 ```
 
 ---
@@ -936,7 +659,7 @@ Frame 3: App 绘制到 Buffer C → Display 显示 Buffer C
 
 ### 8.1 窗口动画类型
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                        窗口动画类型                                         │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -959,22 +682,17 @@ Frame 3: App 绘制到 Buffer C → Display 显示 Buffer C
 
 ### 8.2 动画执行流程
 
+```text
+ATMS/WMS 收集 transition 参与的 Task/Activity/WindowContainer
+ -> TransitionController / Transition：同步窗口状态与起止事务
+ -> 向 Shell transition player 提交 TransitionInfo、start/finish transaction
+ -> Shell 选择 handler/remote transition，逐帧更新 leash 的 SurfaceControl
+ -> 完成回调与 finish transaction，恢复层级并清理状态
 ```
-1. 动画启动
-   └─► AppTransition.notifyAppTransitionStartingLocked()
 
-2. WMS 准备动画
-   └─► WindowStateAnimator.prepareAnimationLocked()
-       └─► 创建 Animation 对象
+这是现代 Shell transitions 主线；本 tag 仍有 AppTransition/WindowAnimator 等兼容及局部窗口动画路径，不能把所有转场画成不存在的 WindowStateAnimator.prepareAnimationLocked。动画不是应用 View 重绘，每帧 SurfaceControl 变换可复用已有 buffer。
 
-3. 动画更新
-   └─► WindowAnimator.animate()
-       └─► 每帧更新窗口位置/透明度/缩放
-
-4. 动画结束
-   └─► WindowStateAnimator.onAnimationFinished()
-       └─► 清理动画状态
-```
+核心服务入口：[ActivityStarter.java:1770](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/services/core/java/com/android/server/wm/ActivityStarter.java#1770)。
 
 ### 8.3 多窗口模式
 
@@ -982,7 +700,7 @@ Android 多窗口模式分为三种：分屏模式、自由窗口模式、画中
 
 #### 8.3.1 分屏模式 (Split Screen)
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                        分屏模式架构                                        │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1013,20 +731,20 @@ Android 多窗口模式分为三种：分屏模式、自由窗口模式、画中
 分屏实现：
 1. 创建两个 Task
    └─► ActivityRecord 分别属于不同的 Task
-   └─► 两个 Task 在同一个 TaskStack
+   └─► Shell task organizer 组织 stage/root task；子任务以容器关系布局
 
 2. 调整 WindowContainer 布局
-   └─► DisplayContent.onConfigurationChange()
+   └─► Task/WindowContainer 配置更新
    └─► 分发新配置给两个 Task
 
 3. 焦点管理
    └─► 当前激活的 Task 接收输入事件
-   └─► 非焦点 Task 收到 onPause()
+   └─► 多个 Activity 可同时 resumed；焦点及 top-resumed 另行切换
 ```
 
 #### 8.3.2 自由窗口模式 (Freeform)
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                        自由窗口模式                                          │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1054,14 +772,14 @@ Android 多窗口模式分为三种：分屏模式、自由窗口模式、画中
 └─────────────────────────────────────────────────────────────────────────────┘
 
 关键参数：
-• WindowManager.LayoutParams.FLAG_RESIZEABLE
+• Manifest android:resizeableActivity / Task windowingMode（不存在 FLAG_RESIZEABLE）
 • minWidth / minHeight 最小尺寸限制
-• resizeDragScale 拖拽缩放系数
+• Shell bounds/resize 策略（不是通用 LayoutParams 字段）
 ```
 
 #### 8.3.3 画中画模式 (Picture-in-Picture, PiP)
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                        画中画模式                                           │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1085,11 +803,11 @@ Android 多窗口模式分为三种：分屏模式、自由窗口模式、画中
 PiP 实现：
 1. 进入 PiP
    └─► Activity.enterPictureInPictureMode()
-   └─► WMS 创建 Pinned TaskStack
+   └─► ATMS/Shell 协作进入 pinned Task 模式
 
 2. 窗口参数
-   └─► TYPE_PIP_APP_CONTAINER
-   └─► mAspectRatio 设置宽高比
+   └─► WINDOWING_MODE_PINNED（不是窗口 type）
+   └─► PictureInPictureParams.Builder.setAspectRatio 设置请求宽高比
 
 3. 交互
    └─► 触摸展开/关闭
@@ -1109,13 +827,14 @@ public void onMultiWindowModeChanged(boolean isInMultiWindowMode, Configuration 
     }
 }
 
-// 进入分屏
-Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_SETTINGS);
-intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+// 请求相邻启动；只在支持的多窗口上下文生效，不保证强制进入分屏。
+Intent intent = new Intent(this, TargetActivity.class);
+intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_LAUNCH_ADJACENT);
 startActivity(intent);
+// ACTION_MANAGE_OVERLAY_SETTINGS 是悬浮窗权限设置，与进入分屏无关。
 ```
 
-```
+```text
 多窗口模式切换流程：
 
 1. 用户触发切换（长按 Home / 按钮 / PiP）
@@ -1123,7 +842,7 @@ startActivity(intent);
 
 2. ActivityTaskManagerService 处理
    └─► 判断目标模式（分屏/自由/PiP）
-   └─► 修改 TaskStack 配置
+   └─► 更新 Task 的窗口模式与 bounds
 
 3. WMS 执行窗口重排
    └─► WindowSurfacePlacer 重新布局
@@ -1142,7 +861,7 @@ startActivity(intent);
 
 ### 9.1 WMS 源码
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                        WMS 源码路径                                         │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1152,12 +871,12 @@ frameworks/base/services/core/java/com/android/server/wm/
 ├── RootWindowContainer.java           # 根窗口容器
 ├── DisplayContent.java                # 显示内容
 ├── WindowToken.java                   # 窗口令牌
-├── AppWindowToken.java                # 应用窗口令牌
+├── ActivityRecord.java                # Activity 窗口令牌与状态
 ├── WindowState.java                   # 窗口状态
 ├── WindowStateAnimator.java           # 窗口动画器
 ├── WindowAnimator.java                # 动画管理器
 ├── WindowContainer.java               # 窗口容器基类
-├── SurfaceControl.java                # Surface 控制
+├── TransitionController.java          # 转场协调
 ├── InputMonitor.java                  # 输入监控
 ├── DisplayPolicy.java                 # 显示策略
 └── AppTransition.java                 # 应用转场
@@ -1165,7 +884,7 @@ frameworks/base/services/core/java/com/android/server/wm/
 
 ### 9.2 客户端源码
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                        客户端源码路径                                       │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1195,7 +914,7 @@ frameworks/base/core/java/android/app/
 
 **Q1: WMS 的职责是什么？**
 
-```
+```text
 1. 窗口管理 - 创建/显示/更新/销毁窗口
 2. Surface 管理 - 分配和释放 Surface
 3. 动画管理 - 窗口切换/转场动画
@@ -1205,7 +924,7 @@ frameworks/base/core/java/android/app/
 
 **Q2: WindowToken 的作用？**
 
-```
+```text
 1. 权限验证 - 确保有权限的客户端才能操作窗口
 2. 归属标识 - 标识窗口属于哪个应用或系统组件
 3. 窗口分组 - 相同 Token 的窗口可以一起管理
@@ -1214,7 +933,7 @@ frameworks/base/core/java/android/app/
 
 **Q3: Surface 和 SurfaceFlinger 的关系？**
 
-```
+```text
 Surface:
 • 应用层的绘图表面
 • 提供 Canvas 给应用绘制
@@ -1222,7 +941,7 @@ Surface:
 
 SurfaceFlinger:
 • 系统服务，负责合成所有 Layer
-• 接收各应用的 Surface
+• 接收 layer 的 buffer、fence 与状态事务
 • 按层级合成后交给 HWC/GPU
 • 输出到 Display
 ```
@@ -1231,21 +950,22 @@ SurfaceFlinger:
 
 **Q4: performTraversals() 的执行流程？**
 
+```text
+requestLayout / invalidate 等 -> scheduleTraversals（同一轮合并）
+ -> Choreographer CALLBACK_TRAVERSAL -> doTraversal -> performTraversals
+ -> 按需预测量 / measureHierarchy
+ -> 按需 relayoutWindow，与 WMS 协调 frame、Insets、配置及 Surface
+ -> 按最终窗口尺寸再测量（需要时）-> performLayout
+ -> pre-draw 检查 / 同步协调 -> performDraw
 ```
-1. 预测量 - 计算MeasureSpec
-2. 测量 - measureHierarchy() → performMeasure()
-3. 布局 - performLayout()
-4. 绘制 - performDraw()
-5. 通信 - relayoutWindow() 与 WMS 通信
 
-触发时机：
-• requestLayout() → 调度 performTraversals()
-• invalidate() → 调度 performDraw()
-```
+relayout 不是必然放在 draw 之后；没有有效 Surface 就不能完成正常绘制。invalidate 标记脏区域并调度 traversal，不是直接安排一个绕过 traversal 的 performDraw 调用。并非每次 traversal 都重新 measure/layout/draw，取决于 dirty、layoutRequested、可见性和同步状态。
+
+源码：[ViewRootImpl.java:3924](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/view/ViewRootImpl.java#3924)。
 
 **Q5: Choreographer 的作用？**
 
-```
+```text
 职责：
 1. 协调动画、输入、绘制的时序
 2. 接收 VSync 信号
@@ -1254,17 +974,18 @@ SurfaceFlinger:
 回调顺序：
 1. CALLBACK_INPUT - 处理输入事件
 2. CALLBACK_ANIMATION - 执行动画
-3. CALLBACK_TRAVERSAL - 执行绘制
-4. CALLBACK_COMMIT - 提交帧
+3. CALLBACK_INSETS_ANIMATION - 执行 Insets 动画
+4. CALLBACK_TRAVERSAL - 执行遍历
+5. CALLBACK_COMMIT - 提交阶段回调，不等于 SF 已显示
 
 时间限制：
-• 必须在 16.6ms 内完成 (60Hz)
+• 按所选 timeline 的 deadline 评估，60Hz 周期约 16.6ms 不是通用执行预算
 • 超时 = 掉帧 = 卡顿
 ```
 
 **Q6: VSync 信号机制？**
 
-```
+```text
 VSync (垂直同步信号):
 • 由显示器发出
 • 60Hz: 16.6ms/帧
@@ -1284,7 +1005,7 @@ Display → SurfaceFlinger → Choreographer → 应用
 
 **Q7: 为什么 requestLayout() 不会立即执行？**
 
-```
+```text
 原因：
 1. requestLayout() 只是标记需要布局
 2. 通过 Choreographer 调度到下一个 VSync 执行
@@ -1300,7 +1021,7 @@ requestLayout()
 
 **Q8: 如何优化 UI 卡顿？**
 
-```
+```text
 1. 减少 overdraw (过度绘制)
    • 使用 ConstraintLayout 减少层级
    • 移除不必要的背景
@@ -1312,7 +1033,7 @@ requestLayout()
 
 3. 避免主线程阻塞
    • 耗时操作放子线程
-   • 使用 AsyncTask/Coroutines
+   • 使用后台 Executor/dispatcher；AsyncTask 已废弃
 
 4. 使用 Systrace 分析
    • 定位卡顿原因
@@ -1325,21 +1046,24 @@ requestLayout()
 
 **Q9: Z-order 是如何计算的？**
 
-```
-Z = mBaseLayer * 10000 + mSubLayer
+窗口 type 的整数值不是最终 Z-order，不能用 `Z = mBaseLayer * 10000 + mSubLayer` 排序所有窗口。WindowState 构造时通过 WindowManagerPolicy 将窗口类型映射到策略层，乘 TYPE_LAYER_MULTIPLIER 并加 TYPE_LAYER_OFFSET；子窗口还由 getSubWindowLayerFromTypeLw 得到相对子层。
 
-计算规则：
-1. mBaseLayer 由窗口类型决定（TYPE_APPLICATION=2 → 基础层级 2000）
-2. mSubLayer 决定同一容器内的相对顺序（正数在上，负数在下）
-3. 窗口类型越大，层级越高
-
-层级顺序（从低到高）：
-壁纸 → 应用窗口 → 系统错误 → 系统警告 → 输入法 → 状态栏 → Toast
+```text
+LayoutParams.type -> WindowManagerPolicy.getWindowLayerLw
+ -> WindowState.mBaseLayer（策略分区基准）
+子窗口类型 -> getSubWindowLayerFromTypeLw -> mSubLayer
+WindowContainer 树序 / DisplayArea policy / task / token / transition leash
+ -> assignChildLayers / assignLayer / assignRelativeLayer
+ -> SurfaceControl.Transaction 的层级关系 -> SurfaceFlinger 合成顺序
 ```
+
+Dialog、PopupWindow、IME、系统栏的相对顺序还受所属 token、父子关系、IME target、相对层和转场 leash 影响，没有固定“Dialog 总在 Popup 之上”的数值公式。`TYPE_SUB_WAY` 不存在，TYPE_SYSTEM_ALERT 也不是 3000。
+
+源码：[WindowState.java:1108](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/services/core/java/com/android/server/wm/WindowState.java#1108)；[WindowManagerPolicy.java:659](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/services/core/java/com/android/server/policy/WindowManagerPolicy.java#659)；[WindowContainer.java:2687](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/services/core/java/com/android/server/wm/WindowContainer.java#2687)。
 
 **Q10: HWC 和 GPU 合成的区别？**
 
-```
+```text
 ┌──────────────┬────────────────────────┬────────────────────────┐
 │     维度     │     HWC 硬件合成       │     GPU 客户端合成      │
 ├──────────────┼────────────────────────┼────────────────────────┤
@@ -1347,7 +1071,7 @@ Z = mBaseLayer * 10000 + mSubLayer
 │ 资源消耗     │ 低（专用硬件）         │ 高（GPU 参与）         │
 │ 能耗         │ 低                    │ 高                     │
 │ 延迟         │ 低                    │ 较高                   │
-│ 适用场景     │ 简单平面合成           │ 需要变换/透明度的 Layer │
+│ 适用场景     │ 简单平面合成           │ 当前硬件无法承载的组合（变换/透明不必然要求 GPU） │
 │ 灵活性       │ 低（硬件决定）         │ 高（软件可编程）        │
 └──────────────┴────────────────────────┴────────────────────────┘
 
@@ -1359,23 +1083,11 @@ SurfaceFlinger 策略：
 
 **Q11: BufferQueue 的工作原理？**
 
-```
-BufferQueue 连接应用（Producer）和 SurfaceFlinger（Consumer）
-
-流程：
-1. dequeueBuffer() - 应用从队列获取 Buffer 绘制
-2. queueBuffer() - 绘制完成后归还 Buffer
-3. acquireBuffer() - SurfaceFlinger 获取 Buffer 进行合成
-4. releaseBuffer() - 合成完毕后归还 Buffer 给应用
-
-缓冲数量：
-• 双缓冲（2 Buffer）：最常见，防止撕裂
-• 三缓冲（3 Buffer）：减少等待，提高流畅度
-```
+dequeue/queue 是生产者接口，acquire/release 是消费者接口。普通窗口的 BLASTBufferQueue 是本地消费者，再用 SurfaceControl transaction 将 buffer/fence 交给 SF；不能仍把 SF 画为直接消费同一个应用本地队列。队列数与回压策略协商，详见 4.6。
 
 **Q12: SurfaceFlinger 合成时机？**
 
-```
+```text
 SurfaceFlinger 在以下时机触发合成：
 
 1. 定时刷新（VSync）
@@ -1384,7 +1096,7 @@ SurfaceFlinger 在以下时机触发合成：
 
 2. 内容更新
    • 应用提交了新 Buffer
-   • 调用 eglSwapBuffers() / Surface.unlockCanvas()
+   • 调用 eglSwapBuffers() / Surface.unlockCanvasAndPost()
 
 3. 合成流程
    • 接收所有 Layer 的新 Buffer
@@ -1394,28 +1106,11 @@ SurfaceFlinger 在以下时机触发合成：
 
 **Q13: 多窗口模式下 Activity 的生命周期？**
 
-```
-分屏模式：
-• 当前 Activity：onPause()（失去焦点，但仍可见）
-• 后台 Activity：onStop()
-
-退出分屏：
-• 当前 Activity：onResume()
-• 后台 Activity：onStart() → onRestart() → onResume()
-
-PiP 模式：
-• 进入 PiP：onPause() → onPictureInPictureModeChanged()
-• 退出 PiP：onPictureInPictureModeChanged() → onResume()
-
-关键 API：
-• onMultiWindowModeChanged() - 多窗口模式变化
-• onPictureInPictureModeChanged() - PiP 模式变化
-• isInMultiWindowMode() - 判断是否在多窗口模式
-```
+多窗口支持 multi-resume，非焦点不必 onPause；top-resumed 与输入焦点分别管理。仅当停止后重新显示才走 onRestart → onStart → onResume，不能写成 onStart → onRestart。PiP 的 onPictureInPictureModeChanged 描述模式变化，是否 pause/stop 及顺序受当前状态与过渡影响，不作为固定二回调公式。
 
 **Q14: DisplayContent 和 Display 的区别？**
 
-```
+```text
 Display：
 • 应用层 API（android.view.Display）
 • 获取分辨率、刷新率、密度等显示信息
@@ -1431,40 +1126,14 @@ DisplayContent（系统内部）
     ↓ 引用
 Display（应用 API）
 
-一个物理显示器对应一个 DisplayContent
+一个逻辑 display 对应相应 DisplayContent；也包括虚拟显示
 • 内置显示器：displayId = 0
-• 外接显示器：displayId = 1, 2, ...
+• 其他显示器：ID 动态分配，非零不等于物理外接
 ```
 
 **Q15: 为什么 Toast 使用 Handler 而不是直接显示 Window？**
 
-```
-Toast 的特殊性：
-1. Toast 不是普通窗口
-   • TYPE_TOAST（浮动窗口）
-   • 需要 SYSTEM_ALERT_WINDOW 权限
-   • 但系统特殊处理，不需要用户授权
-
-2. 使用 Handler 的原因：
-   • Toast 的显示和隐藏需要按顺序执行
-   • 避免多个 Toast 叠加
-   • 通过 Binder 异步通信，Handler 等待回调
-
-3. 显示流程：
-   Toast.show()
-     └─► TN Handler.post(show())
-         └─► WMS.addView() 添加 Window
-             └─► 设置延时（TN.WINDOW_SHOW_TIME）
-                 └─► TN Handler.post(hide())
-                     └─► WMS.removeView() 移除 Window
-
-4. 权限问题：
-   • Android 4.4 以前：不需要权限
-   • Android 4.4+：需要 SYSTEM_ALERT_WINDOW 权限
-   • Android 6.0+：需要额外弹框授权
-```
-
----
+普通 Toast 不要求 SYSTEM_ALERT_WINDOW，不能把 TYPE_TOAST 与悬浮窗权限混为一谈。Toast.show 经 INotificationManager 请求，现代文本 Toast 通常由 SystemUI 渲染；自定义 Toast 仍可能使用应用 TN/ToastPresenter，受后台与 target 等限制。TN Handler 将 Binder 回调切到所属 Looper 后操作 View，不是通过 WMS.addView 这一不存在的客户端 API。源码：[Toast.java:198](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/widget/Toast.java#198)。
 
 ## 总结
 
@@ -1484,4 +1153,4 @@ Toast 的特殊性：
 
 ---
 
-*文档更新时间: 2026-04-17*
+*文档更新时间: 2026-09-10*

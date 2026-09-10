@@ -2,127 +2,107 @@
 
 > 作者：OpenClaw | 日期：2026-03-11  
 > 应用安全防护完全指南 | 混淆、加固、加密、防护
+> 平台分析基线：AOSP `android-17.0.0_r1`。第三方库/加固工具不是 AOSP API，版本和产品能力单独核验。
 
 ---
 
 ## 📚 目录
 
-### 第一篇：Android 安全基础
-
-**第 1 章 安全概述**
-- 1.1 [Android 安全模型](#11-android-安全模型)
-- 1.2 [安全威胁分析](#12-安全威胁分析)
-- 1.3 [安全防护层次](#13-安全防护层次)
-- 1.4 [安全开发原则](#14-安全开发原则)
-
-**第 2 章 应用签名**
-- 2.1 [签名机制原理](#21-签名机制原理)
-- 2.2 [调试签名与发布签名](#22-调试签名与发布签名)
-- 2.3 [APK Signature Scheme](#23-apk-signature-scheme)
-- 2.4 [多渠道打包](#24-多渠道打包)
-- 2.5 [签名校验](#25-签名校验)
-
-**第 3 章 混淆详解**
-- 3.1 [混淆原理](#31-混淆原理)
-- 3.2 [ProGuard 配置](#32-proguard-配置)
-- 3.3 [R8 优化器](#33-r8-优化器)
-- 3.4 [混淆规则详解](#34-混淆规则详解)
-- 3.5 [常见混淆问题](#35-常见混淆问题)
-
-**第 4 章 加固技术**
-- 4.1 [加固原理](#41-加固原理)
-- 4.2 [DEX 加固](#42-dex-加固)
-- 4.3 [SO 加固](#43-so-加固)
-- 4.4 [资源保护](#44-资源保护)
-- 4.5 [反调试技术](#45-反调试技术)
-
-**第 5 章 反编译与防护**
-- 5.1 [反编译工具链](#51-反编译工具链)
-- 5.2 [逆向分析流程](#52-逆向分析流程)
-- 5.3 [代码防护策略](#53-代码防护策略)
-- 5.4 [资源防护策略](#54-资源防护策略)
-
----
-
-### 第二篇：数据安全
-
-**第 6 章 数据加密**
-- 6.1 [加密算法基础](#61-加密算法基础)
-- 6.2 [对称加密（AES）](#62-对称加密aes)
-- 6.3 [非对称加密（RSA）](#63-非对称加密rsa)
-- 6.4 [哈希算法（SHA/MD5）](#64-哈希算法shamd5)
-- 6.5 [Android Keystore](#65-android-keystore)
-
-**第 7 章 数据存储安全**
-- 7.1 [SharedPreferences 安全](#71-sharedpreferences-安全)
-- 7.2 [文件存储安全](#72-文件存储安全)
-- 7.3 [数据库安全](#73-数据库安全)
-- 7.4 [MMKV 加密存储](#74-mmkv-加密存储)
-
-**第 8 章 网络安全**
-- 8.1 [HTTPS 原理](#81-https-原理)
-- 8.2 [证书校验](#82-证书校验)
-- 8.3 [证书绑定（SSL Pinning）](#83-证书绑定ssl-pinning)
-- 8.4 [网络安全配置](#84-网络安全配置)
-- 8.5 [抓包防护](#85-抓包防护)
-
----
-
-### 第三篇：组件安全
-
-**第 9 章 四大组件安全**
-- 9.1 [Activity 安全](#91-activity-安全)
-- 9.2 [Service 安全](#92-service-安全)
-- 9.3 [BroadcastReceiver 安全](#93-broadcastreceiver-安全)
-- 9.4 [ContentProvider 安全](#94-contentprovider-安全)
-
-**第 10 章 WebView 安全**
-- 10.1 [WebView 漏洞](#101-webview-漏洞)
-- 10.2 [JavaScript 接口安全](#102-javascript-接口安全)
-- 10.3 [文件访问安全](#103-文件访问安全)
-- 10.4 [WebView 最佳实践](#104-webview-最佳实践)
-
-**第 11 章 Intent 安全**
-- 11.1 [Intent 注入攻击](#111-intent-注入攻击)
-- 11.2 [隐式 Intent 风险](#112-隐式-intent-风险)
-- 11.3 [PendingIntent 安全](#113-pendingintent-安全)
-- 11.4 [Deep Link 安全](#114-deep-link-安全)
-
----
-
-### 第四篇：进阶防护
-
-**第 12 章 SO 安全**
-- 12.1 [NDK 安全基础](#121-ndk-安全基础)
-- 12.2 [SO 混淆](#122-so-混淆)
-- 12.3 [反调试技术](#123-反调试技术)
-- 12.4 [完整性校验](#124-完整性校验)
-
-**第 13 章 运行时防护**
-- 13.1 [Root 检测](#131-root-检测)
-- 13.2 [模拟器检测](#132-模拟器检测)
-- 13.3 [Hook 检测](#133-hook-检测)
-- 13.4 [注入检测](#134-注入检测)
-
-**第 14 章 主流加固方案**
-- 14.1 [360加固保](#141-360加固保)
-- 14.2 [腾讯乐固](#142-腾讯乐固)
-- 14.3 [阿里聚安全](#143-阿里聚安全)
-- 14.4 [梆梆加固](#144-梆梆加固)
-- 14.5 [方案对比](#145-方案对比)
-
-**第 15 章 安全最佳实践**
-- 15.1 [安全开发规范](#151-安全开发规范)
-- 15.2 [安全测试清单](#152-安全测试清单)
-- 15.3 [安全审计工具](#153-安全审计工具)
-- 15.4 [漏洞修复流程](#154-漏洞修复流程)
-
-**第 18 章 面试常见问题**
-- 18.1 [混淆原理](#181-混淆原理)
-- 18.2 [加固技术](#182-加固技术)
-- 18.3 [加密算法](#183-加密算法)
-- 18.4 [网络安全](#184-网络安全)
-- 18.5 [组件安全](#185-组件安全)
+- [第一篇：Android 安全基础](#第一篇android-安全基础)
+- [第 1 章 安全概述](#第-1-章-安全概述)
+  - [1.1 Android 安全模型](#11-android-安全模型)
+  - [1.2 安全威胁分析](#12-安全威胁分析)
+  - [1.3 安全防护层次](#13-安全防护层次)
+  - [1.4 安全开发原则](#14-安全开发原则)
+- [第 2 章 应用签名](#第-2-章-应用签名)
+  - [2.1 签名机制原理](#21-签名机制原理)
+  - [2.2 调试签名与发布签名](#22-调试签名与发布签名)
+  - [2.3 APK Signature Scheme](#23-apk-signature-scheme)
+  - [2.4 多渠道打包](#24-多渠道打包)
+  - [2.5 签名校验](#25-签名校验)
+- [第 3 章 混淆详解](#第-3-章-混淆详解)
+  - [3.1 混淆原理](#31-混淆原理)
+  - [3.2 ProGuard 配置](#32-proguard-配置)
+  - [3.3 R8 优化器](#33-r8-优化器)
+  - [3.4 混淆规则详解](#34-混淆规则详解)
+  - [3.5 常见混淆问题](#35-常见混淆问题)
+- [第 4 章 加固技术](#第-4-章-加固技术)
+  - [4.1 加固原理](#41-加固原理)
+  - [4.2 DEX 加固](#42-dex-加固)
+  - [4.3 SO 加固](#43-so-加固)
+  - [4.4 资源保护](#44-资源保护)
+  - [4.5 反调试技术](#45-反调试技术)
+- [第 5 章 反编译与防护](#第-5-章-反编译与防护)
+  - [5.1 反编译工具链](#51-反编译工具链)
+  - [5.2 逆向分析流程](#52-逆向分析流程)
+  - [5.3 代码防护策略](#53-代码防护策略)
+  - [5.4 资源防护策略](#54-资源防护策略)
+- [第二篇：数据安全](#第二篇数据安全)
+- [第 6 章 数据加密](#第-6-章-数据加密)
+  - [6.1 加密算法基础](#61-加密算法基础)
+  - [6.2 对称加密（AES）](#62-对称加密aes)
+  - [6.3 非对称加密（RSA）](#63-非对称加密rsa)
+  - [6.4 哈希算法（SHA/MD5）](#64-哈希算法shamd5)
+  - [6.5 Android Keystore](#65-android-keystore)
+  - [6.6 Keystore 密钥的实际生命周期](#66-keystore-密钥的实际生命周期)
+- [第 7 章 数据存储安全](#第-7-章-数据存储安全)
+  - [7.1 SharedPreferences 安全](#71-sharedpreferences-安全)
+  - [7.2 文件存储安全](#72-文件存储安全)
+  - [7.3 数据库安全](#73-数据库安全)
+  - [7.4 MMKV 加密存储](#74-mmkv-加密存储)
+- [第 8 章 网络安全](#第-8-章-网络安全)
+  - [8.1 HTTPS 原理](#81-https-原理)
+  - [8.2 证书校验](#82-证书校验)
+  - [8.3 证书绑定（SSL Pinning）](#83-证书绑定ssl-pinning)
+  - [8.4 网络安全配置](#84-网络安全配置)
+  - [8.5 抓包防护](#85-抓包防护)
+- [第 9 章 四大组件安全](#第-9-章-四大组件安全)
+  - [9.1 Activity 安全](#91-activity-安全)
+  - [9.2 Service 安全](#92-service-安全)
+  - [9.3 BroadcastReceiver 安全](#93-broadcastreceiver-安全)
+  - [9.4 ContentProvider 安全](#94-contentprovider-安全)
+- [第 10 章 WebView 安全](#第-10-章-webview-安全)
+  - [10.1 WebView 漏洞](#101-webview-漏洞)
+  - [10.2 JavaScript 接口安全](#102-javascript-接口安全)
+  - [10.3 文件访问安全](#103-文件访问安全)
+  - [10.4 WebView 最佳实践](#104-webview-最佳实践)
+- [第 11 章 Intent 安全](#第-11-章-intent-安全)
+  - [11.1 Intent 注入攻击](#111-intent-注入攻击)
+  - [11.2 隐式 Intent 风险](#112-隐式-intent-风险)
+  - [11.3 PendingIntent 安全](#113-pendingintent-安全)
+  - [11.4 Deep Link 安全](#114-deep-link-安全)
+- [第三篇：进阶防护](#第三篇进阶防护)
+- [第 12 章 SO 安全](#第-12-章-so-安全)
+  - [12.1 NDK 安全基础](#121-ndk-安全基础)
+  - [12.2 SO 混淆](#122-so-混淆)
+  - [12.3 反调试技术](#123-反调试技术)
+  - [12.4 完整性校验](#124-完整性校验)
+- [第 13 章 运行时防护](#第-13-章-运行时防护)
+  - [13.1 Root 检测](#131-root-检测)
+  - [13.2 模拟器检测](#132-模拟器检测)
+  - [13.3 Hook 检测](#133-hook-检测)
+  - [13.4 注入检测](#134-注入检测)
+- [第 14 章 主流加固方案](#第-14-章-主流加固方案)
+  - [14.1 360加固保](#141-360加固保)
+  - [14.2 腾讯乐固](#142-腾讯乐固)
+  - [14.3 阿里聚安全](#143-阿里聚安全)
+  - [14.4 梆梆加固](#144-梆梆加固)
+  - [14.5 方案对比](#145-方案对比)
+- [第 15 章 安全最佳实践](#第-15-章-安全最佳实践)
+  - [15.1 安全开发规范](#151-安全开发规范)
+  - [15.2 安全测试清单](#152-安全测试清单)
+  - [15.3 安全审计工具](#153-安全审计工具)
+  - [15.4 漏洞修复流程](#154-漏洞修复流程)
+- [第 18 章 面试常见问题](#第-18-章-面试常见问题)
+  - [18.1 混淆原理](#181-混淆原理)
+  - [18.2 加固技术](#182-加固技术)
+  - [18.3 加密算法](#183-加密算法)
+  - [18.4 网络安全](#184-网络安全)
+  - [18.5 组件安全](#185-组件安全)
+- [总结](#总结)
+  - [Android 安全核心要点](#android-安全核心要点)
+  - [安全防护层次](#安全防护层次)
+  - [面试重点](#面试重点)
 
 ---
 
@@ -134,7 +114,7 @@
 
 ### 1.1 Android 安全模型
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                       Android 安全架构                                      │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -170,7 +150,7 @@
 
 ### 1.2 安全威胁分析
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                       Android 应用安全威胁                                  │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -191,7 +171,7 @@
 
 ### 1.3 安全防护层次
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                       安全防护层次                                          │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -269,14 +249,14 @@ secureStorage.save("credential", encrypted)
 
 ### 2.1 签名机制原理
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                       APK 签名原理                                          │
 └─────────────────────────────────────────────────────────────────────────────┘
 
 签名过程：
 ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
-│   APK 文件   │───▶│  计算摘要    │───▶│  私钥加密    │
+│   APK 文件   │───▶│  计算摘要    │───▶│  私钥签名    │
 │              │    │  (SHA-256)   │    │  (RSA/ECDSA) │
 └──────────────┘    └──────────────┘    └──────────────┘
                                                 │
@@ -288,7 +268,7 @@ secureStorage.save("credential", encrypted)
 
 验证过程：
 ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
-│   APK 文件   │───▶│  计算摘要    │    │  公钥解密    │
+│   APK 文件   │───▶│  计算摘要    │    │  公钥验签    │
 │              │    │  (SHA-256)   │    │  签名文件    │
 └──────────────┘    └──────────────┘    └──────────────┘
                            │                   │
@@ -311,7 +291,7 @@ secureStorage.save("credential", encrypted)
 // 位置：~/.android/debug.keystore
 // 密码：android
 // 别名：androiddebugkey
-// 有效期：1年
+// 新建默认 debug 证书有效期通常为 30 年；已有文件用 keytool -list -v 核验
 
 // 发布签名（release keystore）
 // 需要自行创建
@@ -332,9 +312,9 @@ android {
         }
         release {
             storeFile file("release.keystore")
-            storePassword "your_store_password"
+            storePassword System.getenv("RELEASE_STORE_PASSWORD")
             keyAlias "myapp"
-            keyPassword "your_key_password"
+            keyPassword System.getenv("RELEASE_KEY_PASSWORD")
         }
     }
     
@@ -351,7 +331,7 @@ android {
 
 ### 2.3 APK Signature Scheme
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                       APK 签名方案                                          │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -359,10 +339,10 @@ android {
 ┌──────────────┬──────────────────┬──────────────────────────────────────────┐
 │    方案      │    Android版本   │                   特点                   │
 ├──────────────┼──────────────────┼──────────────────────────────────────────┤
-│  v1 (JAR)    │   Android 1.0+   │  基于JAR签名，可修改APK                 │
+│  v1 (JAR)    │   Android 1.0+   │  校验签名条目；不覆盖整个 ZIP 结构                 │
 │  v2          │   Android 7.0+   │  全文件签名，更安全                     │
 │  v3          │   Android 9.0+   │  支持密钥轮替                           │
-│  v4          │   Android 11+    │  支持增量更新                           │
+│  v4          │   Android 11+    │  独立 .idsig 支持增量安装，仍需要 v2/v3                           │
 └──────────────┴──────────────────┴──────────────────────────────────────────┘
 
 // build.gradle 配置
@@ -420,58 +400,18 @@ android {
 ### 2.5 签名校验
 
 ```kotlin
-/**
- * 应用签名校验
- */
-
-object SignatureChecker {
-    
-    /**
-     * 获取应用签名
-     */
-    fun getSignature(context: Context): String? {
-        try {
-            val packageInfo = context.packageManager
-                .getPackageInfo(context.packageName, PackageManager.GET_SIGNATURES)
-            
-            val signature = packageInfo.signatures?.firstOrNull() ?: return null
-            val md = MessageDigest.getInstance("SHA-256")
-            val digest = md.digest(signature.toByteArray())
-            return digest.joinToString("") { "%02x".format(it) }
-        } catch (e: Exception) {
-            e.printStackTrace()
-            return null
-        }
-    }
-    
-    /**
-     * 校验签名
-     */
-    fun verifySignature(context: Context, expectedHash: String): Boolean {
-        val currentHash = getSignature(context) ?: return false
-        return currentHash == expectedHash
-    }
-    
-    /**
-     * 校验多个签名（防重打包）
-     */
-    fun checkSignature(context: Context): Boolean {
-        // 发布签名的 SHA-256 哈希
-        val releaseSignatures = arrayOf(
-            "abc123...", // 你的发布签名哈希
-            "def456..."  // 备用签名
-        )
-        
-        val currentHash = getSignature(context) ?: return false
-        return releaseSignatures.contains(currentHash)
-    }
+// API 28+：接受可信签名及平台验证过的轮换历史；不是多签名者“精确集合”策略。
+fun verifySignature(context: Context, expectedSha256: String): Boolean {
+    require(expectedSha256.matches(Regex("[0-9a-fA-F]{64}")))
+    val digest = expectedSha256.chunked(2).map { it.toInt(16).toByte() }.toByteArray()
+    return context.packageManager.hasSigningCertificate(
+        context.packageName, digest, PackageManager.CERT_INPUT_SHA256
+    )
 }
+// expectedSha256应替换为发布证书的完整SHA256指纹；不使用abc123等伪指纹。
+// 多签名APK若要求签名者集合完全匹配，应读取GET_SIGNING_CERTIFICATES并比较
+// SigningInfo.apkContentsSigners全体，而不是firstOrNull；轮换策略应单独定义。
 
-// 使用
-if (!SignatureChecker.checkSignature(context)) {
-    // 签名校验失败，可能是重打包
-    finish()
-}
 ```
 
 ---
@@ -480,7 +420,7 @@ if (!SignatureChecker.checkSignature(context)) {
 
 ### 3.1 混淆原理
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                       代码混淆原理                                          │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -564,8 +504,7 @@ android {
 # 混淆时不使用大小写混合类名
 -dontusemixedcaseclassnames
 
-# 不忽略警告
--dontwarn
+# 不全局忽略警告；仅对明确可选且不会执行的依赖添加精确 -dontwarn 规则
 
 # 优化时允许访问并修改有修饰符的类和类的成员
 -allowaccessmodification
@@ -755,7 +694,7 @@ android.enableR8=true
 android.enableR8.fullMode=true
 ```
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                       R8 vs ProGuard 对比                                   │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -912,7 +851,7 @@ android.enableR8.fullMode=true
 
 ### 4.1 加固原理
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                       APK 加固原理                                          │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -947,59 +886,25 @@ android.enableR8.fullMode=true
 
 ### 4.2 DEX 加固
 
-```kotlin
-/**
- * DEX 加固原理（简化版）
- */
+壳方案包含解密、完整性验证和动态加载，但反射 `DexPathList` 替换全应用 ClassLoader 不是公开 SDK，也不能用空函数冒充 Android17 完整实现。下面保留“解密后加载”的核心步骤，使用公开 `InMemoryDexClassLoader`（API26+）；应用接口由父加载器提供，插件实现显式加载，不声称替换系统创建 Activity/Application 的加载路径。
 
-// 壳代码入口
-class ShellApplication : Application() {
-    
-    override fun attachBaseContext(base: Context) {
-        super.attachBaseContext(base)
-        // 解密并加载原始 DEX
-        loadEncryptedDex()
-    }
-    
-    private fun loadEncryptedDex() {
-        try {
-            // 1. 读取加密的 DEX 文件
-            val encryptedDex = assets.open("classes.dex").readBytes()
-            
-            // 2. 解密 DEX
-            val decryptedDex = decrypt(encryptedDex, SECRET_KEY)
-            
-            // 3. 写入临时文件
-            val dexFile = File(cacheDir, "classes.dex")
-            dexFile.writeBytes(decryptedDex)
-            
-            // 4. 使用 DexClassLoader 加载
-            val dexClassLoader = DexClassLoader(
-                dexFile.absolutePath,
-                cacheDir.absolutePath,
-                null,
-                classLoader
-            )
-            
-            // 5. 替换 ClassLoader
-            replaceClassLoader(dexClassLoader)
-            
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-    }
-    
-    private fun replaceClassLoader(loader: ClassLoader) {
-        try {
-            val pathListField = DexPathList::class.java.getDeclaredField("dexElements")
-            // 反射替换 ClassLoader
-            // ...
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-    }
+```kotlin
+interface SecurePlugin { fun execute(context: Context) }
+
+fun loadVerifiedPlugin(verifiedDex: ByteArray, parent: ClassLoader): SecurePlugin {
+    // 调用前必须完成可信签名验证/认证解密；只处理应用控制且大小受限的DEX。
+    // 此入口不能接收未认证的网络数据；加密本身不等于来源可信。
+    require(verifiedDex.isNotEmpty())
+    val loader = dalvik.system.InMemoryDexClassLoader(
+        java.nio.ByteBuffer.wrap(verifiedDex).asReadOnlyBuffer(), parent
+    )
+    val entry = loader.loadClass("com.example.plugin.Entry")
+        .asSubclass(SecurePlugin::class.java)
+    return entry.getDeclaredConstructor().newInstance()
 }
 ```
+
+真实壳还需解决多DEX、资源/Native库、组件实例化及Android版本兼容。若使用文件型 `DexClassLoader`，target34+动态代码文件必须只读：打开输出流后、写入内容之前设置只读以缩小竞态；不要先写完可写DEX再尝试加载。内存加载避免该文件落盘步骤，不是绕过信任验证/应用商店动态代码政策。硬编码解密key不能提供不可提取的秘密。
 
 ### 4.3 SO 加固
 
@@ -1169,7 +1074,7 @@ object AntiDebug {
 
 ### 5.1 反编译工具链
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                       Android 反编译工具                                    │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1209,7 +1114,7 @@ d2j-dex2jar.sh app.apk
 
 ### 5.2 逆向分析流程
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                       逆向分析流程                                          │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1320,7 +1225,7 @@ object ResourceIntegrity {
 
 ### 6.1 加密算法基础
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                       加密算法分类                                          │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1337,84 +1242,59 @@ object ResourceIntegrity {
 
 ### 6.2 对称加密（AES）
 
+采用 AES-GCM 同时提供保密性与完整性。CBC 单独使用无法检测恶意修改，不能作为“安全存储”的完整方案；同一 GCM 密钥绝不能重用 nonce。不要把口令直接 SHA-256 后当 AES 密钥，弱口令仍容易离线枚举。
+
 ```kotlin
-/**
- * AES 加密工具
- */
+import android.util.Base64
+import javax.crypto.Cipher
+import javax.crypto.KeyGenerator
+import javax.crypto.SecretKey
+import javax.crypto.spec.GCMParameterSpec
+
+data class EncryptedData(val version: Int, val iv: String, val data: String)
+
 object AESUtil {
-    
-    private const val ALGORITHM = "AES"
-    private const val TRANSFORMATION = "AES/CBC/PKCS5Padding"
-    private const val KEY_SIZE = 256  // 128, 192, 256
-    private const val IV_SIZE = 16
-    
-    /**
-     * 生成密钥
-     */
-    fun generateKey(): SecretKey {
-        val keyGenerator = KeyGenerator.getInstance(ALGORITHM)
-        keyGenerator.init(KEY_SIZE)
-        return keyGenerator.generateKey()
-    }
-    
-    /**
-     * 从字符串生成密钥
-     */
-    fun keyFromString(keyString: String): SecretKey {
-        val keyBytes = keyString.toByteArray(Charsets.UTF_8)
-        val sha256 = MessageDigest.getInstance("SHA-256").digest(keyBytes)
-        return SecretKeySpec(sha256, ALGORITHM)
-    }
-    
-    /**
-     * 加密
-     */
-    fun encrypt(data: String, key: SecretKey): EncryptedData {
+    private const val TRANSFORMATION = "AES/GCM/NoPadding"
+    // 临时演示密钥；持久化数据改用下节 AndroidKeyStore，不能每次生成。
+    fun generateKey(): SecretKey = KeyGenerator.getInstance("AES").apply {
+        init(256)
+    }.generateKey()
+
+    fun encrypt(data: String, key: SecretKey, aad: ByteArray = byteArrayOf()): EncryptedData {
         val cipher = Cipher.getInstance(TRANSFORMATION)
-        
-        // 生成随机 IV
-        val iv = ByteArray(IV_SIZE)
-        SecureRandom().nextBytes(iv)
-        val ivSpec = IvParameterSpec(iv)
-        
-        cipher.init(Cipher.ENCRYPT_MODE, key, ivSpec)
-        val encrypted = cipher.doFinal(data.toByteArray(Charsets.UTF_8))
-        
-        return EncryptedData(
-            iv = Base64.encodeToString(iv, Base64.DEFAULT),
-            data = Base64.encodeToString(encrypted, Base64.DEFAULT)
-        )
+        // 由 provider 生成新 IV；不要给默认 randomizedEncryptionRequired 的 Keystore key 传自定义 IV。
+        cipher.init(Cipher.ENCRYPT_MODE, key)
+        cipher.updateAAD(aad)
+        val ciphertextAndTag = cipher.doFinal(data.toByteArray(Charsets.UTF_8))
+        return EncryptedData(1,
+            Base64.encodeToString(cipher.iv, Base64.NO_WRAP),
+            Base64.encodeToString(ciphertextAndTag, Base64.NO_WRAP))
     }
-    
-    /**
-     * 解密
-     */
-    fun decrypt(encryptedData: EncryptedData, key: SecretKey): String {
+
+    fun decrypt(value: EncryptedData, key: SecretKey, aad: ByteArray = byteArrayOf()): String {
+        require(value.version == 1) { "Unknown encrypted format" }
+        val iv = Base64.decode(value.iv, Base64.NO_WRAP)
+        val ciphertextAndTag = Base64.decode(value.data, Base64.NO_WRAP)
+        require(iv.size == 12 && ciphertextAndTag.size >= 16) { "Invalid GCM envelope" }
         val cipher = Cipher.getInstance(TRANSFORMATION)
-        
-        val iv = Base64.decode(encryptedData.iv, Base64.DEFAULT)
-        val ivSpec = IvParameterSpec(iv)
-        
-        cipher.init(Cipher.DECRYPT_MODE, key, ivSpec)
-        val encrypted = Base64.decode(encryptedData.data, Base64.DEFAULT)
-        val decrypted = cipher.doFinal(encrypted)
-        
-        return String(decrypted, Charsets.UTF_8)
+        cipher.init(Cipher.DECRYPT_MODE, key, GCMParameterSpec(128, iv))
+        cipher.updateAAD(aad)
+        // AEADBadTagException 必须传播；验证成功前不交付任何明文。
+        return cipher.doFinal(ciphertextAndTag).toString(Charsets.UTF_8)
     }
 }
 
-data class EncryptedData(
-    val iv: String,      // 初始化向量
-    val data: String     // 加密数据
-)
-
-// 使用示例
-val key = AESUtil.keyFromString("my_secret_key_123")
-val encrypted = AESUtil.encrypt("敏感数据", key)
-val decrypted = AESUtil.decrypt(encrypted, key)
+val key = AESUtil.generateKey()
+val aad = "demo:record:1".toByteArray(Charsets.UTF_8)
+val encrypted = AESUtil.encrypt("敏感数据", key, aad)
+val decrypted = AESUtil.decrypt(encrypted, key, aad)
 ```
 
+IV 不必保密，必须与格式版本、密文及 tag 一起保存；AAD 可绑定账号/记录 ID，解密时必须完全一致。该 v1 与旧 CBC 数据不兼容，迁移应保留旧 alias/格式读取分支，成功原子写入新格式后再清理旧 key。确有用户口令派生需求时，使用带随机 salt、经设备测量工作因子的密码 KDF，而不是硬编码口令。
+
 ### 6.3 非对称加密（RSA）
+
+示例明确使用 SHA-256 OAEP 主摘要、SHA-1 MGF1（Android Keystore 兼容参数）；两端必须一致。导入 `javax.crypto.spec.OAEPParameterSpec`、`javax.crypto.spec.PSource`、`java.security.spec.MGF1ParameterSpec`。2048 位 RSA 的 OAEP/SHA-256 明文最多 190 字节；只封装随机 AES key，大数据使用混合加密。`ECB` 是 JCA 变换名称占位，不表示 RSA 有 ECB 分组模式。签名使用独立 Signature API，不是“私钥加密”。
 
 ```kotlin
 /**
@@ -1423,7 +1303,7 @@ val decrypted = AESUtil.decrypt(encrypted, key)
 object RSAUtil {
     
     private const val ALGORITHM = "RSA"
-    private const val TRANSFORMATION = "RSA/ECB/PKCS1Padding"
+    private const val TRANSFORMATION = "RSA/ECB/OAEPWithSHA-256AndMGF1Padding"
     private const val KEY_SIZE = 2048
     
     /**
@@ -1440,7 +1320,8 @@ object RSAUtil {
      */
     fun encryptWithPublicKey(data: String, publicKey: PublicKey): String {
         val cipher = Cipher.getInstance(TRANSFORMATION)
-        cipher.init(Cipher.ENCRYPT_MODE, publicKey)
+        cipher.init(Cipher.ENCRYPT_MODE, publicKey,
+            OAEPParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA1, PSource.PSpecified.DEFAULT))
         val encrypted = cipher.doFinal(data.toByteArray(Charsets.UTF_8))
         return Base64.encodeToString(encrypted, Base64.DEFAULT)
     }
@@ -1450,7 +1331,8 @@ object RSAUtil {
      */
     fun decryptWithPrivateKey(encryptedData: String, privateKey: PrivateKey): String {
         val cipher = Cipher.getInstance(TRANSFORMATION)
-        cipher.init(Cipher.DECRYPT_MODE, privateKey)
+        cipher.init(Cipher.DECRYPT_MODE, privateKey,
+            OAEPParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA1, PSource.PSpecified.DEFAULT))
         val encrypted = Base64.decode(encryptedData, Base64.DEFAULT)
         val decrypted = cipher.doFinal(encrypted)
         return String(decrypted, Charsets.UTF_8)
@@ -1536,89 +1418,60 @@ object HashUtil {
 ### 6.5 Android Keystore
 
 ```kotlin
-/**
- * Android Keystore 安全存储
- */
 object KeystoreManager {
-    
-    private const val ANDROID_KEYSTORE = "AndroidKeyStore"
-    private const val KEY_ALIAS = "my_app_key"
-    
-    /**
-     * 创建或获取密钥
-     */
+    private const val PROVIDER = "AndroidKeyStore"
+    private const val ALIAS = "notes-gcm-v1" // 不复用旧 CBC alias
+
+    fun existingKey(): SecretKey {
+        val store = KeyStore.getInstance(PROVIDER).apply { load(null) }
+        return store.getKey(ALIAS, null) as? SecretKey
+            ?: throw IllegalStateException("Key missing; require recovery or sign-in")
+    }
+
+    @Synchronized // 仅保证本进程；多进程应用由一个持钥服务协调首次创建和轮换。
     fun getOrCreateKey(): SecretKey {
-        val keyStore = KeyStore.getInstance(ANDROID_KEYSTORE)
-        keyStore.load(null)
-        
-        // 如果密钥已存在，直接返回
-        if (keyStore.containsAlias(KEY_ALIAS)) {
-            return (keyStore.getEntry(KEY_ALIAS, null) as KeyStore.SecretKeyEntry).secretKey
-        }
-        
-        // 创建新密钥
-        val keyGenerator = KeyGenerator.getInstance(
-            KeyProperties.KEY_ALGORITHM_AES, ANDROID_KEYSTORE
-        )
-        
-        val spec = KeyGenParameterSpec.Builder(
-            KEY_ALIAS,
-            KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT
-        )
-            .setBlockModes(KeyProperties.BLOCK_MODE_CBC)
-            .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_PKCS7)
-            .setKeySize(256)
-            .setUserAuthenticationRequired(false)  // 是否需要用户认证
-            .build()
-        
-        keyGenerator.init(spec)
-        return keyGenerator.generateKey()
+        val store = KeyStore.getInstance(PROVIDER).apply { load(null) }
+        if (store.containsAlias(ALIAS)) return existingKey()
+        return KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, PROVIDER).apply {
+            init(KeyGenParameterSpec.Builder(ALIAS,
+                KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
+                .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+                .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+                .setKeySize(256)
+                .setRandomizedEncryptionRequired(true)
+                .setUserAuthenticationRequired(false)
+                .build())
+        }.generateKey()
     }
-    
-    /**
-     * 加密数据
-     */
-    fun encrypt(data: String): EncryptedData {
-        val key = getOrCreateKey()
-        val cipher = Cipher.getInstance("AES/CBC/PKCS7Padding")
-        cipher.init(Cipher.ENCRYPT_MODE, key)
-        
-        val encrypted = cipher.doFinal(data.toByteArray(Charsets.UTF_8))
-        val iv = cipher.iv
-        
-        return EncryptedData(
-            iv = Base64.encodeToString(iv, Base64.DEFAULT),
-            data = Base64.encodeToString(encrypted, Base64.DEFAULT)
-        )
-    }
-    
-    /**
-     * 解密数据
-     */
-    fun decrypt(encryptedData: EncryptedData): String {
-        val key = getOrCreateKey()
-        val iv = Base64.decode(encryptedData.iv, Base64.DEFAULT)
-        val encrypted = Base64.decode(encryptedData.data, Base64.DEFAULT)
-        
-        val cipher = Cipher.getInstance("AES/CBC/PKCS7Padding")
-        cipher.init(Cipher.DECRYPT_MODE, key, IvParameterSpec(iv))
-        
-        val decrypted = cipher.doFinal(encrypted)
-        return String(decrypted, Charsets.UTF_8)
-    }
+
+    fun encrypt(data: String, aad: ByteArray = byteArrayOf()): EncryptedData =
+        AESUtil.encrypt(data, getOrCreateKey(), aad)
+
+    fun decrypt(data: EncryptedData, aad: ByteArray = byteArrayOf()): String =
+        AESUtil.decrypt(data, existingKey(), aad) // 解密绝不生成替代 key
 }
-
-// 使用示例
-// 存储敏感数据
-val encrypted = KeystoreManager.encrypt("用户密码")
-preferences.edit().putString("password", encrypted.toJson()).apply()
-
-// 读取敏感数据
-val encryptedJson = preferences.getString("password", null)
-val decrypted = KeystoreManager.decrypt(EncryptedData.fromJson(encryptedJson))
 ```
 
----
+应用拿到非导出的 SecretKey 句柄；是否硬件保护应查看 `KeyInfo.getSecurityLevel()`（API 31+）等属性，不能保证所有设备都在 TEE/StrongBox。上述不要求用户认证，不能称为生物识别保护。需要认证时设置 `setUserAuthenticationParameters(...)`，按 per-use/timed key 契约使用 BiometricPrompt；准备处理认证失败及 key 永久失效。
+
+原始密码尽量不落盘，通常保存短期 token；使用 Gson 等显式序列化 `EncryptedData`，不是调用数据类不存在的 `toJson/fromJson`。卸载/清数据或跨设备恢复时 key 可能缺失，解密失败应要求恢复或重新登录，不能静默生成同名 key。排除不可恢复的加密文件/偏好设置备份，或设计服务器恢复方案。
+
+源码：[AndroidKeyStoreKeyGeneratorSpi.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/keystore/java/android/security/keystore2/AndroidKeyStoreKeyGeneratorSpi.java) 的 `engineInit/engineGenerateKey`；[AndroidKeyStoreAuthenticatedAESCipherSpi.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/keystore/java/android/security/keystore2/AndroidKeyStoreAuthenticatedAESCipherSpi.java) 的 `GCM.initAlgorithmSpecificParameters`。密钥生命周期还见 6.6 节。
+
+### 6.6 Keystore 密钥的实际生命周期
+
+`KeyGenParameterSpec` 描述用途、GCM 模式、padding、nonce 随机化和认证要求；`AndroidKeyStoreKeyGeneratorSpi` 将它转换为 Keystore/KeyMint 参数。应用拿到的是 `SecretKey` 代理，密钥材料不应写入 SharedPreferences 或 APK。
+
+```text
+首次使用 -> alias notes-gcm-v1 -> generateKey
+加密 -> provider 生成随机 IV -> 保存 format/version/IV/ciphertext+tag
+读取 -> 按 version 取 alias -> AAD 与 tag 校验 -> 明文
+轮换 -> v1 解密 -> 生成 v2 -> 原子写入 -> 全量成功后再清理 v1
+丢 key -> 明确恢复/重新登录，不生成同名新 key 覆盖旧密文
+```
+
+AES-GCM 的认证失败必须报错；密钥轮换需可恢复、可重试，文件用 `AtomicFile` 或数据库事务避免半写。`setUserAuthenticationRequired(true)` 才建立用户认证约束，普通生成示例不能称为生物识别保护。卸载、清除数据、设备安全策略变化或跨设备恢复都可能使原 key 不可用。源码：`KeyGenParameterSpec.java`、`AndroidKeyStoreKeyGeneratorSpi.java`、`system/security/keystore2/src/security_level.rs`。
+
 
 ## 第 7 章 数据存储安全
 
@@ -1637,14 +1490,14 @@ prefs.edit().putString("password", "123456").apply()
 object SecurePreferences {
     
     private const val PREFS_NAME = "secure_prefs"
-    private lateinit var secretKey: SecretKey
+    // 密钥仅通过 KeystoreManager 获取
     
     fun init(context: Context) {
-        secretKey = KeystoreManager.getOrCreateKey()
+        // 初始化只准备存储，不提前生成 key；读取已有密文必须使用 existingKey()。
     }
     
     fun putString(context: Context, key: String, value: String) {
-        val encrypted = AESUtil.encrypt(value, secretKey)
+        val encrypted = KeystoreManager.encrypt(value, (PREFS_NAME + ":" + key).toByteArray(Charsets.UTF_8))
         val json = Gson().toJson(encrypted)
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .edit().putString(key, json).apply()
@@ -1654,7 +1507,7 @@ object SecurePreferences {
         val json = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .getString(key, null) ?: return null
         val encrypted = Gson().fromJson(json, EncryptedData::class.java)
-        return AESUtil.decrypt(encrypted, secretKey)
+        return KeystoreManager.decrypt(encrypted, (PREFS_NAME + ":" + key).toByteArray(Charsets.UTF_8))
     }
 }
 ```
@@ -1671,10 +1524,10 @@ object SecureFileStorage {
      * 加密存储文件
      */
     fun saveEncryptedFile(context: Context, fileName: String, data: String) {
-        val key = KeystoreManager.getOrCreateKey()
-        val encrypted = AESUtil.encrypt(data, key)
+        val encrypted = KeystoreManager.encrypt(data, fileName.toByteArray(Charsets.UTF_8))
         
         // 存储到内部存储（私有）
+        require(fileName.matches(Regex("[A-Za-z0-9_-]+\\.enc"))) { "Invalid file name" }
         val file = File(context.filesDir, fileName)
         file.writeText(Gson().toJson(encrypted))
     }
@@ -1683,32 +1536,21 @@ object SecureFileStorage {
      * 读取加密文件
      */
     fun readEncryptedFile(context: Context, fileName: String): String? {
+        require(fileName.matches(Regex("[A-Za-z0-9_-]+\\.enc"))) { "Invalid file name" }
         val file = File(context.filesDir, fileName)
         if (!file.exists()) return null
         
-        val key = KeystoreManager.getOrCreateKey()
         val json = file.readText()
         val encrypted = Gson().fromJson(json, EncryptedData::class.java)
-        return AESUtil.decrypt(encrypted, key)
+        return KeystoreManager.decrypt(encrypted, fileName.toByteArray(Charsets.UTF_8))
     }
     
-    /**
-     * 安全删除文件
-     */
-    fun secureDelete(file: File) {
-        if (!file.exists()) return
-        
-        // 覆盖写入随机数据
-        val random = SecureRandom()
-        val buffer = ByteArray(file.length().toInt())
-        random.nextBytes(buffer)
-        file.writeBytes(buffer)
-        
-        // 删除文件
-        file.delete()
-    }
+    /** 删除逻辑文件，不保证闪存旧物理页被擦除。 */
+    fun deleteFile(file: File): Boolean = !file.exists() || file.delete()
 }
 ```
+
+闪存磨损均衡、日志文件系统和备份使“覆盖写随机数据再 delete”不能保证安全擦除，而且一次分配 file.length() 大小数组会 OOM。高敏感数据从一开始加密，按独立密钥隔离后进行密钥销毁；共享密钥仍被其他数据使用时不能直接删 key。
 
 ### 7.3 数据库安全
 
@@ -1724,10 +1566,10 @@ object SecureFileStorage {
 object SecureDatabase {
     
     private const val DB_NAME = "secure.db"
-    private const val DB_PASSWORD = "your_db_password"
+    // 由首次建库时生成并经 Keystore 封装持久化的随机口令提供；不是 APK 常量。
     
-    fun getDatabase(context: Context): SQLiteDatabase {
-        val passphrase: ByteArray = SQLiteDatabase.getBytes(DB_PASSWORD.toCharArray())
+    fun getDatabase(context: Context, passphrase: ByteArray): SQLiteDatabase {
+        // passphrase 由调用者安全解封；这里只展示 SQLCipher 4.5.4 打开过程。
         return SQLiteDatabase.openOrCreateDatabase(
             File(context.filesDir, DB_NAME),
             passphrase,
@@ -1742,8 +1584,7 @@ abstract class SecureAppDatabase : RoomDatabase() {
     abstract fun userDao(): UserDao
     
     companion object {
-        fun create(context: Context): SecureAppDatabase {
-            val passphrase = SQLiteDatabase.getBytes("password".toCharArray())
+        fun create(context: Context, passphrase: ByteArray): SecureAppDatabase {
             val factory = SupportFactory(passphrase)
             
             return Room.databaseBuilder(context, SecureAppDatabase::class.java, "secure.db")
@@ -1765,7 +1606,9 @@ abstract class SecureAppDatabase : RoomDatabase() {
 MMKV.initialize(context)
 
 // 使用加密的 MMKV
-val mmkv = MMKV.mmkvWithID("secure", MMKV.SINGLE_PROCESS_MODE, "encryption_key")
+val mmkv = MMKV.mmkvWithID("secure", MMKV.SINGLE_PROCESS_MODE, unwrappedMmkvKey)
+// unwrappedMmkvKey 来自经 Keystore 封装的随机密钥（按 MMKV 版本限制长度），不是代码常量。
+// MMKV cryptKey 需要可用原始字节/字符串；非导出的 Keystore AES key 不能直接充当 cryptKey。
 
 // 存储
 mmkv.encode("token", "user_token")
@@ -1782,89 +1625,56 @@ val userId = mmkv.decodeInt("user_id")
 
 ### 8.1 HTTPS 原理
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                       HTTPS 握手过程                                        │
-└─────────────────────────────────────────────────────────────────────────────┘
+TLS 1.3 的完整证书握手（忽略可选客户端认证）如下；它不是 TLS 1.2 RSA 密钥交换，已没有 `ClientKeyExchange` 发送 RSA 加密预主密钥的步骤。
 
-    客户端                                    服务器
-       │                                        │
-       │  1. Client Hello                       │
-       │  (支持的加密套件、随机数)              │
-       │───────────────────────────────────────▶│
-       │                                        │
-       │  2. Server Hello                       │
-       │  (选择的加密套件、随机数)              │
-       │◀───────────────────────────────────────│
-       │                                        │
-       │  3. Certificate                        │
-       │  (服务器证书)                          │
-       │◀───────────────────────────────────────│
-       │                                        │
-       │  4. 客户端验证证书                     │
-       │                                        │
-       │  5. Client Key Exchange                │
-       │  (用服务器公钥加密的预主密钥)          │
-       │───────────────────────────────────────▶│
-       │                                        │
-       │  6. 生成会话密钥                       │
-       │  (双方使用随机数和预主密钥生成)        │
-       │                                        │
-       │  7. 加密通信开始                       │
-       │◀──────────────────────────────────────▶│
+```text
+Client                                    Server
+ClientHello + key_share              ->
+                                     <-  ServerHello + key_share
+双方从 (EC)DHE 共享秘密及握手 transcript 经 HKDF 派生密钥
+                                     <-  {EncryptedExtensions,
+                                          Certificate, CertificateVerify, Finished}
+验证证书链、hostname、签名与 Finished  ->
+{Finished}                           ->
+Application Data                    <->  Application Data
 ```
+
+大括号内是握手密钥保护的消息；证书用于身份认证，(EC)DHE 用于协商共享秘密。会话恢复可使用 PSK；0-RTT early data 只适用于恢复且有重放风险，不可默认承载支付等非幂等写操作。来源：[RFC 8446 §2、§4.4、§8](https://www.rfc-editor.org/rfc/rfc8446)。
 
 ### 8.2 证书校验
 
+默认使用平台 TrustManager 和 OkHttp 主机名校验；仅比较 `chain[0].encoded` 不能替代证书有效期、链约束及信任根验证。
+
 ```kotlin
-/**
- * 证书校验
- */
-object CertificatePinner {
-    
-    /**
-     * OkHttp 证书绑定
-     */
-    fun createOkHttpClient(): OkHttpClient {
-        return OkHttpClient.Builder()
-            .certificatePinner(
-                CertificatePinner.Builder()
-                    .add("api.example.com", "sha256/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=")
-                    .build()
-            )
-            .build()
-    }
-    
-    /**
-     * 自定义证书校验
-     */
-    fun createTrustManager(): X509TrustManager {
-        return object : X509TrustManager {
-            override fun checkClientTrusted(chain: Array<X509Certificate>, authType: String) {
-                // 客户端证书校验（通常不需要）
-            }
-            
-            override fun checkServerTrusted(chain: Array<X509Certificate>, authType: String) {
-                // 服务器证书校验
-                val expectedCert = loadExpectedCertificate()
-                val serverCert = chain[0]
-                
-                if (serverCert.encoded.contentEquals(expectedCert.encoded)) {
-                    return  // 校验通过
-                }
-                
-                throw CertificateException("Certificate verification failed")
-            }
-            
-            override fun getAcceptedIssuers(): Array<X509Certificate> {
-                return emptyArray()
-            }
+object SecureHttpClients {
+    fun createDefault(): OkHttpClient = OkHttpClient.Builder().build()
+
+    // 自定义企业 CA 的方式；这改变信任根集合，不等于 Certificate Pinning。
+    fun createWithEnterpriseCa(context: Context): OkHttpClient {
+        val certificate = context.assets.open("enterprise-ca.crt").use {
+            CertificateFactory.getInstance("X.509").generateCertificate(it)
         }
+        val store = KeyStore.getInstance(KeyStore.getDefaultType()).apply {
+            load(null, null)
+            setCertificateEntry("enterprise-ca", certificate)
+        }
+        val factory = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm())
+        factory.init(store)
+        val manager = factory.trustManagers.filterIsInstance<X509TrustManager>().single()
+        val ssl = SSLContext.getInstance("TLS").apply { init(null, arrayOf(manager), null) }
+        return OkHttpClient.Builder().sslSocketFactory(ssl.socketFactory, manager).build()
+        // 不设置 permissive hostnameVerifier；这个 client 只用于受控企业端点。
     }
 }
 ```
 
+更推荐下面按域的 Network Security Configuration，避免自定义 client 对所有域都信任企业 CA。`checkClientTrusted` 也不能空实现后宣称双向认证安全。
+
+AOSP `android-17.0.0_r1` 的真实路径是 **`external/conscrypt/nsc/src/android/security/net/config/RootTrustManager.java`**，包名仍是 `android.security.net.config`，不是旧 `frameworks/base` 路径，也不是 `com.android.org.conscrypt`。`checkServerTrusted(..., Socket/SSLEngine/hostname)` 从握手取得 host，调用 `ApplicationConfig.getConfigForHostname(host)`，再委托 `NetworkSecurityTrustManager` 完成链校验和配置 pin 检查。路径是固定版本源码证据，不是建议应用调用隐藏 API。见 [RootTrustManager.java](https://android.googlesource.com/platform/external/conscrypt/+/refs/tags/android-17.0.0_r1/nsc/src/android/security/net/config/RootTrustManager.java)。OkHttp 仍执行主机名验证；按域选择信任配置不等于自动替代所有客户端的主机名校验。
+
 ### 8.3 证书绑定（SSL Pinning）
+
+Pin 是 SPKI 的 SHA-256 Base64，不能用示意值发布；必须预置备用公钥并演练轮换。它是在正常链验证之上的额外限制，Android 官方不建议将 pinning 作为所有应用默认要求，以免 CA/服务端轮换导致断网。抓取当前站点 pin 仅适合在已验证连接、可信环境中离线辅助核验，不能在每次请求时下载新 pin 自我授权。
 
 ```kotlin
 /**
@@ -1880,7 +1690,7 @@ object SSLPinning {
             .certificatePinner(
                 CertificatePinner.Builder()
                     // 从服务器证书获取
-                    .add("api.example.com", "sha256/基哈希值=")
+                    .add("api.example.com", "sha256/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=")
                     .build()
             )
             .build()
@@ -1892,8 +1702,7 @@ object SSLPinning {
     fun createClientWithCustomTrust(context: Context): OkHttpClient {
         // 加载证书
         val cf = CertificateFactory.getInstance("X.509")
-        val certInputStream = context.assets.open("server.crt")
-        val cert = cf.generateCertificate(certInputStream)
+        val cert = context.assets.open("server.crt").use { cf.generateCertificate(it) }
         
         // 创建 KeyStore
         val keyStore = KeyStore.getInstance(KeyStore.getDefaultType())
@@ -1917,26 +1726,62 @@ object SSLPinning {
      * 获取证书公钥哈希
      */
     fun getCertificateHash(url: String): String {
-        val urlConnection = URL(url).openConnection() as HttpsURLConnection
-        urlConnection.connect()
-        
-        val certs = urlConnection.serverCertificates
-        val cert = certs[0] as X509Certificate
-        
-        val md = MessageDigest.getInstance("SHA-256")
-        val publicKeyHash = md.digest(cert.publicKey.encoded)
-        
-        return "sha256/" + Base64.encodeToString(publicKeyHash, Base64.NO_WRAP) + "="
+        val connection = URL(url).openConnection() as HttpsURLConnection
+        connection.connectTimeout = 10_000
+        connection.readTimeout = 10_000
+        try {
+            connection.connect() // 默认链验证与hostname验证仍启用；不要在主线程调用
+            val cert = connection.serverCertificates.first() as X509Certificate
+            val hash = MessageDigest.getInstance("SHA-256").digest(cert.publicKey.encoded)
+            return "sha256/" + Base64.encodeToString(hash, Base64.NO_WRAP)
+        } finally {
+            connection.disconnect()
+        }
     }
 }
 ```
 
 ### 8.4 网络安全配置
 
+Android 17 上，**targetSdk ≥ 37** 的应用直接访问本地网络前，必须声明并运行时获得危险权限 `ACCESS_LOCAL_NETWORK`；它归入用户界面的 Nearby devices 权限组。**targetSdk ≤ 36** 且已有 `INTERNET` 的应用走 split permission 隐式授权，不要为低 target 添加或请求该新权限。Android 16 是通过 `RESTRICT_LOCAL_NETWORK` 显式 opt-in 的测试阶段，临时使用 `NEARBY_WIFI_DEVICES`，不能把这套测试授权方式当成 Android 17 的正式流程。
+
+保护覆盖 Wi-Fi/Ethernet 等广播能力接口上的本地网络流量：TCP 主动连接和接受连接、UDP 单播/组播/广播的发送和接收，以及 `.local` 解析。Socket、OkHttp、Cronet、NsdManager 等上层 API 都不能绕过；WebView 继承宿主权限。蜂窝网络、公网访问不因此需要 LAN 权限；本地网络定义排除 VPN 接口，不能仅凭目标是私网 IP 就认定触发。 IPv4 范围含 `169.254.0.0/16`、`100.64.0.0/10`、`10.0.0.0/8`、`172.16.0.0/12`、`192.168.0.0/16`；IPv6 包括 link-local、直连路由、Thread 等 stub networks 和多子网场景，另含组播 `224.0.0.0/4`、`ff00::/8` 与广播 `255.255.255.255`。地址范围仍须结合上述接口定义。
+
+例外是访问配置的本地 DNS 服务器的 53 端口，以及系统中介选择路径：Google Cast output switcher；mDNS 使用 `DiscoveryRequest.FLAG_SHOW_PICKER` 配合 `NsdManager.registerServiceInfoCallback()`，连接用户选择服务返回的地址无需广泛 LAN 授权。**普通 NsdManager 扫描并非一律豁免**，也不能把一个选中设备的授权扩展为整网扫描。
+
+权限所属组之前已获授权时可能无需再次弹窗，但调用前仍检查权限；拒绝或撤销应停用相关功能、解释用途并提供用户主动重试入口，而不是循环弹窗。TCP 可能表现为超时，UDP 可能是 `EPERM`，不能把所有失败都归为权限错误。
+
+```xml
+<!-- 以下用于 targetSdk >= 37 且需要直接广泛 LAN 访问的应用 -->
+<uses-permission android:name="android.permission.INTERNET" />
+<uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK" />
+```
+
+```kotlin
+// compileSdk 37；Activity 中使用 Activity Result API。
+private val requestLan = registerForActivityResult(
+    ActivityResultContracts.RequestPermission()
+) { granted -> if (granted) connectSelectedDevice() else showLanPermissionDenied() }
+
+fun onConnectClicked() {
+    val needsLan = Build.VERSION.SDK_INT >= 37 && applicationInfo.targetSdkVersion >= 37
+    val permission = Manifest.permission.ACCESS_LOCAL_NETWORK
+    if (!needsLan || ContextCompat.checkSelfPermission(this, permission) ==
+        PackageManager.PERMISSION_GRANTED) {
+        connectSelectedDevice() // 网络工作不得同步阻塞主线程
+    } else {
+        requestLan.launch(permission)
+    }
+}
+```
+
+官方范围：[Local network permission](https://developer.android.com/privacy-and-security/local-network-permission)、[Local network definition](https://developer.android.com/privacy-and-security/local-network-definition)。固定 tag 证据：[AndroidManifest.xml](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/res/AndroidManifest.xml) 的危险权限声明；[platform.xml](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/data/etc/platform.xml) 的 `INTERNET` → `ACCESS_LOCAL_NETWORK`、`targetSdk="37"` split；自编 ROM 还须核对 `access_local_network_permission_enabled`，不能将定制开关当作正式 Android 17 适用范围的替代描述。
+
+
 ```xml
 <!-- res/xml/network_security_config.xml -->
 <network-security-config>
-    <!-- 允许明文流量（仅调试用） -->
+    <!-- 禁止明文流量；默认信任系统 CA -->
     <base-config cleartextTrafficPermitted="false">
         <trust-anchors>
             <certificates src="system" />
@@ -2056,7 +1901,7 @@ object AntiProxy {
 <activity 
     android:name=".AdminActivity"
     android:exported="true"
-    android:permission="android.permission.signature" />
+    android:permission="com.example.ACCESS_ADMIN" />
 
 // 3. 运行时校验
 class SecureActivity : AppCompatActivity() {
@@ -2104,22 +1949,19 @@ class SecureActivity : AppCompatActivity() {
 
 // 3. 运行时校验
 class SecureService : Service() {
-    override fun onBind(intent: Intent): IBinder {
-        // 校验调用者
-        val callingUid = Binder.getCallingUid()
-        if (!isTrustedUid(callingUid)) {
-            return null  // 拒绝绑定
+    // onBind 在服务主线程执行，Binder.getCallingUid() 此时不是远端客户端身份。
+    override fun onBind(intent: Intent): IBinder = binder
+
+    private val binder = object : IAdminApi.Stub() {
+        override fun performAdminOperation() {
+            // 校验发生在真实 Binder transaction 内，且在 clearCallingIdentity 之前。
+            enforceCallingPermission("com.example.ACCESS_ADMIN", "Admin permission required")
+            val callerUid = Binder.getCallingUid()
+            performAuthorizedOperation(callerUid)
         }
-        
-        return binder
-    }
-    
-    private fun isTrustedUid(uid: Int): Boolean {
-        val pm = packageManager
-        val packages = pm.getPackagesForUid(uid)
-        return packages?.any { isTrustedPackage(it) } ?: false
     }
 }
+// IAdminApi 为项目 AIDL；Manifest 中导出的 service 也需同一 signature 权限。
 ```
 
 ### 9.3 BroadcastReceiver 安全
@@ -2142,7 +1984,7 @@ class SecureService : Service() {
 // 2. 发送带权限的广播
 sendBroadcast(Intent("com.example.SECURE_ACTION"), "com.example.RECEIVE_SECURE_BROADCAST")
 
-// 3. 使用 LocalBroadcastManager（推荐）
+// 3. 进程内事件优先 StateFlow/回调；LocalBroadcastManager 已废弃（旧项目示例）
 val localBroadcastManager = LocalBroadcastManager.getInstance(context)
 localBroadcastManager.registerReceiver(receiver, IntentFilter("local_action"))
 
@@ -2150,7 +1992,8 @@ localBroadcastManager.registerReceiver(receiver, IntentFilter("local_action"))
 class SecureReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         // 校验调用者
-        val callingUid = getCallingUid(context, intent)
+        val callingUid = if (Build.VERSION.SDK_INT >= 34) sentFromUid else Process.INVALID_UID
+            // API 34+ 且发送者分享身份时可用；不可用时拒绝需要身份的操作，不能从 Intent extras 相信 UID。
         if (!isTrustedUid(callingUid)) {
             return
         }
@@ -2208,7 +2051,7 @@ class SecureProvider : ContentProvider() {
 
 ### 10.1 WebView 漏洞
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                       WebView 常见漏洞                                      │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -2234,11 +2077,13 @@ class SecureProvider : ContentProvider() {
 // ❌ 危险：低版本存在 RCE 漏洞
 webView.addJavascriptInterface(JavaInterface(), "Android")
 
-// ✅ 安全：使用 @JavascriptInterface 注解（API 17+）
+// API 17+ 注解限制暴露方法，但不认证调用源；所有 frame 都可能调用。只给受控内容暴露最小接口。
 class SecureJsInterface {
     @JavascriptInterface
     fun showToast(message: String) {
-        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+        Handler(Looper.getMainLooper()).post {
+            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+        }
     }
 }
 
@@ -2326,7 +2171,7 @@ class SecureWebView(context: Context) : WebView(context) {
             // 禁用地理定位
             setGeolocationEnabled(false)
             
-            // 禁用缩放（防止 UI 伪装）
+            // 缩放是可访问性/交互策略，不构成防伪装安全边界
             setSupportZoom(false)
             builtInZoomControls = false
             displayZoomControls = false
@@ -2512,10 +2357,10 @@ val pendingIntent = PendingIntent.getActivity(
     context,
     0,
     Intent(context, TargetActivity::class.java),
-    PendingIntent.FLAG_IMMUTABLE  // API 31+ 必须显式设置
+    PendingIntent.FLAG_IMMUTABLE  // target>=31 必须声明 mutability；RemoteInput 等场景可用受限显式 MUTABLE
 )
 
-// ✅ 安全：带权限的 PendingIntent
+// 不可变不等于已添加权限；本例未设置接收权限，目标组件仍须校验授权
 val pendingIntent = PendingIntent.getBroadcast(
     context,
     0,
@@ -2547,7 +2392,13 @@ val pendingIntent = PendingIntent.getActivity(
         <category android:name="android.intent.category.BROWSABLE" />
         
         <data android:scheme="https" android:host="example.com" />
-        <data android:scheme="myapp" android:host="open" />
+        </intent-filter>
+        <!-- 自定义 scheme 不能做域名验证，单独声明，防止 data 属性交叉组合。 -->
+        <intent-filter>
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.DEFAULT" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:scheme="myapp" android:host="open" />
     </intent-filter>
 </activity>
 
@@ -2570,14 +2421,15 @@ class DeepLinkActivity : AppCompatActivity() {
         
         when (action) {
             "open_profile" -> openProfile(data)
-            "open_payment" -> openPayment(data)
+            "open_payment" -> openPaymentConfirmation(data) // 登录态、服务端授权和用户确认，不凭 Deep Link 直接支付
             else -> finish()  // 未知 action
         }
     }
     
     private fun isSecureDeepLink(uri: Uri): Boolean {
         // 校验 scheme
-        if (uri.scheme !in listOf("https", "myapp")) return false
+        if (!((uri.scheme == "https" && uri.host == "example.com") ||
+                  (uri.scheme == "myapp" && uri.host == "open"))) return false
         
         // 校验 host
         if (uri.host != "example.com" && uri.host != "open") return false
@@ -2604,6 +2456,8 @@ class DeepLinkActivity : AppCompatActivity() {
 ## 第 12 章 SO 安全
 
 ### 12.1 NDK 安全基础
+
+下面的编译/反调试属于加固示意，不是信任边界。官方 NDK Clang 不内置 OLLVM 的 `-fla/-sub/-bcf`；SO 用 PIC，PIE 是可执行文件要求。系统 BoringSSL/OpenSSL 不是应用可直接链接的稳定 NDK API，自带加密库须声明依赖并维护。`ptrace(PTRACE_TRACEME)` 会改变进程跟踪状态，失败也可能由策略限制引起，不能直接认定被调试而强制退出。
 
 ```cmake
 # CMakeLists.txt 安全配置
@@ -2637,8 +2491,9 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 static char* decrypt_string(const char* encrypted) {
     // 简单的 XOR 解密
-    static char decrypted[256];
-    int len = strlen(encrypted);
+    static thread_local char decrypted[256];
+    size_t len = strlen(encrypted);
+    if (len >= sizeof(decrypted)) return nullptr; // 保留终止符，拒绝溢出
     for (int i = 0; i < len; i++) {
         decrypted[i] = encrypted[i] ^ 0x5A;
     }
@@ -2686,10 +2541,11 @@ Java_com_example_SecurityLib_getApiKey(JNIEnv* env, jobject thiz) {
     // 返回加密的 API Key
     const char* encrypted_key = "\x3a\x2d\x3e...";
     char* key = ENCRYPT_STR(encrypted_key);
+    if (key == nullptr) return env->NewStringUTF("");
     jstring result = env->NewStringUTF(key);
     
     // 清理内存
-    memset(key, 0, strlen(key));
+    explicit_bzero(key, strlen(key)); // 本基线支持；普通 memset 可能被优化掉
     
     return result;
 }
@@ -2778,7 +2634,7 @@ int check_frida() {
     }
     
     // 检测 frida-server 进程
-    FILE* fp = popen("ps | grep frida", "r");
+    FILE* fp = popen("ps -A | grep '[f]rida'", "r");
     if (fp) {
         char line[256];
         if (fgets(line, sizeof(line), fp)) {
@@ -2792,7 +2648,7 @@ int check_frida() {
 }
 
 // 5. 检测 Xposed
-int check_xposed() {
+int check_su_binary() { // su 存在只是 Root 启发信号，不是 Xposed 检测
     FILE* fp = popen("which su", "r");
     if (fp) {
         char line[256];
@@ -2811,7 +2667,7 @@ int comprehensive_anti_debug() {
            check_tracer_pid() || 
            check_debug_port() || 
            check_frida() || 
-           check_xposed();
+           check_su_binary();
 }
 ```
 
@@ -2867,6 +2723,8 @@ int verify_memory_integrity() {
 ## 第 13 章 运行时防护
 
 ### 13.1 Root 检测
+
+Root/模拟器/Hook/代理检测只是可伪造的风险信号；包可见性、SELinux 和 /proc 限制会产生假阴性，不能代替服务器鉴权。客户端自身签名检测也能被修改；禁止把“检测不到”解释为设备可信。
 
 ```kotlin
 /**
@@ -2940,10 +2798,8 @@ object RootDetector {
      */
     private fun checkSuBinary(): Boolean {
         return try {
-            val process = Runtime.getRuntime().exec("su")
-            process.outputStream.close()
-            process.waitFor()
-            process.exitValue() == 0
+            // 不执行 su（会触发授权提示/等待），只做文件存在的弱信号检查。
+            File("/system/bin/su").exists() || File("/system/xbin/su").exists()
         } catch (e: Exception) {
             false
         }
@@ -2979,7 +2835,7 @@ object EmulatorDetector {
     fun isEmulator(context: Context): Boolean {
         return checkBuildProperties() ||
                checkHardware() ||
-               checkPhoneNumber(context) ||
+               /* 不读取手机号来推测模拟器：权限敏感且不可靠。 */
                checkFiles() ||
                checkQEmu()
     }
@@ -3008,7 +2864,7 @@ object EmulatorDetector {
     
     private fun checkPhoneNumber(context: Context): Boolean {
         val tm = context.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
-        val phoneNumber = tm.line1Number
+        val phoneNumber: String? = null // 不请求 READ_PHONE_NUMBERS；历史特征不用于安全决策
         return phoneNumber == "15555215554" || phoneNumber == "15555215556"
     }
     
@@ -3108,7 +2964,7 @@ object HookDetector {
      */
     fun isSubstrateLoaded(): Boolean {
         return try {
-            Class.forName("com.saurik.substrate.MS$2")
+            Class.forName("com.saurik.substrate.MS\$2")
             true
         } catch (e: Exception) {
             false
@@ -3184,9 +3040,11 @@ object InjectionDetector {
 
 ## 第 14 章 主流加固方案
 
+本章保留历史方案分类，未验证商业产品在 2026-09-10 的在售状态、价格、兼容性和命令行版本；下面能力对比不能当成实测排名或选购建议。Android 17 交付必须对加固后 APK 重新签名验证，并测试动态代码加载限制、16KB 页兼容、启动/崩溃回归。
+
 ### 14.1 360加固保
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                       360 加固保                                           │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -3212,7 +3070,7 @@ java -jar jiagu.jar -jiagu input.apk output_dir -autosign
 
 ### 14.2 腾讯乐固
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                       腾讯乐固                                              │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -3236,7 +3094,7 @@ legu --input input.apk --output output.apk --sign-config sign.json
 
 ### 14.3 阿里聚安全
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                       阿里聚安全                                            │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -3257,7 +3115,7 @@ legu --input input.apk --output output.apk --sign-config sign.json
 
 ### 14.4 梆梆加固
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                       梆梆加固                                              │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -3278,7 +3136,7 @@ legu --input input.apk --output output.apk --sign-config sign.json
 
 ### 14.5 方案对比
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                       加固方案对比                                          │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -3298,8 +3156,8 @@ legu --input input.apk --output output.apk --sign-config sign.json
 
 选择建议：
 - 普通应用：360、腾讯
-- 游戏/性能敏感：腾讯、阿里
-- 金融/高安全：梆梆、腾讯
+- 游戏/性能敏感：对候选方案做加固前后启动、帧率、内存实测
+- 高安全场景：审查威胁模型、密钥托管和供应链，不能按厂商品牌保证安全
 ```
 
 ---
@@ -3386,7 +3244,7 @@ fun requestCameraPermission() {
 <activity 
     android:name=".ApiActivity"
     android:exported="true"
-    android:permission="android.permission.signature" />
+    android:permission="com.example.ACCESS_ADMIN" />
 ```
 
 ### 15.2 安全测试清单
@@ -3408,8 +3266,8 @@ fun requestCameraPermission() {
 
 ### 3. 网络安全
 - [ ] 使用 HTTPS
-- [ ] 证书绑定已实施
-- [ ] 代理检测已添加
+- [ ] 按威胁模型评估 pinning，若启用已验证备用 pin 与轮换
+- [ ] TLS 链/hostname 校验完整，代理检测不作为信任依据
 - [ ] 抓包防护已启用
 
 ### 4. 组件安全
@@ -3478,7 +3336,7 @@ frida -U -f com.example.app -l script.js
 
 ### 15.4 漏洞修复流程
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                       安全漏洞修复流程                                      │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -3513,7 +3371,7 @@ frida -U -f com.example.app -l script.js
 
 代码混淆是将代码中的类名、方法名、字段名替换为无意义的短名称，增加逆向难度。
 
-```
+```text
 ┌──────────────────┬──────────────────┬──────────────────┐
 │       特性        │    ProGuard     │       R8         │
 ├──────────────────┼──────────────────┼──────────────────┤
@@ -3543,7 +3401,7 @@ frida -U -f com.example.app -l script.js
 
 **A:**
 
-```
+```text
 加固原理：
 
 1. 加密原始 DEX
@@ -3589,7 +3447,7 @@ frida -U -f com.example.app -l script.js
 **A:**
 
 Android Keystore 是 Android 提供的安全密钥存储系统：
-- 密钥存储在硬件安全模块（TEE/SE）中
+- 密钥可由软件/TEE/StrongBox 保护；用 KeyInfo 核实安全级别
 - 密钥不可导出
 - 支持用户认证绑定
 - 支持密钥使用限制
@@ -3626,7 +3484,7 @@ SSL Pinning（证书绑定）是将服务器证书或公钥硬编码到客户端
 val client = OkHttpClient.Builder()
     .certificatePinner(
         CertificatePinner.Builder()
-            .add("api.example.com", "sha256/公钥哈希=")
+            .add("api.example.com", "sha256/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=")
             .build()
     )
     .build()
@@ -3673,20 +3531,6 @@ val client = OkHttpClient.Builder()
 
 ---
 
-## 6.6 Keystore 密钥的实际生命周期
-
-`KeyGenParameterSpec` 描述用途、GCM 模式、padding、nonce 随机化和认证要求；`AndroidKeyStoreKeyGeneratorSpi` 将它转换为 Keystore/KeyMint 参数。应用拿到的是 `SecretKey` 代理，密钥材料不应写入 SharedPreferences 或 APK。
-
-```text
-首次使用 -> alias notes-gcm-v1 -> generateKey
-加密 -> provider 生成随机 IV -> 保存 format/version/IV/ciphertext+tag
-读取 -> 按 version 取 alias -> AAD 与 tag 校验 -> 明文
-轮换 -> v1 解密 -> 生成 v2 -> 原子写入 -> 全量成功后再清理 v1
-丢 key -> 明确恢复/重新登录，不生成同名新 key 覆盖旧密文
-```
-
-AES-GCM 的认证失败必须报错；密钥轮换需可恢复、可重试，文件用 `AtomicFile` 或数据库事务避免半写。`setUserAuthenticationRequired(true)` 才建立用户认证约束，普通生成示例不能称为生物识别保护。卸载、清除数据、设备安全策略变化或跨设备恢复都可能使原 key 不可用。源码：`KeyGenParameterSpec.java`、`AndroidKeyStoreKeyGeneratorSpi.java`、`system/security/keystore2/src/security_level.rs`。
-
 ## 总结
 
 ### Android 安全核心要点
@@ -3699,7 +3543,7 @@ AES-GCM 的认证失败必须报错；密钥轮换需可恢复、可重试，文
 
 ### 安全防护层次
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                       安全防护金字塔                                        │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -3742,4 +3586,4 @@ AES-GCM 的认证失败必须报错；密钥轮换需可恢复、可重试，文
 
 **文档版本**：v1.0  
 **更新时间**：2026-09-09
-**适用版本**：Android 5.0+
+**适用版本**：平台源码 Android 17；GCM Keystore 示例 API 23+，其他 API 按各节注明。

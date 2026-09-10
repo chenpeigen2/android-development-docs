@@ -497,6 +497,7 @@ class UserViewModel(private val repository: UserRepository) : ViewModel() {
                     _users.value = users
                 }
                 .onFailure { error ->
+                    if (error is kotlinx.coroutines.CancellationException) throw error
                     _isLoading.value = false
                     _errorMessage.value = error.message
                 }
@@ -646,6 +647,7 @@ class UserViewModel(private val repository: UserRepository) : ViewModel() {
                     _users.value = it
                 }
                 .onFailure {
+                    if (it is kotlinx.coroutines.CancellationException) throw it
                     _isLoading.value = false
                     _errorMessage.value = it.message
                 }
@@ -904,6 +906,7 @@ class UserViewModel(private val repository: UserRepository) : ViewModel() {
                     _state.update { it.copy(isLoading = false, users = users) }
                 }
                 .onFailure { error ->
+                    if (error is kotlinx.coroutines.CancellationException) throw error
                     // 更新状态：失败
                     _state.update { it.copy(isLoading = false, error = error.message) }
                 }
@@ -1130,7 +1133,7 @@ class GetUsersUseCase(private val repository: UserRepository) {
     suspend operator fun invoke(): Result<List<User>> = repository.getUsers()
 }
 
-// Data Layer
+// Data Layer：只将网络 IOException 转为离线回退；数据库/程序错误继续抛出。
 class UserRepositoryImpl(
     private val apiService: ApiService,
     private val userDao: UserDao
@@ -1140,7 +1143,9 @@ class UserRepositoryImpl(
             val users = apiService.getUsers()
             userDao.insertAll(users)
             Result.success(users)
-        } catch (e: Exception) {
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            throw cancelled // 取消不能触发缓存回退，更不能变成成功结果。
+        } catch (e: java.io.IOException) {
             val cached = userDao.getAll()
             if (cached.isNotEmpty()) {
                 Result.success(cached)
@@ -1170,6 +1175,8 @@ class UserViewModel(private val getUsersUseCase: GetUsersUseCase) : ViewModel() 
 ---
 
 ## 10. 常见问题
+
+仓库的 `Result` 契约不应包装 `CancellationException`；调用侧也应在失败分支优先重抛取消。这样 ViewModel 清理或请求替换后不会读取缓存、显示“加载失败”或提交旧成功状态。参考：[Kotlin 协程取消](https://kotlinlang.org/docs/cancellation-and-timeouts.html#cancellation-is-cooperative)。
 
 ### 10.1 MVVM 和 MVI 怎么选？
 

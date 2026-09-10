@@ -429,8 +429,10 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
 
         lifecycleScope.launch {
-            viewModel.users.collect { users ->
-                // 更新 UI
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                viewModel.users.collect { users ->
+                    // 更新 UI；STOPPED 时取消此收集，重新 STARTED 时重建。
+                }
             }
         }
     }
@@ -546,6 +548,7 @@ class UserViewModel(private val repository: UserRepository) : ViewModel() {
                     _state.update { it.copy(data = data, isLoading = false) }
                 }
                 .onFailure { error ->
+                    if (error is kotlinx.coroutines.CancellationException) throw error
                     _state.update { it.copy(error = error.message, isLoading = false) }
                 }
         }
@@ -1759,26 +1762,25 @@ class UserFragment : Fragment() {
             footer = LoadingStateAdapter { adapter.retry() }
         )
 
-        // 收集分页数据
+        // 两个 Flow 并行收集，均受 View 的 STARTED 生命周期约束。
         viewLifecycleOwner.lifecycleScope.launch {
-            viewModel.users.collectLatest { pagingData ->
-                adapter.submitData(pagingData)
-            }
-        }
-
-        // 监听加载状态
-        adapter.addLoadStateListener { loadState ->
-            when (loadState.refresh) {
-                is LoadState.Loading -> {
-                    binding.progressBar.isVisible = true
+            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                launch {
+                    viewModel.users.collectLatest { pagingData ->
+                        adapter.submitData(pagingData)
+                    }
                 }
-                is LoadState.NotLoading -> {
-                    binding.progressBar.isVisible = false
-                }
-                is LoadState.Error -> {
-                    binding.progressBar.isVisible = false
-                    val error = (loadState.refresh as LoadState.Error).error
-                    Snackbar.make(binding.root, error.message ?: "Error", Snackbar.LENGTH_SHORT).show()
+                launch {
+                    adapter.loadStateFlow.collectLatest { loadState ->
+                        binding.progressBar.isVisible = loadState.refresh is LoadState.Loading
+                        val refreshError = loadState.refresh as? LoadState.Error
+                        if (refreshError != null) {
+                            Snackbar.make(binding.root, refreshError.error.message ?: "Error",
+                                Snackbar.LENGTH_SHORT).show()
+                        }
+                        // Header/Footer 默认对应 prepend/append，不能替代 refresh 错误反馈。
+                        // 需跨重订阅去重的提示，应在 ViewModel 中建确认/消费状态。
+                    }
                 }
             }
         }
@@ -2826,8 +2828,10 @@ class DetailFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         viewLifecycleOwner.lifecycleScope.launch {
-            viewModel.selectedItem.collect { item ->
-                // 响应选中变化
+            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                viewModel.selectedItem.collect { item ->
+                    // 响应选中变化
+                }
             }
         }
     }
@@ -4825,6 +4829,8 @@ viewLifecycleOwner.lifecycleScope.launch {
 
 两个无限 Flow 要分开 launch，否则第二个 collect 永远无法执行。每次进入 STARTED 会重新启动 block，所以不要把不可重复的业务提交放在收集 block 开头。ViewModel 中的 StateFlow 保留最近状态，重新收集可立即恢复画面。
 
+`lifecycleScope` 只在 owner 销毁时取消；`repeatOnLifecycle(STARTED)` 才负责停止/重启 UI 收集。并行收集多个不结束的 Flow 时，每个使用独立 `launch`。源码：[Lifecycle 2.7.0 `RepeatOnLifecycle.kt`](https://dl.google.com/dl/android/maven2/androidx/lifecycle/lifecycle-runtime-ktx/2.7.0/lifecycle-runtime-ktx-2.7.0-sources.jar)。
+
 ### 17.2 Room 迁移与事务
 
 Room 生成 DAO 实现并校验 schema，数据库升级则需要把旧文件结构转为新结构。下面将 version 1 的 `notes(id,title)` 升级为 version 2，新增非空 archived 列；迁移的 SQL 默认值与 Entity 默认值必须一致。
@@ -4920,6 +4926,15 @@ Room + RemoteMediator 使用数据库作为单一数据源，远端页和 remote
 
 WorkManager 把可延迟、需持久调度的工作记录到数据库，再委托系统调度；它不是精确计时器。CoroutineWorker 捕获取消时重新抛出，临时网络故障返回 retry，参数无效返回 failure。唯一工作用于约束重复调度，但业务写入仍须幂等。
 
-Android 17 的行为开关由 targetSdk 决定。长期运行 Worker 使用前台服务时仍受前台服务类型、启动限制及 JobScheduler 配额约束，不能通过“用了 Jetpack”绕过系统规则。升级监控依赖时使用公开调度/Trace 接口，不读取新无锁 MessageQueue 的私有结构。
+长期运行 Worker 使用前台服务时仍受前台服务类型、启动限制及 JobScheduler 配额约束，不能通过“用了 Jetpack”绕过系统规则。Jetpack 生命周期与平台队列构建选源是不同层次，不能由库版本或 targetSdk 单独推断消息队列实现。
+
+固定 AOSP tag `android-17.0.0_r1` 的 MessageQueue 应从 **`frameworks/base/core/java/Android.bp` 的 `messagequeue-gen`** 定位：构建规则先排除候选实现目录，再按 `release_package_messagequeue_implementation` 选择 `android/os/%s`；未覆盖时默认 `android/os/CombinedMessageQueue/*.java`，生成统一的 `android/os/MessageQueue.java`。因此旧的 `core/java/android/os/MessageQueue.java` 不是此 tag 中直接维护的唯一实现源码入口。
+
+- 选中 `core/java/android/os/CombinedMessageQueue/MessageQueue.java` 时，`next()` 依据 `sUseConcurrent` 分流到 `nextConcurrent()` 或 `nextLegacy()`；运行模式还有兼容变更、flags 和进程条件，不是仅由 targetSdk 数字决定。
+- 选中 `core/java/android/os/CombinedDeliMessageQueue/MessageQueue.java` 时，`setUseDeliQueue()` 初始化模式，`next()` 依据 `sUseDeliQueue` 分流到 `nextDeliQueue()` 或 `nextLegacy()`。这是另一套构建候选，不能把它的字段与 Combined 的并发实现混为一个类。
+
+构建选源与队列内部运行分支是两个层次，所以不能写成“Android 17/target 37 一律采用无锁队列”。应用监控应使用公开 Looper/Trace 能力，不依赖生成类的私有字段布局。
+
+实际入口：[Android.bp:252–264 `messagequeue-gen`](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/Android.bp#252)、[Combined `next():1080`](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/os/CombinedMessageQueue/MessageQueue.java#1080)、[CombinedDeli `next():769`](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-17.0.0_r1/core/java/android/os/CombinedDeliMessageQueue/MessageQueue.java#769)。
 
 参考：[生命周期协程](https://developer.android.com/topic/libraries/architecture/coroutines)、[Room 迁移](https://developer.android.com/training/data-storage/room/migrating-db-versions)、[DataStore](https://developer.android.com/topic/libraries/architecture/datastore)、[Paging 加载状态](https://developer.android.com/topic/libraries/architecture/paging/load-state)、[长期 Worker](https://developer.android.com/develop/background-work/background-tasks/persistent/how-to/long-running)、[Android 17 行为变化](https://developer.android.com/about/versions/17/behavior-changes-17)。

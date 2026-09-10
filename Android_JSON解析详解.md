@@ -1458,35 +1458,27 @@ result.onSuccess { user ->
 ### 7.3 缓存适配器
 
 ```kotlin
-// ==================== 缓存 Gson 适配器 ====================
+// Gson 和 Moshi 自身会缓存适配器；复用配置完成的实例即可。
 object GsonFactory {
-    private val gsonCache = mutableMapOf<Type, Gson>()
+    private val gson = GsonBuilder()
+        .setDateFormat("yyyy-MM-dd HH:mm:ss")
+        .create()
 
-    fun <T> getAdapter(type: Type): Gson {
-        return gsonCache.getOrPut(type) {
-            GsonBuilder()
-                .setDateFormat("yyyy-MM-dd HH:mm:ss")
-                .create()
-        }
-    }
+    fun <T> getAdapter(type: TypeToken<T>): TypeAdapter<T> = gson.getAdapter(type)
 }
 
-// ==================== 缓存 Moshi 适配器 ====================
 object MoshiFactory {
     private val moshi = Moshi.Builder()
-        .add(KotlinJsonAdapterFactory())
+        .addLast(KotlinJsonAdapterFactory())
         .build()
 
-    private val adapterCache = mutableMapOf<Type, JsonAdapter<*>>()
-
-    @Suppress("UNCHECKED_CAST")
-    fun <T> getAdapter(clazz: Class<T>): JsonAdapter<T> {
-        return adapterCache.getOrPut(clazz) {
-            moshi.adapter(clazz)
-        } as JsonAdapter<T>
-    }
+    fun <T> getAdapter(type: Type): JsonAdapter<T> = moshi.adapter(type)
 }
+// Type/TypeToken 携带完整泛型；不使用无锁 mutableMapOf 跨线程建缓存。
+// 自定义 TypeAdapter/JsonAdapter 仍需遵守自身的线程安全契约。
 ```
+
+源码：[Gson 2.10.1 `Gson.getAdapter`](https://github.com/google/gson/blob/gson-parent-2.10.1/gson/src/main/java/com/google/gson/Gson.java)、[Moshi 1.15.0 `Moshi.adapter`](https://github.com/square/moshi/blob/parent-1.15.0/moshi/src/main/java/com/squareup/moshi/Moshi.java)。
 
 ---
 
@@ -1640,7 +1632,33 @@ fun parseProduct(input: String): ProductDto {
 
 `List<User>` 需要包含类型参数的 Type；`List::class.java` 只能提供原始类型。公共 inline 封装使用 `@PublishedApi internal` 访问缓存实例，并保留完整嵌套类型。应用级复用 Gson/Moshi/配置完成的 ObjectMapper 和模型适配器，不缓存绑定 Activity 的回调。
 
-R8 可能改变反射字段、构造器和泛型签名。Gson DTO 使用稳定 `@SerializedName` 字段名，并按该版本的 consumer rules 补足反射模型保留；Moshi codegen 减少反射依赖，但反射访问的枚举/类型仍遵守库的规则。release 测试输入包含泛型嵌套、缺失字段、显式 null、未知枚举和数字溢出。
+Gson **2.10.1** 不能按新版 Gson 自动附带完整 consumer rules 来配置。`@SerializedName` 固定协议字段名，但不会自行保留反射访问的字段、构造器或 `TypeToken` 的泛型元数据。下面给出一个明确模型的保守规则，不无差别保留全应用：
+
+```kotlin
+package com.example.json
+import com.google.gson.annotations.SerializedName
+
+data class JsonUser(
+    @field:SerializedName("id") val id: String = "",
+    @field:SerializedName("name") val name: String = ""
+)
+```
+
+```proguard
+-keepattributes Signature,*Annotation*,InnerClasses,EnclosingMethod
+-keep class com.google.gson.reflect.TypeToken { *; }
+-keep class * extends com.google.gson.reflect.TypeToken
+-keep class com.example.json.JsonUser {
+    <fields>;
+    public <init>();
+}
+```
+
+`-keepattributes` 本身不让类/成员成为存活入口；上述模型规则同时保留实际反射目标。换模型时按实际 DTO 及嵌套类型扩充，不能只替换 JSON 字符串。所有构造参数有默认值的 Kotlin/JVM 类可生成无参构造器；没有可用无参构造器时，Gson 的 Unsafe 路径可能不执行 Kotlin 初始化逻辑。显式 JSON null 仍可绕过 Kotlin 非空约束，默认值不是协议验证器。
+
+Moshi 1.15.0 core 自带内部规则，但反射 DTO 仍需应用保留；codegen DTO 减少这类反射需求。用于反射解析的枚举按该版 README 使用 `@JsonClass(generateAdapter = false)` 等配套规则。release 测试输入包含泛型嵌套、缺失字段、显式 null、未知枚举和数字溢出。
+
+固定版本证据：[Gson 2.10.1 示例规则](https://github.com/google/gson/blob/gson-parent-2.10.1/examples/android-proguard-example/proguard.cfg)、[`ConstructorConstructor.get`](https://github.com/google/gson/blob/gson-parent-2.10.1/gson/src/main/java/com/google/gson/internal/ConstructorConstructor.java)、[Moshi 1.15.0 R8/ProGuard 说明](https://github.com/square/moshi/blob/parent-1.15.0/README.md#r8--proguard)。
 
 ### 10.4 有界输入与取消
 
